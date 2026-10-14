@@ -151,6 +151,15 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d)) return false;
             if (!validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             break;
+        case R6_OP_COPY:
+            if (!valid_dest(f, i, true, d) ||
+                !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
+            if (!is_scalar(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "copy currently supports scalar registers only");
+            if (i->operands[0].kind == R6_VAL_STRING &&
+                type_at(f, i->dest) && is_string(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "copy from string literal is not supported; load_const handles literals");
+            break;
         case R6_OP_ADD:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
                 !operand_reg(f, i, 1, &b, d)) return false;
@@ -204,6 +213,11 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (i->operands[1].kind != R6_VAL_LABEL ||
                 !has_label(f, i->operands[1].as.i32))
                 return fail(d, i, "CGEN", "jump_if_false target label is undefined");
+            break;
+        case R6_OP_JUMP:
+            if (i->operands[0].kind != R6_VAL_LABEL ||
+                !has_label(f, i->operands[0].as.i32))
+                return fail(d, i, "CGEN", "jump target label is undefined");
             break;
         case R6_OP_LABEL:
             if (i->operands[0].kind != R6_VAL_LABEL)
@@ -373,6 +387,23 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             } else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, off);
             else fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.boolean ? 1 : 0, off);
             break;
+        case R6_OP_COPY:
+            if (is_float(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG)
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
+            else if (i->operands[0].kind == R6_VAL_REG)
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
+            else if (i->operands[0].kind == R6_VAL_BOOL)
+                fprintf(o, "\tmovl $%u, -%u(%%rbp)\n", i->operands[0].as.boolean ? 1u : 0u, off);
+            else if (i->operands[0].kind == R6_VAL_INT)
+                fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", i->operands[0].as.i32, off);
+            else if (i->operands[0].kind == R6_VAL_FLOAT64)
+                fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        (unsigned long long)i->operands[0].as.f64_bits, off);
+            else
+                return fail(d, i, "CGEN", "copy from this scalar literal kind is unsupported");
+            break;
         case R6_OP_ADD:
             t = type_at(f, i->dest);
             if (is_string(t)) {
@@ -470,6 +501,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tje .Lr6_f%zu_l%d\n",
                     (unsigned)(v->as.i32 + 1) * 8, fn_index,
                     i->operands[1].as.i32);
+            break;
+        case R6_OP_JUMP:
+            fprintf(o, "\tjmp .Lr6_f%zu_l%d\n", fn_index, i->operands[0].as.i32);
             break;
         case R6_OP_LABEL:
             fprintf(o, ".Lr6_f%zu_l%d:\n", fn_index, v->as.i32);

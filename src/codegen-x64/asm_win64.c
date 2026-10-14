@@ -218,6 +218,12 @@ static bool encode(Asm *a, char *line) {
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
     }
+    if (strcmp(op, "jmp") == 0) {
+        uint32_t off;
+        if (!a1 || strchr(a1, ',') || !emit(a, 0xe9)) return bad(a, "jmp requires one local label");
+        off = (uint32_t)a->sec[a->section].n;
+        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
+    }
     if (!a1 || !split_operands(a1, &l, &r)) return bad(a, "unsupported Win64 assembler instruction '%s'", op);
     a1 = l; a2 = r;
     if (strcmp(op, "leaq") == 0 && parse_mem(a, a1, &m) && m.rip) {
