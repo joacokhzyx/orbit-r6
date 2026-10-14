@@ -22,8 +22,9 @@ codes se comparan como exit status/stdout bytes con `orbit build` del pin.
 | `12-jump-copy` | salto incondicional y copia de registro | 3 | vacío |
 | `13-while-counter` | loop con variable local, branch hacia atrás y acumulación | 10 | vacío |
 | `14-global-constants` | lectura de `val`/`const` globales int/bool, literal negativo y branch | 33 | vacío |
+| `15-string-equality` | igualdad por contenido y desigualdad de strings, incluida concatenación | 5 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–14 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–15 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-14: catorce pares pasan diferencial en Windows x86-64.
+medido al 2026-10-14: quince pares pasan diferencial en Windows x86-64.

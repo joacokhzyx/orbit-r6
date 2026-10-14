@@ -1,0 +1,38 @@
+{
+  "format": "orbit-ir",
+  "version": 1,
+  "module": {
+    "functions": [
+      {
+        "name": "main",
+        "params": [],
+        "param_types": [],
+        "instructions": [
+          {"op":"load_const","dest":0,"operands":[{"string":"orbit"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":1,"operands":[{"string":"orb"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":2,"operands":[{"string":"it"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"add","dest":3,"operands":[{"reg":1},{"reg":2},{"none":null}],"elem_kind":0},
+          {"op":"eq","dest":4,"operands":[{"reg":0},{"reg":3},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":5,"operands":[{"string":"orbitx"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"ne","dest":6,"operands":[{"reg":0},{"reg":5},{"none":null}],"elem_kind":0},
+          {"op":"and_op","dest":7,"operands":[{"reg":4},{"reg":6},{"none":null}],"elem_kind":0},
+          {"op":"jump_if_false","dest":null,"operands":[{"reg":7},{"label":0},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":8,"operands":[{"int":"5"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"ret","dest":null,"operands":[{"reg":8},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"label","dest":null,"operands":[{"label":0},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":9,"operands":[{"int":"6"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"ret","dest":null,"operands":[{"reg":9},{"none":null},{"none":null}],"elem_kind":0}
+        ],
+        "register_count": 10,
+        "register_types": ["string","string","string","string","bool","string","bool","bool","int","int"],
+        "return_type": "int",
+        "extern": false,
+        "route": null
+      }
+    ],
+    "globals": [],
+    "models": [],
+    "types": [],
+    "migrations": []
+  }
+}

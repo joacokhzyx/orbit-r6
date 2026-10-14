@@ -287,15 +287,16 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
                 !operand_reg(f, i, 1, &b, d)) return false;
             if (!same_type(a, b) || !is_bool(type_at(f, i->dest)) ||
-                !(is_int(a) || is_float(a) || is_bool(a)))
-                return fail(d, i, "CGEN", "eq supports matching int, float, or bool registers and bool destination only");
+                !(is_int(a) || is_float(a) || is_bool(a) || is_string(a)))
+                return fail(d, i, "CGEN", "eq supports matching int, float, bool, or string registers and bool destination only");
             break;
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
                 !operand_reg(f, i, 1, &b, d)) return false;
-            if (!(is_int(a) || is_float(a)) || !same_type(a, b) ||
+            if (!(is_int(a) || is_float(a) ||
+                  (i->opcode == R6_OP_NE && is_string(a))) || !same_type(a, b) ||
                 !is_bool(type_at(f, i->dest)))
-                return fail(d, i, "CGEN", "ne/lt/le/gt/ge require matching int/float operands and bool destination");
+                return fail(d, i, "CGEN", "ne requires matching int/float/string operands; relational ops require int/float and bool destination");
             break;
         case R6_OP_AND_OP: case R6_OP_OR_OP:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
@@ -591,7 +592,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         }
         case R6_OP_EQ:
             t = type_at(f, i->operands[0].as.i32);
-            if (is_float(t)) {
+            if (is_string(t)) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8,
+                        (unsigned)(i->operands[1].as.i32 + 1) * 8, off, off, off);
+            } else if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\tsete %%al\n\tsetnp %%dl\n\tandb %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8,
                         (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
@@ -606,7 +611,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             const char *setcc;
             unsigned aoff = (unsigned)(i->operands[0].as.i32 + 1) * 8;
             unsigned boff = (unsigned)(i->operands[1].as.i32 + 1) * 8;
-            if (is_float(type_at(f, i->operands[0].as.i32))) {
+            if (i->opcode == R6_OP_NE && is_string(type_at(f, i->operands[0].as.i32))) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                        aoff, boff, off, off, off);
+            } else if (is_float(type_at(f, i->operands[0].as.i32))) {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setb" :
                         i->opcode == R6_OP_LE ? "setbe" :

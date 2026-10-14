@@ -1,6 +1,6 @@
 # Informe M1 — Windows x86-64
 
-Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para catorce
+Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para quince
 casos en Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
 GCC como oráculo; R6 parseó IRv1 JSON, bajó a su representación assembler
@@ -23,7 +23,8 @@ dependencia de plataforma.
 - Runtime archive construido desde receta y fuentes del pin; SHA-256
   `3FC8FBE3E8D0733E7FA8161FD330011DF71C9DDB5E4B3A5D207AADC1D4F5AF8B`.
 - Driver construido sin optimizaciones, ahora con lectura de globals literales
-  int/bool; SHA-256 `45548B338941A552833C26642F41416C905DF5BA7A92B0E87DC0C870D18B9197`.
+  int/bool y `strcmp` para igualdad de strings; SHA-256
+  `338C8656F85A76F20567FA69AC3C836578BC24BC1B43DBD3DF809C8969696435`.
 - Fallo cerrado: IR version 2 devuelve exit 1 con `E_VERSION`; opcode `alloc`
   (fuera del subconjunto nativo actual) devuelve exit 1 con `E_UNSUPPORTED`.
 - El harness y los ejecutables temporales de esta corrida residieron bajo
@@ -43,11 +44,15 @@ dependencia de plataforma.
 - Repetición completa del gate: **14/14 pass**, exit 0, con `R6_CC` apuntando
   a `C:\missing\gcc.exe`; gcc sí se usó para el oráculo. Ningún programa
   compilado por R6 invocó GCC. No es benchmark.
+- Fixture `15-string-equality`: **1/1 pass**, exit `5`, stdout vacío. Verifica
+  `eq` por contenido tras concatenar y `ne` contra una cadena distinta; ambos
+  llaman a `strcmp` del CRT. Gate completo repetido: **15/15 pass**, exit 0,
+  con `R6_CC` inválido. No es benchmark.
 
 Comando del gate:
 
 ```powershell
-$env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
+$env:R6_CC = 'C:\missing\gcc.exe'
 & 'C:\Users\Usuario\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' `
   tests/diff/run_diff.py `
   --compiler C:\Temp\orbit-fp-26cfb87400.exe `
@@ -59,23 +64,26 @@ $env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
 ## Alcance y límites
 
 - Implementado en R6: JSON IRv1 estricto; Win64 x64; `load_const`, `add`
-  (int/float/string), `sub/mul/div` (int/float), `mod` (int), `eq` (numérico/bool),
-  `ne/lt/le/gt/ge` (int/float), `and_op/or_op/not_op` (bool), `neg` (int/float),
+  (int/float/string), `sub/mul/div` (int/float), `mod` (int), `eq`
+  (numérico/bool/string), `ne` (int/float/string), `lt/le/gt/ge` (int/float),
+  `and_op/or_op/not_op` (bool), `neg` (int/float),
   `copy`, `jump`, `jump_if_false`, `label`, `load_var/decl_var/store_var`
   (locales escalares y lectura de globals literales int/bool), `arg`, `call` y
   `ret` para combinaciones probadas. Stack
   slots; sin
   optimizaciones.
 - No se midió la suite completa de Orbit. No hay `--emit-ir`, spec upstream ni
-  corpus emitido por Orbit en el pin. Los catorce JSON son fixtures manuales
-  comparados contra sus fuentes `.orb`; los nueve añadidos extienden cobertura
+  corpus emitido por Orbit en el pin. Los quince JSON son fixtures manuales
+  comparados contra sus fuentes `.orb`; los diez añadidos extienden cobertura
   de aritmética entera/float, comparación signed/float, lógica, negación,
-  control de flujo/copia/loops, variables locales y globals int/bool.
+  control de flujo/copia/loops, variables locales, globals int/bool y
+  comparación string por contenido.
 - Casos de overflow/extremos fuera de los fixtures siguen sin cobertura. El
   fixture 10 confirma comparación IEEE unordered para NaN y equivalencia de
   `+0.0`/`-0.0`; fixture 11 cubre negación finita, no todos los payloads NaN.
-  La evidencia semántica se limita al `c_backend.orb` fijado y estos catorce
-  pares; el fixture 14 añade globals int/bool literales. No extrapolar a todos
+  La evidencia semántica se limita al `c_backend.orb` fijado y estos quince
+  pares; los fixtures 14–15 añaden globals int/bool literales y comparaciones
+  string. No extrapolar a todos
   los bordes de IRv1.
 - Linux runtime/toolchain no verificados en este host. DB queda fuera hasta M3
   salvo variante oficial compatible. ARM64 macOS comienza en M3. Multihilo y

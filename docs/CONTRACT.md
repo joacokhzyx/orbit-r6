@@ -43,7 +43,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - `ne/lt/le/gt/ge` aceptan int o float. Para float, `10-float-compare-nan`
   verifica los seis predicados de comparación con NaN y signed zero contra el
   pin; `ne` combina `setne` con parity (`setp`), `lt/le` enmascaran el flag
-  unordered de `ucomisd`.
+  unordered de `ucomisd`. `eq` y `ne` aceptan también strings y llaman al
+  `strcmp` del CRT; el pin emite `strcmp(a,b)==0/!=0` para strings
+  (`c_backend.orb:2550-2564`). Strings relacionales siguen rechazados.
 - `neg` acepta int (negación modular en el slot nativo) y float (voltea el bit
   de signo con XOR, preservando el payload); `11-neg` compara valores finitos
   con GCC. Overflow de int no queda cubierto por ese fixture.
