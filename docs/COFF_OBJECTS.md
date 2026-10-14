@@ -4,8 +4,9 @@
 relocatable AMD64 COFF object. It emits section headers, raw section data,
 symbol/string tables, and `IMAGE_REL_AMD64_REL32`-compatible relocation records
 as supplied by the caller. It currently rejects auxiliary symbols and
-relocation overflow. The instruction encoder and R6 driver do not use this
-writer yet; the program path still uses GNU `as`.
+relocation overflow. `asm_win64.c` feeds it with M1 instruction bytes,
+`REL32` code/data relocations, function symbols, and Win64 unwind data; the R6
+driver uses the writer on the production program path.
 
 ## Verification
 
@@ -21,11 +22,10 @@ testing with an encoded `-4` addend crashed the linked probe; that encoding was
 corrected based on the object/link/run evidence.
 
 The probe establishes that the serializer's header, string table, symbol
-indices, and REL32 relocation are accepted by this MinGW linker. It does not
-establish R6 IR lowering through this writer, unwind metadata correctness for
-nontrivial prologues, or runtime ABI conformance. The next implementation piece
-is a byte encoder that feeds the writer, then driver integration and the
-existing differential gate.
+indices, and relocations are accepted by this MinGW linker. The integrated
+five-case differential additionally exercises R6 IR lowering and ordinary M1
+prologues. This does not establish unwind correctness for exceptional stack
+walking or runtime ABI conformance outside that corpus.
 
 Alternativa descartada: depender de GAS para fabricar el objeto que consume
 MinGW `ld`; se está construyendo un serializador COFF propio para enlazar bytes

@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "../loader/ir.h"
+#include "../codegen-x64/asm_win64.h"
 #include "../codegen-x64/win64.h"
 
 #include <errno.h>
@@ -45,17 +46,19 @@ static int run(const char *tool, char *const argv[]) {
 
 int main(int argc, char **argv) {
     const char *input, *output = NULL, *root, *version;
-    FILE *file = NULL, *asm_file = NULL;
+    FILE *file = NULL, *asm_file = NULL, *obj_file = NULL;
     char *data = NULL;
     long file_len;
     size_t got;
     R6Module module;
     R6Diagnostic diag = {0};
-    char asm_path[512], obj_path[512], as_path[1024], ld_path[1024];
+    char asm_path[512], obj_path[512], ld_path[1024];
     char crt2[1024], crtbegin[1024], crtend[1024], libdir[1024], gcclibdir[1024];
     char pidbuf[32];
-    char *as_argv[8], *link_argv[64];
+    char *link_argv[64];
     size_t link_argc = 0;
+    R6CoffObject object;
+    char asm_error[256];
     int argi = 1, rc = 1;
 
     if (argi < argc && strcmp(argv[argi], "build") == 0) ++argi;
@@ -135,19 +138,40 @@ int main(int argc, char **argv) {
     if (!root || !*root) root = "C:/w64devkit";
     version = getenv("R6_MINGW_GCC_VERSION");
     if (!version || !*version) version = "16.2.0";
-    snprintf(as_path, sizeof as_path, "%s/bin/as.exe", root);
     snprintf(ld_path, sizeof ld_path, "%s/bin/ld.exe", root);
     snprintf(crt2, sizeof crt2, "%s/lib/crt2.o", root);
     snprintf(crtbegin, sizeof crtbegin, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtbegin.o", root, version);
     snprintf(crtend, sizeof crtend, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtend.o", root, version);
     snprintf(libdir, sizeof libdir, "%s/lib", root);
     snprintf(gcclibdir, sizeof gcclibdir, "%s/lib/gcc/x86_64-w64-mingw32/%s", root, version);
-    as_argv[0] = as_path; as_argv[1] = "--64"; as_argv[2] = "-o";
-    as_argv[3] = obj_path; as_argv[4] = asm_path; as_argv[5] = NULL;
-    if (run(as_path, as_argv) != 0) {
-        fprintf(stderr, "r6: %s:0:0: error[ASSEMBLER]: assembler failed\n", input);
+    asm_file = fopen(asm_path, "rb");
+    if (!asm_file) {
+        fprintf(stderr, "r6: %s:0:0: error[INPUT]: cannot reopen generated assembler text\n", input);
         goto free_module;
     }
+    if (!r6_assemble_win64(asm_file, &object, asm_error, sizeof asm_error)) {
+        fclose(asm_file); asm_file = NULL;
+        fprintf(stderr, "r6: %s:0:0: error[ASSEMBLER]: %s\n", input, asm_error);
+        goto free_module;
+    }
+    fclose(asm_file); asm_file = NULL;
+    obj_file = fopen(obj_path, "wb");
+    if (!obj_file || !r6_coff_write(&object, obj_file)) {
+        fprintf(stderr, "r6: %s:0:0: error[OBJECT]: %s\n", input,
+                obj_file ? r6_coff_error(&object) : strerror(errno));
+        if (obj_file) fclose(obj_file);
+        obj_file = NULL;
+        r6_coff_free(&object);
+        goto free_module;
+    }
+    if (fclose(obj_file) != 0) {
+        obj_file = NULL;
+        fprintf(stderr, "r6: %s:0:0: error[OBJECT]: failed closing COFF object\n", input);
+        r6_coff_free(&object);
+        goto free_module;
+    }
+    obj_file = NULL;
+    r6_coff_free(&object);
     link_argv[link_argc++] = ld_path;
     link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
     link_argv[link_argc++] = "-Bdynamic"; link_argv[link_argc++] = "-o";
@@ -174,6 +198,7 @@ int main(int argc, char **argv) {
 
 free_module:
     if (asm_file) fclose(asm_file);
+    if (obj_file) fclose(obj_file);
     r6_module_free(&module);
 done:
     free(data);
