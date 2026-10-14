@@ -28,12 +28,12 @@ static void print_error(const char *path, const R6Diagnostic *d) {
             d->message[0] ? d->message : "operation failed");
 }
 
-static int run(const char *cc, char *const argv[]) {
+static int run(const char *tool, char *const argv[]) {
 #ifdef _WIN32
-    intptr_t status = R6_SPAWN(R6_WAIT, cc, (const char *const *)argv);
+    intptr_t status = R6_SPAWN(R6_WAIT, tool, (const char *const *)argv);
     if (status == -1) {
         fprintf(stderr, "r6: error[TOOLCHAIN]: could not run '%s' (errno=%d)\n",
-                cc, errno);
+                tool, errno);
         return -1;
     }
     return (int)status;
@@ -44,16 +44,18 @@ static int run(const char *cc, char *const argv[]) {
 }
 
 int main(int argc, char **argv) {
-    const char *input, *output = NULL, *cc;
+    const char *input, *output = NULL, *root, *version;
     FILE *file = NULL, *asm_file = NULL;
     char *data = NULL;
     long file_len;
     size_t got;
     R6Module module;
     R6Diagnostic diag = {0};
-    char asm_path[512], obj_path[512];
+    char asm_path[512], obj_path[512], as_path[1024], ld_path[1024];
+    char crt2[1024], crtbegin[1024], crtend[1024], libdir[1024], gcclibdir[1024];
     char pidbuf[32];
-    char *as_argv[8], *link_argv[10];
+    char *as_argv[8], *link_argv[64];
+    size_t link_argc = 0;
     int argi = 1, rc = 1;
 
     if (argi < argc && strcmp(argv[argi], "build") == 0) ++argi;
@@ -129,19 +131,42 @@ int main(int argc, char **argv) {
     }
     asm_file = NULL;
 
-    cc = getenv("R6_CC");
-    if (!cc || !*cc) cc = "gcc";
-    as_argv[0] = (char *)cc; as_argv[1] = "-c"; as_argv[2] = asm_path;
-    as_argv[3] = "-o"; as_argv[4] = obj_path; as_argv[5] = NULL;
-    if (run(cc, as_argv) != 0) {
+    root = getenv("R6_MINGW_ROOT");
+    if (!root || !*root) root = "C:/w64devkit";
+    version = getenv("R6_MINGW_GCC_VERSION");
+    if (!version || !*version) version = "16.2.0";
+    snprintf(as_path, sizeof as_path, "%s/bin/as.exe", root);
+    snprintf(ld_path, sizeof ld_path, "%s/bin/ld.exe", root);
+    snprintf(crt2, sizeof crt2, "%s/lib/crt2.o", root);
+    snprintf(crtbegin, sizeof crtbegin, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtbegin.o", root, version);
+    snprintf(crtend, sizeof crtend, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtend.o", root, version);
+    snprintf(libdir, sizeof libdir, "%s/lib", root);
+    snprintf(gcclibdir, sizeof gcclibdir, "%s/lib/gcc/x86_64-w64-mingw32/%s", root, version);
+    as_argv[0] = as_path; as_argv[1] = "--64"; as_argv[2] = "-o";
+    as_argv[3] = obj_path; as_argv[4] = asm_path; as_argv[5] = NULL;
+    if (run(as_path, as_argv) != 0) {
         fprintf(stderr, "r6: %s:0:0: error[ASSEMBLER]: assembler failed\n", input);
         goto free_module;
     }
-    link_argv[0] = (char *)cc; link_argv[1] = obj_path;
-    link_argv[2] = ".r6-build/runtime-win64/libruntime_net.a";
-    link_argv[3] = "-lws2_32"; link_argv[4] = "-o";
-    link_argv[5] = (char *)output; link_argv[6] = NULL;
-    if (run(cc, link_argv) != 0) {
+    link_argv[link_argc++] = ld_path;
+    link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
+    link_argv[link_argc++] = "-Bdynamic"; link_argv[link_argc++] = "-o";
+    link_argv[link_argc++] = (char *)output;
+    link_argv[link_argc++] = crt2; link_argv[link_argc++] = crtbegin;
+    link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;
+    link_argv[link_argc++] = "-L"; link_argv[link_argc++] = libdir;
+    link_argv[link_argc++] = obj_path;
+    link_argv[link_argc++] = ".r6-build/runtime-win64/libruntime_net.a";
+    link_argv[link_argc++] = "-lws2_32"; link_argv[link_argc++] = "-lmingw32";
+    link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
+    link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
+    link_argv[link_argc++] = "-lpthread"; link_argv[link_argc++] = "-ladvapi32";
+    link_argv[link_argc++] = "-lshell32"; link_argv[link_argc++] = "-luser32";
+    link_argv[link_argc++] = "-lkernel32"; link_argv[link_argc++] = "-lmingw32";
+    link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
+    link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
+    link_argv[link_argc++] = crtend; link_argv[link_argc] = NULL;
+    if (run(ld_path, link_argv) != 0) {
         fprintf(stderr, "r6: %s:0:0: error[LINK]: linker failed (pinned Win64 runtime required)\n", input);
         goto free_module;
     }

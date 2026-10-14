@@ -3,8 +3,9 @@
 Fecha: 2026-10-14. M1 está verde para los cinco fixtures manuales aceptados en
 Windows x86-64. El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
-GCC; R6 parseó IRv1 JSON, emitió GNU assembler directamente y enlazó el runtime
-oficial reconstruido del commit pineado.
+GCC; R6 parseó IRv1 JSON, emitió GNU assembler, invocó GNU `as` y `ld`
+directamente y enlazó el runtime oficial reconstruido del commit pineado. El
+ejecutable R6 ya no invoca GCC al compilar programas.
 
 ## Evidencia
 
@@ -26,6 +27,9 @@ oficial reconstruido del commit pineado.
   (fuera del subconjunto M1) devuelve exit 1 con `E_UNSUPPORTED`.
 - El harness y los ejecutables temporales de esta corrida residieron bajo
   `.r6-build/`, excluido de Git.
+- Tras el corte del driver a invocación directa de `as`/`ld`, el diferencial se
+  volvió a ejecutar: **5/5 pass**. La compilación del driver R6 todavía usa GCC;
+  generar bytes y COFF directamente, sin assembler externo, sigue pendiente.
 
 Comando del gate:
 
@@ -61,5 +65,6 @@ $env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
 .\scripts\build-r6.ps1
 ```
 
-Alternativa descartada: generar C para reutilizar el backend existente (prohibido
-por contrato); R6 emite assembler nativo desde IR.
+Alternativa descartada: generar C para reutilizar el backend existente
+(prohibido por contrato). Estado actual: R6 emite assembler textual desde IR;
+generar máquina/COFF sin assembler externo sigue pendiente.
