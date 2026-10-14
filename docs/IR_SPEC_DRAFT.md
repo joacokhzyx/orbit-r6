@@ -1,9 +1,12 @@
-# Propuesta de contrato IRv1 — pendiente de revisión
+# Contrato IRv1 — aceptado para implementación R6
 
-Estado: **borrador M0; no es un formato publicado por Orbit**. Se deriva del
-commit del lenguaje `5c01cea68f125f06dd3ac82a61776827bdb0c6f3`. No empezar el
-loader ni codegen hasta que el mantenedor del lenguaje revise y acepte este
-contrato, o publique uno equivalente.
+Estado: **propuesta de R6 aceptada explícitamente por el usuario el
+2026-10-14** para implementar R6; Orbit aún no publica `--emit-ir`, spec ni
+corpus IR. Este contrato se limita al pin del lenguaje
+`5c01cea68f125f06dd3ac82a61776827bdb0c6f3`; no modifica ni atribuye una
+publicación normativa al repo Orbit. Los cinco ejemplos en
+`docs/proposed-ir/m1/` también fueron aceptados. Toda semántica marcada
+UNSPECIFIED falla explícitamente en R6 hasta que Orbit la defina.
 
 ## Evidencia del inventario
 
@@ -43,9 +46,9 @@ Esto describe el IR interno, **no** un formato textual estable. En este commit
 no encuentro `--emit-ir`, spec IR versionada ni corpus IR serializado. No hay
 versión publicada que R6 pueda declarar soportada.
 
-## Propuesta exacta de serialización (requiere aceptación del lenguaje)
+## Serialización aceptada para R6
 
-Propuesta, no formato publicado: un documento JSON UTF-8, sin BOM, un solo
+Contrato R6 aceptado (aún no formato emitido por Orbit): un documento JSON UTF-8, sin BOM, un solo
 objeto raíz y LF final. Gramática léxica JSON de RFC 8259; claves duplicadas,
 campos faltantes, campos extra, tags desconocidos, UTF-8 inválido y trailing
 bytes se rechazan. El orden de arrays es semánticamente significativo; orden de
@@ -81,12 +84,14 @@ globales y labels duplicados, y operandos estructuralmente inválidos se
 rechazan. Si el lenguaje rechaza esta serialización o propone otra, prevalece
 su decisión; R6 no debe compensarla.
 
-Casos borde propuestos: signed zero se preserva en los bits; NaN/infinito se
-representan en bits sin normalizar payload; strings escapan comillas, barra,
-controles y se codifican UTF-8; enteros fuera de rango del tipo Orbit se
-rechazan semánticamente después del parseo. La aceptación debe confirmar esos
-puntos, sobre todo si Orbit permite strings no UTF-8 o si `int` no comparte el
-mismo dominio que `orbit_int` en `runtime/orbit_api.h`.
+Casos borde aceptados: `int` usa el dominio de `orbit_int` (alias `int` en el
+header pineado; 32-bit en los targets x86-64 acordados); `float` usa IEEE-754
+binary64, conserva signed zero y todos los bits NaN/infinito sin normalizar
+payload; strings son UTF-8 y escapan comillas, barra y controles como JSON.
+Las llamadas externas usan la ABI C del target; `orbit_print` se declara como
+`void orbit_print(const char*)` en `runtime/orbit_api.h`. El primer target Win
+x64 pasa argumentos según la ABI C x64 de Windows. Los enteros fuera de rango
+se rechazan después del parseo.
 
 **Bloquea revisión del lenguaje:** gramática concreta y escaping; tratamiento de
 NaN/infinito y signed zero; overflow y ancho de `int`; reglas de división y
@@ -193,24 +198,25 @@ funciones HTTP. El propio header documenta enlace separado con
 artefacto reproducible para ambos targets x64. No copiar tipos/layouts ni crear
 shims locales: cualquier incompatibilidad se reporta como deriva.
 
-## Targets propuestos y decisiones pendientes
+## Targets y decisiones aceptados
 
 | Target | Estado propuesto |
 |---|---|
-| Windows x86-64 | M1/M2 inicial, sujeto a disponibilidad de runtime y toolchain pineados. |
-| Linux x86-64 | M1/M2 inicial, sujeto a disponibilidad de runtime y toolchain pineados. |
-| macOS ARM64 | Fuera de alcance hasta M3; no codegen ni promesa de soporte antes. |
+| Windows x86-64 | M1 primero; runtime reconstruido del pin y toolchain disponibles. |
+| Linux x86-64 | Segundo; runtime/toolchain aún sin verificar en este host. |
+| macOS ARM64 | Soporte comienza en M3; sin promesa anterior. |
 
 Decisiones: emitir objeto nativo desde IR con ABI del sistema (alternativa
 descartada: generar C, prohibido); usar runtime oficial pineado (alternativa
 descartada: reimplementar/shim, prohibido); rechazar opcode/plataforma/versión
 desconocidos (alternativa descartada: stub o fallback silencioso).
 
-## Aprobación requerida
+## Estado de publicación y rango
 
-Solicito revisión humana de la propuesta exacta de serialización, semántica y
-disponibilidad del ABI en ambos targets. Hasta esa aceptación no hay IRv1
-consumible y M1 no puede comenzar. El soporte declarado de R6 deberá ser `none`
-hasta entonces; después será un rango explícito y rechazará versiones fuera de
-él. Ninguna parte de este borrador convierte por sí misma una observación del C
-backend en semántica normativa del lenguaje.
+La aprobación humana de este contrato habilita su implementación en R6, pero
+no equivale a una publicación normativa en Orbit. Al pin no existe `--emit-ir`,
+spec ni corpus IR serializado. Mientras Orbit no publique una versión, R6
+declara IRv1 como formato local aceptado y limita el rango implementado a las
+versiones/opcodes validados por differential M1; rechaza cualquier otra versión
+u opcode. Las observaciones del C backend no convierten huecos en semántica:
+UNSPECIFIED siempre falla.

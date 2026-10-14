@@ -1,10 +1,9 @@
-# Fixtures de propuesta IRv1 para revisión (no aprobados ni ejecutables)
+# Fixtures M1 manuales IRv1 (aceptados; diferencial pendiente)
 
-Cada `.json` usa la gramática candidata de `docs/IR_SPEC_DRAFT.md`; cada
-`.orb` es el fuente que debería producir comportamiento equivalente en el
-oracle gcc. Outputs/exit codes son expectativas de revisión, no resultados
-medidos. `orbit_print` se invoca como símbolo runtime declarado por la ABI;
-debe confirmarse que Orbit permite esta llamada externa y su firma.
+Cada `.json` usa la gramática aceptada de `docs/IR_SPEC_DRAFT.md`; cada `.orb`
+es el fuente de comportamiento equivalente para el oracle gcc. Outputs/exit
+codes son expectativas aún no medidas. `orbit_print` se invoca como símbolo
+runtime declarado por ABI C en `runtime/orbit_api.h`.
 
 | Caso | Familia | Exit esperado | Stdout esperado |
 |---|---|---:|---|
@@ -14,6 +13,6 @@ debe confirmarse que Orbit permite esta llamada externa y su firma.
 | `04-branch` | salto condicional | 7 | vacío |
 | `05-call-3args` | parámetros y llamada de tres argumentos | 6 | vacío |
 
-Para convertirlos en M1 fixtures habrá que obtener IR canónico del emisor
-aprobado, cotejarlo con estos ejemplos, y medir los cinco diferenciales. No se
-deben aceptar los JSON propuestos como evidencia de implementación.
+Orbit no incluye emisor IR en el pin. Estos cinco ejemplos manuales fueron
+aceptados por el usuario para IRv1; cada uno debe superar differential contra
+su fuente `.orb` y el binario gcc de referencia para contar como evidencia.

@@ -1,18 +1,18 @@
-# Plan M1 — bloqueado por contrato IR
+# Plan M1 — Windows x86-64, differential requerido
 
 Base reproducible prevista: lenguaje `5c01cea68f125f06dd3ac82a61776827bdb0c6f3`;
 IR declarado: ninguno publicado todavía. No seguir `main` ni actualizar este
 pin de forma automática.
 
-## Ficheros del primer incremento de código (solo tras revisión/aprobación IRv1)
+## Ficheros del primer incremento de código
 
-- `src/loader/ir_text.{h,c}`: parser estricto del formato textual aprobado,
+- `src/loader/ir.{h,c}`: parser estricto del formato textual aprobado,
   versión y diagnósticos; solo representaciones acordadas.
-- `src/codegen-x64/{win64,sysv}.c`: emisión de objeto x86-64 por ABI, empezando
-  con el subconjunto medido de M1; opcode desconocido/no implementado = error.
+- `src/codegen-x64/win64.c`: emisión x86-64 por ABI Win64; opcode no
+  implementado = error. Linux SysV se activa después de verificar su runtime.
 - `src/driver/r6.c`: CLI `r6 input.ir -o output`, invoca assembler/linker y enlaza
   la `libruntime_net.a` construida desde el commit pineado, sin generación C.
-- `tests/diff/{run,compare}.{py,ps1}`: compila el mismo fuente Orbit mediante
+- `tests/diff/`: compila el mismo fuente Orbit mediante
   gcc de referencia y R6; compara exit status y stdout en bytes y reporta
   stderr/diagnósticos. Sin umbral temporal como criterio de éxito.
 - `tests/ir/m1/`: cinco IR manuales aprobados y sus fuentes Orbit equivalentes.
@@ -35,11 +35,11 @@ ser verdes. Un binario R6 que simplemente arranque no satisface “funciona”.
 
 ## Orden de trabajo M1
 
-1. Aceptar IRv1, el formato de valores/instrucciones y el oracle de un corpus
-   emitido por Orbit; aclarar/runtime-link del commit pineado por target.
+1. IRv1/fixtures/targets aceptados por el usuario. Runtime Windows reconstruido
+   desde receta oficial pineada; Linux pendiente de toolchain y verificación.
 2. Añadir loader y un subconjunto inicial explícito; rechazo claro de todo lo
    demás. Sin optimizaciones.
-3. Emitir objeto y enlazar el primer programa contra runtime oficial; comparar
+3. Emitir objeto y enlazar el primer programa contra runtime oficial Windows; comparar
    differentialmente con gcc antes de ampliar el subconjunto.
 4. Completar los cinco programas M1, registrar comandos, conteos, bytes y SHAs;
    solo entonces declarar M1 verde.
