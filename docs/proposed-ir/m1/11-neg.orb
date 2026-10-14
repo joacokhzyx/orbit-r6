@@ -1,0 +1,10 @@
+fn main() -> int {
+    var x = 7
+    var y = -x
+    var f = 2.5
+    var g = -f
+    if y == -7 && g == -2.5 {
+        return 0
+    }
+    return 1
+}

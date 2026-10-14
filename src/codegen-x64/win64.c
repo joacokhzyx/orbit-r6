@@ -192,6 +192,11 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!is_bool(a) || !is_bool(type_at(f, i->dest)))
                 return fail(d, i, "CGEN", "not_op requires bool operand and destination");
             break;
+        case R6_OP_NEG:
+            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d)) return false;
+            if (!(is_int(a) || is_float(a)) || !same_type(a, type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "neg requires matching int or float operand and destination");
+            break;
         case R6_OP_JUMP_IF_FALSE:
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_bool(type_at(f, i->operands[0].as.i32)))
@@ -452,6 +457,14 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_NOT_OP:
             fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                     (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
+            break;
+        case R6_OP_NEG:
+            if (is_float(type_at(f, i->operands[0].as.i32)))
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovabsq $-9223372036854775808, %%rax\n\tmovq %%rax, %%xmm1\n\txorpd %%xmm1, %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
+            else
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tnegq %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             break;
         case R6_OP_JUMP_IF_FALSE:
             fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tje .Lr6_f%zu_l%d\n",

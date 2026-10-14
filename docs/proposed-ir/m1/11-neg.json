@@ -1,0 +1,276 @@
+{
+  "module": {
+    "globals": [],
+    "models": [],
+    "functions": [
+      {
+        "route": null,
+        "name": "main",
+        "params": [],
+        "register_count": 11,
+        "extern": false,
+        "param_types": [],
+        "instructions": [
+          {
+            "op": "load_const",
+            "elem_kind": 0,
+            "dest": 0,
+            "operands": [
+              {
+                "int": "7"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "neg",
+            "elem_kind": 0,
+            "dest": 1,
+            "operands": [
+              {
+                "reg": 0
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "load_const",
+            "elem_kind": 0,
+            "dest": 2,
+            "operands": [
+              {
+                "int": "-7"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "eq",
+            "elem_kind": 0,
+            "dest": 3,
+            "operands": [
+              {
+                "reg": 1
+              },
+              {
+                "reg": 2
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "load_const",
+            "elem_kind": 0,
+            "dest": 4,
+            "operands": [
+              {
+                "float64_bits": "4004000000000000"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "neg",
+            "elem_kind": 0,
+            "dest": 5,
+            "operands": [
+              {
+                "reg": 4
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "load_const",
+            "elem_kind": 0,
+            "dest": 6,
+            "operands": [
+              {
+                "float64_bits": "c004000000000000"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "eq",
+            "elem_kind": 0,
+            "dest": 7,
+            "operands": [
+              {
+                "reg": 5
+              },
+              {
+                "reg": 6
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "and_op",
+            "elem_kind": 0,
+            "dest": 8,
+            "operands": [
+              {
+                "reg": 3
+              },
+              {
+                "reg": 7
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "jump_if_false",
+            "elem_kind": 0,
+            "dest": null,
+            "operands": [
+              {
+                "reg": 8
+              },
+              {
+                "label": 0
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "load_const",
+            "elem_kind": 0,
+            "dest": 9,
+            "operands": [
+              {
+                "int": "0"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "ret",
+            "elem_kind": 0,
+            "dest": null,
+            "operands": [
+              {
+                "reg": 9
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "label",
+            "elem_kind": 0,
+            "dest": null,
+            "operands": [
+              {
+                "label": 0
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "load_const",
+            "elem_kind": 0,
+            "dest": 10,
+            "operands": [
+              {
+                "int": "1"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          },
+          {
+            "op": "ret",
+            "elem_kind": 0,
+            "dest": null,
+            "operands": [
+              {
+                "reg": 10
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ]
+          }
+        ],
+        "register_types": [
+          "int",
+          "int",
+          "int",
+          "bool",
+          "float",
+          "float",
+          "float",
+          "bool",
+          "bool",
+          "int",
+          "int"
+        ],
+        "return_type": "int"
+      }
+    ],
+    "types": [],
+    "migrations": []
+  },
+  "version": 1,
+  "format": "orbit-ir"
+}

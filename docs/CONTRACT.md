@@ -25,7 +25,7 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 
 - Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
   `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
-  `and_op`, `or_op`, `not_op`, `call` y `ret`, solo para los tipos/combinaciones
+  `and_op`, `or_op`, `not_op`, `neg`, `call` y `ret`, solo para los tipos/combinaciones
   validados en codegen. Un opcode no implementado produce error con nombre e
   instrucción.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
@@ -43,6 +43,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - `ne/lt/le/gt/ge` aceptan int o float. Para float, `10-float-compare-nan`
   verifica los seis predicados de comparación con NaN y signed zero contra el
   pin; `lt/le` enmascaran explícitamente el flag unordered de `ucomisd`.
+- `neg` acepta int (negación modular en el slot nativo) y float (voltea el bit
+  de signo con XOR, preservando el payload); `11-neg` compara valores finitos
+  con GCC. Overflow de int no queda cubierto por ese fixture.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Solo se admite

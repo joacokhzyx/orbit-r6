@@ -180,6 +180,11 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "leave") == 0) return emit(a, 0xc9);
     if (strcmp(op, "ret") == 0) return emit(a, 0xc3);
     if (strcmp(op, "cqto") == 0) return emit(a, 0x48) && emit(a, 0x99);
+    if (strcmp(op, "negq") == 0 && a1) {
+        id1 = reg_id(a1, &w1, &x1);
+        if (id1 < 0 || x1 || w1 != 64) return bad(a, "negq requires a 64-bit GPR");
+        return emit(a, 0x48) && emit(a, 0xf7) && emit(a, (uint8_t)(0xd8 | (id1 & 7)));
+    }
     if (strcmp(op, "idivq") == 0 && a1 && parse_mem(a, a1, &m))
         return rex_modrm_mem(a, 64, 7, m, 0xf7, 0, 0, -1);
     if (strcmp(op, "cltd") == 0) return emit(a, 0x99);
@@ -263,6 +268,10 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 0, id1, m, 0x11, 0, 1, 0x0f);
     if (strcmp(op, "movsd") == 0 && id1 >= 0 && x1 && id2 >= 0 && x2) {
         if (!emit(a, 0xf2) || !emit(a, 0x0f) || !emit(a, 0x10)) return false;
+        return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
+    }
+    if (strcmp(op, "xorpd") == 0 && id1 >= 0 && x1 && id2 >= 0 && x2) {
+        if (!emit(a, 0x66) || !emit(a, 0x0f) || !emit(a, 0x57)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
     if ((strcmp(op, "addsd") == 0 || strcmp(op, "subsd") == 0 ||
