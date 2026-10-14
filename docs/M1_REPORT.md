@@ -1,7 +1,7 @@
 # Informe M1 — Windows x86-64
 
-Fecha: 2026-10-14. M1 está verde para los trece fixtures manuales medidos en
-Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
+Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para catorce
+casos en Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
 GCC como oráculo; R6 parseó IRv1 JSON, bajó a su representación assembler
 interna, codificó bytes/COFF sin GCC ni GAS y enlazó con GNU `ld` y el runtime
@@ -22,13 +22,13 @@ dependencia de plataforma.
   `40BCBCB473D5A6647DC6EF197AB9563AC78F1D17E0A535A7CA1A8E4D597DD1A2`.
 - Runtime archive construido desde receta y fuentes del pin; SHA-256
   `3FC8FBE3E8D0733E7FA8161FD330011DF71C9DDB5E4B3A5D207AADC1D4F5AF8B`.
-- Driver construido sin optimizaciones con locals escalares en slots Win64;
-  SHA-256 `11BA2A3155324124A4B9A6BF0DC00D4C7E6D3DED633B99C4E3C07E62B1B5BACF`.
+- Driver construido sin optimizaciones, ahora con lectura de globals literales
+  int/bool; SHA-256 `45548B338941A552833C26642F41416C905DF5BA7A92B0E87DC0C870D18B9197`.
 - Fallo cerrado: IR version 2 devuelve exit 1 con `E_VERSION`; opcode `alloc`
   (fuera del subconjunto nativo actual) devuelve exit 1 con `E_UNSUPPORTED`.
 - El harness y los ejecutables temporales de esta corrida residieron bajo
   `.r6-build/`, excluido de Git.
-- El gate diferencial del commit actual quedó en **13/13 pass** después de
+- El gate diferencial anterior quedó en **13/13 pass** después de
   verificar branches tomados/no tomados, back-edge de `while`, comparaciones
   IEEE con NaN y signed zero, y un local `int` cargado/actualizado por nombre
   (build y diferencial ejecutados; no es benchmark), incluso
@@ -36,6 +36,13 @@ dependencia de plataforma.
   La reconstrucción anterior + gate de cinco casos tardó 19.9 s;
   no es benchmark. El driver R6 todavía se construye con GCC; la ruta de
   programa requiere GNU `ld`, MinGW CRT y el runtime oficial.
+- Nuevo fixture `14-global-constants`: **1/1 pass** aislado, exit `33` y stdout
+  vacío, incluyendo tres globals int y uno bool del patrón observado en
+  `builder.orb:2333-2372`. Globals const no literales (IRValue.Register),
+  globals float/string y demás tipos siguen sin soporte.
+- Repetición completa del gate: **14/14 pass**, exit 0, con `R6_CC` apuntando
+  a `C:\missing\gcc.exe`; gcc sí se usó para el oráculo. Ningún programa
+  compilado por R6 invocó GCC. No es benchmark.
 
 Comando del gate:
 
@@ -55,19 +62,21 @@ $env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
   (int/float/string), `sub/mul/div` (int/float), `mod` (int), `eq` (numérico/bool),
   `ne/lt/le/gt/ge` (int/float), `and_op/or_op/not_op` (bool), `neg` (int/float),
   `copy`, `jump`, `jump_if_false`, `label`, `load_var/decl_var/store_var`
-  (locals escalares), `arg`, `call` y `ret` para combinaciones probadas. Stack
+  (locales escalares y lectura de globals literales int/bool), `arg`, `call` y
+  `ret` para combinaciones probadas. Stack
   slots; sin
   optimizaciones.
 - No se midió la suite completa de Orbit. No hay `--emit-ir`, spec upstream ni
-  corpus emitido por Orbit en el pin. Los trece JSON son fixtures manuales
-  comparados contra sus fuentes `.orb`; los ocho añadidos extienden cobertura
-  de aritmética entera/float, comparación signed/float, lógica, negación y
-  control de flujo/copia/loops y variables locales.
+  corpus emitido por Orbit en el pin. Los catorce JSON son fixtures manuales
+  comparados contra sus fuentes `.orb`; los nueve añadidos extienden cobertura
+  de aritmética entera/float, comparación signed/float, lógica, negación,
+  control de flujo/copia/loops, variables locales y globals int/bool.
 - Casos de overflow/extremos fuera de los fixtures siguen sin cobertura. El
   fixture 10 confirma comparación IEEE unordered para NaN y equivalencia de
   `+0.0`/`-0.0`; fixture 11 cubre negación finita, no todos los payloads NaN.
-  La evidencia semántica se limita al `c_backend.orb` fijado y estos trece
-  pares; no extrapolar a todos los bordes de IRv1.
+  La evidencia semántica se limita al `c_backend.orb` fijado y estos catorce
+  pares; el fixture 14 añade globals int/bool literales. No extrapolar a todos
+  los bordes de IRv1.
 - Linux runtime/toolchain no verificados en este host. DB queda fuera hasta M3
   salvo variante oficial compatible. ARM64 macOS comienza en M3. Multihilo y
   benchmarks no se evaluaron.

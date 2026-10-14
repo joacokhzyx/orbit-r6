@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* M1 deliberately uses memory-backed IR registers. No register allocation,
@@ -76,6 +77,38 @@ static bool value_type(const R6Function *f, const R6Value *v,
 static const char *ir_name(const R6Value *v) {
     if (v->kind == R6_VAL_SYMBOL || v->kind == R6_VAL_STRING) return v->as.string;
     return NULL;
+}
+
+static const R6Global *find_global(const R6Module *m, const char *name) {
+    size_t n;
+    if (!m || !name) return NULL;
+    for (n = 0; n < m->global_count; ++n)
+        if (m->globals[n].name && strcmp(m->globals[n].name, name) == 0)
+            return &m->globals[n];
+    return NULL;
+}
+
+/* In the pinned builder, top-level int/bool literals are serialized as
+ * IRValue.String decimal text and c_backend.orb turns them into #defines. */
+static bool global_integer(const R6Global *g, int32_t *value) {
+    char *end;
+    long parsed;
+    const char *p;
+    if (!g || !g->name || !valid_symbol(g->name) || !g->type_name ||
+        (!is_int(g->type_name) && !is_bool(g->type_name)) ||
+        g->value.kind != R6_VAL_STRING || !g->value.as.string ||
+        !g->value.string_len || strlen(g->value.as.string) != g->value.string_len)
+        return false;
+    p = g->value.as.string;
+    if (*p == '-') ++p;
+    if (!*p) return false;
+    for (; *p; ++p) if (*p < '0' || *p > '9') return false;
+    parsed = strtol(g->value.as.string, &end, 10);
+    if (*end || end == g->value.as.string || parsed < INT32_MIN || parsed > INT32_MAX)
+        return false;
+    if (is_bool(g->type_name) && parsed != 0 && parsed != 1) return false;
+    *value = (int32_t)parsed;
+    return true;
 }
 
 static bool local_info(const R6Function *f, const char *name,
@@ -215,10 +248,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         }
         case R6_OP_LOAD_VAR: {
             const char *name = ir_name(&i->operands[0]), *lt = NULL;
+            const R6Global *global = name ? find_global(m, name) : NULL;
+            int32_t ignored;
+            bool local = name && local_info(f, name, NULL, &lt);
             if (!valid_dest(f, i, true, d) || !name ||
-                !local_info(f, name, NULL, &lt) ||
-                !same_type(lt, type_at(f, i->dest)) || !is_scalar(lt))
-                return fail(d, i, "CGEN", "load_var requires a declared scalar local and matching destination");
+                (!local && (!global || !global_integer(global, &ignored))) ||
+                (local ? (!same_type(lt, type_at(f, i->dest)) || !is_scalar(lt)) :
+                         !same_type(global->type_name, type_at(f, i->dest))))
+                return fail(d, i, "CGEN", "load_var requires a supported local/global and matching destination type");
             break;
         }
         case R6_OP_COPY:
@@ -467,15 +504,25 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             size_t local_index;
             const char *local_type;
             unsigned local_off;
-            local_info(f, ir_name(&i->operands[0]), &local_index, &local_type);
-            local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
-                                   f->param_count + local_index + 1) * 8;
-            if (is_float(local_type))
-                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
-                        local_off, off);
-            else
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                        local_off, off);
+            const char *name = ir_name(&i->operands[0]);
+            const R6Global *global = find_global(m, name);
+            if (local_info(f, name, &local_index, &local_type)) {
+                local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+                                       f->param_count + local_index + 1) * 8;
+                if (is_float(local_type))
+                    fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                            local_off, off);
+                else
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                            local_off, off);
+            } else {
+                int32_t value;
+                global_integer(global, &value);
+                if (is_bool(global->type_name))
+                    fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", value, off);
+                else
+                    fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", value, off);
+            }
             break;
         }
         case R6_OP_LOAD_CONST:
@@ -687,8 +734,20 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
     if (!out || !module) return fail(diag, NULL, "CGEN", "null output or module");
     if (module->function_count && !module->functions)
         return fail(diag, NULL, "CGEN", "module has missing function storage");
-    if (module->global_count || module->model_count || module->type_count || module->migration_count)
-        return fail(diag, NULL, "CGEN", "M1 codegen does not support globals, models, types, or migrations");
+    if (module->global_count && !module->globals)
+        return fail(diag, NULL, "CGEN", "module has missing global storage");
+    for (n = 0; n < module->global_count; ++n) {
+        size_t prior;
+        int32_t ignored;
+        if (!global_integer(&module->globals[n], &ignored))
+            return fail(diag, NULL, "CGEN", "global %s is outside M1 literal int/bool support",
+                        module->globals[n].name ? module->globals[n].name : "<unnamed>");
+        for (prior = 0; prior < n; ++prior)
+            if (strcmp(module->globals[n].name, module->globals[prior].name) == 0)
+                return fail(diag, NULL, "CGEN", "duplicate global %s", module->globals[n].name);
+    }
+    if (module->model_count || module->type_count || module->migration_count)
+        return fail(diag, NULL, "CGEN", "M1 codegen does not support models, types, or migrations");
     for (n = 0; n < module->function_count; ++n) {
         const R6Function *f = &module->functions[n];
         size_t k;

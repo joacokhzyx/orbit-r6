@@ -41,3 +41,10 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Alternatives: copy the C backend's default `Unknown opcode` comment (rejected: it silently continues).
 - Evidence: backend fallback at `compiler/c_backend.orb:3596-3598`; user accepted explicit error policy 2026-10-14.
 - Status: **accepted by user 2026-10-14**.
+
+## D-M1-01 — Lower pinned literal globals as immediate loads
+
+- Date: 2026-10-14.
+- Decision: Win64 M1 accepts only globals with valid identifiers, type `int` or `bool`, and decimal `IRValue.String` values in int32 range (bool only 0/1). `load_var` resolves a local first, then a validated module global. Other global forms fail with a diagnostic.
+- Alternatives: emit mutable data sections for all globals (rejected: the pinned builder turns literal globals into C preprocessor defines); coerce unsupported values (rejected: semantic invention).
+- Evidence: pinned `builder.orb:2288-2304,2333-2372` and `c_backend.orb:1479-1503`; fixture `14-global-constants` differential pass, and full manual fixture set 14/14.

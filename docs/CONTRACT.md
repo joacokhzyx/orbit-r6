@@ -50,9 +50,11 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - `copy` mueve escalares a slots y `jump` resuelve labels locales por función;
   `12-jump-copy` confirma salto incondicional y copia; `13-while-counter`
   verifica back-edge, branch condicional y variable int local contra el pin.
-  `load_var/decl_var/store_var` solo soportan locales de tipo escalar declarados
-  en la función e inicializados/actualizados desde registros; globals, params
-  por nombre y captures fallan explícitamente.
+  `decl_var/store_var` soportan locales escalares declarados en la función e
+  inicializados/actualizados desde registros. `load_var` también lee globals
+  `int`/`bool` literales: el pin serializa esos `IRGlobal.value` como String
+  decimal (`builder.orb:2288-2304,2333-2338`; `c_backend.orb:1479-1503`). Otros
+  globals, params por nombre y captures fallan explícitamente.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Solo se admite

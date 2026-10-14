@@ -1,0 +1,40 @@
+{
+  "format": "orbit-ir",
+  "version": 1,
+  "module": {
+    "functions": [
+      {
+        "name": "main",
+        "params": [],
+        "param_types": [],
+        "instructions": [
+          {"op":"load_var","dest":0,"operands":[{"symbol":"CHAR_SPACE"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"load_var","dest":1,"operands":[{"symbol":"LIMIT"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"add","dest":2,"operands":[{"reg":0},{"reg":1},{"none":null}],"elem_kind":0},
+          {"op":"load_var","dest":3,"operands":[{"symbol":"NEG"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"add","dest":4,"operands":[{"reg":2},{"reg":3},{"none":null}],"elem_kind":0},
+          {"op":"load_var","dest":5,"operands":[{"symbol":"ENABLED"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"jump_if_false","dest":null,"operands":[{"reg":5},{"label":0},{"none":null}],"elem_kind":0},
+          {"op":"ret","dest":null,"operands":[{"reg":4},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"label","dest":null,"operands":[{"label":0},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":6,"operands":[{"int":"-1"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"ret","dest":null,"operands":[{"reg":6},{"none":null},{"none":null}],"elem_kind":0}
+        ],
+        "register_count": 7,
+        "register_types": ["int","int","int","int","int","bool","int"],
+        "return_type": "int",
+        "extern": false,
+        "route": null
+      }
+    ],
+    "globals": [
+      {"name":"CHAR_SPACE","value":{"string":"32"},"type_name":"int"},
+      {"name":"LIMIT","value":{"string":"3"},"type_name":"int"},
+      {"name":"NEG","value":{"string":"-2"},"type_name":"int"},
+      {"name":"ENABLED","value":{"string":"1"},"type_name":"bool"}
+    ],
+    "models": [],
+    "types": [],
+    "migrations": []
+  }
+}

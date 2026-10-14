@@ -1,0 +1,11 @@
+val CHAR_SPACE = 32
+const LIMIT = 3
+val NEG = -2
+const ENABLED = true
+
+fn main() -> int {
+    if ENABLED {
+        return CHAR_SPACE + LIMIT + NEG
+    }
+    return -1
+}
