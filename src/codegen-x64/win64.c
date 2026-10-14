@@ -177,8 +177,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
                 !operand_reg(f, i, 1, &b, d)) return false;
-            if (!is_int(a) || !same_type(a, b) || !is_bool(type_at(f, i->dest)))
-                return fail(d, i, "CGEN", "ne/lt/le/gt/ge currently require int operands and bool destination");
+            if (!(is_int(a) || is_float(a)) || !same_type(a, b) ||
+                !is_bool(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "ne/lt/le/gt/ge require matching int/float operands and bool destination");
             break;
         case R6_OP_AND_OP: case R6_OP_OR_OP:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
@@ -419,13 +420,27 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                          (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
             break;
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE: {
-            const char *setcc = i->opcode == R6_OP_NE ? "setne" :
-                                i->opcode == R6_OP_LT ? "setl" :
-                                i->opcode == R6_OP_LE ? "setle" :
-                                i->opcode == R6_OP_GT ? "setg" : "setge";
-            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                    (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                    (unsigned)(i->operands[1].as.i32 + 1) * 8, setcc, off);
+            const char *setcc;
+            unsigned aoff = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned boff = (unsigned)(i->operands[1].as.i32 + 1) * 8;
+            if (is_float(type_at(f, i->operands[0].as.i32))) {
+                setcc = i->opcode == R6_OP_NE ? "setne" :
+                        i->opcode == R6_OP_LT ? "setb" :
+                        i->opcode == R6_OP_LE ? "setbe" :
+                        i->opcode == R6_OP_GT ? "seta" : "setae";
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\t%s %%al\n",
+                        aoff, boff, setcc);
+                if (i->opcode == R6_OP_LT || i->opcode == R6_OP_LE)
+                    fprintf(o, "\tsetnp %%dl\n\tandb %%dl, %%al\n");
+                fprintf(o, "\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", off);
+            } else {
+                setcc = i->opcode == R6_OP_NE ? "setne" :
+                        i->opcode == R6_OP_LT ? "setl" :
+                        i->opcode == R6_OP_LE ? "setle" :
+                        i->opcode == R6_OP_GT ? "setg" : "setge";
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                        aoff, boff, setcc, off);
+            }
             break;
         }
         case R6_OP_AND_OP: case R6_OP_OR_OP:

@@ -1,0 +1,10 @@
+fn main() -> int {
+    var z = 0.0
+    var nz = -0.0
+    var nan = z / z
+    var one = 1.0
+    if z == nz && !(z != nz) && !(nan == one) && nan != one && !(nan < one) && !(nan <= one) && !(nan > one) && !(nan >= one) {
+        return 0
+    }
+    return 1
+}

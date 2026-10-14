@@ -40,6 +40,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - `sub/mul/div` también aceptan registros binary64 y usan SSE2; fixture
   `09-float-arithmetic` compara operaciones exactas representables contra el
   compilador de referencia. No se amplía esta evidencia a bordes NaN/infinito.
+- `ne/lt/le/gt/ge` aceptan int o float. Para float, `10-float-compare-nan`
+  verifica los seis predicados de comparación con NaN y signed zero contra el
+  pin; `lt/le` enmascaran explícitamente el flag unordered de `ucomisd`.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Solo se admite

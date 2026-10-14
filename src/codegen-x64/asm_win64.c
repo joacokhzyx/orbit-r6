@@ -188,12 +188,16 @@ static bool encode(Asm *a, char *line) {
     if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0 ||
          strcmp(op, "setne") == 0 || strcmp(op, "setl") == 0 ||
          strcmp(op, "setle") == 0 || strcmp(op, "setg") == 0 ||
-         strcmp(op, "setge") == 0) && a1) {
+         strcmp(op, "setge") == 0 || strcmp(op, "setb") == 0 ||
+         strcmp(op, "setbe") == 0 || strcmp(op, "seta") == 0 ||
+         strcmp(op, "setae") == 0) && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 8) return bad(a, "setcc requires an 8-bit GPR");
         { uint8_t cc = strcmp(op, "sete") == 0 ? 0x94 : strcmp(op, "setne") == 0 ? 0x95 :
                        strcmp(op, "setl") == 0 ? 0x9c : strcmp(op, "setge") == 0 ? 0x9d :
-                       strcmp(op, "setle") == 0 ? 0x9e : strcmp(op, "setg") == 0 ? 0x9f : 0x9b;
+                       strcmp(op, "setle") == 0 ? 0x9e : strcmp(op, "setg") == 0 ? 0x9f :
+                       strcmp(op, "setb") == 0 ? 0x92 : strcmp(op, "setbe") == 0 ? 0x96 :
+                       strcmp(op, "seta") == 0 ? 0x97 : strcmp(op, "setae") == 0 ? 0x93 : 0x9b;
           return emit(a, 0x0f) && emit(a, cc) && emit(a, (uint8_t)(0xc0 | (id1 & 7))); }
     }
     if (strcmp(op, "call") == 0) {
