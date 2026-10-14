@@ -1,6 +1,6 @@
 # Informe M1 — Windows x86-64
 
-Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para quince
+Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para diecisiete
 casos en Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
 GCC como oráculo; R6 parseó IRv1 JSON, bajó a su representación assembler
@@ -23,8 +23,8 @@ dependencia de plataforma.
 - Runtime archive construido desde receta y fuentes del pin; SHA-256
   `3FC8FBE3E8D0733E7FA8161FD330011DF71C9DDB5E4B3A5D207AADC1D4F5AF8B`.
 - Driver construido sin optimizaciones, ahora con lectura de globals literales
-  int/bool y `strcmp` para igualdad de strings; SHA-256
-  `338C8656F85A76F20567FA69AC3C836578BC24BC1B43DBD3DF809C8969696435`.
+  int/bool, `strcmp` para igualdad de strings y parámetros Win64 en pila; SHA-256
+  `44C8DE541980A29F6933EBE79A1D575A46D7EC2FC26205B454F619F3B6342D3E`.
 - Fallo cerrado: IR version 2 devuelve exit 1 con `E_VERSION`; opcode `alloc`
   (fuera del subconjunto nativo actual) devuelve exit 1 con `E_UNSUPPORTED`.
 - El harness y los ejecutables temporales de esta corrida residieron bajo
@@ -48,6 +48,10 @@ dependencia de plataforma.
   `eq` por contenido tras concatenar y `ne` contra una cadena distinta; ambos
   llaman a `strcmp` del CRT. Gate completo repetido: **15/15 pass**, exit 0,
   con `R6_CC` inválido. No es benchmark.
+- Fixtures `16-call-stack-args` y `17-call-stack-float`: **2/2 pass**, ambos
+  exit `11`, stdout vacío. Cubren posiciones 5 y 6 enteras y binary64 en
+  posición 5; repetición completa del gate: **17/17 pass**, exit 0, `R6_CC`
+  apuntando a ruta inexistente. No es benchmark.
 
 Comando del gate:
 
@@ -69,12 +73,13 @@ $env:R6_CC = 'C:\missing\gcc.exe'
   `and_op/or_op/not_op` (bool), `neg` (int/float),
   `copy`, `jump`, `jump_if_false`, `label`, `load_var/decl_var/store_var`
   (locales escalares y lectura de globals literales int/bool), `arg`, `call` y
-  `ret` para combinaciones probadas. Stack
+  `ret` para combinaciones probadas; llamadas directas permiten hasta 256
+  argumentos escalares y usan slots Win64 para posiciones 5+. Stack
   slots; sin
   optimizaciones.
 - No se midió la suite completa de Orbit. No hay `--emit-ir`, spec upstream ni
-  corpus emitido por Orbit en el pin. Los quince JSON son fixtures manuales
-  comparados contra sus fuentes `.orb`; los diez añadidos extienden cobertura
+  corpus emitido por Orbit en el pin. Los diecisiete JSON son fixtures manuales
+  comparados contra sus fuentes `.orb`; los doce añadidos extienden cobertura
   de aritmética entera/float, comparación signed/float, lógica, negación,
   control de flujo/copia/loops, variables locales, globals int/bool y
   comparación string por contenido.
@@ -82,8 +87,8 @@ $env:R6_CC = 'C:\missing\gcc.exe'
   fixture 10 confirma comparación IEEE unordered para NaN y equivalencia de
   `+0.0`/`-0.0`; fixture 11 cubre negación finita, no todos los payloads NaN.
   La evidencia semántica se limita al `c_backend.orb` fijado y estos quince
-  pares; los fixtures 14–15 añaden globals int/bool literales y comparaciones
-  string. No extrapolar a todos
+  pares; los fixtures 14–17 añaden globals int/bool literales, comparaciones
+  string y llamadas con argumentos en pila. No extrapolar a todos
   los bordes de IRv1.
 - Linux runtime/toolchain no verificados en este host. DB queda fuera hasta M3
   salvo variante oficial compatible. ARM64 macOS comienza en M3. Multihilo y

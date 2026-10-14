@@ -210,7 +210,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     if (f->is_extern) {
         if (f->instruction_count)
             return fail(d, NULL, "CGEN", "extern function %s must not contain instructions", f->name);
-        if (f->param_count > 4 || (f->param_count && !f->param_types))
+        if (f->param_count > 256 || (f->param_count && !f->param_types))
             return fail(d, NULL, "CGEN", "extern function %s has unsupported parameter metadata", f->name);
         for (pc = 0; pc < f->param_count; ++pc)
             if (!is_scalar(f->param_types[pc]))
@@ -221,8 +221,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     }
     if (f->param_count && (!f->param_types || !f->params))
         return fail(d, NULL, "CGEN", "function %s has missing parameter metadata", f->name);
-    if (f->param_count > 4)
-        return fail(d, NULL, "CGEN", "function %s has more than four parameters (M1 limit)", f->name);
+    if (f->param_count > 256)
+        return fail(d, NULL, "CGEN", "function %s exceeds the 256-parameter Win64 limit", f->name);
     if (strcmp(f->name, "main") == 0 &&
         (f->param_count != 0 || !is_int(f->return_type)))
         return fail(d, NULL, "CGEN", "main must have no parameters and return int in M1");
@@ -362,8 +362,6 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     i->operands[0].string_len != strlen(i->operands[0].as.string))
                     return fail(d, i, "CGEN", "string literal contains NUL and cannot be passed through the C ABI");
                 arg_values[arg_count++] = i;
-                if (arg_count > 4)
-                    return fail(d, i, "CGEN", "calls with more than four arguments are unsupported in M1");
             }
             break;
         case R6_OP_CALL: {
@@ -457,6 +455,19 @@ static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
     }
 }
 
+static size_t max_outgoing_args(const R6Function *f) {
+    size_t pc, pending = 0, maximum = 0;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        if (i->opcode == R6_OP_ARG && !i->has_dest) ++pending;
+        else if (i->opcode == R6_OP_CALL) {
+            if (pending > maximum) maximum = pending;
+            pending = 0;
+        }
+    }
+    return maximum;
+}
+
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                           size_t fn_index, R6Diagnostic *d) {
     size_t pc, pending = 0;
@@ -465,8 +476,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     unsigned long long string_id = ((unsigned long long)fn_index) << 32;
     bool is_main = strcmp(f->name, "main") == 0;
     const char *native_name = is_main ? "orbit_main" : f->name;
+    size_t outgoing = max_outgoing_args(f);
     size_t frame = ((size_t)f->register_count * 8 + (is_main ? 8 : 0) +
-                    f->param_count * 8 + local_count(f) * 8 + 32 + 15) & ~(size_t)15;
+                    f->param_count * 8 + local_count(f) * 8 + 32 +
+                    (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
@@ -477,7 +490,13 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         const char *t = f->param_types[pc];
         size_t abi_index = pc + (is_main ? 1 : 0);
         unsigned home = (unsigned)(f->register_count + (is_main ? 1 : 0) + pc + 1) * 8;
-        if (is_float(t)) fprintf(o, "\tmovsd %%xmm%zu, -%u(%%rbp)\n", abi_index, home);
+        if (pc >= 4) {
+            unsigned incoming = (unsigned)(48 + (pc - 4) * 8);
+            if (is_float(t))
+                fprintf(o, "\tmovsd %u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n", incoming, home);
+            else
+                fprintf(o, "\tmovq %u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", incoming, home);
+        } else if (is_float(t)) fprintf(o, "\tmovsd %%xmm%zu, -%u(%%rbp)\n", abi_index, home);
         else fprintf(o, "\tmovq %s, -%u(%%rbp)\n", abi_index == 0 ? "%rcx" : abi_index == 1 ? "%rdx" : abi_index == 2 ? "%r8" : "%r9", home);
     }
     for (pc = 0; pc < f->instruction_count; ++pc) {

@@ -59,8 +59,11 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   globals, params por nombre y captures fallan explícitamente.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
-  cada llamada; binding param se baja al prólogo de la función. Solo se admite
-  llamada directa a símbolo declarado en el módulo.
+  cada llamada; binding param se baja al prólogo de la función. Se admiten hasta
+  256 parámetros escalares: Win64 ubica posiciones 0–3 en registros y las
+  restantes en slots de 8 bytes a partir de `[rsp+32]`; el callee los recibe
+  desde `[rbp+48]`. Se reserva el área saliente por función y se conserva la
+  alineación de 16 bytes. Solo se admite llamada directa a símbolo del módulo.
 - ABI externa: C ABI del target. Win64: los primeros cuatro argumentos usan
   slots posicionales RCX/RDX/R8/R9 o XMM0-XMM3 según su tipo; caller reserva
   32 bytes de shadow space y mantiene alineación de stack; retorno entero en

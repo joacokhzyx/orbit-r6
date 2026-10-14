@@ -1,0 +1,7 @@
+fn stack_tail(a: int, b: int, c: int, d: int, e: int, f: int) -> int {
+    return e + f
+}
+
+fn main() -> int {
+    return stack_tail(1, 2, 3, 4, 5, 6)
+}

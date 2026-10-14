@@ -1,0 +1,10 @@
+fn stack_float(a: int, b: int, c: int, d: int, e: float, f: int) -> int {
+    if e == 1.5 {
+        return f
+    }
+    return 0
+}
+
+fn main() -> int {
+    return stack_float(1, 2, 3, 4, 1.5, 11)
+}
