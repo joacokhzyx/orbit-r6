@@ -1,4 +1,4 @@
-# Plan M1 — Windows x86-64, differential requerido
+# Plan M1 — completado para Windows x86-64
 
 Base reproducible prevista: lenguaje `5c01cea68f125f06dd3ac82a61776827bdb0c6f3`;
 IR declarado: ninguno publicado todavía. No seguir `main` ni actualizar este
@@ -32,6 +32,13 @@ representación exacta en el IR publicado y un ejecutable gcc oracle generado
 desde la fuente Orbit. Gate M1: este y otros cuatro programas equivalentes
 comparan salida y estado de salida byte por byte; las cinco comparaciones deben
 ser verdes. Un binario R6 que simplemente arranque no satisface “funciona”.
+
+## Resultado medido (2026-10-14)
+
+M1 Windows x86-64: **5/5 differential pass** con `tests/diff/run_diff.py`;
+exit status y stdout idénticos para los cinco fixtures. El detalle, hashes,
+comando y limitaciones está en [M1_REPORT.md](M1_REPORT.md). El alcance no
+incluye Linux, todos los opcodes, DB, multihilo ni rendimiento.
 
 ## Orden de trabajo M1
 
