@@ -23,13 +23,19 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 
 ## Codegen
 
-- Límite de M1: Windows x86-64 primero, solo los opcodes necesarios por los
-  cinco fixtures (`load_const`, `add`, `eq`, `jump_if_false`, `label`, `arg`,
-  `call`, `ret`). Un opcode no implementado produce error con nombre e
-  instrucción, incluso si el parser reconoce su enum.
-- Emisión nativa: GNU assembler x86-64 a partir del IR; nunca se genera ni
-  parsea C. El assembler/linker de MinGW solo empaqueta/emite el objeto y
-  resuelve símbolos. M1 no optimiza.
+- Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
+  `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
+  `call` y `ret`, solo para los tipos/combinaciones validados en codegen. Un
+  opcode no implementado produce error con nombre e instrucción.
+- Emisión nativa: el codegen Win64 baja IR a una representación interna
+  temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
+  No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve
+  símbolos del runtime oficial/CRT. M1 no optimiza.
+- Evidencia semántica entera: `runtime/orbit_api.h:114` declara
+  `typedef int orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
+  `div/mod` vía `orbit_int` signed y comparaciones relacionales vía `intptr_t`.
+  R6 refleja esas conversiones para el subconjunto medido; casos no cubiertos
+  por el diferencial no se generalizan.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Solo se admite

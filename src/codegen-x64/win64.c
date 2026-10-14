@@ -160,12 +160,24 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (is_string(a) && strcmp(f->name, "main") != 0)
                 return fail(d, i, "CGEN", "string add outside main requires the Orbit arena parameter contract");
             break;
+        case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
+            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
+                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!is_int(a) || !same_type(a, b) || !same_type(a, type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "sub/mul/div/mod currently require int operands and destination");
+            break;
         case R6_OP_EQ:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
                 !operand_reg(f, i, 1, &b, d)) return false;
             if (!same_type(a, b) || !is_bool(type_at(f, i->dest)) ||
                 !(is_int(a) || is_float(a) || is_bool(a)))
                 return fail(d, i, "CGEN", "eq supports matching int, float, or bool registers and bool destination only");
+            break;
+        case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
+            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
+                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!is_int(a) || !same_type(a, b) || !is_bool(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "ne/lt/le/gt/ge currently require int operands and bool destination");
             break;
         case R6_OP_JUMP_IF_FALSE:
             if (i->operands[0].kind != R6_VAL_REG ||
@@ -340,7 +352,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", string_id++, off);
             } else if (v->kind == R6_VAL_FLOAT64) {
                 fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", (unsigned long long)v->as.f64_bits, off);
-            } else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.i32, off);
+            } else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, off);
             else fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.boolean ? 1 : 0, off);
             break;
         case R6_OP_ADD:
@@ -356,20 +368,49 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\taddsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8,
                         (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
-            } else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\taddl -%u(%%rbp), %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+            } else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\taddq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                            (unsigned)(i->operands[0].as.i32 + 1) * 8,
                            (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
             break;
+        case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD: {
+            unsigned aoff = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned boff = (unsigned)(i->operands[1].as.i32 + 1) * 8;
+            if (i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) {
+                fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcltd\n\tidivl -%u(%%rbp)\n", aoff, boff);
+                fprintf(o, "\tmovslq %s, %s\n\tmovq %s, -%u(%%rbp)\n",
+                        i->opcode == R6_OP_DIV ? "%eax" : "%edx",
+                        i->opcode == R6_OP_DIV ? "%rax" : "%rdx",
+                        i->opcode == R6_OP_DIV ? "%rax" : "%rdx", off);
+            } else {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", aoff);
+                fprintf(o, "\t%s -%u(%%rbp), %%rax\n", i->opcode == R6_OP_SUB ? "subq" : "imulq", boff);
+                fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+            }
+            break;
+        }
         case R6_OP_EQ:
             t = type_at(f, i->operands[0].as.i32);
             if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\tsete %%al\n\tsetnp %%dl\n\tandb %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8,
                         (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
-            } else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcmpl -%u(%%rbp), %%eax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+            } else if (is_int(t)) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                            (unsigned)(i->operands[0].as.i32 + 1) * 8,
                            (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+            else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcmpl -%u(%%rbp), %%eax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                         (unsigned)(i->operands[0].as.i32 + 1) * 8,
+                         (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
             break;
+        case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE: {
+            const char *setcc = i->opcode == R6_OP_NE ? "setne" :
+                                i->opcode == R6_OP_LT ? "setl" :
+                                i->opcode == R6_OP_LE ? "setle" :
+                                i->opcode == R6_OP_GT ? "setg" : "setge";
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                    (unsigned)(i->operands[0].as.i32 + 1) * 8,
+                    (unsigned)(i->operands[1].as.i32 + 1) * 8, setcc, off);
+            break;
+        }
         case R6_OP_JUMP_IF_FALSE:
             fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tje .Lr6_f%zu_l%d\n",
                     (unsigned)(v->as.i32 + 1) * 8, fn_index,

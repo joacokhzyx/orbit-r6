@@ -1,0 +1,433 @@
+{
+  "format": "orbit-ir",
+  "version": 1,
+  "module": {
+    "functions": [
+      {
+        "name": "main",
+        "params": [],
+        "param_types": [],
+        "instructions": [
+          {
+            "op": "load_const",
+            "dest": 0,
+            "operands": [
+              {
+                "int": "2147483647"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 1,
+            "operands": [
+              {
+                "int": "2"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "mul",
+            "dest": 2,
+            "operands": [
+              {
+                "reg": 0
+              },
+              {
+                "reg": 1
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 3,
+            "operands": [
+              {
+                "int": "1"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "add",
+            "dest": 4,
+            "operands": [
+              {
+                "reg": 2
+              },
+              {
+                "reg": 3
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 5,
+            "operands": [
+              {
+                "int": "2"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "div",
+            "dest": 6,
+            "operands": [
+              {
+                "reg": 4
+              },
+              {
+                "reg": 5
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 7,
+            "operands": [
+              {
+                "int": "2147483647"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "sub",
+            "dest": 8,
+            "operands": [
+              {
+                "reg": 6
+              },
+              {
+                "reg": 7
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 9,
+            "operands": [
+              {
+                "int": "20"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 10,
+            "operands": [
+              {
+                "int": "5"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "sub",
+            "dest": 11,
+            "operands": [
+              {
+                "reg": 9
+              },
+              {
+                "reg": 10
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 12,
+            "operands": [
+              {
+                "int": "2"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "mul",
+            "dest": 13,
+            "operands": [
+              {
+                "reg": 11
+              },
+              {
+                "reg": 12
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 14,
+            "operands": [
+              {
+                "int": "-7"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 15,
+            "operands": [
+              {
+                "int": "2"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "div",
+            "dest": 16,
+            "operands": [
+              {
+                "reg": 14
+              },
+              {
+                "reg": 15
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "load_const",
+            "dest": 17,
+            "operands": [
+              {
+                "int": "3"
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "mul",
+            "dest": 18,
+            "operands": [
+              {
+                "reg": 16
+              },
+              {
+                "reg": 17
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "add",
+            "dest": 19,
+            "operands": [
+              {
+                "reg": 8
+              },
+              {
+                "reg": 13
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "add",
+            "dest": 22,
+            "operands": [
+              {
+                "reg": 19
+              },
+              {
+                "reg": 18
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "mod",
+            "dest": 20,
+            "operands": [
+              {
+                "reg": 14
+              },
+              {
+                "reg": 15
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "add",
+            "dest": 23,
+            "operands": [
+              {
+                "reg": 22
+              },
+              {
+                "reg": 20
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          },
+          {
+            "op": "ret",
+            "dest": null,
+            "operands": [
+              {
+                "reg": 23
+              },
+              {
+                "none": null
+              },
+              {
+                "none": null
+              }
+            ],
+            "elem_kind": 0
+          }
+        ],
+        "register_count": 24,
+        "register_types": [
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "int"
+        ],
+        "return_type": "int",
+        "extern": false,
+        "route": null
+      }
+    ],
+    "globals": [],
+    "models": [],
+    "types": [],
+    "migrations": []
+  }
+}

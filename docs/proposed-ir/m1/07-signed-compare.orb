@@ -1,0 +1,7 @@
+fn main() -> int {
+    if -7 < 2 {
+        return 3
+    } else {
+        return 0
+    }
+}

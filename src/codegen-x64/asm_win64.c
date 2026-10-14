@@ -179,10 +179,22 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "pushq") == 0 && a1 && strcmp(a1, "%rbp") == 0) return emit(a, 0x55);
     if (strcmp(op, "leave") == 0) return emit(a, 0xc9);
     if (strcmp(op, "ret") == 0) return emit(a, 0xc3);
-    if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0) && a1) {
+    if (strcmp(op, "cqto") == 0) return emit(a, 0x48) && emit(a, 0x99);
+    if (strcmp(op, "idivq") == 0 && a1 && parse_mem(a, a1, &m))
+        return rex_modrm_mem(a, 64, 7, m, 0xf7, 0, 0, -1);
+    if (strcmp(op, "cltd") == 0) return emit(a, 0x99);
+    if (strcmp(op, "idivl") == 0 && a1 && parse_mem(a, a1, &m))
+        return rex_modrm_mem(a, 32, 7, m, 0xf7, 0, 0, -1);
+    if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0 ||
+         strcmp(op, "setne") == 0 || strcmp(op, "setl") == 0 ||
+         strcmp(op, "setle") == 0 || strcmp(op, "setg") == 0 ||
+         strcmp(op, "setge") == 0) && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 8) return bad(a, "setcc requires an 8-bit GPR");
-        return emit(a, 0x0f) && emit(a, strcmp(op, "sete") == 0 ? 0x94 : 0x9b) && emit(a, (uint8_t)(0xc0 | (id1 & 7)));
+        { uint8_t cc = strcmp(op, "sete") == 0 ? 0x94 : strcmp(op, "setne") == 0 ? 0x95 :
+                       strcmp(op, "setl") == 0 ? 0x9c : strcmp(op, "setge") == 0 ? 0x9d :
+                       strcmp(op, "setle") == 0 ? 0x9e : strcmp(op, "setg") == 0 ? 0x9f : 0x9b;
+          return emit(a, 0x0f) && emit(a, cc) && emit(a, (uint8_t)(0xc0 | (id1 & 7))); }
     }
     if (strcmp(op, "call") == 0) {
         uint32_t off;
@@ -211,6 +223,10 @@ static bool encode(Asm *a, char *line) {
         if (!parse_imm(a1, &imm) || id2 != 0 || x2 || w2 != 64) return bad(a, "unsupported movabsq operands");
         return emit(a, 0x48) && emit(a, 0xb8) && emit64(a, imm);
     }
+    if (strcmp(op, "movslq") == 0 && id1 >= 0 && !x1 && w1 == 32 &&
+        id2 >= 0 && !x2 && w2 == 64)
+        return emit(a, 0x48) && emit(a, 0x63) &&
+               emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2) {
         if (w2 == 32) return emit(a, (uint8_t)(0xb8 + (id2 & 7))) && emit32(a, (uint32_t)imm);
         if (w2 == 64) return bad(a, "movq immediate to GPR must use movabsq in M1 assembly");
@@ -255,6 +271,20 @@ static bool encode(Asm *a, char *line) {
         return emit(a, 0x0f) && emit(a, 0xb6) && emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     if (strcmp(op, "addl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x03, 0, 0, -1);
+    if (strcmp(op, "subl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+        return rex_modrm_mem(a, 32, 0, m, 0x2b, 0, 0, -1);
+    if (strcmp(op, "imull") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+        return rex_modrm_mem(a, 32, 0, m, 0xaf, 0, 0, 0x0f);
+    if (strcmp(op, "cmpl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+        return rex_modrm_mem(a, 32, 0, m, 0x3b, 0, 0, -1);
+    if (strcmp(op, "addq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+        return rex_modrm_mem(a, 64, id2, m, 0x03, 0, 0, -1);
+    if (strcmp(op, "subq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+        return rex_modrm_mem(a, 64, id2, m, 0x2b, 0, 0, -1);
+    if (strcmp(op, "imulq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+        return rex_modrm_mem(a, 64, id2, m, 0xaf, 0, 0, 0x0f);
+    if (strcmp(op, "cmpq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+        return rex_modrm_mem(a, 64, id2, m, 0x3b, 0, 0, -1);
     if (strcmp(op, "cmpl") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
         if (imm <= 127) return rex_modrm_mem(a, 32, 7, m, 0x83, 0, 0, -1) && emit(a, (uint8_t)imm);
         return rex_modrm_mem(a, 32, 7, m, 0x81, 0, 0, -1) && emit32(a, (uint32_t)imm);
@@ -336,15 +366,23 @@ static bool finalize_object(Asm *a) {
         uw_symbol = r6_coff_add_symbol(a->obj, uwname, 2, (uint32_t)a->sec[2].n, 0, 3);
         if (end_symbol < 0 || uw_symbol < 0) return bad(a, "%s", r6_coff_error(a->obj));
         if (!f->push_end || !f->fp_end || !f->alloc_end ||
-            f->alloc < 8 || f->alloc > 128 || (f->alloc & 7))
+            f->alloc < 8 || f->alloc > 524280 || (f->alloc & 7))
             return bad(a, "unsupported/invalid Win64 unwind prologue for '%s'", f->name);
         unwind[count++] = 1; unwind[count++] = (uint8_t)f->alloc_end;
-        unwind[count++] = 3; unwind[count++] = 5;
-        unwind[count++] = (uint8_t)f->alloc_end;
-        unwind[count++] = (uint8_t)((((f->alloc - 8) / 8) << 4) | 2);
+        unwind[count++] = 0; unwind[count++] = 5;
+        if (f->alloc <= 128) {
+            unwind[count++] = (uint8_t)f->alloc_end;
+            unwind[count++] = (uint8_t)((((f->alloc - 8) / 8) << 4) | 2);
+            nslots = 3;
+        } else {
+            uint16_t scaled = (uint16_t)(f->alloc / 8);
+            unwind[count++] = (uint8_t)f->alloc_end; unwind[count++] = 1;
+            unwind[count++] = (uint8_t)scaled; unwind[count++] = (uint8_t)(scaled >> 8);
+            nslots = 4;
+        }
         unwind[count++] = (uint8_t)f->fp_end; unwind[count++] = 3;
         unwind[count++] = (uint8_t)f->push_end; unwind[count++] = 0x50;
-        nslots = 3;
+        unwind[2] = (uint8_t)nslots;
         if (nslots & 1) { unwind[count++] = 0; unwind[count++] = 0; }
         if (!r6_coff_section_bytes(a->obj, xdata, unwind, count)) return bad(a, "%s", r6_coff_error(a->obj));
         /* PDATA start, end, and UNWIND_INFO RVA; ADDR32NB is COFF type 3. */
