@@ -261,8 +261,14 @@ static bool encode(Asm *a, char *line) {
         if (!emit(a, 0xf2) || !emit(a, 0x0f) || !emit(a, 0x10)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
-    if (strcmp(op, "addsd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
-        return rex_modrm_mem(a, 0, id2, m, 0x58, 0, 1, 0x0f);
+    if ((strcmp(op, "addsd") == 0 || strcmp(op, "subsd") == 0 ||
+         strcmp(op, "mulsd") == 0 || strcmp(op, "divsd") == 0) &&
+        parse_mem(a, a1, &m) && id2 >= 0 && x2) {
+        uint8_t opcode = strcmp(op, "addsd") == 0 ? 0x58 :
+                         strcmp(op, "subsd") == 0 ? 0x5c :
+                         strcmp(op, "mulsd") == 0 ? 0x59 : 0x5e;
+        return rex_modrm_mem(a, 0, id2, m, opcode, 0, 1, 0x0f);
+    }
     if (strcmp(op, "ucomisd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
         return rex_modrm_mem(a, 0, id2, m, 0x2e, 1, 0, 0x0f);
     if ((strcmp(op, "andb") == 0 || strcmp(op, "orb") == 0) && id1 >= 0 && id2 >= 0 && !x1 && !x2)

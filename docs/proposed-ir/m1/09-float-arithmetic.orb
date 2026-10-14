@@ -1,0 +1,9 @@
+fn main() -> int {
+    var a = 6.0 - 2.0
+    var b = 1.5 * 2.0
+    var c = 9.0 / 3.0
+    if a + b + c == 10.0 {
+        return 10
+    }
+    return 1
+}

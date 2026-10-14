@@ -163,8 +163,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
                 !operand_reg(f, i, 1, &b, d)) return false;
-            if (!is_int(a) || !same_type(a, b) || !same_type(a, type_at(f, i->dest)))
-                return fail(d, i, "CGEN", "sub/mul/div/mod currently require int operands and destination");
+            if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
+                !(is_int(a) || (i->opcode != R6_OP_MOD && is_float(a))))
+                return fail(d, i, "CGEN", "sub/mul/div require matching int/float operands; mod requires int");
             break;
         case R6_OP_EQ:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
@@ -386,7 +387,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD: {
             unsigned aoff = (unsigned)(i->operands[0].as.i32 + 1) * 8;
             unsigned boff = (unsigned)(i->operands[1].as.i32 + 1) * 8;
-            if (i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) {
+            if (is_float(type_at(f, i->operands[0].as.i32))) {
+                const char *ins = i->opcode == R6_OP_SUB ? "subsd" :
+                                  i->opcode == R6_OP_MUL ? "mulsd" : "divsd";
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\t%s -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                        aoff, ins, boff, off);
+            } else if (i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) {
                 fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcltd\n\tidivl -%u(%%rbp)\n", aoff, boff);
                 fprintf(o, "\tmovslq %s, %s\n\tmovq %s, -%u(%%rbp)\n",
                         i->opcode == R6_OP_DIV ? "%eax" : "%edx",
