@@ -466,7 +466,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         i->opcode == R6_OP_GT ? "seta" : "setae";
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\t%s %%al\n",
                         aoff, boff, setcc);
-                if (i->opcode == R6_OP_LT || i->opcode == R6_OP_LE)
+                if (i->opcode == R6_OP_NE)
+                    fprintf(o, "\tsetp %%dl\n\torb %%dl, %%al\n");
+                else if (i->opcode == R6_OP_LT || i->opcode == R6_OP_LE)
                     fprintf(o, "\tsetnp %%dl\n\tandb %%dl, %%al\n");
                 fprintf(o, "\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", off);
             } else {

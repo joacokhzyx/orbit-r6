@@ -26,9 +26,8 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
   `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
   `and_op`, `or_op`, `not_op`, `neg`, `copy`, `jump`, `call` y `ret`, solo para
-  los tipos/combinaciones
-  validados en codegen. Un opcode no implementado produce error con nombre e
-  instrucción.
+  las combinaciones validadas en codegen. Un opcode no implementado produce
+  error con nombre e instrucción.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
   temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
   No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve
@@ -43,12 +42,14 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   compilador de referencia. No se amplía esta evidencia a bordes NaN/infinito.
 - `ne/lt/le/gt/ge` aceptan int o float. Para float, `10-float-compare-nan`
   verifica los seis predicados de comparación con NaN y signed zero contra el
-  pin; `lt/le` enmascaran explícitamente el flag unordered de `ucomisd`.
+  pin; `ne` combina `setne` con parity (`setp`), `lt/le` enmascaran el flag
+  unordered de `ucomisd`.
 - `neg` acepta int (negación modular en el slot nativo) y float (voltea el bit
   de signo con XOR, preservando el payload); `11-neg` compara valores finitos
   con GCC. Overflow de int no queda cubierto por ese fixture.
 - `copy` mueve escalares a slots y `jump` resuelve labels locales por función;
-  `12-jump-copy` confirma salto incondicional y copia de registro contra el pin.
+  `12-jump-copy` confirma salto incondicional y copia; `13-while-counter`
+  verifica back-edge y branch condicional repetido contra el pin.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Solo se admite

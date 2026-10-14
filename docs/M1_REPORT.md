@@ -1,6 +1,6 @@
 # Informe M1 — Windows x86-64
 
-Fecha: 2026-10-14. M1 está verde para los doce fixtures manuales medidos en
+Fecha: 2026-10-14. M1 está verde para los trece fixtures manuales medidos en
 Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
 GCC como oráculo; R6 parseó IRv1 JSON, bajó a su representación assembler
@@ -22,15 +22,16 @@ dependencia de plataforma.
   `40BCBCB473D5A6647DC6EF197AB9563AC78F1D17E0A535A7CA1A8E4D597DD1A2`.
 - Runtime archive construido desde receta y fuentes del pin; SHA-256
   `3FC8FBE3E8D0733E7FA8161FD330011DF71C9DDB5E4B3A5D207AADC1D4F5AF8B`.
-- Driver construido sin optimizaciones después de añadir `jump`/`copy`; SHA-256
-  `D339230B237CFDDA55EB5462D3BCEE7CC656AF575D778965ABD27EE5904AABFD`.
+- Driver construido sin optimizaciones con branches locales resueltos antes de
+  COFF y `setp` para `float != NaN`; SHA-256
+  `528026B7BD934CF54304ED736EC7E8BE4FA14671251C418C351AEADB68ED6CBE`.
 - Fallo cerrado: IR version 2 devuelve exit 1 con `E_VERSION`; opcode `alloc`
   (fuera del subconjunto nativo actual) devuelve exit 1 con `E_UNSUPPORTED`.
 - El harness y los ejecutables temporales de esta corrida residieron bajo
   `.r6-build/`, excluido de Git.
-- Tras integrar el codificador interno y el escritor COFF, la cobertura de
-  enteros, comparaciones, booleanos y binary64 creció con fixtures 06–10. El gate quedó
-  en **12/12 pass** (build y diferencial ejecutados; no es benchmark), incluso
+- El gate diferencial del commit actual quedó en **13/13 pass** después de
+  verificar branches tomados/no tomados, back-edge de `while`, comparaciones
+  IEEE con NaN y signed zero (build y diferencial ejecutados; no es benchmark), incluso
   con `R6_CC` apuntando a una ruta inexistente.
   La reconstrucción anterior + gate de cinco casos tardó 19.9 s;
   no es benchmark. El driver R6 todavía se construye con GCC; la ruta de
@@ -57,14 +58,14 @@ $env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
   combinaciones probadas. Stack slots; sin
   optimizaciones.
 - No se midió la suite completa de Orbit. No hay `--emit-ir`, spec upstream ni
-  corpus emitido por Orbit en el pin. Los doce JSON son fixtures manuales
-  comparados contra sus fuentes `.orb`; los siete añadidos extienden cobertura
+  corpus emitido por Orbit en el pin. Los trece JSON son fixtures manuales
+  comparados contra sus fuentes `.orb`; los ocho añadidos extienden cobertura
   de aritmética entera/float, comparación signed/float, lógica, negación y
-  control de flujo/copia.
+  control de flujo/copia/loops.
 - Casos de overflow/extremos fuera de los fixtures siguen sin cobertura. El
   fixture 10 confirma comparación IEEE unordered para NaN y equivalencia de
   `+0.0`/`-0.0`; fixture 11 cubre negación finita, no todos los payloads NaN.
-  La evidencia semántica se limita al `c_backend.orb` fijado y estos doce
+  La evidencia semántica se limita al `c_backend.orb` fijado y estos trece
   pares; no extrapolar a todos los bordes de IRv1.
 - Linux runtime/toolchain no verificados en este host. DB queda fuera hasta M3
   salvo variante oficial compatible. ARM64 macOS comienza en M3. Multihilo y

@@ -190,7 +190,7 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "cltd") == 0) return emit(a, 0x99);
     if (strcmp(op, "idivl") == 0 && a1 && parse_mem(a, a1, &m))
         return rex_modrm_mem(a, 32, 7, m, 0xf7, 0, 0, -1);
-    if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0 ||
+    if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0 || strcmp(op, "setp") == 0 ||
          strcmp(op, "setne") == 0 || strcmp(op, "setl") == 0 ||
          strcmp(op, "setle") == 0 || strcmp(op, "setg") == 0 ||
          strcmp(op, "setge") == 0 || strcmp(op, "setb") == 0 ||
@@ -202,7 +202,8 @@ static bool encode(Asm *a, char *line) {
                        strcmp(op, "setl") == 0 ? 0x9c : strcmp(op, "setge") == 0 ? 0x9d :
                        strcmp(op, "setle") == 0 ? 0x9e : strcmp(op, "setg") == 0 ? 0x9f :
                        strcmp(op, "setb") == 0 ? 0x92 : strcmp(op, "setbe") == 0 ? 0x96 :
-                       strcmp(op, "seta") == 0 ? 0x97 : strcmp(op, "setae") == 0 ? 0x93 : 0x9b;
+                       strcmp(op, "seta") == 0 ? 0x97 : strcmp(op, "setae") == 0 ? 0x93 :
+                       strcmp(op, "setp") == 0 ? 0x9a : 0x9b;
           return emit(a, 0x0f) && emit(a, cc) && emit(a, (uint8_t)(0xc0 | (id1 & 7))); }
     }
     if (strcmp(op, "call") == 0) {
@@ -360,6 +361,27 @@ static bool append_u32(R6CoffObject *o, int sec, uint32_t v) {
     return r6_coff_section_u32(o, sec, v);
 }
 
+static bool resolve_local_branches(Asm *a) {
+    size_t i;
+    for (i = 0; i < a->nrelocs; ++i) {
+        Fixup *f = &a->relocs[i];
+        int li;
+        int64_t rel;
+        uint8_t *p;
+        if (f->type != 0xfffe) continue;
+        li = find_label(a, f->name);
+        if (li < 0 || a->labels[li].sec != f->sec)
+            return bad(a, "undefined local branch label '%s'", f->name);
+        rel = (int64_t)a->labels[li].off - ((int64_t)f->off + 4);
+        if (rel < INT32_MIN || rel > INT32_MAX)
+            return bad(a, "branch to '%s' is out of range", f->name);
+        p = a->sec[f->sec].p + f->off;
+        p[0] = (uint8_t)rel; p[1] = (uint8_t)(rel >> 8);
+        p[2] = (uint8_t)(rel >> 16); p[3] = (uint8_t)(rel >> 24);
+    }
+    return true;
+}
+
 static bool finalize_object(Asm *a) {
     int text = r6_coff_add_section(a->obj, ".text", 0x60500020u);
     int rdata = r6_coff_add_section(a->obj, ".rdata", 0x40500040u);
@@ -368,6 +390,7 @@ static bool finalize_object(Asm *a) {
     int section_ids[4] = {text, rdata, xdata, pdata};
     size_t i, j;
     if (text < 0 || rdata < 0 || xdata < 0 || pdata < 0) return bad(a, "%s", r6_coff_error(a->obj));
+    if (!resolve_local_branches(a)) return false;
     for (i = 0; i < 3; ++i)
         if (!r6_coff_section_bytes(a->obj, section_ids[i], a->sec[i].p, a->sec[i].n))
             return bad(a, "%s", r6_coff_error(a->obj));
@@ -420,16 +443,7 @@ static bool finalize_object(Asm *a) {
     for (i = 0; i < a->nrelocs; ++i) {
         Fixup *f = &a->relocs[i];
         int sym = -1, li = find_label(a, f->name);
-        if (f->type == 0xfffe) {
-            uint8_t *p;
-            int64_t rel;
-            if (li < 0 || a->labels[li].sec != f->sec) return bad(a, "undefined local branch label '%s'", f->name);
-            rel = (int64_t)a->labels[li].off - ((int64_t)f->off + 4);
-            if (rel < INT32_MIN || rel > INT32_MAX) return bad(a, "branch to '%s' is out of range", f->name);
-            p = a->sec[f->sec].p + f->off;
-            p[0]=(uint8_t)rel; p[1]=(uint8_t)(rel>>8); p[2]=(uint8_t)(rel>>16); p[3]=(uint8_t)(rel>>24);
-            continue;
-        }
+        if (f->type == 0xfffe) continue;
         if (li >= 0) sym = a->labels[li].symbol;
         else {
             for (j = 0; j < a->obj->symbol_count; ++j)

@@ -12,7 +12,7 @@ selector: `pushq`, `subq`, `movabsq`, `movq`, `movl`, `movslq`, `movsd`,
 `addl`, `subl`, `imull`, `addq`, `subq`, `imulq`, `addsd`, `subsd`, `mulsd`,
 `divsd`, `cmpl`, `cmpq`,
 `cltd`, `idivl`, `ucomisd`, `sete`, `setne`, `setl`, `setle`, `setg`, `setge`,
-`setb`, `setbe`, `seta`, `setae`, `setnp`, `andb`, `orb`, `movzbl`, `leaq`,
+`setb`, `setbe`, `seta`, `setae`, `setnp`, `setp`, `andb`, `orb`, `movzbl`, `leaq`,
 `negq`, `xorpd`, `call`, `je`, `jmp`, `leave`, and `ret`. The parser
 accepts `.text`, `.section .rdata`, `.globl`,
 `.def`, `.byte`, and the current canonical `.seh_*` directives. It rejects
@@ -24,8 +24,8 @@ each function start. The current supported frame shape is the selector's
 `pushq %rbp; movq %rsp, %rbp; subq $N, %rsp`, where `N` is 8..128 and divisible
 by 8. The `.pdata` records point to `.xdata` through ADDR32NB relocations.
 
-Verification on 2026-10-14: the integrated R6 driver passed all twelve current
-manual fixtures (**12/12**), with `R6_CC`
+Verification on 2026-10-14: the integrated R6 driver passed all thirteen current
+manual fixtures (**13/13**), with `R6_CC`
 deliberately set to a nonexistent path. Earlier isolated assembler probes are
 historical and do not verify the complete Orbit corpus.
 

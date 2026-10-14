@@ -20,8 +20,9 @@ codes se comparan como exit status/stdout bytes con `orbit build` del pin.
 | `10-float-compare-nan` | seis comparaciones con NaN y signed zero | 0 | vacío |
 | `11-neg` | negación entera y binary64 | 0 | vacío |
 | `12-jump-copy` | salto incondicional y copia de registro | 3 | vacío |
+| `13-while-counter` | loop con branch hacia atrás y acumulación | 10 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–12 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–13 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-14: doce de doce pares pasan diferencial en Windows x86-64.
+medido al 2026-10-14: trece de trece pares pasan diferencial en Windows x86-64.
