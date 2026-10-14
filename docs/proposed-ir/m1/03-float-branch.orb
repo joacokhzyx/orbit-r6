@@ -1,0 +1,7 @@
+fn main() -> int {
+    val sum = 1.25 + 0.5
+    if sum == 1.75 {
+        return 0
+    }
+    return 1
+}

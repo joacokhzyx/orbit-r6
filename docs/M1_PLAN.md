@@ -26,8 +26,8 @@ serializador supuesto para sortear este bloqueo.
 ## Primer programa y gate
 
 Primer caso propuesto: función `main` con dos constantes enteras, `add`, llamada
-a `print` del runtime con una cadena literal y retorno 0. Comprueba valores,
-argumentos, llamada ABI, salida y exit. Antes de codificar debe existir su
+al símbolo runtime `orbit_print` con una cadena literal y retorno con la suma.
+Comprueba valores, argumentos, llamada ABI, salida y exit. Antes de codificar debe existir su
 representación exacta en el IR publicado y un ejecutable gcc oracle generado
 desde la fuente Orbit. Gate M1: este y otros cuatro programas equivalentes
 comparan salida y estado de salida byte por byte; las cinco comparaciones deben

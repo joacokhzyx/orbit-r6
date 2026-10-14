@@ -1,0 +1,6 @@
+extern fn orbit_print(s: string) -> void
+
+fn main() -> int {
+    orbit_print("IR" + "v1\n")
+    return 0
+}
