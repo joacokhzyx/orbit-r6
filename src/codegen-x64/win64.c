@@ -73,6 +73,59 @@ static bool value_type(const R6Function *f, const R6Value *v,
     }
 }
 
+static const char *ir_name(const R6Value *v) {
+    if (v->kind == R6_VAL_SYMBOL || v->kind == R6_VAL_STRING) return v->as.string;
+    return NULL;
+}
+
+static bool local_info(const R6Function *f, const char *name,
+                       size_t *index, const char **type) {
+    size_t pc, prior_unique = 0;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        const char *candidate;
+        size_t j;
+        bool seen = false;
+        if (i->opcode != R6_OP_DECL_VAR) continue;
+        candidate = ir_name(&i->operands[0]);
+        if (!candidate) continue;
+        for (j = 0; j < pc; ++j) {
+            const R6Instruction *p = &f->instructions[j];
+            const char *prior;
+            if (p->opcode != R6_OP_DECL_VAR) continue;
+            prior = ir_name(&p->operands[0]);
+            if (prior && strcmp(prior, candidate) == 0) { seen = true; break; }
+        }
+        if (strcmp(candidate, name) == 0) {
+            const char *t;
+            if (!value_type(f, &i->operands[1], &t)) return false;
+            if (index) *index = prior_unique;
+            if (type) *type = t;
+            return true;
+        }
+        if (!seen) ++prior_unique;
+    }
+    return false;
+}
+
+static size_t local_count(const R6Function *f) {
+    size_t pc, count = 0;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        const char *name = ir_name(&i->operands[0]);
+        size_t j;
+        bool seen = false;
+        if (i->opcode != R6_OP_DECL_VAR || !name) continue;
+        for (j = 0; j < pc; ++j) {
+            const R6Instruction *p = &f->instructions[j];
+            const char *prior = p->opcode == R6_OP_DECL_VAR ? ir_name(&p->operands[0]) : NULL;
+            if (prior && strcmp(prior, name) == 0) { seen = true; break; }
+        }
+        if (!seen) ++count;
+    }
+    return count;
+}
+
 static const R6Function *find_function(const R6Module *m, const char *name) {
     size_t n;
     for (n = 0; n < m->function_count; ++n)
@@ -151,6 +204,23 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d)) return false;
             if (!validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             break;
+        case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
+            const char *name = ir_name(&i->operands[0]), *vt = NULL, *lt = NULL;
+            if (!name || !*name || i->operands[1].kind != R6_VAL_REG ||
+                !value_type(f, &i->operands[1], &vt) || !is_scalar(vt) ||
+                !local_info(f, name, NULL, &lt) || !same_type(vt, lt))
+                return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar register",
+                            r6_opcode_name(i->opcode));
+            break;
+        }
+        case R6_OP_LOAD_VAR: {
+            const char *name = ir_name(&i->operands[0]), *lt = NULL;
+            if (!valid_dest(f, i, true, d) || !name ||
+                !local_info(f, name, NULL, &lt) ||
+                !same_type(lt, type_at(f, i->dest)) || !is_scalar(lt))
+                return fail(d, i, "CGEN", "load_var requires a declared scalar local and matching destination");
+            break;
+        }
         case R6_OP_COPY:
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
@@ -358,7 +428,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     bool is_main = strcmp(f->name, "main") == 0;
     const char *native_name = is_main ? "orbit_main" : f->name;
     size_t frame = ((size_t)f->register_count * 8 + (is_main ? 8 : 0) +
-                    f->param_count * 8 + 32 + 15) & ~(size_t)15;
+                    f->param_count * 8 + local_count(f) * 8 + 32 + 15) & ~(size_t)15;
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
@@ -378,6 +448,36 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         const char *t;
         unsigned off = i->has_dest ? (unsigned)(i->dest + 1) * 8 : 0;
         switch (i->opcode) {
+        case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
+            size_t local_index;
+            const char *local_type;
+            unsigned local_off;
+            local_info(f, ir_name(&i->operands[0]), &local_index, &local_type);
+            local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+                                   f->param_count + local_index + 1) * 8;
+            if (is_float(local_type))
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
+            else
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
+            break;
+        }
+        case R6_OP_LOAD_VAR: {
+            size_t local_index;
+            const char *local_type;
+            unsigned local_off;
+            local_info(f, ir_name(&i->operands[0]), &local_index, &local_type);
+            local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+                                   f->param_count + local_index + 1) * 8;
+            if (is_float(local_type))
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                        local_off, off);
+            else
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        local_off, off);
+            break;
+        }
         case R6_OP_LOAD_CONST:
             if (v->kind == R6_VAL_STRING) {
                 emit_string(o, v->as.string, string_id);

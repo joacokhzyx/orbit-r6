@@ -25,9 +25,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 
 - Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
   `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
-  `and_op`, `or_op`, `not_op`, `neg`, `copy`, `jump`, `call` y `ret`, solo para
-  las combinaciones validadas en codegen. Un opcode no implementado produce
-  error con nombre e instrucción.
+  `and_op`, `or_op`, `not_op`, `neg`, `copy`, `jump`, `load_var`, `decl_var`,
+  `store_var`, `call` y `ret`, solo para las combinaciones validadas en codegen.
+  Un opcode no implementado produce error con nombre e instrucción.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
   temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
   No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve
@@ -49,7 +49,10 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   con GCC. Overflow de int no queda cubierto por ese fixture.
 - `copy` mueve escalares a slots y `jump` resuelve labels locales por función;
   `12-jump-copy` confirma salto incondicional y copia; `13-while-counter`
-  verifica back-edge y branch condicional repetido contra el pin.
+  verifica back-edge, branch condicional y variable int local contra el pin.
+  `load_var/decl_var/store_var` solo soportan locales de tipo escalar declarados
+  en la función e inicializados/actualizados desde registros; globals, params
+  por nombre y captures fallan explícitamente.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Solo se admite
