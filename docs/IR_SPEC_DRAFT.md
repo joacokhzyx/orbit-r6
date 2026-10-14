@@ -7,14 +7,14 @@ contrato, o publique uno equivalente.
 
 ## Evidencia del inventario
 
-`compiler/ir.orb:3-70` define los 59 miembros de `IROpcode`. `compiler/builder.orb`
+`compiler/ir.orb:3-70` define los 60 miembros de `IROpcode`. `compiler/builder.orb`
 construye instrucciones usando `ir_init_instr` y rellena sus operandos; la
 representación de almacenamiento está definida en `compiler/ir.orb:72-105`.
 `compiler/c_backend.orb:2661-2698` muestra la convención de `arg`/`call`, y
 `compiler/c_backend.orb:3274-3592` contiene el lowering de memoria, colecciones,
 resultados, uniones, DB y HTTP.
 
-### Lista exacta (59)
+### Lista exacta (60)
 
 `nop`, `load_const`, `load_var`, `store_var`, `decl_var`, `add`, `sub`, `mul`,
 `div`, `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `and_op`, `or_op`, `not_op`,
