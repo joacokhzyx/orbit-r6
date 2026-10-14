@@ -265,8 +265,8 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 0, id2, m, 0x58, 0, 1, 0x0f);
     if (strcmp(op, "ucomisd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
         return rex_modrm_mem(a, 0, id2, m, 0x2e, 1, 0, 0x0f);
-    if (strcmp(op, "andb") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2)
-        return emit(a, 0x20) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
+    if ((strcmp(op, "andb") == 0 || strcmp(op, "orb") == 0) && id1 >= 0 && id2 >= 0 && !x1 && !x2)
+        return emit(a, strcmp(op, "andb") == 0 ? 0x20 : 0x08) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     if (strcmp(op, "movzbl") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2)
         return emit(a, 0x0f) && emit(a, 0xb6) && emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     if (strcmp(op, "addl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)

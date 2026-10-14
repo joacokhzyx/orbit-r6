@@ -25,8 +25,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 
 - Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
   `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
-  `call` y `ret`, solo para los tipos/combinaciones validados en codegen. Un
-  opcode no implementado produce error con nombre e instrucción.
+  `and_op`, `or_op`, `not_op`, `call` y `ret`, solo para los tipos/combinaciones
+  validados en codegen. Un opcode no implementado produce error con nombre e
+  instrucción.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
   temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
   No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve

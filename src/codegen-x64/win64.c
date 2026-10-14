@@ -179,6 +179,17 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!is_int(a) || !same_type(a, b) || !is_bool(type_at(f, i->dest)))
                 return fail(d, i, "CGEN", "ne/lt/le/gt/ge currently require int operands and bool destination");
             break;
+        case R6_OP_AND_OP: case R6_OP_OR_OP:
+            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
+                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!is_bool(a) || !is_bool(b) || !is_bool(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "and_op/or_op require bool operands and destination");
+            break;
+        case R6_OP_NOT_OP:
+            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d)) return false;
+            if (!is_bool(a) || !is_bool(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "not_op requires bool operand and destination");
+            break;
         case R6_OP_JUMP_IF_FALSE:
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_bool(type_at(f, i->operands[0].as.i32)))
@@ -411,6 +422,16 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     (unsigned)(i->operands[1].as.i32 + 1) * 8, setcc, off);
             break;
         }
+        case R6_OP_AND_OP: case R6_OP_OR_OP:
+            fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%dl\n\t%s %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                    (unsigned)(i->operands[0].as.i32 + 1) * 8,
+                    (unsigned)(i->operands[1].as.i32 + 1) * 8,
+                    i->opcode == R6_OP_AND_OP ? "andb" : "orb", off);
+            break;
+        case R6_OP_NOT_OP:
+            fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                    (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
+            break;
         case R6_OP_JUMP_IF_FALSE:
             fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tje .Lr6_f%zu_l%d\n",
                     (unsigned)(v->as.i32 + 1) * 8, fn_index,
