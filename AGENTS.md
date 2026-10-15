@@ -84,6 +84,8 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 - `src/driver/r6.c` — CLI, temporaries under `.r6-build`, direct `ld` link.
 - `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — probes
   that produced `docs/COFF_OBJECTS.md`.
+- `scripts/` — `build-r6.ps1` (driver build), `migrate-m1-fixtures.py`
+  (one-shot D-F0-06 fixture converter; `--check` compares against HEAD).
 - `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module
   interfaces), `IR_SPEC_DRAFT.md` (IRv1 grammar + per-opcode gaps),
   `DECISIONS.md` (dated rulings), `M1_PLAN.md`/`M1_REPORT.md` (plan/evidence).
@@ -93,16 +95,18 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 
 1. Fixtures are hand-written `.json` + `.orb` pairs in `docs/proposed-ir/m1/`;
    Orbit has no `--emit-ir` even at its HEAD, so nothing generates them yet.
-2. **Format in migration (decided 2026-10-15)**: R6 adopted the language-side
-   `orbit-lang/docs/IR_SPEC.md` (`irVersion` root, `kind`/`value` operands,
-   spec rules V-01..V-19) over the local draft serialization — see
-   `docs/IR_SPEC_ALIGNMENT.md` and `D-F0-06` in `DECISIONS.md`. Until that
-   migration lands, the loader still implements the draft format: root exactly
-   `{"format":"orbit-ir","version":1,"module":M}`, LF-terminated, no BOM;
-   extra/missing/duplicate keys, JSON float numbers, non-decimal `int` strings,
-   non-lowercase 16-hex `float64_bits`, `elem_kind != 0` outside `list_*`,
-   and `register_count`/`register_types` length mismatch are all rejected.
-   Each instruction has exactly 3 tagged operands (`none` is `null`).
+2. **Format (migrated 2026-10-15, commit `06d7d2c`)**: the loader implements
+   the language-side `orbit-lang/docs/IR_SPEC.md` format (blob `110ce439…`):
+   root `{"irVersion":"1","module":M}`, instructions
+   `opcode`/`dest`/`operand1..3`/`elemKind`, values `{"kind":K,"value":V}`
+   (`{"kind":"None"}` bare), `dest` `-1` for none, flat `route*` fields, ints
+   and floats as JSON numbers (floats must be finite, V-08). The draft
+   serialization (`{"format":"orbit-ir","version":1,...}`) is rejected with
+   `E_FORMAT`; there is no dual acceptance (D-F0-06/D-F0-07 in
+   `DECISIONS.md`, extraction in `IR_SPEC_ALIGNMENT.md`). Keep `.json`/`.orb`
+   LF (pinned by `.gitattributes`); fixtures convert mechanically with
+   `python scripts/migrate-m1-fixtures.py --check` (re-verifies against the
+   pre-migration revision, `06d7d2c^`).
 3. Support for something new = loader's allowed-opcode range + codegen +
    fixture pair + the table in `docs/proposed-ir/m1/README.md`, then record the
    decision and differential count in `DECISIONS.md` / `M1_REPORT.md`.

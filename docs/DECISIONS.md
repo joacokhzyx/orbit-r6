@@ -104,4 +104,48 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Pin: unchanged at `5c01cea68f125f06dd3ac82a61776827bdb0c6f3`. The move happens
   only when the emitter and the serialized corpus exist and are verified, with
   new hashes recorded in `PIN.md` (D-F0-01 policy).
-- Status: **accepted by user 2026-10-15; migration pending, code unchanged**.
+- Status: **accepted by user 2026-10-15; migration landed (see D-F0-07)**.
+
+## D-F0-07 — IRv1 migration outcome: loader, fixtures and call arity
+
+- Date: 2026-10-15.
+- Decision: the migration of D-F0-06 landed as one atomic change (commit
+  `06d7d2c`, `feat: adopt language-side IRv1 format (20/20 diff)`):
+  - `src/loader/ir.c` implements the spec serialization exactly: root
+    `irVersion`+"module" (2 keys), `opcode`/`dest`/`operand1..3`/`elemKind`,
+    values `{"kind":K,"value":V}` (`{"kind":"None"}` with no payload), flat
+    `routeMethod`..`routeLimitBurst` (E-10 coherence), `registerCount` ==
+    `registerTypes` length (V-11), `paramTypes` (V-12), ints and floats as JSON
+    numbers. The draft document is rejected with `E_FORMAT` and a migration
+    hint; no dual acceptance.
+  - Loader gains the spec's missing validations: V-06/V-07/V-08 (fraction and
+    exponent rejected in integer contexts; non-finite floats rejected), V-10
+    (dest required for value-producing opcodes and non-void calls), V-13
+    (`call` consumes exactly its `operand2` pending args), V-14 (jump targets
+    must exist), V-16 (route coherence), V-18 (an extern body is ignored) and
+    the V-01 elision marker.
+  - `src/codegen-x64/win64.c` consumes the operand2 arity for direct calls
+    (last-N pending args, E-05) and no longer rejects an extern body; it keeps
+    the R6 rule arity == declared parameter count for the direct calls it
+    supports and still fails closed (`CGEN`) on leftover pending args.
+- Alternatives: validate `call` arity only in codegen (rejected: V-13 is a
+  loader rule and the diagnostic must name the field); accept the C backend's
+  silent tolerance of leftover pending args (rejected: R6 does not emit a
+  program whose call arguments it cannot account for; the builder never
+  produces one); keep route functions accepted (rejected: Kynx routes need
+  `OrbitResponse*` plumbing outside the native subset -> explicit
+  `E_UNSUPPORTED`).
+- Codes pinned for the negative suite: structural shape and kind mismatches ->
+  `E_SCHEMA`; magnitude/range and non-finite floats -> `E_RANGE`; unknown
+  opcode names -> `E_OPCODE`; draft documents -> `E_FORMAT`; unsupported
+  opcodes/routes -> `E_UNSUPPORTED`.
+- Evidence: gate `python tests/diff/run_diff.py` **20/20** with exit/stdout
+  byte-identical to the pre-migration baseline (`.r6-build/baseline-20.txt`
+  vs `.r6-build/migrated-20.txt`); the spec's own §5.2 minimal example builds
+  and runs (exit 0); the draft form of `01-int-call` exits 1 with
+  `error[E_FORMAT]`; no `.orb` file changed; driver build clean under
+  `-Werror` (SHA-256
+  `CAD71E9FD9786867ECD91F69EED76E54858372833095F20B82BF9541D53AA932`);
+  `.gitattributes` pins LF for `*.json`/`*.orb` so a fresh checkout satisfies
+  V-01 regardless of `core.autocrlf`.
+- Status: **accepted (implementation evidence, not an upstream publication)**.

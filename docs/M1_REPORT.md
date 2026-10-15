@@ -116,3 +116,36 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
 - SHA-256 del driver probado: `E839C49E29223D6AF5C940537847F3FBFE0334D37C723298BCB9DDD8AFBA20D7`.
 - `list_get` usa el layout documentado de `OrbitList` para cargar el slot y llama a los errores oficiales para índice/kind. El alcance permanece `list<int>` en `main`; otros kinds, set/pop y helpers fuera de main siguen rechazados.
 - Esta evidencia es M1 manual, no la suite/std completa; no constituye benchmark.
+
+## Actualización de M1 — formato IRv1 del lenguaje (2026-10-15)
+
+- R6 migró su serialización al formato publicado por el lado lenguaje
+  (`orbit-lang/docs/IR_SPEC.md`, blob
+  `110ce439be8969d0e97986ad5eaa0cf0db92b1af`); decisión D-F0-06, resultado
+  D-F0-07, análisis completo en `IR_SPEC_ALIGNMENT.md`. El pin no se movió: la
+  spec está en el HEAD del checkout, no en `5c01cea`.
+- Gate completo tras la migración: **20/20 pass** (exit 0) con exit/stdout
+  byte a byte idénticos a la línea base previa por fixture; los 20 `.json` se
+  regeneraron mecánicamente (`scripts/migrate-m1-fixtures.py`, con relectura de
+  bits de floats) y ningún `.orb` cambió. No es benchmark.
+- Loader: acepta `irVersion`/`module`, operandos `kind`/`value`, `dest` -1,
+  `route*` plano y floats numéricos; rechaza el formato draft con `E_FORMAT`.
+  Validaciones nuevas: V-08 (no finitos), V-10 (dest requerido), V-13 (aridad
+  de `call`), V-14 (jump a label existente), V-16 (route coherente), V-18
+  (cuerpo de extern ignorado) y marcador de elisión de V-01.
+- Codegen: `call` consume exactamente `operand2` argumentos pendientes (E-05);
+  un extern con cuerpo ya no se rechaza (E-09); las rutas Kynx se rechazan con
+  `E_UNSUPPORTED` (fuera del subconjunto nativo).
+- Verificaciones directas: el ejemplo mínimo de §5.2 de la spec compila con R6
+  y corre (exit 0); el documento draft de `01-int-call` termina con
+  `error[E_FORMAT]`. `.gitattributes` fija LF para `*.json`/`*.orb` (V-01)
+  independientemente de `core.autocrlf`.
+- SHA-256 del driver probado:
+  `CAD71E9FD9786867ECD91F69EED76E54858372833095F20B82BF9541D53AA932`.
+  Nota de reproducibilidad: el fixed-point `40BCBCB4…` registrado arriba no
+  aparece en este host; el binario reconstruido (`C:\Temp\orbit-fp-26cfb87400.exe`,
+  SHA-256 `6D60938B5BAF49755F93FA40A9FBACB91592F36418BCEA57D9FD064E1D5DA758`)
+  pasa 20/20 y es el usado en esta corrida.
+- La suite negativa (una prueba por regla V/E con código esperado) y su runner
+  `tests/reject/` llegan en la fase B; esta nota sólo cubre la migración de
+  formato.

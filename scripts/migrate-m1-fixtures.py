@@ -139,16 +139,19 @@ def render(doc: dict, pretty: bool) -> str:
     return json.dumps(doc, separators=(",", ":"), ensure_ascii=True) + "\n"
 
 
-def head_text(path: Path) -> str:
+def base_text(base: str, path: Path) -> str:
     rel = path.relative_to(REPO).as_posix()
-    return subprocess.run(["git", "-C", str(REPO), "show", f"HEAD:{rel}"],
+    return subprocess.run(["git", "-C", str(REPO), "show", f"{base}:{rel}"],
                           check=True, capture_output=True, text=True).stdout
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true",
-                    help="verify the working tree equals a fresh conversion of HEAD")
+                    help="verify the working tree equals a fresh conversion of --base")
+    ap.add_argument("--base", default="06d7d2c^",
+                    help="revision holding the pre-migration draft fixtures "
+                         "(default: the parent of the migration commit)")
     args = ap.parse_args()
     files = sorted(FIXTURES.glob("*.json"))
     if not files:
@@ -158,9 +161,9 @@ def main() -> int:
     for path in files:
         working = path.read_text(encoding="utf-8")
         if args.check:
-            new = convert_document(json.loads(head_text(path)))
+            new = convert_document(json.loads(base_text(args.base, path)))
             if normalize(json.loads(working)) != normalize(new):
-                print(f"FAIL {path.name}: working tree differs from a fresh conversion of HEAD")
+                print(f"FAIL {path.name}: working tree differs from a fresh conversion of {args.base}")
                 return 1
             converted.append(path.name)
             continue

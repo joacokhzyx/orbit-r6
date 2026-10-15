@@ -11,8 +11,8 @@ Fuentes comparadas:
 
 Regla adoptada, textual de la spec: *"Where this document and the draft
 disagree, this document prevails; where the language publishes something else,
-the language prevails."* Este documento enumera las diferencias para migrar; no
-cambia código todavía.
+the language prevails."* Este documento enumera las diferencias que se
+migraron; el resultado final está en §7.
 
 ## 1. Lo que ya coincide
 
@@ -139,3 +139,37 @@ el lowering y el diferencial mediría una reconstrucción, no el IR del builder.
   backend C? R6 los necesita igual, pero la spec debería decirlo.
 - **P5** ¿Dónde vive el corpus serializado? Propuesta: lo emite el lenguaje y R6
   lo pinea por hash + manifiesto (mismo patrón que `runtime/orbit_api.h`).
+
+## 7. Estado (2026-10-15): migración completada en R6
+
+Commit `06d7d2c` (`feat: adopt language-side IRv1 format (20/20 diff)`); los
+pasos 1–4 de §5 quedaron así:
+
+- **Formato**: `src/loader/ir.c` acepta exactamente
+  `{"irVersion":"1","module":M}`, instrucciones
+  `opcode`/`dest`/`operand1..3`/`elemKind`, valores `kind`+`value`
+  (`{"kind":"None"}` sin payload), `dest` `-1` para "sin destino", `route*`
+  plano y floats como número JSON. El documento draft se rechaza con
+  `E_FORMAT` y pista de migración (sin doble aceptación, D-F0-06).
+- **Validaciones nuevas en loader**: V-06/V-07 (enteros JSON; fracción o
+  exponente en contexto entero -> `E_SCHEMA`), V-08 (no finito -> `E_RANGE`),
+  V-10 (dest requerido por opcode y por `call` no-void), V-13 (aridad O2:
+  entero >= 0 y <= pendientes), V-14 (jump a label existente), V-16 (route
+  coherente), V-18 (cuerpo de extern: se parsea y se ignora). V-11/V-12 y el
+  marcador de elisión `…[N chars]` (V-01) también quedaron en el loader.
+- **Fixtures**: los 20 `.json` se regeneraron con
+  `scripts/migrate-m1-fixtures.py` (conversión mecánica con relectura de bits
+  de floats); los 6 con `call` llevan ahora su aridad en `operand2`. Ningún
+  `.orb` cambió. `.gitattributes` fija LF para `*.json`/`*.orb`.
+- **Codegen**: `call` consume exactamente los últimos O2 argumentos pendientes
+  (E-05) y mantiene la exigencia de aridad == parámetros declarados; un extern
+  con cuerpo se ignora (E-09). Las rutas Kynx se rechazan con `E_UNSUPPORTED`
+  (fuera del subconjunto nativo; antes el rechazo era accidental en el
+  codegen).
+
+Evidencia: gate **20/20** con exit/stdout idénticos a la línea base
+(`.r6-build/baseline-20.txt` vs `.r6-build/migrated-20.txt`), el ejemplo mínimo
+de §5.2 de la spec compila y corre (exit 0), y el draft de `01-int-call`
+termina con `error[E_FORMAT]`. Pendiente: la suite negativa de §3 con caso y
+código esperado por regla (`tests/reject/`, fase B) y las respuestas P1–P5
+para el emisor (fase D).

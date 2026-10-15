@@ -1,10 +1,14 @@
 # Fixtures M1 manuales IRv1 (diferencial contra el pin)
 
-Cada `.json` usa la gramática aceptada de `docs/IR_SPEC_DRAFT.md`; cada `.orb`
-es el fuente de comportamiento equivalente para el oracle gcc. Outputs/exit
-codes se comparan como exit status/stdout bytes con `orbit build` del pin.
-`orbit_print` se invoca como símbolo runtime declarado por ABI C en
-`runtime/orbit_api.h`.
+Cada `.json` usa el formato IRv1 del lado lenguaje
+(`orbit-lang/docs/IR_SPEC.md`, blob `110ce439be8969d0e97986ad5eaa0cf0db92b1af`):
+raíz `irVersion`+`module`, operandos `{"kind":K,"value":V}`, `dest` `-1` para
+"sin destino" y la aridad de cada `call` en `operand2` (V-13). El draft local
+`docs/IR_SPEC_DRAFT.md` está superseded (D-F0-06) y los archivos son LF por
+`.gitattributes` (V-01). Cada `.orb` es el fuente de comportamiento equivalente
+para el oracle gcc. Outputs/exit codes se comparan como exit status/stdout
+bytes con `orbit build` del pin. `orbit_print` se invoca como símbolo runtime
+declarado por ABI C en `runtime/orbit_api.h`.
 
 | Caso | Familia | Exit esperado | Stdout esperado |
 |---|---|---:|---|
@@ -32,4 +36,7 @@ codes se comparan como exit status/stdout bytes con `orbit build` del pin.
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06–20 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-14: veinte pares pasan diferencial en Windows x86-64.
+medido al 2026-10-15: los veinte pares, ya en el formato de la spec, pasan
+diferencial en Windows x86-64 con exit/stdout idénticos a la línea base previa
+a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07 y
+`../../M1_REPORT.md`).
