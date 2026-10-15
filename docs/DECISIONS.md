@@ -149,3 +149,34 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `.gitattributes` pins LF for `*.json`/`*.orb` so a fresh checkout satisfies
   V-01 regardless of `core.autocrlf`.
 - Status: **accepted (implementation evidence, not an upstream publication)**.
+
+## D-M1-06 — Loader contract suite as the second gate
+
+- Date: 2026-10-15.
+- Decision: `tests/reject/` is the repo's second gate, committed with the
+  migration: 47 rejection cases covering every applicable V-01..V-19 rule and
+  E-01/E-02/E-08/E-10/E-11/E-12 edge cases (each case cites its rule in
+  `manifest.json`), plus 4 acceptance controls. A rejection must exit 1 with
+  exactly one `r6: <file>:<line>:<col>: error[CODE]: <msg>` line carrying the
+  expected code; an acceptance control must build and, when declared, run with
+  byte-compared stdout (the corpus `01-int-call` prints `M1-add\r\n\r\n` and
+  exits 42, matching the differential baseline).
+- Alternatives: one shell script per case (rejected: a manifest + single
+  runner keeps the rule → code → exit mapping in one auditable place);
+  asserting only exit codes (rejected: fail-closed means the diagnostic names
+  the violated rule — codes are contract, not presentation); folding the
+  rejections into the differential gate (rejected: different oracle — the C
+  backend has no opinion on loader rejections, and `.orb` counterparts cannot
+  express malformed IR).
+- Byte-exact cases (BOM, missing trailing LF, invalid UTF-8, elision marker,
+  `1e3`/`1e999` forms, duplicate keys) are rendered by `make_cases.py`, which
+  also renders `manifest.json`; `--check` re-verifies the tree. E-05/E-07/E-09
+  are exercised as acceptance controls (`ok-call-arity-suffix`,
+  `ok-untargeted-label`, `ok-extern-body`); E-03/E-04/E-06 require phase C
+  decisions because R6's strict `registerTypes` typing and runtime alias set
+  reject them in codegen.
+- Evidence: `python tests/reject/run_reject.py` → **51/51** (47 reject + 4
+  accept) on 2026-10-15; `make_cases.py --check` renders the tree identically;
+  differential gate still **20/20** with the suite in place; driver SHA-256
+  `CAD71E9FD9786867ECD91F69EED76E54858372833095F20B82BF9541D53AA932`.
+- Status: **accepted**.

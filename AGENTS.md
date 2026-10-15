@@ -17,7 +17,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Differential gate — the only test suite; verified 20/20 on 2026-10-15 with:
+Primary gate: differential — verified 20/20 on 2026-10-15 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -38,6 +38,25 @@ python tests/diff/run_diff.py `
   the R6 program path must never invoke GCC.
 - `python tests/diff/run_diff.py --help` — remaining flags mirror the pinned
   `scripts/test_suite.py`.
+
+Second gate: loader contract suite (`tests/reject/`, decision D-M1-06) —
+verified 51/51 on 2026-10-15:
+
+```powershell
+python tests/reject/run_reject.py            # 47 rejections + 4 acceptance controls
+python tests/reject/run_reject.py --case v13 # one case (stem substring)
+python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
+```
+
+- `tests/reject/manifest.json` is the suite truth (expected exit, expected
+  diagnostic code, spec rule); `make_cases.py` renders it together with
+  `cases/` deterministically — do not hand-edit the byte-exact cases.
+- Every rejection must exit 1 with exactly one
+  `r6: <file>:<line>:<col>: error[CODE]: <msg>` line carrying the manifest
+  code; acceptance controls build, and run with byte-compared stdout when the
+  manifest declares `run_exit`/`run_stdout`.
+- The runner executes the driver with the repo root as CWD (the runtime
+  archive path is resolved relative to the CWD).
 
 Probe binaries (historical COFF/assembler probes, not part of the gate):
 
@@ -84,10 +103,14 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 - `src/driver/r6.c` — CLI, temporaries under `.r6-build`, direct `ld` link.
 - `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — probes
   that produced `docs/COFF_OBJECTS.md`.
+- `tests/reject/` — loader contract suite: `run_reject.py` (second gate),
+  `make_cases.py` (deterministic case builder), `cases/` + `manifest.json`.
 - `scripts/` — `build-r6.ps1` (driver build), `migrate-m1-fixtures.py`
-  (one-shot D-F0-06 fixture converter; `--check` compares against HEAD).
+  (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
+  pre-migration revision, `06d7d2c^`).
 - `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module
-  interfaces), `IR_SPEC_DRAFT.md` (IRv1 grammar + per-opcode gaps),
+  interfaces), `IR_SPEC_DRAFT.md` (superseded draft grammar, kept for
+  reference), `IR_SPEC_ALIGNMENT.md` (adopted spec vs implementation, D-F0-06),
   `DECISIONS.md` (dated rulings), `M1_PLAN.md`/`M1_REPORT.md` (plan/evidence).
   Contract prose is Spanish; match the file you edit.
 

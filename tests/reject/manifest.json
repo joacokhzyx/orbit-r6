@@ -1,0 +1,360 @@
+{
+  "reject": [
+    {
+      "file": "cases/v01-no-trailing-lf.json",
+      "exit": 1,
+      "code": "E_JSON",
+      "rule": "V-01",
+      "note": "document must end with LF"
+    },
+    {
+      "file": "cases/v01-bom.json",
+      "exit": 1,
+      "code": "E_JSON",
+      "rule": "V-01",
+      "note": "UTF-8 BOM is not allowed"
+    },
+    {
+      "file": "cases/v01-elision-marker.json",
+      "exit": 1,
+      "code": "E_JSON",
+      "rule": "V-01",
+      "note": "authoring-tool elision marker"
+    },
+    {
+      "file": "cases/v01-invalid-utf8.json",
+      "exit": 1,
+      "code": "E_UTF8",
+      "rule": "V-01",
+      "note": "string must be valid UTF-8"
+    },
+    {
+      "file": "cases/v01-malformed-json.json",
+      "exit": 1,
+      "code": "E_JSON",
+      "rule": "V-01",
+      "note": "JSON syntax error"
+    },
+    {
+      "file": "cases/v02-missing-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-02",
+      "note": "root has exactly irVersion + module"
+    },
+    {
+      "file": "cases/v02-extra-root-key.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-02",
+      "note": "unknown root key"
+    },
+    {
+      "file": "cases/v02-irversion-number.json",
+      "exit": 1,
+      "code": "E_VERSION",
+      "rule": "V-02",
+      "note": "irVersion must be the string \"1\""
+    },
+    {
+      "file": "cases/v02-irversion-2.json",
+      "exit": 1,
+      "code": "E_VERSION",
+      "rule": "V-02",
+      "note": "unsupported version"
+    },
+    {
+      "file": "cases/v02-draft-format.json",
+      "exit": 1,
+      "code": "E_FORMAT",
+      "rule": "V-02",
+      "note": "superseded R6 draft serialization"
+    },
+    {
+      "file": "cases/v03-unknown-opcode.json",
+      "exit": 1,
+      "code": "E_OPCODE",
+      "rule": "V-03",
+      "note": "opcode must be one of the 60 names"
+    },
+    {
+      "file": "cases/v03-case-folded-opcode.json",
+      "exit": 1,
+      "code": "E_OPCODE",
+      "rule": "V-03",
+      "note": "no case folding or aliases"
+    },
+    {
+      "file": "cases/v04-elemkind-on-add.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-04",
+      "note": "elemKind nonzero outside collection opcodes"
+    },
+    {
+      "file": "cases/v04-elemkind-out-of-range.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-04",
+      "note": "elemKind is an integer in 0..5"
+    },
+    {
+      "file": "cases/v05-missing-kind.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-05",
+      "note": "kind is required"
+    },
+    {
+      "file": "cases/v05-unknown-kind.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-05",
+      "note": "kind must be one of the 8"
+    },
+    {
+      "file": "cases/v05-none-with-payload.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-05",
+      "note": "None carries no value"
+    },
+    {
+      "file": "cases/v05-extra-key.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-05",
+      "note": "value objects have kind/value only"
+    },
+    {
+      "file": "cases/v05-string-wrong-type.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-05",
+      "note": "value must match the kind"
+    },
+    {
+      "file": "cases/v05-missing-value.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-05",
+      "note": "value is required for non-None kinds"
+    },
+    {
+      "file": "cases/v06-int-fraction.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-06",
+      "note": "no fraction in integer values"
+    },
+    {
+      "file": "cases/v06-int-exponent.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-06",
+      "note": "no exponent in integer values"
+    },
+    {
+      "file": "cases/v06-int-overflow.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-06",
+      "note": "signed 32-bit limit"
+    },
+    {
+      "file": "cases/v07-dest-below-minus-one.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-07",
+      "note": "dest is -1 or a non-negative integer"
+    },
+    {
+      "file": "cases/v07-register-negative.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-07/V-09 (E-02)",
+      "note": "no negative register ids"
+    },
+    {
+      "file": "cases/v08-float-overflow.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-08",
+      "note": "floats must be finite"
+    },
+    {
+      "file": "cases/v10-dest-minus-one-load-const.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-10 (E-01)",
+      "note": "value-producing opcodes need dest"
+    },
+    {
+      "file": "cases/v10-call-nonvoid-no-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-10",
+      "note": "non-void call needs dest"
+    },
+    {
+      "file": "cases/v11-dest-out-of-range.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-11",
+      "note": "dest < registerCount"
+    },
+    {
+      "file": "cases/v11-register-out-of-range.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-11",
+      "note": "Register(n) < registerCount"
+    },
+    {
+      "file": "cases/v11-registertypes-length.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-11",
+      "note": "registerCount == len(registerTypes)"
+    },
+    {
+      "file": "cases/v12-paramtypes-length.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-12",
+      "note": "params and paramTypes have equal length"
+    },
+    {
+      "file": "cases/v12-arg-index-out-of-range.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-12",
+      "note": "arg-with-dest index < param count"
+    },
+    {
+      "file": "cases/v13-arity-exceeds-pending.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-13",
+      "note": "arity <= pending args"
+    },
+    {
+      "file": "cases/v13-arity-negative.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-13",
+      "note": "arity >= 0"
+    },
+    {
+      "file": "cases/v13-arity-not-int.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-13",
+      "note": "arity is an Int"
+    },
+    {
+      "file": "cases/v14-jump-undefined-label.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-14 (E-08)",
+      "note": "jump target must exist"
+    },
+    {
+      "file": "cases/v14-jump-target-not-label.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-14",
+      "note": "jump target must be a Label operand"
+    },
+    {
+      "file": "cases/v15-model-typeparams.json",
+      "exit": 1,
+      "code": "E_UNSPECIFIED",
+      "rule": "V-15",
+      "note": "typeParams must be []"
+    },
+    {
+      "file": "cases/v16-route-path-without-method.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-16 (E-10)",
+      "note": "plain vs route decided by routeMethod"
+    },
+    {
+      "file": "cases/v16-route-limits-without-method.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-16",
+      "note": "plain functions have zero limits"
+    },
+    {
+      "file": "cases/v17-type-methods.json",
+      "exit": 1,
+      "code": "E_UNSPECIFIED",
+      "rule": "V-17 (E-11)",
+      "note": "methods must be []"
+    },
+    {
+      "file": "cases/v19-db-get.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "V-19 (E-12)",
+      "note": "db_* opcodes excluded"
+    },
+    {
+      "file": "cases/x-unsupported-opcode.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "R6 subset",
+      "note": "opcode outside the native subset"
+    },
+    {
+      "file": "cases/x-route-function.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "R6 subset",
+      "note": "Kynx routes outside the native subset"
+    },
+    {
+      "file": "cases/x-duplicate-key.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "R6 strictness",
+      "note": "duplicate object keys are rejected"
+    },
+    {
+      "file": "cases/x-duplicate-label.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "R6 strictness",
+      "note": "one label number per function"
+    }
+  ],
+  "accept": [
+    {
+      "file": "../../docs/proposed-ir/m1/01-int-call.json",
+      "run_exit": 42,
+      "run_stdout": "M1-add\r\n\r\n",
+      "rule": "corpus",
+      "note": "valid m1 fixture compiles, runs and prints"
+    },
+    {
+      "file": "cases/ok-extern-body.json",
+      "run_exit": 7,
+      "rule": "V-18 (E-09)",
+      "note": "extern body is parsed and ignored, never emitted"
+    },
+    {
+      "file": "cases/ok-untargeted-label.json",
+      "run_exit": 5,
+      "rule": "E-07",
+      "note": "label never targeted by a jump is accepted"
+    },
+    {
+      "file": "cases/ok-call-arity-suffix.json",
+      "run_exit": 9,
+      "rule": "V-13 (E-05)",
+      "note": "call consumes exactly operand2 pending args; zero consumes none"
+    }
+  ]
+}
