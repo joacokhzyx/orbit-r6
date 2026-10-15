@@ -279,6 +279,37 @@ def build_reject():
         jd(DOC([MAIN([I("label", -1, Lab(1)), I("label", -1, Lab(1)), I("jump", -1, Lab(1))])])),
         "R6 strictness", "E_DUPLICATE", "one label number per function")
 
+    # ---- D-M1-10: the map family stays closed (docs/DECISIONS.md) ------------
+    add("x-map-create",
+        jd(DOC([MAIN([I("map_create", 0, Int(8)), I("ret", -1, Int(0))], ["map"])])),
+        "D-M1-10", "E_UNSUPPORTED",
+        "map_create: no producer; 1-arg lowering vs arena+value_size")
+    add("x-map-set",
+        jd(DOC([MAIN([I("map_set", 3, Reg(0), Reg(1), Reg(2)), I("ret", -1, Int(0))],
+                     ["map", "string", "string", "result"])])),
+        "D-M1-10", "E_UNSUPPORTED",
+        "map_set: no producer; a live map value needs U-04 (arena prepend)")
+    add("x-map-get",
+        jd(DOC([MAIN([I("map_get", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                     ["map", "string", "result"])])),
+        "D-M1-10", "E_UNSUPPORTED",
+        "map_get: no producer; a live map value needs U-04 (arena prepend)")
+    add("x-map-has",
+        jd(DOC([MAIN([I("map_has", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                     ["map", "string", "bool"])])),
+        "D-M1-10", "E_UNSUPPORTED",
+        "map_has: needs a map; creation depends on U-04 (arena prepend)")
+    add("x-map-delete",
+        jd(DOC([MAIN([I("map_delete", 3, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                     ["map", "string", "void"])])),
+        "D-M1-10", "E_UNSUPPORTED",
+        "map_delete: producer dest register is never declared")
+    add("x-map-keys",
+        jd(DOC([MAIN([I("map_keys", 1, Reg(0)), I("ret", -1, Int(0))],
+                     ["map", "list"])])),
+        "D-M1-10", "E_UNSUPPORTED",
+        "map_keys: 1-arg lowering vs (map, arena)")
+
     return cases
 
 

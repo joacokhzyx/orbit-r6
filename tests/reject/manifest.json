@@ -328,6 +328,48 @@
       "code": "E_DUPLICATE",
       "rule": "R6 strictness",
       "note": "one label number per function"
+    },
+    {
+      "file": "cases/x-map-create.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-10",
+      "note": "map_create: no producer; 1-arg lowering vs arena+value_size"
+    },
+    {
+      "file": "cases/x-map-set.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-10",
+      "note": "map_set: no producer; a live map value needs U-04 (arena prepend)"
+    },
+    {
+      "file": "cases/x-map-get.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-10",
+      "note": "map_get: no producer; a live map value needs U-04 (arena prepend)"
+    },
+    {
+      "file": "cases/x-map-has.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-10",
+      "note": "map_has: needs a map; creation depends on U-04 (arena prepend)"
+    },
+    {
+      "file": "cases/x-map-delete.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-10",
+      "note": "map_delete: producer dest register is never declared"
+    },
+    {
+      "file": "cases/x-map-keys.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-10",
+      "note": "map_keys: 1-arg lowering vs (map, arena)"
     }
   ],
   "accept": [
