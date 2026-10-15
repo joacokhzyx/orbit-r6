@@ -32,11 +32,12 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `18-int-list-literal-len` | create/push de lista int, referencia local y lectura de longitud | 3 | vacío |
 | `19-int-list-get` | lectura indexada de lista int | 20 | vacío |
 | `20-int-list-get-oob` | índice de lista fuera de rango vía función dinámica | 2 | vacío |
+| `21-nop-blocks` | `nop`/`begin_block`/`end_block` sin efecto observable | 7 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–20 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–21 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-15: los veinte pares, ya en el formato de la spec, pasan
+medido al 2026-10-15: los veintiún pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 con exit/stdout idénticos a la línea base previa
-a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07 y
+a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07/D-M1-07 y
 `../../M1_REPORT.md`).

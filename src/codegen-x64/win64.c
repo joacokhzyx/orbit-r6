@@ -445,6 +445,12 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     return fail(d, i, "CGEN", "ret register is out of range");
             }
             break;
+        case R6_OP_NOP:
+        case R6_OP_BEGIN_BLOCK:
+        case R6_OP_END_BLOCK:
+            /* No observable effect at the pin: nop appends nothing and the
+               blocks render as C braces (c_backend.orb:2423, 2634-2641). */
+            break;
         default:
             return fail(d, i, "CGEN", "unsupported opcode %s at instruction %zu",
                         r6_opcode_name(i->opcode), pc);
@@ -875,6 +881,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             fputs("\tleave\n\tret\n", o);
             break;
+        case R6_OP_NOP:
+        case R6_OP_BEGIN_BLOCK:
+        case R6_OP_END_BLOCK:
+            break; /* no machine code: same no-op as the pinned C backend */
         default:
             return fail(d, i, "CGEN", "unsupported opcode %s", r6_opcode_name(i->opcode));
         }

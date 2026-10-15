@@ -180,3 +180,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   differential gate still **20/20** with the suite in place; driver SHA-256
   `CAD71E9FD9786867ECD91F69EED76E54858372833095F20B82BF9541D53AA932`.
 - Status: **accepted**.
+
+## D-M1-07 — `nop`/`begin_block`/`end_block` admitted as no-ops
+
+- Date: 2026-10-15.
+- Decision: the loader admits `nop`, `begin_block` and `end_block`; codegen
+  lowers all three to no machine code. Ground at the pin:
+  `c_backend.orb:2423` appends an empty string for `nop`;
+  `c_backend.orb:2634-2641` renders the blocks as the C braces `{`/`}` (pure C
+  scoping decoration: no observable runtime effect for the IR the pin can
+  compile; R6 registers are function-wide stack slots and it emits nothing);
+  `cteval.orb:953,998` produces `nop` with `dest -1` while folding dead
+  arguments/instructions; `isNopOrControl` (`cteval.orb:223-229`) classifies
+  `nop`/`begin_block`/`end_block` as control, so folding never removes them.
+- Producers: the pin's frontend emits neither block marker anywhere
+  (`git grep 5c01cea -- compiler/` shows only the `ir.orb` enum, `cteval` and
+  `c_backend`), so the fixture is hand-written like cases 06–20 and the oracle
+  is the behavior of the equivalent `.orb`.
+- Evidence: fixture `21-nop-blocks` (`nop` plus `begin_block`/`end_block`
+  around an add; `.orb` uses an `if true` block) → differential **21/21** on
+  2026-10-15 (exit 7, empty stdout, identical to the oracle); loader suite
+  still **51/51**; table updated in `docs/proposed-ir/m1/README.md`.
+- Status: **accepted**.
