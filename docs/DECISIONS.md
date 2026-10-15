@@ -352,3 +352,57 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Evidence: oracle probes p7-p12 (scratch `.r6-build/map-probes/`, 2026-10-15);
   loader suite **57/57**; differential gate unchanged at **23/23**.
 - Status: **accepted**.
+- Note (2026-10-15): "no fixture 24" means no map fixture; the number was later
+  used by the model family (D-M1-11).
+
+## D-M1-11 — Model constructors and field access inside the measured subset
+
+- Date: 2026-10-15.
+- Decision: the loader admits `load_field`/`store_field` and codegen lowers a
+  model only in the shape the pinned builder emits: construction is a `call`
+  whose target is a `String` naming the model, arity equal to the field count
+  and field values in declaration order (`buildObjectLiteralAsModel`,
+  `builder.orb:1206-1233`); reads and writes require a receiver register whose
+  declared type is a model name, and the reference resolves inside that model.
+  Fields are limited to `int`/`bool`/`float`/`string`. Model validation now
+  runs at module level (duplicate fields, unsupported field types, register
+  types), replacing the blanket CGEN refusal of `models`; `types`/`migrations`
+  stay rejected. Everything else stays fail-closed: model values crossing a
+  function boundary (return, parameter, `arg`), field access on non-model
+  receivers (string/JSON/object paths included), collection fields, duplicate
+  field names, invalid model names and constructor arity/target errors
+  (CGEN), plus duplicate model names or a model name colliding with a function
+  name (`E_DUPLICATE` at load).
+- Producer shape: annotated receivers qualify references through
+  `fieldOwnerForObject` (`builder.orb:1983`). The pinned C backend synthesizes
+  the struct plus `orbit_model_M_create` (fields as positional parameters,
+  `arena` prepended by the backend, `c_backend.orb:1629-1633`) with
+  `int`/`bool`/`float`/`string` members at 4/1/8/8 bytes; R6 reproduces that C
+  layout (offsets in declaration order, size rounded to the widest member
+  alignment).
+- Lowering: the constructor arm inlines `orbit_model_M_create` — arena from
+  the `orbit_main` slot in `main` or the `r6_arena` global elsewhere
+  (D-M1-09), `orbit_alloc(arena, sizeof(M))` (`runtime/orbit_api.h:334`), one
+  store per field at its C offset; the destination receives the pointer.
+  `load_field` sign-extends `int` (`movslq`), zero-extends `bool` (`movzbl`)
+  and moves `float`/`string` as 8-byte values (`movsd`/`movq`); `store_field`
+  writes with the C width (`movl` truncates `int`, `setne`+`movb` normalizes
+  `bool`). A bare reference resolves in the receiver's model; an `Owner.`
+  prefix must name the receiver's model. The pin's fallback for a reference
+  with no owner (`findFieldOwner`, `c_backend.orb:4400-4409`, a last-wins scan
+  over a module-wide field-name table) is deliberately not reproduced: R6
+  fails closed when the receiver's model lacks the field instead of guessing
+  across models.
+- Encoder: `movb %reg8,mem` (8-bit GPR ids 0-3 only, so `%spl`-style names
+  cannot silently encode `%ah`), `movb $imm,mem`, `movzbl mem,%r32` and
+  `movslq mem,%r64` join `asm_win64.c`.
+- Boundary pinned in `tests/reject/` (rule D-M1-11): non-model receiver,
+  missing field, owner/receiver mismatch, destination or value type differing
+  from the field type, `store_field` with a destination, constructor arity
+  mismatch, unsupported field type, non-`Sym`/`String` reference (`E_SCHEMA`),
+  unknown constructor target, duplicate model name, model↔function collision
+  (`E_DUPLICATE`); acceptance control `ok-model-ctor`.
+- Evidence: fixture `24-model-fields` → differential **24/24** on 2026-10-15
+  (exit 42, stdout `seed\nmut\nf-ok\n`); loader suite **69/69** (64 rejections
+  + 5 acceptance controls); table updated in `docs/proposed-ir/m1/README.md`.
+- Status: **accepted**.

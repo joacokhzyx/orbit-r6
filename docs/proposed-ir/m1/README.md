@@ -35,16 +35,17 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `21-nop-blocks` | `nop`/`begin_block`/`end_block` sin efecto observable | 7 | vacío |
 | `22-result-ops` | `result_ok`/`err`/`is_ok`/`unwrap`/`unwrap_err` con payload float, int y string, `catch` con binding | 46 | vacío |
 | `23-list-set-pop` | `list_set`/`list_pop` y kinds string/int/float/bool fuera de `main` (arena global) | 135 | vacío |
+| `24-model-fields` | constructor de modelo y `load_field`/`store_field` int/float/bool/string (refs `Vec.*`) | 42 | `seed\nmut\nf-ok\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–23 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–24 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-15: los veintitrés pares, ya en el formato de la spec, pasan
-diferencial en Windows x86-64 con exit/stdout idénticos a la línea base previa
-a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09
-y `../../M1_REPORT.md`).
+medido al 2026-10-15: los veinticuatro pares, ya en el formato de la spec,
+pasan diferencial en Windows x86-64 con exit/stdout idénticos a la línea base
+previa a la migración (ver `../../DECISIONS.md`
+D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11 y `../../M1_REPORT.md`).
 
-La familia `map_*` queda cerrada con evidencia y sin fixture 24 (D-M1-10):
+La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
 §1.1); los lowerings de `map_create` y `map_keys` llaman al runtime con
 aridad incorrecta contra `runtime/orbit_api.h`; el `map_delete` producido
@@ -52,3 +53,17 @@ escribe un registro destino que nunca se declara (tipo `void`); y todo valor
 mapa vivo depende de la lista de `arena` prepend, que es el gap U-04 y el
 loader debe rechazar (spec §6). Los seis opcodes quedan pineados como
 rechazos `E_UNSUPPORTED` en `tests/reject/` (casos `x-map-*`, regla D-M1-10).
+
+La familia de modelos queda admitida solo dentro del subconjunto medido
+(D-M1-11): constructor de modelo como el que emite el builder (`call` con
+target `String`, aridad = nº de campos, valores en orden de declaración) y
+`load_field`/`store_field` sobre campos `int`/`bool`/`float`/`string` de un
+registro receptor cuyo tipo declara el modelo, con la referencia resuelta en
+ese modelo (bare) o prefijada `Owner.campo` exigiendo coincidencia. Queda
+fuera y falla cerrado (CGEN, o `E_DUPLICATE`/`E_SCHEMA` en el loader): valores
+modelo en fronteras de función (retorno, parámetros, `arg`), acceso a campos
+sobre receptores no-modelo (rutas string/JSON/object incluidas), campos de
+tipo colección, aridad o target de constructor incorrectos, nombres de modelo
+inválidos o duplicados —también la colisión con una función— y
+`types`/`migrations`. El borde está pineado en `tests/reject/` (casos `x-*`
+regla D-M1-11 y el control `ok-model-ctor`).
