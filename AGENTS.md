@@ -17,7 +17,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 23/23 on 2026-10-15 with:
+Primary gate: differential — verified 24/24 on 2026-10-15 with:
 
 ```powershell
 python tests/diff/run_diff.py `

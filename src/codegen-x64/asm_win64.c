@@ -305,6 +305,14 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 32, id1, m, 0x89, 0, 0, -1);
     if (strcmp(op, "movl") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2)
         return rex_modrm_mem(a, 32, id2, m, 0x8b, 0, 0, -1);
+    if (strcmp(op, "movslq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+        return rex_modrm_mem(a, 64, id2, m, 0x63, 0, 0, -1);
+    if (strcmp(op, "movb") == 0 && id1 >= 0 && !x1 && w1 == 8 && id1 < 4 && parse_mem(a, a2, &m))
+        return rex_modrm_mem(a, 0, id1, m, 0x88, 0, 0, -1);
+    if (strcmp(op, "movb") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
+        if (imm > 255) return bad(a, "movb immediate outside byte range");
+        return rex_modrm_mem(a, 0, 0, m, 0xc6, 0, 0, -1) && emit(a, (uint8_t)imm);
+    }
     if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && id2 >= 0 && !x2) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
         return emit(a, rex) && emit(a, 0x89) &&
@@ -340,6 +348,8 @@ static bool encode(Asm *a, char *line) {
         return emit(a, strcmp(op, "andb") == 0 ? 0x20 : 0x08) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     if (strcmp(op, "movzbl") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2)
         return emit(a, 0x0f) && emit(a, 0xb6) && emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
+    if (strcmp(op, "movzbl") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 32)
+        return rex_modrm_mem(a, 0, id2, m, 0xb6, 0, 0, 0x0f);
     if (strcmp(op, "addl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x03, 0, 0, -1);
     if (strcmp(op, "subl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)

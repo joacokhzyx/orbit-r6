@@ -1,0 +1,25 @@
+extern fn orbit_print(s: string) -> void
+
+model Vec {
+    n: int
+    f: float
+    flag: bool
+    tag: string
+}
+
+fn main() -> int {
+    val v = Vec(40, 1.0, true, "seed")
+    orbit_print(v.tag)
+    v.tag = "mut"
+    v.n = v.n + 2
+    v.f = v.f + 0.5
+    v.flag = false
+    if v.flag {
+        orbit_print("bad")
+    }
+    orbit_print(v.tag)
+    if v.f > 1.4 {
+        orbit_print("f-ok")
+    }
+    return v.n
+}

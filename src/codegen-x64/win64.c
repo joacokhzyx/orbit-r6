@@ -191,6 +191,106 @@ static const R6Function *find_function(const R6Module *m, const char *name) {
     return NULL;
 }
 
+static const R6Model *find_model(const R6Module *m, const char *name) {
+    size_t n;
+    if (!m || !name) return NULL;
+    for (n = 0; n < m->model_count; ++n)
+        if (m->models[n].name && strcmp(m->models[n].name, name) == 0)
+            return &m->models[n];
+    return NULL;
+}
+
+static bool is_model_type(const R6Module *m, const char *t) {
+    return t && find_model(m, t) != NULL;
+}
+
+/* M1 model fields cover the scalar storage the pinned C backend synthesizes
+ * for a model struct: orbit_int (4/4), orbit_bool (1/1), orbit_float (8/8)
+ * and orbit_string (8/8 pointer). Anything else stays fail-closed. */
+static bool model_field_size(const char *t, size_t *size, size_t *align) {
+    if (is_int(t)) { *size = 4; *align = 4; return true; }
+    if (is_bool(t)) { *size = 1; *align = 1; return true; }
+    if (is_float(t) || is_string(t)) { *size = 8; *align = 8; return true; }
+    return false;
+}
+
+/* C layout of a synthesized model struct: fields in declaration order with
+ * natural alignment, struct size rounded up to the widest member (sizeof(M)
+ * at the pin). Returns the offset of field `want` and the total size; the
+ * total is exact for any `want` in [0, field_count]. */
+static bool model_field_layout(const R6Model *model, size_t want,
+                               size_t *offset, size_t *total) {
+    size_t i, off = 0, align_max = 1, want_off = 0;
+    for (i = 0; i < model->field_count; ++i) {
+        size_t size, align;
+        if (!model_field_size(model->fields[i].type_name, &size, &align))
+            return false;
+        off = (off + align - 1) / align * align;
+        if (i == want) want_off = off;
+        off += size;
+        if (align > align_max) align_max = align;
+    }
+    *offset = want_off;
+    *total = (off + align_max - 1) / align_max * align_max;
+    return true;
+}
+
+/* Resolve the `field` or `owner.field` reference of load_field/store_field.
+ * The pinned builder qualifies the owner whenever the receiver type is known
+ * (fieldOwnerForObject) and scans the module for the last model with the
+ * field only for untyped receivers (findFieldOwner); R6 requires the
+ * receiver to be a typed model register, so an explicit owner decides and a
+ * bare name resolves in the receiver's own model. */
+static bool resolve_field(const R6Module *m, const R6Function *f,
+                          const R6Instruction *i,
+                          const R6Model **out_model, size_t *out_index,
+                          R6Diagnostic *d) {
+    const R6Value *ref_value = &i->operands[1];
+    const R6Value *rec_value = &i->operands[0];
+    const char *ref, *receiver, *fname, *dot;
+    const R6Model *model = NULL;
+    size_t k, len = 0;
+
+    if (ref_value->kind != R6_VAL_SYMBOL && ref_value->kind != R6_VAL_STRING)
+        return fail(d, i, "CGEN", "%s requires a Symbol or String field reference",
+                    r6_opcode_name(i->opcode));
+    ref = ref_value->as.string;
+    if (!ref || !*ref)
+        return fail(d, i, "CGEN", "%s requires a non-empty field reference",
+                    r6_opcode_name(i->opcode));
+    if (rec_value->kind != R6_VAL_REG ||
+        !(receiver = type_at(f, rec_value->as.i32)) || !is_model_type(m, receiver))
+        return fail(d, i, "CGEN", "%s requires a register receiver of a declared model type",
+                    r6_opcode_name(i->opcode));
+    dot = strchr(ref, '.');
+    fname = dot ? dot + 1 : ref;
+    if (dot) {
+        len = (size_t)(dot - ref);
+        if (len == 0 || !*fname)
+            return fail(d, i, "CGEN", "malformed field reference %s", ref);
+        for (k = 0; k < m->model_count && !model; ++k) {
+            const char *name = m->models[k].name;
+            if (name && strlen(name) == len && memcmp(name, ref, len) == 0)
+                model = &m->models[k];
+        }
+        if (!model)
+            return fail(d, i, "CGEN", "field reference owner %.*s is not a declared model",
+                        (int)len, ref);
+        if (strlen(receiver) != len || memcmp(receiver, ref, len) != 0)
+            return fail(d, i, "CGEN", "field reference owner %.*s does not match receiver type %s",
+                        (int)len, ref, receiver);
+    } else {
+        model = find_model(m, receiver);
+    }
+    for (k = 0; k < model->field_count; ++k)
+        if (model->fields[k].name && strcmp(model->fields[k].name, fname) == 0) {
+            *out_model = model;
+            *out_index = k;
+            return true;
+        }
+    return fail(d, i, "CGEN", "model %s has no field %s", model->name, fname);
+}
+
 static bool has_label(const R6Function *f, int32_t label) {
     size_t n;
     for (n = 0; n < f->instruction_count; ++n)
@@ -252,6 +352,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     for (pc = 0; pc < f->param_count; ++pc)
         if (!is_scalar(f->param_types[pc]))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
+    if (is_model_type(m, f->return_type))
+        return fail(d, NULL, "CGEN", "returning model values is not supported in M1");
     for (pc = 0; pc < f->instruction_count; ++pc) {
         const R6Instruction *i = &f->instructions[pc];
         const char *a = NULL, *b = NULL;
@@ -263,9 +365,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
             const char *name = ir_name(&i->operands[0]), *vt = NULL, *lt = NULL;
             if (!name || !*name || i->operands[1].kind != R6_VAL_REG ||
-                !value_type(f, &i->operands[1], &vt) || !(is_scalar(vt) || is_list(vt)) ||
+                !value_type(f, &i->operands[1], &vt) ||
+                !(is_scalar(vt) || is_list(vt) || is_model_type(m, vt)) ||
                 !local_info(f, name, NULL, &lt) || !same_type(vt, lt))
-                return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar register",
+                return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, or model register",
                             r6_opcode_name(i->opcode));
             break;
         }
@@ -277,7 +380,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !name ||
                 (!local && (!global || !global_integer(global, &ignored))) ||
                 (local ? (!same_type(lt, type_at(f, i->dest)) ||
-                          !(is_scalar(lt) || is_list(lt))) :
+                          !(is_scalar(lt) || is_list(lt) || is_model_type(m, lt))) :
                          !same_type(global->type_name, type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local/global and matching destination type");
             break;
@@ -331,6 +434,33 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 !is_list(type_at(f, i->operands[0].as.i32)))
                 return fail(d, i, "CGEN", "list_pop requires a list register and an elemKind matching the destination");
             break;
+        case R6_OP_LOAD_FIELD: {
+            const R6Model *model = NULL;
+            size_t index = 0;
+            if (!valid_dest(f, i, true, d) || !resolve_field(m, f, i, &model, &index, d))
+                return false;
+            if (!same_type(type_at(f, i->dest), model->fields[index].type_name))
+                return fail(d, i, "CGEN", "load_field destination type does not match field %s",
+                            model->fields[index].name);
+            break;
+        }
+        case R6_OP_STORE_FIELD: {
+            const R6Model *model = NULL;
+            size_t index = 0;
+            const char *vt = NULL;
+            if (i->has_dest)
+                return fail(d, i, "CGEN", "store_field does not write a destination");
+            if (!resolve_field(m, f, i, &model, &index, d)) return false;
+            if (!value_type(f, &i->operands[2], &vt) ||
+                !same_type(vt, model->fields[index].type_name))
+                return fail(d, i, "CGEN", "store_field value type does not match field %s",
+                            model->fields[index].name);
+            if (i->operands[2].kind == R6_VAL_STRING &&
+                (!i->operands[2].as.string ||
+                 i->operands[2].string_len != strlen(i->operands[2].as.string)))
+                return fail(d, i, "CGEN", "string literal contains NUL and cannot be passed through the C ABI");
+            break;
+        }
         case R6_OP_COPY:
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
@@ -439,10 +569,46 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         case R6_OP_CALL: {
             const R6Function *callee;
+            const R6Model *model = i->operands[0].kind == R6_VAL_STRING
+                                       ? find_model(m, i->operands[0].as.string) : NULL;
             size_t k, arity, base;
+            if (model) {
+                /* The pinned builder emits model construction as a call whose
+                   target is a String value (ir_string(instance)) carrying the
+                   field values as already-emitted args; function calls keep
+                   the Symbol-only form. */
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                    return fail(d, i, "CGEN", "call arity must be a non-negative Int");
+                arity = (size_t)i->operands[1].as.i32;
+                if (arity > arg_count)
+                    return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
+                base = arg_count - arity;
+                if (!valid_dest(f, i, true, d) || !same_type(type_at(f, i->dest), model->name))
+                    return fail(d, i, "CGEN", "model constructor call requires a destination of type %s",
+                                model->name);
+                if (arity != model->field_count)
+                    return fail(d, i, "CGEN", "model constructor %s takes %zu field value(s); call passes %zu",
+                                model->name, model->field_count, arity);
+                for (k = 0; k < arity; ++k) {
+                    const char *t;
+                    size_t size, align;
+                    R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
+                    if (!model_field_size(model->fields[k].type_name, &size, &align))
+                        return fail(d, i, "CGEN", "model %s field %s has unsupported type %s",
+                                    model->name, model->fields[k].name, model->fields[k].type_name);
+                    if (!value_type(f, v, &t) || !same_type(t, model->fields[k].type_name))
+                        return fail(d, i, "CGEN", "model constructor argument %zu does not match field %s",
+                                    k, model->fields[k].name);
+                    if (v->kind == R6_VAL_STRING &&
+                        (!v->as.string || v->string_len != strlen(v->as.string)))
+                        return fail(d, i, "CGEN", "string literal contains NUL and cannot be passed through the C ABI");
+                }
+                arg_count -= arity;
+                break;
+            }
             if (i->operands[0].kind != R6_VAL_SYMBOL ||
                 !valid_symbol(i->operands[0].as.string))
-                return fail(d, i, "CGEN", "call requires a direct native symbol");
+                return fail(d, i, "CGEN", "call requires a direct native symbol or a declared model constructor");
             callee = find_function(m, i->operands[0].as.string);
             if (!callee) return fail(d, i, "CGEN", "call target %s is not declared in the module", i->operands[0].as.string);
             if (strcmp(callee->name, "main") == 0)
@@ -654,17 +820,22 @@ static unsigned result_cell_offset(const R6Function *f, bool is_main, int32_t re
 
 /* The pinned C backend assigns the executable arena to a file-scope global
  * (`OrbitArena* arena = NULL;` + `arena = _init_arena;` in orbit_main) and
- * every non-main function that creates a list reads it from there. R6
- * mirrors that contract with the private r6_arena slot in .data, so the
- * global is only emitted when some non-main function needs it. */
+ * every non-main function that creates a list or allocates a model instance
+ * reads it from there. R6 mirrors that contract with the private r6_arena
+ * slot in .data, so the global is only emitted when some non-main function
+ * needs it. */
 static bool module_needs_arena_global(const R6Module *m) {
     size_t n;
     for (n = 0; n < m->function_count; ++n) {
         const R6Function *f = &m->functions[n];
         size_t pc;
         if (f->is_extern || !f->name || strcmp(f->name, "main") == 0) continue;
-        for (pc = 0; pc < f->instruction_count; ++pc)
-            if (f->instructions[pc].opcode == R6_OP_LIST_CREATE) return true;
+        for (pc = 0; pc < f->instruction_count; ++pc) {
+            const R6Instruction *i = &f->instructions[pc];
+            if (i->opcode == R6_OP_LIST_CREATE) return true;
+            if (i->opcode == R6_OP_CALL && i->operands[0].kind == R6_VAL_STRING &&
+                find_model(m, i->operands[0].as.string)) return true;
+        }
     }
     return false;
 }
@@ -1081,8 +1252,70 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", home, off);
             } else { args[pending] = i; arg_string_ids[pending++] = ULLONG_MAX; }
             break;
+        case R6_OP_LOAD_FIELD: {
+            const R6Model *model = NULL;
+            const R6Field *field;
+            size_t index = 0, offset = 0, total = 0;
+            if (!resolve_field(m, f, i, &model, &index, d)) return false;
+            field = &model->fields[index];
+            if (!model_field_layout(model, index, &offset, &total))
+                return fail(d, i, "CGEN", "model %s field %s has unsupported type %s",
+                            model->name, field->name, field->type_name);
+            fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
+            if (is_float(field->type_name))
+                fprintf(o, "\tmovsd %zu(%%r11), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n", offset, off);
+            else if (is_string(field->type_name))
+                fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
+            else if (is_bool(field->type_name))
+                fprintf(o, "\tmovzbl %zu(%%r11), %%eax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
+            else
+                fprintf(o, "\tmovslq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
+            break;
+        }
+        case R6_OP_STORE_FIELD: {
+            const R6Model *model = NULL;
+            const R6Field *field;
+            const R6Value *val = &i->operands[2];
+            size_t index = 0, offset = 0, total = 0;
+            if (!resolve_field(m, f, i, &model, &index, d)) return false;
+            field = &model->fields[index];
+            if (!model_field_layout(model, index, &offset, &total))
+                return fail(d, i, "CGEN", "model %s field %s has unsupported type %s",
+                            model->name, field->name, field->type_name);
+            fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
+            if (is_float(field->type_name)) {
+                if (val->kind == R6_VAL_REG)
+                    fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n", (unsigned)(val->as.i32 + 1) * 8);
+                else
+                    fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm0\n",
+                            (unsigned long long)val->as.f64_bits);
+                fprintf(o, "\tmovsd %%xmm0, %zu(%%r11)\n", offset);
+            } else if (is_string(field->type_name)) {
+                if (val->kind == R6_VAL_REG)
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(val->as.i32 + 1) * 8);
+                else {
+                    emit_string(o, val->as.string, string_id);
+                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", string_id++);
+                }
+                fprintf(o, "\tmovq %%rax, %zu(%%r11)\n", offset);
+            } else if (is_bool(field->type_name)) {
+                if (val->kind == R6_VAL_REG)
+                    fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovb %%al, %zu(%%r11)\n",
+                            (unsigned)(val->as.i32 + 1) * 8, offset);
+                else
+                    fprintf(o, "\tmovb $%d, %zu(%%r11)\n", val->as.boolean ? 1 : 0, offset);
+            } else {
+                if (val->kind == R6_VAL_REG)
+                    fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(val->as.i32 + 1) * 8);
+                else
+                    fprintf(o, "\tmovl $%d, %%eax\n", val->as.i32);
+                fprintf(o, "\tmovl %%eax, %zu(%%r11)\n", offset);
+            }
+            break;
+        }
         case R6_OP_CALL: {
-            const R6Function *callee = find_function(m, i->operands[0].as.string);
+            const R6Model *model = i->operands[0].kind == R6_VAL_STRING
+                                       ? find_model(m, i->operands[0].as.string) : NULL;
             size_t k, arity = (size_t)i->operands[1].as.i32, base = pending - arity;
             for (k = 0; k < arity; ++k) {
                 const R6Value *av = &args[base + k]->operands[0];
@@ -1091,15 +1324,68 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     emit_string(o, av->as.string, string_id++);
                 }
             }
-            for (k = 0; k < arity; ++k) {
-                const R6Value *av = &args[base + k]->operands[0];
-                const char *at; value_type(f, av, &at);
-                emit_load_arg(o, f, av, at, k, arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
+            if (model) {
+                /* Inline orbit_model_<M>_create: allocate sizeof(M) in the
+                   same arena the pin keeps in its OrbitArena global, then
+                   store each field with its C width (orbit_int truncates to
+                   32 bits, orbit_bool stores a 0/1 byte, orbit_float a
+                   double, orbit_string a pointer). */
+                size_t offset = 0, total = 0;
+                if (is_main)
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(f->register_count + 1) * 8);
+                else
+                    fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rcx\n", o);
+                if (!model_field_layout(model, 0, &offset, &total))
+                    return fail(d, i, "CGEN", "model %s has an unsupported field type", model->name);
+                fprintf(o, "\tmovl $%zu, %%edx\n\tcall orbit_alloc\n\tmovq %%rax, %%r10\n", total);
+                for (k = 0; k < arity; ++k) {
+                    const R6Value *av = &args[base + k]->operands[0];
+                    const char *ft = model->fields[k].type_name;
+                    if (!model_field_layout(model, k, &offset, &total))
+                        return fail(d, i, "CGEN", "model %s has an unsupported field type", model->name);
+                    if (is_float(ft)) {
+                        if (av->kind == R6_VAL_REG)
+                            fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n", (unsigned)(av->as.i32 + 1) * 8);
+                        else
+                            fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm0\n",
+                                    (unsigned long long)av->as.f64_bits);
+                        fprintf(o, "\tmovsd %%xmm0, %zu(%%r10)\n", offset);
+                    } else if (is_string(ft)) {
+                        if (av->kind == R6_VAL_REG)
+                            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(av->as.i32 + 1) * 8);
+                        else
+                            fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", arg_string_ids[base + k]);
+                        fprintf(o, "\tmovq %%rax, %zu(%%r10)\n", offset);
+                    } else if (is_bool(ft)) {
+                        if (av->kind == R6_VAL_REG)
+                            fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovb %%al, %zu(%%r10)\n",
+                                    (unsigned)(av->as.i32 + 1) * 8, offset);
+                        else
+                            fprintf(o, "\tmovb $%d, %zu(%%r10)\n", av->as.boolean ? 1 : 0, offset);
+                    } else {
+                        if (av->kind == R6_VAL_REG)
+                            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(av->as.i32 + 1) * 8);
+                        else
+                            fprintf(o, "\tmovl $%d, %%eax\n", av->as.i32);
+                        fprintf(o, "\tmovl %%eax, %zu(%%r10)\n", offset);
+                    }
+                }
+                fprintf(o, "\tmovq %%r10, -%u(%%rbp)\n", off);
+                pending = base;
+                break;
             }
-            fprintf(o, "\tcall %s\n", strcmp(callee->name, "main") == 0 ? "orbit_main" : callee->name);
-            if (i->has_dest) {
-                if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
-                else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+            {
+                const R6Function *callee = find_function(m, i->operands[0].as.string);
+                for (k = 0; k < arity; ++k) {
+                    const R6Value *av = &args[base + k]->operands[0];
+                    const char *at; value_type(f, av, &at);
+                    emit_load_arg(o, f, av, at, k, arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
+                }
+                fprintf(o, "\tcall %s\n", strcmp(callee->name, "main") == 0 ? "orbit_main" : callee->name);
+                if (i->has_dest) {
+                    if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
+                    else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+                }
             }
             pending = base;
             break;
@@ -1246,8 +1532,31 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
             if (strcmp(module->globals[n].name, module->globals[prior].name) == 0)
                 return fail(diag, NULL, "CGEN", "duplicate global %s", module->globals[n].name);
     }
-    if (module->model_count || module->type_count || module->migration_count)
-        return fail(diag, NULL, "CGEN", "M1 codegen does not support models, types, or migrations");
+    if (module->type_count || module->migration_count)
+        return fail(diag, NULL, "CGEN", "M1 codegen does not support types or migrations");
+    if (module->model_count && !module->models)
+        return fail(diag, NULL, "CGEN", "module has missing model storage");
+    for (n = 0; n < module->model_count; ++n) {
+        const R6Model *model = &module->models[n];
+        size_t k;
+        if (!model->name || !valid_symbol(model->name))
+            return fail(diag, NULL, "CGEN", "model name is not a supported native symbol");
+        if (model->field_count && !model->fields)
+            return fail(diag, NULL, "CGEN", "model %s has missing field storage", model->name);
+        for (k = 0; k < model->field_count; ++k) {
+            size_t prior, size, align;
+            if (!model->fields[k].name || !model->fields[k].name[0] ||
+                !model->fields[k].type_name || !model->fields[k].type_name[0])
+                return fail(diag, NULL, "CGEN", "model %s has a field without name or type", model->name);
+            for (prior = 0; prior < k; ++prior)
+                if (strcmp(model->fields[prior].name, model->fields[k].name) == 0)
+                    return fail(diag, NULL, "CGEN", "model %s has duplicate field %s",
+                                model->name, model->fields[k].name);
+            if (!model_field_size(model->fields[k].type_name, &size, &align))
+                return fail(diag, NULL, "CGEN", "model %s field %s has unsupported type %s",
+                            model->name, model->fields[k].name, model->fields[k].type_name);
+        }
+    }
     for (n = 0; n < module->function_count; ++n) {
         const R6Function *f = &module->functions[n];
         size_t k;
@@ -1261,7 +1570,8 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
         if (f->register_type_count && !f->register_types)
             return fail(diag, NULL, "CGEN", "function %s has missing register type metadata", f->name);
         for (k = 0; k < f->register_type_count; ++k)
-            if (!is_register_type(f->register_types[k]))
+            if (!is_register_type(f->register_types[k]) &&
+                !is_model_type(module, f->register_types[k]))
                 return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", f->register_types[k]);
         if (!validate_function(module, f, diag)) return false;
     }
