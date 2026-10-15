@@ -17,6 +17,9 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Alternatives: wait for an Orbit emitter (rejected for M1 only, since user explicitly approved the proposal); infer additional semantics (rejected: fail closed).
 - Evidence: explicit approval in this task; enum/structure at `compiler/ir.orb:3-105`; `docs/F0_REVIEW.md`.
 - Status: **accepted for R6 implementation; not an upstream Orbit publication**.
+- Note (2026-10-15): the serialization half of this entry is superseded by
+  D-F0-06 (the language now publishes `docs/IR_SPEC.md`); the semantic contract
+  and the fail-closed rule stand unchanged.
 
 ## D-F0-03 — DB excluded until a published compatible runtime exists
 
@@ -76,3 +79,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Decision: support `list_get` for int lists in `main` only. Check null list/data, unsigned bounds, and the pinned element-kind rule (int or opaque); call the official index/kind error routines on failure.
 - Alternatives: unchecked pointer arithmetic (rejected: changes runtime failure behavior); duplicate the collection runtime (rejected: runtime owns these semantics); support other kinds (rejected: their representation/lowering is not covered).
 - Evidence: pinned `c_backend.orb:493-500` maps int reads to `orbit_list_read_int`; `runtime/orbit_api.h:217-224,358-360,422-468,485-490`; `runtime/collections.c:78-100`; fixtures `19-int-list-get` and `20-int-list-get-oob`, full manual differential gate 20/20.
+
+## D-F0-06 — Adopt the language-side IRv1 textual format
+
+- Date: 2026-10-15.
+- Decision: R6 adopts `docs/IR_SPEC.md` from the Orbit checkout (blob
+  `110ce439be8969d0e97986ad5eaa0cf0db92b1af` at HEAD `0837185`, "language-side
+  proposal for R6") as its loader contract, superseding the serialization of
+  `docs/IR_SPEC_DRAFT.md`, including the spec's own precedence rule ("where
+  this document and the draft disagree, this document prevails"). The loader,
+  the fixtures and the validation placement (V-08/V-10/V-13/V-14/V-16, E-09)
+  migrate as listed in `docs/IR_SPEC_ALIGNMENT.md`; the differential gate must
+  stay green (20/20) with the migrated fixtures before anything else moves.
+- Alternatives: keep the R6 draft serialization (rejected: the language now
+  publishes a spec that declares itself prevalent; R6 would stay on an
+  unpublished local shape with different key names); declare an IRv2 combining
+  both (rejected: a third format to publish for no measured gain; the missing
+  NaN-literal expressiveness goes to the language as question P2 instead).
+- Evidence: user decision 2026-10-15; difference list, side-by-side format and
+  migration plan in `docs/IR_SPEC_ALIGNMENT.md`; loader behaviour read from
+  `src/loader/ir.c` (`parse_function`, `parse_instruction`, `parse_route`,
+  `validate`, `r6_ir_parse`); the 20 current fixtures use only finite float
+  literals, so no measured evidence is lost by V-08.
+- Pin: unchanged at `5c01cea68f125f06dd3ac82a61776827bdb0c6f3`. The move happens
+  only when the emitter and the serialized corpus exist and are verified, with
+  new hashes recorded in `PIN.md` (D-F0-01 policy).
+- Status: **accepted by user 2026-10-15; migration pending, code unchanged**.

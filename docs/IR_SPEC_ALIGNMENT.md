@@ -1,0 +1,141 @@
+# Alineación del loader con la spec IRv1 del lenguaje
+
+Fecha: 2026-10-15. Decisión de adopción: [DECISIONS.md](DECISIONS.md) D-F0-06.
+
+Fuentes comparadas:
+
+- `orbit-lang` `docs/IR_SPEC.md`, blob `110ce439be8969d0e97986ad5eaa0cf0db92b1af`
+  en HEAD `0837185` (posterior al pin `5c01cea`; el pin no se mueve todavía).
+- Implementación actual: `src/loader/ir.c` y draft local
+  [IR_SPEC_DRAFT.md](IR_SPEC_DRAFT.md).
+
+Regla adoptada, textual de la spec: *"Where this document and the draft
+disagree, this document prevails; where the language publishes something else,
+the language prevails."* Este documento enumera las diferencias para migrar; no
+cambia código todavía.
+
+## 1. Lo que ya coincide
+
+- Claves de `module`: `functions`, `globals`, `models`, `types`, `migrations`.
+- Rechazo de claves extra, claves duplicadas, tags desconocidos, UTF-8 inválido,
+  LF final y BOM (la spec lo exige en V-01; R6 ya lo implementa).
+- `registerCount` == longitud de `registerTypes`; `dest` y `Register(n)` se
+  validan contra `registerCount`.
+- `elemKind` 0..5 y distinto de cero sólo en opcodes de colección.
+- `IRModelDecl.typeParams` vacío y `IRTypeDecl.methods` vacío: ambos se rechazan
+  hoy con `E_UNSPECIFIED` (la spec lo exige en V-15/V-17).
+- Exclusión de DB: los cuatro `db_*` se rechazan (D-F0-03); la spec lo confirma
+  en §4 y V-19 con recuento propio (4 opcodes, 0 archivos removidos).
+- Corpus: 67 ejecutables + 1 support en `tests/suite/`, 22 en `tests/std/`
+  (89 ejecutables), idéntico a [PIN.md](PIN.md).
+- `int` de 32 bits (V-06) y enteros fuera de rango rechazados.
+
+## 2. Forma del documento: incompatible hoy
+
+| | Draft de R6 (implementado) | Spec del lenguaje (§5.1-5.2) |
+|---|---|---|
+| Raíz | `{"format":"orbit-ir","version":1,"module":M}` | `{"irVersion":"1","module":M}` — `irVersion` es **string** |
+| `dest` vacío | `null` | `-1` |
+| Instrucción | `op`, `dest`, `operands`[3], `elem_kind` | `opcode`, `dest`, `operand1`, `operand2`, `operand3`, `elemKind` |
+| Valor | objeto de una clave: `{"int":"40"}` | objeto `kind`+`value`: `{"kind":"Int","value":40}` |
+| Vacío | `{"none":null}` | `{"kind":"None"}` (sin `value`) |
+| Tags | `int`, `float64_bits`, `string`, `symbol`, `bool`, `reg`, `label`, `none` | `Int`, `Float`, `String`, `Sym`, `Bool`, `Register`, `Label`, `None` |
+| Enteros | string decimal | número JSON (sin fracción/exponente, int32) |
+| Floats | 16 hex minúsculas (`float64_bits`) | número JSON; **no finitos rechazados** (V-08) |
+| Función | `param_types`, `register_count`, `register_types`, `return_type`, `extern`, `route` (objeto o `null`) | `paramTypes`, `registerCount`, `registerTypes`, `returnType`, `isExtern`, más 6 campos planos `routeMethod`, `routePath`, `routeHasLimit`, `routeLimitRate`, `routeLimitWindowMs`, `routeLimitBurst` |
+| Modelo | `type_params`, `fields[].type_name` | `typeParams`, `fields[].typeName` |
+
+Consecuencia inmediata: el parser de R6 **no puede leer** el formato de la spec
+(rechaza números JSON con `.`/`e`, exige `format`, `dest` null, etc.) y el
+formato de R6 no pasa V-02 (`format` es clave desconocida para la spec).
+
+Pérdida de expresividad a aceptar: V-08 prohíbe NaN/infinito como literales. Los
+20 fixtures actuales usan sólo floats finitos (`3ff8…`, `0000…`, `8000…`, etc.),
+así que **no se pierde evidencia existente**; la comparación IEEE con NaN del
+fixture 10 surge de operaciones, no de literales. Un `ir_float(NaN)` del builder
+no sería serializable: queda como pregunta P2 al lado lenguaje.
+
+## 3. Reglas de validación: dónde se aplican hoy
+
+| Regla | Estado en R6 | Acción |
+|---|---|---|
+| V-01 LF/BOM/elisión | ok en loader | Falta sólo el marcador de elisión `…[N chars]` si algún día se escribe a mano |
+| V-02 raíz exacta | ok (con otro nombre de clave) | Cambia al formato de la spec |
+| V-03 opcode exacto | ok (`E_OPCODE`) | Sin cambio |
+| V-04 `elemKind` | ok, pero R6 sólo lo admite en `list_*`; la spec dice "colecciones" (incluye `map_*`) | Alinear cuando exista soporte de map |
+| V-05 operandos `kind`+`value` | parser distinto | Cambia con el formato |
+| V-06/V-07 rangos | ok | Sin cambio |
+| V-08 floats finitos | **no**: R6 acepta cualquier patrón de 16 hex, incluido NaN | Rechazo nuevo en loader |
+| V-09 registros negativos | ok (`E_RANGE`) | Sin cambio |
+| V-10 `dest` requerido en opcodes con valor | **no**: R6 lo exige en codegen (`CGEN`) | Mover/duplicar en loader con diagnóstico por opcode |
+| V-11 longitudes y cotas | ok | Sin cambio |
+| V-12 `params`/`paramTypes` | ok | Renombrar claves |
+| V-13 aridad O2 de `call` | **no**: R6 ignora O2 y consume *todos* los `arg` pendientes; sus fixtures usan `operand2: none` | Cambio real de semántica: leer O2, consumir exactamente esa cantidad, rechazar aridad > pendientes (E-05) |
+| V-14 salto a label inexistente | **no**: hoy falla en codegen (`jump target label is undefined`) | Mover/duplicar en loader |
+| V-15 `typeParams` vacío | ok | Sin cambio |
+| V-16 coherencia de `route` | **no**: `parse_route` acepta `route` no nulo con `method` vacío y marca `has_route=true` | Rechazo nuevo: `method==""` ⇔ `path==""` y límites en cero/false (E-10) |
+| V-17 `methods` vacío | ok | Sin cambio |
+| V-18 extern resuelve fuera | parcial | La spec acepta un extern **con cuerpo y lo ignora** (E-09); R6 lo rechaza en codegen ("extern function %s must not contain instructions"). Alinear |
+| V-19 DB excluida | ok (`E_UNSUPPORTED`) | Mantener |
+
+## 4. Lo que el corpus va a exigir y no está en el plan de R6
+
+Cuando exista el emisor, el diferencial de los 89 programas expondrá
+comportamiento del backend C documentado por la spec que R6 hoy no modela:
+
+- §3.1: alias de callee (`slice`, `at`, `find`/`indexOf` → `orbit_string_*`),
+  mínimos de aridad por callee, forma especial de `print` (1 argumento
+  string/float/otro; !=1 argumento no imprime nada), sufijo `_` para keywords C,
+  y `arena` prependido en ciertas llamadas (U-04, lista sin auditar).
+- §3.2: llamadas indirectas con casts por tipo de parámetro (R6 sólo admite
+  llamada directa; seguirá rechazando lo demás de forma explícita).
+- §2.3: `registerTypes` es *advisory*; `inferRegisterTypes` la reescribe en el
+  backend C. R6 hoy usa `register_types` como contrato estricto de tipos
+  ("value type %s does not match register type %s"). Si el emisor serializa el
+  IR antes de esa pasada, habrá tipos `"unknown"` legítimos que R6 hoy
+  rechazaría: preguntas P1/P4.
+- §2.4: además de `val NAME = <int|bool>`, el builder produce globals con valor
+  `ir_register` (`builder.orb:2377`); R6 sólo soporta literales int/bool
+  (D-M1-01). Models, enums, unions y fields del corpus quedan fuera del
+  subconjunto actual.
+
+No confundir con TIR: `orbit frontend` emite `orbit-tir 1`
+(`compiler/frontend/tir.orb`), un formato de texto con bloques y value ids para
+el pipeline interno. No es IRv1 ni un candidato: convertir TIR→IRv1 invertiría
+el lowering y el diferencial mediría una reconstrucción, no el IR del builder.
+
+## 5. Plan de migración (orden propuesto)
+
+1. **Loader**: adoptar el formato de la spec (`irVersion`/`module`/`operand1..3`
+   con `kind`+`value`/`dest` -1/floats numéricos/`route` plano) conservando los
+   códigos `E_*` y el diagnóstico de una línea.
+2. **Validaciones**: agregar V-08, V-10, V-13, V-14, V-16 y E-09 en el loader,
+   con mensaje que nombre opcode/campo; el codegen conserva sus propios chequeos.
+3. **Fixtures**: regenerar los 20 `.json` (mecánico) — renombrar claves, `dest`
+   -1, valores `kind`/`value`, aridad O2 en los 6 con `call`
+   (`01`, `02`, `05`, `16`, `17`, `20`) y floats numéricos en los 5 con
+   `float64_bits` (`03`, `09`, `10`, `11`, `17`). Los `.orb` no cambian.
+   Criterio de aceptación: `run_diff.py` sigue en **20/20** con los mismos exit
+   y stdout.
+4. **Codegen**: consumir la aridad O2 de `call` (E-05), aceptar extern con
+   cuerpo ignorándolo (E-09) y validar coherencia de `route` (V-16).
+5. **Recién entonces**: rama en `orbit-lang` desde `5c01cea` con el emisor
+   `--emit-ir` (§5), corpus de 89+1 programas y manifiesto de hashes; nuevo pin
+   con hashes en [PIN.md](PIN.md) y evidencia diferencial ampliada.
+
+## 6. Preguntas al lado lenguaje (bloquean emisor o migración)
+
+- **P1** ¿El emisor serializa `registerTypes` antes o después de
+  `inferRegisterTypes`? Define si R6 puede seguir tratando los tipos como
+  contrato (§2.3, U-10).
+- **P2** V-08 prohíbe floats no finitos en JSON. ¿Qué debe hacer el emisor ante
+  un `ir_float` NaN/infinito: fallar, o se documenta un encoding (p. ej. bits)?
+  Hoy ningún fixture lo necesita, pero builder/sema pueden producirlo.
+- **P3** V-02 exige rechazar claves desconocidas en la raíz; §5.1 dice "accept
+  any order but reject unknown keys" para todo el documento. ¿La regla aplica a
+  función/instrucción/global/modelo/tipo? R6 hoy rechaza en todos los niveles.
+- **P4** §3.1 y §3.2 describen el lowering del backend C (alias, aridad, print,
+  arena). ¿Se declaran normativos para cualquier backend, o son observación del
+  backend C? R6 los necesita igual, pero la spec debería decirlo.
+- **P5** ¿Dónde vive el corpus serializado? Propuesta: lo emite el lenguaje y R6
+  lo pinea por hash + manifiesto (mismo patrón que `runtime/orbit_api.h`).
