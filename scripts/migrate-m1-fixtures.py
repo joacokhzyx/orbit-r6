@@ -161,7 +161,12 @@ def main() -> int:
     for path in files:
         working = path.read_text(encoding="utf-8")
         if args.check:
-            new = convert_document(json.loads(base_text(args.base, path)))
+            try:
+                draft = json.loads(base_text(args.base, path))
+            except subprocess.CalledProcessError:
+                print(f"skip {path.name}: not present at {args.base}")
+                continue
+            new = convert_document(draft)
             if normalize(json.loads(working)) != normalize(new):
                 print(f"FAIL {path.name}: working tree differs from a fresh conversion of {args.base}")
                 return 1
