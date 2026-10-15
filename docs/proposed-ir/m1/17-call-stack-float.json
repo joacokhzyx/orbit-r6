@@ -1,58 +1,480 @@
 {
-  "format": "orbit-ir",
-  "version": 1,
+  "irVersion": "1",
   "module": {
     "functions": [
       {
         "name": "stack_float",
-        "params": ["a","b","c","d","e","f"],
-        "param_types": ["int","int","int","int","float","int"],
-        "instructions": [
-          {"op":"arg","dest":0,"operands":[{"int":"0"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":1,"operands":[{"int":"1"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":2,"operands":[{"int":"2"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":3,"operands":[{"int":"3"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":4,"operands":[{"int":"4"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":5,"operands":[{"int":"5"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":6,"operands":[{"float64_bits":"3ff8000000000000"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"eq","dest":7,"operands":[{"reg":4},{"reg":6},{"none":null}],"elem_kind":0},
-          {"op":"jump_if_false","dest":null,"operands":[{"reg":7},{"label":0},{"none":null}],"elem_kind":0},
-          {"op":"ret","dest":null,"operands":[{"reg":5},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"label","dest":null,"operands":[{"label":0},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":8,"operands":[{"int":"0"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"ret","dest":null,"operands":[{"reg":8},{"none":null},{"none":null}],"elem_kind":0}
+        "params": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f"
         ],
-        "register_count": 9,
-        "register_types": ["int","int","int","int","float","int","float","bool","int"],
-        "return_type": "int",
-        "extern": false,
-        "route": null
+        "paramTypes": [
+          "int",
+          "int",
+          "int",
+          "int",
+          "float",
+          "int"
+        ],
+        "instructions": [
+          {
+            "opcode": "arg",
+            "dest": 0,
+            "operand1": {
+              "kind": "Int",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": 1,
+            "operand1": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": 2,
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": 3,
+            "operand1": {
+              "kind": "Int",
+              "value": 3
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": 4,
+            "operand1": {
+              "kind": "Int",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": 5,
+            "operand1": {
+              "kind": "Int",
+              "value": 5
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 6,
+            "operand1": {
+              "kind": "Float",
+              "value": 1.5
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "eq",
+            "dest": 7,
+            "operand1": {
+              "kind": "Register",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 7
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 0
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 8,
+            "operand1": {
+              "kind": "Int",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
+        ],
+        "registerCount": 9,
+        "registerTypes": [
+          "int",
+          "int",
+          "int",
+          "int",
+          "float",
+          "int",
+          "float",
+          "bool",
+          "int"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
       },
       {
         "name": "main",
         "params": [],
-        "param_types": [],
+        "paramTypes": [],
         "instructions": [
-          {"op":"load_const","dest":0,"operands":[{"int":"1"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":1,"operands":[{"int":"2"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":2,"operands":[{"int":"3"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":3,"operands":[{"int":"4"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":4,"operands":[{"float64_bits":"3ff8000000000000"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":5,"operands":[{"int":"11"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":null,"operands":[{"reg":0},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":null,"operands":[{"reg":1},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":null,"operands":[{"reg":2},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":null,"operands":[{"reg":3},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":null,"operands":[{"reg":4},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"arg","dest":null,"operands":[{"reg":5},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"call","dest":6,"operands":[{"symbol":"stack_float"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"ret","dest":null,"operands":[{"reg":6},{"none":null},{"none":null}],"elem_kind":0}
+          {
+            "opcode": "load_const",
+            "dest": 0,
+            "operand1": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 1,
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 2,
+            "operand1": {
+              "kind": "Int",
+              "value": 3
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 3,
+            "operand1": {
+              "kind": "Int",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 4,
+            "operand1": {
+              "kind": "Float",
+              "value": 1.5
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 5,
+            "operand1": {
+              "kind": "Int",
+              "value": 11
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 3
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 6,
+            "operand1": {
+              "kind": "Sym",
+              "value": "stack_float"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 6
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
         ],
-        "register_count": 7,
-        "register_types": ["int","int","int","int","float","int","int"],
-        "return_type": "int",
-        "extern": false,
-        "route": null
+        "registerCount": 7,
+        "registerTypes": [
+          "int",
+          "int",
+          "int",
+          "int",
+          "float",
+          "int",
+          "int"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
       }
     ],
     "globals": [],

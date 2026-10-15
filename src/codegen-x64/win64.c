@@ -213,8 +213,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     if (!f->return_type)
         return fail(d, NULL, "CGEN", "function %s has no return type", f->name);
     if (f->is_extern) {
-        if (f->instruction_count)
-            return fail(d, NULL, "CGEN", "extern function %s must not contain instructions", f->name);
+        /* V-18/E-09: an extern body, if present, is ignored and never emitted. */
         if (f->param_count > 256 || (f->param_count && !f->param_types))
             return fail(d, NULL, "CGEN", "extern function %s has unsupported parameter metadata", f->name);
         for (pc = 0; pc < f->param_count; ++pc)
@@ -402,7 +401,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         case R6_OP_CALL: {
             const R6Function *callee;
-            size_t k;
+            size_t k, arity, base;
             if (i->operands[0].kind != R6_VAL_SYMBOL ||
                 !valid_symbol(i->operands[0].as.string))
                 return fail(d, i, "CGEN", "call requires a direct native symbol");
@@ -412,12 +411,18 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 return fail(d, i, "CGEN", "main is an entry point and cannot be called from IR");
             if (callee->param_count && !callee->param_types)
                 return fail(d, i, "CGEN", "call target %s has missing parameter metadata", callee->name);
-            if (arg_count != callee->param_count)
-                return fail(d, i, "CGEN", "call to %s has %zu arguments; declaration requires %zu",
-                            callee->name, arg_count, callee->param_count);
-            for (k = 0; k < arg_count; ++k) {
+            if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                return fail(d, i, "CGEN", "call arity must be a non-negative Int");
+            arity = (size_t)i->operands[1].as.i32;
+            if (arity > arg_count)
+                return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
+            if (arity != callee->param_count)
+                return fail(d, i, "CGEN", "call to %s passes %zu argument(s); declaration requires %zu",
+                            callee->name, arity, callee->param_count);
+            base = arg_count - arity;
+            for (k = 0; k < arity; ++k) {
                 const char *t;
-                R6Value *v = (R6Value *)&arg_values[k]->operands[0];
+                R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
                 if (!value_type(f, v, &t) || !same_type(t, callee->param_types[k]))
                     return fail(d, i, "CGEN", "call argument %zu type does not match %s", k, callee->name);
             }
@@ -425,7 +430,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 if (i->has_dest) return fail(d, i, "CGEN", "void call cannot have a destination");
             } else if (!i->has_dest || !same_type(type_at(f, i->dest), callee->return_type))
                 return fail(d, i, "CGEN", "call destination does not match return type of %s", callee->name);
-            arg_count = 0;
+            arg_count -= arity; /* E-05: consume exactly the last O2 pending args. */
             break;
         }
         case R6_OP_RET:
@@ -497,8 +502,10 @@ static size_t max_outgoing_args(const R6Function *f) {
         const R6Instruction *i = &f->instructions[pc];
         if (i->opcode == R6_OP_ARG && !i->has_dest) ++pending;
         else if (i->opcode == R6_OP_CALL) {
-            if (pending > maximum) maximum = pending;
-            pending = 0;
+            size_t arity = i->operands[1].kind == R6_VAL_INT && i->operands[1].as.i32 >= 0
+                               ? (size_t)i->operands[1].as.i32 : pending;
+            if (arity > maximum) maximum = arity;
+            pending = arity <= pending ? pending - arity : 0;
         } else if (i->opcode == R6_OP_LIST_CREATE && maximum < 5) {
             /* OrbitResult sret pointer plus four list_create_typed arguments. */
             maximum = 5;
@@ -835,26 +842,25 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         case R6_OP_CALL: {
             const R6Function *callee = find_function(m, i->operands[0].as.string);
-            size_t k;
-            for (k = 0; k < pending; ++k) {
-                const R6Value *av = &args[k]->operands[0];
-                const char *at; value_type(f, av, &at);
+            size_t k, arity = (size_t)i->operands[1].as.i32, base = pending - arity;
+            for (k = 0; k < arity; ++k) {
+                const R6Value *av = &args[base + k]->operands[0];
                 if (av->kind == R6_VAL_STRING) {
-                    arg_string_ids[k] = string_id;
+                    arg_string_ids[base + k] = string_id;
                     emit_string(o, av->as.string, string_id++);
                 }
             }
-            for (k = 0; k < pending; ++k) {
-                const R6Value *av = &args[k]->operands[0];
+            for (k = 0; k < arity; ++k) {
+                const R6Value *av = &args[base + k]->operands[0];
                 const char *at; value_type(f, av, &at);
-                emit_load_arg(o, f, av, at, k, arg_string_ids[k] == ULLONG_MAX ? 0 : arg_string_ids[k]);
+                emit_load_arg(o, f, av, at, k, arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
             }
             fprintf(o, "\tcall %s\n", strcmp(callee->name, "main") == 0 ? "orbit_main" : callee->name);
             if (i->has_dest) {
                 if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
                 else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
             }
-            pending = 0;
+            pending = base;
             break;
         }
         case R6_OP_RET:

@@ -1,0 +1,5 @@
+# The loader contract requires LF-terminated JSON (docs/IR_SPEC.md V-01) and
+# the .orb sources are the differential oracle: keep both LF regardless of the
+# caller's core.autocrlf.
+*.json text eol=lf
+*.orb text eol=lf

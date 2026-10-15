@@ -1,30 +1,203 @@
 {
-  "format": "orbit-ir",
-  "version": 1,
+  "irVersion": "1",
   "module": {
     "functions": [
       {
         "name": "main",
         "params": [],
-        "param_types": [],
+        "paramTypes": [],
         "instructions": [
-          {"op":"list_create","dest":0,"operands":[{"int":"8"},{"int":"3"},{"none":null}],"elem_kind":2},
-          {"op":"load_const","dest":1,"operands":[{"int":"10"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"list_push","dest":2,"operands":[{"reg":0},{"reg":1},{"none":null}],"elem_kind":2},
-          {"op":"load_const","dest":3,"operands":[{"int":"20"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"list_push","dest":4,"operands":[{"reg":0},{"reg":3},{"none":null}],"elem_kind":2},
-          {"op":"load_const","dest":5,"operands":[{"int":"30"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"list_push","dest":6,"operands":[{"reg":0},{"reg":5},{"none":null}],"elem_kind":2},
-          {"op":"decl_var","dest":null,"operands":[{"symbol":"xs"},{"reg":0},{"none":null}],"elem_kind":0},
-          {"op":"load_var","dest":7,"operands":[{"symbol":"xs"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"list_len","dest":8,"operands":[{"reg":7},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"ret","dest":null,"operands":[{"reg":8},{"none":null},{"none":null}],"elem_kind":0}
+          {
+            "opcode": "list_create",
+            "dest": 0,
+            "operand1": {
+              "kind": "Int",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 3
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 2
+          },
+          {
+            "opcode": "load_const",
+            "dest": 1,
+            "operand1": {
+              "kind": "Int",
+              "value": 10
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "list_push",
+            "dest": 2,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 2
+          },
+          {
+            "opcode": "load_const",
+            "dest": 3,
+            "operand1": {
+              "kind": "Int",
+              "value": 20
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "list_push",
+            "dest": 4,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 3
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 2
+          },
+          {
+            "opcode": "load_const",
+            "dest": 5,
+            "operand1": {
+              "kind": "Int",
+              "value": 30
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "list_push",
+            "dest": 6,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 2
+          },
+          {
+            "opcode": "decl_var",
+            "dest": -1,
+            "operand1": {
+              "kind": "Sym",
+              "value": "xs"
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 7,
+            "operand1": {
+              "kind": "Sym",
+              "value": "xs"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "list_len",
+            "dest": 8,
+            "operand1": {
+              "kind": "Register",
+              "value": 7
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
         ],
-        "register_count": 9,
-        "register_types": ["list","int","void","int","void","int","void","list","int"],
-        "return_type": "int",
-        "extern": false,
-        "route": null
+        "registerCount": 9,
+        "registerTypes": [
+          "list",
+          "int",
+          "void",
+          "int",
+          "void",
+          "int",
+          "void",
+          "list",
+          "int"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
       }
     ],
     "globals": [],

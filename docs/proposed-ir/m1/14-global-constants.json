@@ -1,37 +1,234 @@
 {
-  "format": "orbit-ir",
-  "version": 1,
+  "irVersion": "1",
   "module": {
     "functions": [
       {
         "name": "main",
         "params": [],
-        "param_types": [],
+        "paramTypes": [],
         "instructions": [
-          {"op":"load_var","dest":0,"operands":[{"symbol":"CHAR_SPACE"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_var","dest":1,"operands":[{"symbol":"LIMIT"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"add","dest":2,"operands":[{"reg":0},{"reg":1},{"none":null}],"elem_kind":0},
-          {"op":"load_var","dest":3,"operands":[{"symbol":"NEG"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"add","dest":4,"operands":[{"reg":2},{"reg":3},{"none":null}],"elem_kind":0},
-          {"op":"load_var","dest":5,"operands":[{"symbol":"ENABLED"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"jump_if_false","dest":null,"operands":[{"reg":5},{"label":0},{"none":null}],"elem_kind":0},
-          {"op":"ret","dest":null,"operands":[{"reg":4},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"label","dest":null,"operands":[{"label":0},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"load_const","dest":6,"operands":[{"int":"-1"},{"none":null},{"none":null}],"elem_kind":0},
-          {"op":"ret","dest":null,"operands":[{"reg":6},{"none":null},{"none":null}],"elem_kind":0}
+          {
+            "opcode": "load_var",
+            "dest": 0,
+            "operand1": {
+              "kind": "Sym",
+              "value": "CHAR_SPACE"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 1,
+            "operand1": {
+              "kind": "Sym",
+              "value": "LIMIT"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "add",
+            "dest": 2,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 3,
+            "operand1": {
+              "kind": "Sym",
+              "value": "NEG"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "add",
+            "dest": 4,
+            "operand1": {
+              "kind": "Register",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 3
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 5,
+            "operand1": {
+              "kind": "Sym",
+              "value": "ENABLED"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 0
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 6,
+            "operand1": {
+              "kind": "Int",
+              "value": -1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
         ],
-        "register_count": 7,
-        "register_types": ["int","int","int","int","int","bool","int"],
-        "return_type": "int",
-        "extern": false,
-        "route": null
+        "registerCount": 7,
+        "registerTypes": [
+          "int",
+          "int",
+          "int",
+          "int",
+          "int",
+          "bool",
+          "int"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
       }
     ],
     "globals": [
-      {"name":"CHAR_SPACE","value":{"string":"32"},"type_name":"int"},
-      {"name":"LIMIT","value":{"string":"3"},"type_name":"int"},
-      {"name":"NEG","value":{"string":"-2"},"type_name":"int"},
-      {"name":"ENABLED","value":{"string":"1"},"type_name":"bool"}
+      {
+        "name": "CHAR_SPACE",
+        "value": {
+          "kind": "String",
+          "value": "32"
+        },
+        "typeName": "int"
+      },
+      {
+        "name": "LIMIT",
+        "value": {
+          "kind": "String",
+          "value": "3"
+        },
+        "typeName": "int"
+      },
+      {
+        "name": "NEG",
+        "value": {
+          "kind": "String",
+          "value": "-2"
+        },
+        "typeName": "int"
+      },
+      {
+        "name": "ENABLED",
+        "value": {
+          "kind": "String",
+          "value": "1"
+        },
+        "typeName": "bool"
+      }
     ],
     "models": [],
     "types": [],

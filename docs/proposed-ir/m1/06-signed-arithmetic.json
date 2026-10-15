@@ -1,400 +1,387 @@
 {
-  "format": "orbit-ir",
-  "version": 1,
+  "irVersion": "1",
   "module": {
     "functions": [
       {
         "name": "main",
         "params": [],
-        "param_types": [],
+        "paramTypes": [],
         "instructions": [
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 0,
-            "operands": [
-              {
-                "int": "2147483647"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 2147483647
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 1,
-            "operands": [
-              {
-                "int": "2"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "mul",
+            "opcode": "mul",
             "dest": 2,
-            "operands": [
-              {
-                "reg": 0
-              },
-              {
-                "reg": 1
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 3,
-            "operands": [
-              {
-                "int": "1"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "add",
+            "opcode": "add",
             "dest": 4,
-            "operands": [
-              {
-                "reg": 2
-              },
-              {
-                "reg": 3
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 3
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 5,
-            "operands": [
-              {
-                "int": "2"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "div",
+            "opcode": "div",
             "dest": 6,
-            "operands": [
-              {
-                "reg": 4
-              },
-              {
-                "reg": 5
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 7,
-            "operands": [
-              {
-                "int": "2147483647"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 2147483647
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "sub",
+            "opcode": "sub",
             "dest": 8,
-            "operands": [
-              {
-                "reg": 6
-              },
-              {
-                "reg": 7
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 7
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 9,
-            "operands": [
-              {
-                "int": "20"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 20
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 10,
-            "operands": [
-              {
-                "int": "5"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 5
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "sub",
+            "opcode": "sub",
             "dest": 11,
-            "operands": [
-              {
-                "reg": 9
-              },
-              {
-                "reg": 10
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 9
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 10
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 12,
-            "operands": [
-              {
-                "int": "2"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "mul",
+            "opcode": "mul",
             "dest": 13,
-            "operands": [
-              {
-                "reg": 11
-              },
-              {
-                "reg": 12
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 11
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 12
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 14,
-            "operands": [
-              {
-                "int": "-7"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": -7
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 15,
-            "operands": [
-              {
-                "int": "2"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "div",
+            "opcode": "div",
             "dest": 16,
-            "operands": [
-              {
-                "reg": 14
-              },
-              {
-                "reg": 15
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 14
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 15
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "load_const",
+            "opcode": "load_const",
             "dest": 17,
-            "operands": [
-              {
-                "int": "3"
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Int",
+              "value": 3
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "mul",
+            "opcode": "mul",
             "dest": 18,
-            "operands": [
-              {
-                "reg": 16
-              },
-              {
-                "reg": 17
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 16
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 17
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "add",
+            "opcode": "add",
             "dest": 19,
-            "operands": [
-              {
-                "reg": 8
-              },
-              {
-                "reg": 13
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 13
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "add",
+            "opcode": "add",
             "dest": 22,
-            "operands": [
-              {
-                "reg": 19
-              },
-              {
-                "reg": 18
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 19
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 18
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "mod",
+            "opcode": "mod",
             "dest": 20,
-            "operands": [
-              {
-                "reg": 14
-              },
-              {
-                "reg": 15
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 14
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 15
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "add",
+            "opcode": "add",
             "dest": 23,
-            "operands": [
-              {
-                "reg": 22
-              },
-              {
-                "reg": 20
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "operand1": {
+              "kind": "Register",
+              "value": 22
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 20
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           },
           {
-            "op": "ret",
-            "dest": null,
-            "operands": [
-              {
-                "reg": 23
-              },
-              {
-                "none": null
-              },
-              {
-                "none": null
-              }
-            ],
-            "elem_kind": 0
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 23
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
           }
         ],
-        "register_count": 24,
-        "register_types": [
+        "registerCount": 24,
+        "registerTypes": [
           "int",
           "int",
           "int",
@@ -420,9 +407,14 @@
           "int",
           "int"
         ],
-        "return_type": "int",
-        "extern": false,
-        "route": null
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
       }
     ],
     "globals": [],
