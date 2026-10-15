@@ -245,3 +245,60 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (exit 46, empty stdout); loader suite **51/51**; table updated in
   `docs/proposed-ir/m1/README.md`.
 - Status: **accepted**.
+
+## D-M1-09 — `list_set`/`list_pop`, list kinds 1–4 and the arena outside `main`
+
+- Date: 2026-10-15.
+- Decision: the loader admits `list_set` and `list_pop`; the six list opcodes
+  (`list_create`, `list_push`, `list_len`, `list_get`, `list_set`, `list_pop`)
+  now validate `elemKind` 1–4. The numbers map 1:1 to the runtime's
+  string/int/float/bool element kinds and to an R6 register type of the same
+  name; kind 0 (opaque) and kind 5 (ref) stay CGEN fail-closed, as does any
+  list operand or destination whose register type does not match the kind.
+- Lowering, read from `c_backend.orb:3381-3427` and `listWriteCall`
+  (`c_backend.orb:518-548`): `list_set` is a direct
+  `orbit_list_set_{string,int,float,bool}` call (sret RCX, list RDX, index R8,
+  value R9/XMM3) with no prologue checks — the runtime validates. `list_push`
+  passes the value per kind (string/int as the register word, float in XMM,
+  bool normalized to a clean 0/1 word with a 32-bit move). `list_pop`
+  reproduces the pinned prologue: `_pl = (orbit_int)orbit_list_len(list)` (a
+  NULL list reads as length 0) with `if (_pl <= 0)
+  orbit_list_index_error(where, 0, 0, 0, file, line)`, then the read at
+  `_pl - 1` and `orbit_list_pop(...)` into the shared scratch. The read keeps
+  the pinned null-data diagnostic (`index_error(where, _pl - 1, len, kind)`);
+  only its out-of-range branch is omitted as unreachable (`_pl - 1 < len` by
+  construction). `where` is `"orbit_main"` in main and the function name
+  elsewhere, matching the `__func__` the generated C passes.
+- Arena: the pin assigns the executable arena to a file-scope global
+  (`OrbitArena* arena = NULL;` overwritten with the init arena inside
+  `orbit_main`) and every non-main function that creates a list reads it
+  before `orbit_list_create_typed` (`c_backend.orb:3385`). R6 mirrors that
+  contract with a private 8-byte slot `r6_arena` in `.data` (section flags
+  `0xC0500040u`: read+write+align16+initialized, the `.rdata` flags plus the
+  write bit), written from RCX by the `orbit_main` prologue and read from the
+  global by any non-main function that needs it; the slot is emitted only when
+  such a function exists. `string_add` outside `main` stays CGEN fail-closed
+  even though the global would now make it lowerable (not measured; boundary
+  kept from D-F0-06).
+- Encoder: `subq reg,reg` (opcode 0x29, the `addq`/`cmpq` operand pattern) and
+  `jle rel32` (0x0F 0x8E) join the supported subset — `_pl <= 0` and `_pl - 1`
+  have no other encoding with the admitted forms. The existing `movq reg,reg`
+  encoder silently dropped REX.R/REX.B and is fixed now that a lowering is the
+  first to use `%r10`/`%r11` in a register-to-register move (`movq %rax,%r11`
+  used to encode `mov %rax,%rbx`, and the pop read decoded the wrong slot).
+- Frame layout: the 24-byte list/result scratch now sits below the
+  register/parameter/local slots (base at `slots * 8 + 24`, block
+  `[slots * 8 + 1, slots * 8 + 24]`), never overlapping them. The SSA-shaped
+  fixtures 18–22 never parked a live slot in the old overlap, but
+  `23-list-set-pop` does (its `bs`/`bp` locals) and the sret store corrupted
+  the list the pop then read. Result cells (D-M1-08) shift by the same 16
+  bytes; frame size is derived from the same slot/scratch/cell ends plus the
+  shadow space and any stack arguments.
+- Producers: the pin's frontend emits `list_set`/`list_pop` for indexed
+  assignment and `.pop()` (`builder.orb:3908-4033, 4540-4560`; literal lists
+  become create+pushes); the fixture is hand-written like cases 06–22 and the
+  oracle is the equivalent `.orb`.
+- Evidence: fixture `23-list-set-pop` → differential **23/23** on 2026-10-15
+  (exit 135, empty stdout); loader suite **51/51**; table updated in
+  `docs/proposed-ir/m1/README.md`.
+- Status: **accepted**.

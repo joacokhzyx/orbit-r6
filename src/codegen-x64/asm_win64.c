@@ -12,7 +12,7 @@ typedef struct { char name[160]; uint32_t begin, end, push_end, fp_end, alloc_en
 typedef struct { char name[160]; int sec; uint32_t off; uint16_t type; } Fixup;
 typedef struct {
     R6CoffObject *obj;
-    Bytes sec[4];
+    Bytes sec[5];
     Label labels[2048]; size_t nlabels;
     Function funcs[256]; size_t nfuncs; int active_func;
     Fixup relocs[2048]; size_t nrelocs;
@@ -232,6 +232,12 @@ static bool encode(Asm *a, char *line) {
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
     }
+    if (strcmp(op, "jle") == 0) {
+        uint32_t off;
+        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x8e)) return false;
+        off = (uint32_t)a->sec[a->section].n;
+        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
+    }
     if (strcmp(op, "jmp") == 0) {
         uint32_t off;
         if (!a1 || strchr(a1, ',') || !emit(a, 0xe9)) return bad(a, "jmp requires one local label");
@@ -258,10 +264,12 @@ static bool encode(Asm *a, char *line) {
         return emit(a, rex) && emit(a, 0x85) &&
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if ((strcmp(op, "addq") == 0 || strcmp(op, "cmpq") == 0) &&
+    if ((strcmp(op, "addq") == 0 || strcmp(op, "subq") == 0 ||
+         strcmp(op, "cmpq") == 0) &&
         id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
-        uint8_t opcode = strcmp(op, "addq") == 0 ? 0x01 : 0x39;
+        uint8_t opcode = strcmp(op, "addq") == 0 ? 0x01 :
+                         strcmp(op, "subq") == 0 ? 0x29 : 0x39;
         return emit(a, rex) && emit(a, opcode) &&
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
@@ -298,8 +306,9 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "movl") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2)
         return rex_modrm_mem(a, 32, id2, m, 0x8b, 0, 0, -1);
     if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && id2 >= 0 && !x2) {
-        if (!emit(a, 0x48) || !emit(a, 0x89)) return false;
-        return emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
+        uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
+        return emit(a, rex) && emit(a, 0x89) &&
+               emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
     if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && id2 >= 0 && x2) {
         if (!emit(a, 0x66) || !emit(a, 0x48) || !emit(a, 0x0f) || !emit(a, 0x6e)) return false;
@@ -427,13 +436,17 @@ static bool finalize_object(Asm *a) {
     int rdata = r6_coff_add_section(a->obj, ".rdata", 0x40500040u);
     int xdata = r6_coff_add_section(a->obj, ".xdata", 0x40300040u);
     int pdata = r6_coff_add_section(a->obj, ".pdata", 0x40300040u);
-    int section_ids[4] = {text, rdata, xdata, pdata};
+    int data = r6_coff_add_section(a->obj, ".data", 0xC0500040u);
+    int section_ids[5] = {text, rdata, xdata, pdata, data};
     size_t i, j;
-    if (text < 0 || rdata < 0 || xdata < 0 || pdata < 0) return bad(a, "%s", r6_coff_error(a->obj));
+    if (text < 0 || rdata < 0 || xdata < 0 || pdata < 0 || data < 0)
+        return bad(a, "%s", r6_coff_error(a->obj));
     if (!resolve_local_branches(a)) return false;
-    for (i = 0; i < 3; ++i)
+    for (i = 0; i < 5; ++i) {
+        if (i == 3) continue; /* .pdata is emitted through append_u32 below */
         if (!r6_coff_section_bytes(a->obj, section_ids[i], a->sec[i].p, a->sec[i].n))
             return bad(a, "%s", r6_coff_error(a->obj));
+    }
     for (i = 0; i < a->nlabels; ++i) {
         Label *l = &a->labels[i];
         l->symbol = r6_coff_add_symbol(a->obj, l->name, l->sec, l->off,
@@ -512,6 +525,7 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
         s = trim(line); if (!*s) continue;
         if (strcmp(s, ".text") == 0) { a.section = 0; continue; }
         if (strncmp(s, ".section .rdata", 15) == 0) { a.section = 1; continue; }
+        if (strncmp(s, ".section .data", 14) == 0) { a.section = 4; continue; }
         if (strncmp(s, ".globl ", 7) == 0) { if (!add_global(globals, &nglobal, trim(s + 7), &a)) goto fail; continue; }
         if (strncmp(s, ".def ", 5) == 0 || strcmp(s, ".seh_endprologue") == 0 ||
             strcmp(s, ".seh_pushreg %rbp") == 0 || strcmp(s, ".seh_setframe %rbp, 0") == 0) continue;
@@ -553,10 +567,10 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
     if (ferror(input)) { bad(&a, "error reading assembler input"); goto fail; }
     if (a.active_func >= 0) { bad(&a, "unterminated .seh_proc"); goto fail; }
     if (!finalize_object(&a)) goto fail;
-    for (size_t i = 0; i < 4; ++i) free(a.sec[i].p);
+    for (size_t i = 0; i < 5; ++i) free(a.sec[i].p);
     return true;
 fail:
-    for (size_t i = 0; i < 4; ++i) free(a.sec[i].p);
+    for (size_t i = 0; i < 5; ++i) free(a.sec[i].p);
     r6_coff_free(object);
     return false;
 }

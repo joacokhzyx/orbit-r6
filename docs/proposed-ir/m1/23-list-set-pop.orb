@@ -1,0 +1,30 @@
+fn calc() -> int {
+    val xs = [10, 20, 30]
+    xs[1] = 40
+    val xp = xs.pop()
+    var acc = xs.len() + xp + xs[1]
+
+    val ss = ["aa", "bbb"]
+    ss[0] = "zzzz"
+    val sp = ss.pop()
+    if sp == "bbb" { acc = acc + 1 }
+    if ss[0] == "zzzz" { acc = acc + 2 }
+
+    val fs = [1.5, 2.5]
+    fs[1] = 7.5
+    val fp = fs.pop()
+    if fp == 7.5 { acc = acc + 4 }
+    if fs[0] == 1.5 { acc = acc + 8 }
+
+    val bs = [true, false]
+    bs[1] = true
+    val bp = bs.pop()
+    if bp == true { acc = acc + 16 }
+    if bs[0] == true { acc = acc + 32 }
+
+    return acc
+}
+
+fn main() -> int {
+    return calc()
+}

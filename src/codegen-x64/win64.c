@@ -45,6 +45,24 @@ static bool same_type(const char *a, const char *b) {
     return a && b && strcmp(a, b) == 0;
 }
 
+/* ORBIT_ELEM_* codes carried in elemKind for the list opcodes. Kinds 0
+ * (opaque) and 5 (ref) are outside the M1 native surface and stay
+ * fail-closed; 1..4 map 1:1 to the register type of a slot value. */
+static const char *elem_kind_type(int kind) {
+    switch (kind) {
+    case 1: return "string";
+    case 2: return "int";
+    case 3: return "float";
+    case 4: return "bool";
+    default: return NULL;
+    }
+}
+
+static bool kind_matches_type(int kind, const char *type) {
+    const char *want = elem_kind_type(kind);
+    return want != NULL && same_type(want, type);
+}
+
 static bool valid_symbol(const char *s) {
     size_t i;
     if (!s || !(s[0] == '_' || (s[0] >= 'A' && s[0] <= 'Z') ||
@@ -266,33 +284,52 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         }
         case R6_OP_LIST_CREATE: {
             const char *capacity_type = NULL;
-            if (strcmp(f->name, "main") != 0 || !valid_dest(f, i, true, d) ||
-                !is_list(type_at(f, i->dest)) || i->operands[0].kind != R6_VAL_INT ||
-                i->operands[0].as.i32 != 8 || i->elem_kind != 2 ||
+            if (!valid_dest(f, i, true, d) || !is_list(type_at(f, i->dest)) ||
+                i->operands[0].kind != R6_VAL_INT || i->operands[0].as.i32 != 8 ||
+                !elem_kind_type(i->elem_kind) ||
                 !value_type(f, &i->operands[1], &capacity_type) || !is_int(capacity_type))
-                return fail(d, i, "CGEN", "M1 list_create supports int lists in main with 8-byte slots only");
+                return fail(d, i, "CGEN", "list_create requires an 8-byte slot size, a kind in 1..4, a list destination, and an int capacity");
             break;
         }
-        case R6_OP_LIST_PUSH:
-            if (strcmp(f->name, "main") != 0 || i->operands[0].kind != R6_VAL_REG ||
+        case R6_OP_LIST_PUSH: {
+            const char *vt = i->operands[1].kind == R6_VAL_REG ? type_at(f, i->operands[1].as.i32) : NULL;
+            if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
-                i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)) ||
-                i->elem_kind != 2 || (i->has_dest && !is_void(type_at(f, i->dest))))
-                return fail(d, i, "CGEN", "M1 list_push supports int elements in main only");
+                !vt || !kind_matches_type(i->elem_kind, vt) ||
+                (i->has_dest && !is_void(type_at(f, i->dest))))
+                return fail(d, i, "CGEN", "list_push requires a list register and a value register matching elemKind 1..4");
             break;
+        }
         case R6_OP_LIST_LEN:
-            if (strcmp(f->name, "main") != 0 || !valid_dest(f, i, true, d) ||
-                !is_int(type_at(f, i->dest)) || i->operands[0].kind != R6_VAL_REG ||
+            if (!valid_dest(f, i, true, d) || !is_int(type_at(f, i->dest)) ||
+                i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)))
-                return fail(d, i, "CGEN", "M1 list_len supports list registers in main only");
+                return fail(d, i, "CGEN", "list_len requires a list register and an int destination");
             break;
         case R6_OP_LIST_GET:
-            if (strcmp(f->name, "main") != 0 || !valid_dest(f, i, true, d) ||
-                !is_int(type_at(f, i->dest)) || i->operands[0].kind != R6_VAL_REG ||
+            if (!valid_dest(f, i, true, d) ||
+                !kind_matches_type(i->elem_kind, type_at(f, i->dest)) ||
+                i->operands[0].kind != R6_VAL_REG ||
+                !is_list(type_at(f, i->operands[0].as.i32)) ||
+                i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)))
+                return fail(d, i, "CGEN", "list_get requires a list register, an int index register, and an elemKind matching the destination");
+            break;
+        case R6_OP_LIST_SET: {
+            const char *vt = i->operands[2].kind == R6_VAL_REG ? type_at(f, i->operands[2].as.i32) : NULL;
+            if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
                 i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)) ||
-                i->elem_kind != 2)
-                return fail(d, i, "CGEN", "M1 list_get supports int elements in main only");
+                !vt || !kind_matches_type(i->elem_kind, vt) ||
+                (i->has_dest && !is_void(type_at(f, i->dest))))
+                return fail(d, i, "CGEN", "list_set requires list/index registers, an elemKind-matching value register, and an optional void destination");
+            break;
+        }
+        case R6_OP_LIST_POP:
+            if (!valid_dest(f, i, true, d) ||
+                !kind_matches_type(i->elem_kind, type_at(f, i->dest)) ||
+                i->operands[0].kind != R6_VAL_REG ||
+                !is_list(type_at(f, i->operands[0].as.i32)))
+                return fail(d, i, "CGEN", "list_pop requires a list register and an elemKind matching the destination");
             break;
         case R6_OP_COPY:
             if (!valid_dest(f, i, true, d) ||
@@ -564,7 +601,8 @@ static size_t max_outgoing_args(const R6Function *f) {
         } else if (i->opcode == R6_OP_LIST_CREATE && maximum < 5) {
             /* OrbitResult sret pointer plus four list_create_typed arguments. */
             maximum = 5;
-        } else if (i->opcode == R6_OP_LIST_GET && maximum < 6) {
+        } else if ((i->opcode == R6_OP_LIST_GET || i->opcode == R6_OP_LIST_POP) &&
+                   maximum < 6) {
             /* orbit_list_index_error has six positional Win64 arguments. */
             maximum = 6;
         }
@@ -576,14 +614,23 @@ static bool uses_result_scratch(const R6Function *f) {
     size_t pc;
     for (pc = 0; pc < f->instruction_count; ++pc)
         if (f->instructions[pc].opcode == R6_OP_LIST_CREATE ||
-            f->instructions[pc].opcode == R6_OP_LIST_PUSH) return true;
+            f->instructions[pc].opcode == R6_OP_LIST_PUSH ||
+            f->instructions[pc].opcode == R6_OP_LIST_SET ||
+            f->instructions[pc].opcode == R6_OP_LIST_POP) return true;
     return false;
 }
 
+/* The 24-byte OrbitResult scratch (sret target of every list call) lives
+ * directly below the register/parameter/local slots, never inside them: a
+ * callee's sret store would otherwise clobber a live slot parked in the
+ * last 24 bytes of the slot range. The returned value is the distance from
+ * %rbp to the buffer base, so the block covers distances
+ * [slots * 8 + 1, slots * 8 + 24] (field offsets: ok +0, error_code +4,
+ * error_msg +8, value +16, i.e. `scratch - 16` is the value word). */
 static unsigned result_scratch_offset(const R6Function *f, bool is_main) {
     size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
                    f->param_count + local_count(f);
-    return (unsigned)(slots + 1) * 8;
+    return (unsigned)(slots * 8 + 24);
 }
 
 static bool has_result_registers(const R6Function *f) {
@@ -597,12 +644,112 @@ static bool has_result_registers(const R6Function *f) {
  * scratch area. The returned value is the distance from %rbp to the cell
  * base (field offsets: ok +0, error_code +4, error_msg +8, value +16).
  * Cells never overlap: cell(reg) covers distances [D-23, D] with
- * D = (slots + 1) * 8 + 24 * (reg + 1), and the scratch area covers
- * [slots * 8 + 1, (slots + 1) * 8]. */
+ * D = slots * 8 + 24 + 24 * (reg + 1), and the scratch area covers
+ * [slots * 8 + 1, slots * 8 + 24]. */
 static unsigned result_cell_offset(const R6Function *f, bool is_main, int32_t reg) {
     size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
                    f->param_count + local_count(f);
-    return (unsigned)(slots + 1) * 8 + 24u * (unsigned)(reg + 1);
+    return (unsigned)(slots * 8 + 24 + 24u * (unsigned)(reg + 1));
+}
+
+/* The pinned C backend assigns the executable arena to a file-scope global
+ * (`OrbitArena* arena = NULL;` + `arena = _init_arena;` in orbit_main) and
+ * every non-main function that creates a list reads it from there. R6
+ * mirrors that contract with the private r6_arena slot in .data, so the
+ * global is only emitted when some non-main function needs it. */
+static bool module_needs_arena_global(const R6Module *m) {
+    size_t n;
+    for (n = 0; n < m->function_count; ++n) {
+        const R6Function *f = &m->functions[n];
+        size_t pc;
+        if (f->is_extern || !f->name || strcmp(f->name, "main") == 0) continue;
+        for (pc = 0; pc < f->instruction_count; ++pc)
+            if (f->instructions[pc].opcode == R6_OP_LIST_CREATE) return true;
+    }
+    return false;
+}
+
+/* Shared inline read sequence for list_get/list_pop, mirroring the pinned
+ * ORBIT_LIST_READ prologue: null list/data and kind checks followed by the
+ * slot decode for the element kind. list_pop computes the index as
+ * `len - 1` (with the empty-list index_error the pin emits first) and calls
+ * orbit_list_pop after the read, so the slot is still in range. */
+static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
+                           size_t pc, unsigned list_off, unsigned index_off,
+                           unsigned dest_off, int kind, bool is_pop,
+                           unsigned where_id, unsigned file_id) {
+    unsigned scratch = result_scratch_offset(f, strcmp(f->name, "main") == 0);
+    const char *tag = is_pop ? "list_pop" : "list_get";
+    char null_list[112], null_data[112], out_of_range[112], kind_error[112];
+    char index_error[112], kind_ok[112], done[112], empty[112], len_zero[112], pop[112];
+    snprintf(null_list, sizeof null_list, ".Lr6_f%zu_%s_null_list_%zu", fn_index, tag, pc);
+    snprintf(null_data, sizeof null_data, ".Lr6_f%zu_%s_null_data_%zu", fn_index, tag, pc);
+    snprintf(out_of_range, sizeof out_of_range, ".Lr6_f%zu_%s_oob_%zu", fn_index, tag, pc);
+    snprintf(kind_error, sizeof kind_error, ".Lr6_f%zu_%s_kind_error_%zu", fn_index, tag, pc);
+    snprintf(index_error, sizeof index_error, ".Lr6_f%zu_%s_index_error_%zu", fn_index, tag, pc);
+    snprintf(kind_ok, sizeof kind_ok, ".Lr6_f%zu_%s_kind_ok_%zu", fn_index, tag, pc);
+    snprintf(done, sizeof done, ".Lr6_f%zu_%s_done_%zu", fn_index, tag, pc);
+    snprintf(empty, sizeof empty, ".Lr6_f%zu_%s_empty_%zu", fn_index, tag, pc);
+    snprintf(len_zero, sizeof len_zero, ".Lr6_f%zu_%s_len_zero_%zu", fn_index, tag, pc);
+    snprintf(pop, sizeof pop, ".Lr6_f%zu_%s_pop_%zu", fn_index, tag, pc);
+    if (is_pop) {
+        /* _pl = (orbit_int)orbit_list_len(list); if (_pl <= 0) index_error. */
+        fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tmovl $0, %%eax\n"
+                   "\ttestq %%r10, %%r10\n\tje %s\n\tmovq 8(%%r10), %%rax\n"
+                   "%s:\n\ttestq %%rax, %%rax\n\tjle %s\n"
+                   "\tmovq %%rax, %%r11\n\tmovl $1, %%ecx\n\tsubq %%rcx, %%r11\n"
+                   "\tmovq 0(%%r10), %%r9\n\ttestq %%r9, %%r9\n\tje %s\n",
+                list_off, len_zero, len_zero, empty, null_data);
+    } else {
+        fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tmovq -%u(%%rbp), %%r11\n"
+                   "\ttestq %%r10, %%r10\n\tje %s\n\tmovq 0(%%r10), %%r9\n"
+                   "\ttestq %%r9, %%r9\n\tje %s\n\tmovq 8(%%r10), %%r8\n"
+                   "\tcmpq %%r8, %%r11\n\tjae %s\n",
+                list_off, index_off, null_list, null_data, out_of_range);
+    }
+    fprintf(o, "\tcmpl $%d, 32(%%r10)\n\tje %s\n\tcmpl $0, 32(%%r10)\n\tjne %s\n"
+               "%s:\n\tmovq 24(%%r10), %%rax\n\timulq %%r11, %%rax\n"
+               "\taddq %%rax, %%r9\n\tmovq 0(%%r9), %%rax\n",
+            kind, kind_ok, kind_error, kind_ok);
+    switch (kind) {
+    case 1: /* string: the slot word is the pointer. */
+        fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", dest_off);
+        break;
+    case 3: /* float: the slot word holds the binary64 bits. */
+        fprintf(o, "\tmovq %%rax, %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n", dest_off);
+        break;
+    case 4: /* bool: decode `word ? true : false`. */
+        fprintf(o, "\ttestq %%rax, %%rax\n\tsetne %%al\n\tmovzbl %%al, %%eax\n"
+                   "\tmovq %%rax, -%u(%%rbp)\n", dest_off);
+        break;
+    default: /* int: (orbit_int)(intptr_t)word. */
+        fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", dest_off);
+        break;
+    }
+    fprintf(o, "\tjmp %s\n", is_pop ? pop : done);
+    if (!is_pop)
+        fprintf(o, "%s:\n\tmovl $0, %%r8d\n\tmovl $0, %%r9d\n\tjmp %s\n",
+                null_list, index_error);
+    fprintf(o, "%s:\n\tmovq 8(%%r10), %%r8\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n",
+            null_data, index_error);
+    if (!is_pop)
+        fprintf(o, "%s:\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n", out_of_range, index_error);
+    fprintf(o, "%s:\n\tmovl 32(%%r10), %%ecx\n\tmovl $%d, %%edx\n"
+               "\tcall orbit_list_kind_error\n\tud2\n",
+            kind_error, kind);
+    if (is_pop)
+        fprintf(o, "%s:\n\tmovl $0, %%r11d\n\tmovl $0, %%r8d\n\tmovl $0, %%r9d\n"
+                   "\tjmp %s\n",
+                empty, index_error);
+    fprintf(o, "%s:\n\tleaq .LCr6_%llu(%%rip), %%rcx\n\tmovq %%r11, %%rdx\n"
+               "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, 32(%%rsp)\n"
+               "\tmovq $0, 40(%%rsp)\n\tcall orbit_list_index_error\n\tud2\n",
+            index_error, (unsigned long long)where_id, (unsigned long long)file_id);
+    if (is_pop)
+        fprintf(o, "%s:\n\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+                   "\tcall orbit_list_pop\n",
+                pop, scratch, list_off);
+    fprintf(o, "%s:\n", done);
 }
 
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
@@ -614,17 +761,24 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     bool is_main = strcmp(f->name, "main") == 0;
     const char *native_name = is_main ? "orbit_main" : f->name;
     size_t outgoing = max_outgoing_args(f);
-    size_t frame = ((size_t)f->register_count * 8 + (is_main ? 8 : 0) +
-                    f->param_count * 8 + local_count(f) * 8 +
-                    (uses_result_scratch(f) ? 24 : 0) +
-                    (has_result_registers(f) ? 24 * (size_t)f->register_count : 0) +
-                    32 + (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
+    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+                   f->param_count + local_count(f);
+    size_t used = slots * 8;
+    if (uses_result_scratch(f) || has_result_registers(f)) {
+        used += 24; /* scratch base at slots * 8 + 24 */
+        if (has_result_registers(f)) used += 24 * (size_t)f->register_count;
+    }
+    size_t frame = (used + 32 + (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
     if (frame) fprintf(o, "\tsubq $%zu, %%rsp\n\t.seh_stackalloc %zu\n", frame, frame);
     fputs("\t.seh_endprologue\n", o);
-    if (is_main) fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", (unsigned)(f->register_count + 1) * 8);
+    if (is_main) {
+        fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", (unsigned)(f->register_count + 1) * 8);
+        if (module_needs_arena_global(m))
+            fputs("\tleaq r6_arena(%rip), %rax\n\tmovq %rcx, 0(%rax)\n", o);
+    }
     for (pc = 0; pc < f->param_count; ++pc) {
         const char *t = f->param_types[pc];
         size_t abi_index = pc + (is_main ? 1 : 0);
@@ -699,14 +853,16 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned success_id = (unsigned)pc * 2;
             unsigned done_id = success_id + 1;
             emit_load_arg(o, f, &i->operands[1], "int", 3, 0);
-            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
-                       "\tmovl $8, %%r8d\n\tmovl $2, 32(%%rsp)\n"
+            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n", scratch);
+            if (is_main) fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", arena_off);
+            else fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rdx\n", o);
+            fprintf(o, "\tmovl $8, %%r8d\n\tmovl $%d, 32(%%rsp)\n"
                        "\tcall orbit_list_create_typed\n\tcmpb $1, -%u(%%rbp)\n"
                        "\tje .Lr6_f%zu_list_create_ok_%u\n\tmovq $0, -%u(%%rbp)\n"
                        "\tjmp .Lr6_f%zu_list_create_done_%u\n"
                        ".Lr6_f%zu_list_create_ok_%u:\n\tmovq -%u(%%rbp), %%rax\n"
                        "\tmovq %%rax, -%u(%%rbp)\n.Lr6_f%zu_list_create_done_%u:\n",
-                    scratch, arena_off, scratch, fn_index, success_id, off,
+                    i->elem_kind, scratch, fn_index, success_id, off,
                     fn_index, done_id, fn_index, success_id, scratch - 16, off,
                     fn_index, done_id);
             break;
@@ -715,9 +871,19 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned scratch = result_scratch_offset(f, is_main);
             unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
             unsigned value_off = (unsigned)(i->operands[1].as.i32 + 1) * 8;
-            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
-                       "\tmovq -%u(%%rbp), %%r8\n\tcall orbit_list_push_int\n",
-                    scratch, list_off, value_off);
+            const char *callee = i->elem_kind == 1 ? "orbit_list_push_string" :
+                                 i->elem_kind == 2 ? "orbit_list_push_int" :
+                                 i->elem_kind == 3 ? "orbit_list_push_float" :
+                                                     "orbit_list_push_bool";
+            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n",
+                    scratch, list_off);
+            if (i->elem_kind == 3)
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm2\n", value_off);
+            else if (i->elem_kind == 4)
+                fprintf(o, "\tmovl -%u(%%rbp), %%r8d\n", value_off);
+            else
+                fprintf(o, "\tmovq -%u(%%rbp), %%r8\n", value_off);
+            fprintf(o, "\tcall %s\n", callee);
             break;
         }
         case R6_OP_LIST_LEN: {
@@ -739,41 +905,41 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned index_off = (unsigned)(i->operands[1].as.i32 + 1) * 8;
             unsigned where_id = string_id++;
             unsigned file_id = string_id++;
-            char null_list[96], null_data[96], out_of_range[96], kind_error[96];
-            char index_error[96], kind_ok[96], done[96];
-            snprintf(null_list, sizeof null_list, ".Lr6_f%zu_list_get_null_list_%zu", fn_index, pc);
-            snprintf(null_data, sizeof null_data, ".Lr6_f%zu_list_get_null_data_%zu", fn_index, pc);
-            snprintf(out_of_range, sizeof out_of_range, ".Lr6_f%zu_list_get_oob_%zu", fn_index, pc);
-            snprintf(kind_error, sizeof kind_error, ".Lr6_f%zu_list_get_kind_error_%zu", fn_index, pc);
-            snprintf(index_error, sizeof index_error, ".Lr6_f%zu_list_get_index_error_%zu", fn_index, pc);
-            snprintf(kind_ok, sizeof kind_ok, ".Lr6_f%zu_list_get_kind_ok_%zu", fn_index, pc);
-            snprintf(done, sizeof done, ".Lr6_f%zu_list_get_done_%zu", fn_index, pc);
-            emit_string(o, "orbit_main", where_id);
+            emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
-            fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tmovq -%u(%%rbp), %%r11\n"
-                       "\ttestq %%r10, %%r10\n\tje %s\n\tmovq 0(%%r10), %%r9\n"
-                       "\ttestq %%r9, %%r9\n\tje %s\n\tmovq 8(%%r10), %%r8\n"
-                       "\tcmpq %%r8, %%r11\n\tjae %s\n"
-                       "\tcmpl $2, 32(%%r10)\n\tje %s\n"
-                       "\tcmpl $0, 32(%%r10)\n\tjne %s\n%s:\n"
-                       "\tmovq 24(%%r10), %%rax\n\timulq %%r11, %%rax\n"
-                       "\taddq %%rax, %%r9\n\tmovq 0(%%r9), %%rax\n"
-                       "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n"
-                       "\tjmp %s\n",
-                    list_off, index_off, null_list, null_data, out_of_range, kind_ok,
-                    kind_error, kind_ok, off, done);
-            fprintf(o, "%s:\n\tmovl $0, %%r8d\n\tmovl $0, %%r9d\n\tjmp %s\n"
-                       "%s:\n\tmovq 8(%%r10), %%r8\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n"
-                       "%s:\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n",
-                    null_list, index_error, null_data, index_error,
-                    out_of_range, index_error);
-            fprintf(o, "%s:\n\tmovl 32(%%r10), %%ecx\n\tmovl $2, %%edx\n"
-                       "\tcall orbit_list_kind_error\n\tud2\n%s:\n",
-                    kind_error, index_error);
-            fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tmovq %%r11, %%rdx\n"
-                       "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, 32(%%rsp)\n"
-                       "\tmovq $0, 40(%%rsp)\n\tcall orbit_list_index_error\n\tud2\n%s:\n",
-                    (unsigned long long)where_id, (unsigned long long)file_id, done);
+            emit_list_read(o, f, fn_index, pc, list_off, index_off, off,
+                           i->elem_kind, false, where_id, file_id);
+            break;
+        }
+        case R6_OP_LIST_SET: {
+            unsigned scratch = result_scratch_offset(f, is_main);
+            unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned index_off = (unsigned)(i->operands[1].as.i32 + 1) * 8;
+            unsigned value_off = (unsigned)(i->operands[2].as.i32 + 1) * 8;
+            const char *callee = i->elem_kind == 1 ? "orbit_list_set_string" :
+                                 i->elem_kind == 2 ? "orbit_list_set_int" :
+                                 i->elem_kind == 3 ? "orbit_list_set_float" :
+                                                     "orbit_list_set_bool";
+            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\tmovq -%u(%%rbp), %%r8\n",
+                    scratch, list_off, index_off);
+            if (i->elem_kind == 3)
+                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm3\n", value_off);
+            else if (i->elem_kind == 4)
+                fprintf(o, "\tmovl -%u(%%rbp), %%r9d\n", value_off);
+            else
+                fprintf(o, "\tmovq -%u(%%rbp), %%r9\n", value_off);
+            fprintf(o, "\tcall %s\n", callee);
+            break;
+        }
+        case R6_OP_LIST_POP: {
+            unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned where_id = string_id++;
+            unsigned file_id = string_id++;
+            emit_string(o, is_main ? "orbit_main" : f->name, where_id);
+            emit_string(o, "<orbit-ir>", file_id);
+            emit_list_read(o, f, fn_index, pc, list_off, 0, off,
+                           i->elem_kind, true, where_id, file_id);
             break;
         }
         case R6_OP_COPY:
@@ -1100,6 +1266,8 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
         if (!validate_function(module, f, diag)) return false;
     }
     if (!main_found) return fail(diag, NULL, "CGEN", "module must define one non-extern main");
+    if (module_needs_arena_global(module))
+        fputs("\t.section .data,\"dw\"\nr6_arena:\n\t.byte 0,0,0,0,0,0,0,0\n\t.text\n", out);
     for (n = 0; n < module->function_count; ++n)
         if (!emit_function(out, module, &module->functions[n], n, diag)) return false;
     emit_entry_wrapper(out);

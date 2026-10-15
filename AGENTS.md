@@ -17,7 +17,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 22/22 on 2026-10-15 with:
+Primary gate: differential — verified 23/23 on 2026-10-15 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -107,7 +107,7 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   `make_cases.py` (deterministic case builder), `cases/` + `manifest.json`.
 - `scripts/` — `build-r6.ps1` (driver build), `migrate-m1-fixtures.py`
   (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
-  pre-migration revision, `06d7d2c^`).
+  pre-migration revision, `06d7d2c^`, skipping fixtures newer than the base).
 - `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module
   interfaces), `IR_SPEC_DRAFT.md` (superseded draft grammar, kept for
   reference), `IR_SPEC_ALIGNMENT.md` (adopted spec vs implementation, D-F0-06),

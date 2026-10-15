@@ -34,11 +34,12 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `20-int-list-get-oob` | índice de lista fuera de rango vía función dinámica | 2 | vacío |
 | `21-nop-blocks` | `nop`/`begin_block`/`end_block` sin efecto observable | 7 | vacío |
 | `22-result-ops` | `result_ok`/`err`/`is_ok`/`unwrap`/`unwrap_err` con payload float, int y string, `catch` con binding | 46 | vacío |
+| `23-list-set-pop` | `list_set`/`list_pop` y kinds string/int/float/bool fuera de `main` (arena global) | 135 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–22 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–23 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-15: los veintidós pares, ya en el formato de la spec, pasan
+medido al 2026-10-15: los veintitrés pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 con exit/stdout idénticos a la línea base previa
-a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07/D-M1-07/D-M1-08 y
-`../../M1_REPORT.md`).
+a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09
+y `../../M1_REPORT.md`).
