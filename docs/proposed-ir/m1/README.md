@@ -43,3 +43,12 @@ medido al 2026-10-15: los veintitrés pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 con exit/stdout idénticos a la línea base previa
 a la migración (ver `../../DECISIONS.md` D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09
 y `../../M1_REPORT.md`).
+
+La familia `map_*` queda cerrada con evidencia y sin fixture 24 (D-M1-10):
+`map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
+§1.1); los lowerings de `map_create` y `map_keys` llaman al runtime con
+aridad incorrecta contra `runtime/orbit_api.h`; el `map_delete` producido
+escribe un registro destino que nunca se declara (tipo `void`); y todo valor
+mapa vivo depende de la lista de `arena` prepend, que es el gap U-04 y el
+loader debe rechazar (spec §6). Los seis opcodes quedan pineados como
+rechazos `E_UNSUPPORTED` en `tests/reject/` (casos `x-map-*`, regla D-M1-10).

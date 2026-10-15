@@ -302,3 +302,53 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (exit 135, empty stdout); loader suite **51/51**; table updated in
   `docs/proposed-ir/m1/README.md`.
 - Status: **accepted**.
+
+## D-M1-10 — `map_*` stays outside the native subset
+
+- Date: 2026-10-15.
+- Decision: the loader keeps rejecting the six map opcodes (`map_create`,
+  `map_set`, `map_get`, `map_has`, `map_delete`, `map_keys`) with
+  `E_UNSUPPORTED`. The family is closed with evidence instead of lowered: no
+  document that carries a live map value can be accepted without depending on
+  an open gap, and three of the six lowerings are ill-formed against the
+  contractual runtime.
+- Producers (spec §1.1): only `.has`/`.delete`/`.keys` emit opcodes
+  (`builder.orb:4051-4077`); `map_create`/`map_set`/`map_get` have no producer
+  at the pin, so no corpus program (§5.5) can contain them.
+- Lowering (§1.2 rows 116-121) against the contractual runtime (§4,
+  `orbit_api.h:378-382,534-556`), measured with the fixed-point oracle
+  (`orbit-fp-26cfb87400.exe`) and gcc from w64devkit:
+  - `map_create` → `orbit_map_create(O1)`: one argument where the header
+    requires `(arena, value_size)`. The sibling call-path emission fails the
+    same way: declaring `extern fn orbit_map_create(value_size: int)
+    -> map<string, int>` and calling it with `8` emits
+    `r_0 = (void*)(uintptr_t)(orbit_map_create(arena, (orbit_int)(uintptr_t)(8)));`
+    and gcc rejects it — "aggregate value used where an integer was expected".
+  - `map_keys` → `orbit_map_keys(O1)`: the arena argument is missing — gcc,
+    "too few arguments to function 'orbit_map_keys'; expected 2, have 1".
+  - `map_delete` → the builder types the destination `void`
+    (`builder.orb:4066`) while the arm assigns the `OrbitResult` to it; the
+    produced C names an undeclared register — gcc, "'r_5' undeclared".
+  - `map_has` → `orbit_map_has(O1, O2)` is the one well-formed arm (inline,
+    `orbit_api.h:553-556`), and a probe program does run end to end: declare
+    the extern with `-> result`, `try orbit_map_create(8)`, then `.has("k")`
+    answers `false` on the empty map and `true` after
+    `orbit_map_set(map, "k", "v")`.
+  - `map_set`/`map_get` → well-formed text (`orbit_map_set(O1, O2, O3)`,
+    `orbit_map_get(O1, O2)`) but producer-less, and reachable only with a live
+    map value.
+- The blocking dependency is the map value itself: the only working creation
+  path at the pin is the `orbit_map_create` call, which works exclusively
+  because the C backend prepends `arena` (`functionNeedsArena`,
+  `c_backend.orb:4214`). That list is gap **U-04** (spec §3.1.9/§6): its
+  membership is UNSPECIFIED and "the loader rejects any document that depends
+  on it". IRv1 carries no value that yields the arena, so R6 cannot lower the
+  call faithfully either, and the extern surface does not open a way around
+  it: R6's whitelist already refuses `-> result` / `-> map<...>` extern
+  declarations (non-scalar return types, `win64.c:241-242`).
+- Consequence: no fixture 24 is added; the table in
+  `docs/proposed-ir/m1/README.md` records the closure, and `tests/reject/`
+  pins one rejection per opcode (cases `x-map-create` … `x-map-keys`).
+- Evidence: oracle probes p7-p12 (scratch `.r6-build/map-probes/`, 2026-10-15);
+  loader suite **57/57**; differential gate unchanged at **23/23**.
+- Status: **accepted**.
