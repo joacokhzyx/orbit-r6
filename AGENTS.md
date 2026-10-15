@@ -40,10 +40,11 @@ python tests/diff/run_diff.py `
   `scripts/test_suite.py`.
 
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06;
-`map_*` pins are D-M1-10) — verified 57/57 on 2026-10-15:
+`map_*` pins are D-M1-10, model pins are D-M1-11) — verified 69/69 on
+2026-10-15:
 
 ```powershell
-python tests/reject/run_reject.py            # 53 rejections + 4 acceptance controls
+python tests/reject/run_reject.py            # 64 rejections + 5 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```

@@ -43,6 +43,10 @@ def Sym(s):
     return {"kind": "Sym", "value": s}
 
 
+def Str(s):
+    return {"kind": "String", "value": s}
+
+
 def Types(n):
     return ["int"] * n
 
@@ -310,6 +314,85 @@ def build_reject():
         "D-M1-10", "E_UNSUPPORTED",
         "map_keys: 1-arg lowering vs (map, arena)")
 
+    # ---- D-M1-11: model constructors + field access stay inside the ----------
+    # ---- measured int/bool/float/string field subset (docs/DECISIONS.md) -----
+    box = {"name": "Box", "fields": [{"name": "n", "typeName": "int"}],
+           "typeParams": []}
+    pair = [{"name": "A", "fields": [{"name": "f", "typeName": "int"}],
+             "typeParams": []},
+            {"name": "B", "fields": [{"name": "g", "typeName": "int"}],
+             "typeParams": []}]
+
+    mod = MOD([MAIN([I("load_const", 0, Int(1)),
+                     I("load_field", 1, Reg(0), Sym("Box.n")),
+                     I("ret", -1, Int(0))], ["int", "int"])])
+    mod["models"] = [box]
+    add("x-load-field-nonmodel-base", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "load_field receiver must be a model register")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("Box"), Int(1)),
+                     I("load_field", 1, Reg(0), Sym("Box.missing")),
+                     I("ret", -1, Int(0))], ["Box", "int"])])
+    mod["models"] = [box]
+    add("x-field-missing-field", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "field reference must exist in the owner model")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("A"), Int(1)),
+                     I("load_field", 1, Reg(0), Sym("B.g")),
+                     I("ret", -1, Int(0))], ["A", "int"])])
+    mod["models"] = list(pair)
+    add("x-field-owner-mismatch", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "field reference owner must match the receiver type")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("Box"), Int(1)),
+                     I("load_field", 1, Reg(0), Sym("Box.n")),
+                     I("ret", -1, Int(0))], ["Box", "string"])])
+    mod["models"] = [box]
+    add("x-load-field-dest-mismatch", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "load_field destination type must equal the field type")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("Box"), Int(1)),
+                     I("store_field", 1, Reg(0), Sym("Box.n"), Int(5)),
+                     I("ret", -1, Int(0))], ["Box", "int"])])
+    mod["models"] = [box]
+    add("x-store-field-with-dest", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "store_field does not write a destination")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)), I("arg", -1, Int(2)),
+                     I("call", 0, Str("Box"), Int(2)),
+                     I("ret", -1, Int(0))], ["Box"])])
+    mod["models"] = [box]
+    add("x-ctor-arity-mismatch", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "constructor arity equals the model field count")
+
+    mod = MOD([MAIN()])
+    mod["models"] = [{"name": "Box",
+                      "fields": [{"name": "p", "typeName": "list"}],
+                      "typeParams": []}]
+    add("x-model-field-unsupported-type", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "only int/bool/float/string fields are lowered")
+
+    mod = MOD([MAIN()])
+    mod["models"] = [box, dict(box)]
+    add("x-duplicate-model-name", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "E_DUPLICATE", "duplicate model name")
+
+    mod = MOD([MAIN(), ZERO()])
+    mod["models"] = [{"name": "zero", "fields": [], "typeParams": []}]
+    add("x-model-function-collision", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "E_DUPLICATE", "model name collides with a function name")
+
+    mod = MOD([MAIN([I("load_field", 0, Reg(0), Int(0)),
+                     I("ret", -1, Reg(0))], ["int"])])
+    mod["models"] = [box]
+    add("x-field-ref-kind", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "E_SCHEMA", "field reference is a Symbol or String")
+
+    mod = MOD([MAIN([I("call", 0, Str("Nope"), Int(0)),
+                     I("ret", -1, Reg(0))], ["int"])])
+    add("x-ctor-unknown-model", jd({"irVersion": "1", "module": mod}),
+        "D-M1-11", "CGEN", "constructor target must be a declared model")
+
     return cases
 
 
@@ -332,6 +415,15 @@ def build_accept_files():
                  I("call", 2, Sym("add2"), Int(2)),
                  I("ret", -1, Reg(2))], Types(3))
     files.append(("ok-call-arity-suffix", jd(DOC([main, ZERO(), add2]))))
+    mod = MOD([MAIN([I("arg", -1, Int(11)),
+                     I("call", 0, Str("Box"), Int(1)),
+                     I("decl_var", -1, Str("b"), Reg(0)),
+                     I("load_var", 1, Str("b")),
+                     I("load_field", 2, Reg(1), Sym("Box.n")),
+                     I("ret", -1, Reg(2))], ["Box", "Box", "int"])])
+    mod["models"] = [{"name": "Box", "fields": [{"name": "n", "typeName": "int"}],
+                      "typeParams": []}]
+    files.append(("ok-model-ctor", jd({"irVersion": "1", "module": mod})))
     return files
 
 
@@ -350,6 +442,8 @@ def build_manifest(reject, accept_files):
              "note": "label never targeted by a jump is accepted"},
             {"file": "cases/ok-call-arity-suffix.json", "run_exit": 9, "rule": "V-13 (E-05)",
              "note": "call consumes exactly operand2 pending args; zero consumes none"},
+            {"file": "cases/ok-model-ctor.json", "run_exit": 11, "rule": "D-M1-11",
+             "note": "model constructor + field load round-trip inside main"},
         ],
     }
 

@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `110ce439…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 47 rechazos + 4 controles
+python tests/reject/run_reject.py            # 64 rechazos + 5 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,7 +17,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` — 47 rechazos + 3 controles locales; el cuarto control es
+- `cases/` — 64 rechazos + 4 controles locales; el quinto control es
   `docs/proposed-ir/m1/01-int-call.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
@@ -50,6 +50,8 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | Subconjunto R6 | `x-unsupported-opcode`, `x-route-function` |
 | Estrictez R6 | `x-duplicate-key`, `x-duplicate-label` |
 | E-07 | aceptación: `ok-untargeted-label` |
+| D-M1-10 | `x-map-create`, `x-map-set`, `x-map-get`, `x-map-delete`, `x-map-has`, `x-map-keys` |
+| D-M1-11 | `x-load-field-nonmodel-base`, `x-field-missing-field`, `x-field-owner-mismatch`, `x-load-field-dest-mismatch`, `x-store-field-with-dest`, `x-ctor-arity-mismatch`, `x-model-field-unsupported-type`, `x-field-ref-kind`, `x-ctor-unknown-model`, `x-duplicate-model-name`, `x-model-function-collision`; aceptación: `ok-model-ctor` |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
 `list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan para la fase
@@ -57,5 +59,5 @@ C: R6 los rechaza en codegen por su subconjunto (`registerTypes` estricta,
 alias de runtime fuera del subconjunto) y exigen decisión D-M1-xx con
 evidencia, no un caso de aceptación.
 
-Estado 2026-10-15: **51/51** (47 rechazos + 4 controles); gate diferencial
-20/20 en el mismo árbol.
+Estado 2026-10-15: **69/69** (64 rechazos + 5 controles); gate diferencial
+24/24 en el mismo árbol.

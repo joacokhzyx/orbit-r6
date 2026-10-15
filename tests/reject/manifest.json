@@ -370,6 +370,83 @@
       "code": "E_UNSUPPORTED",
       "rule": "D-M1-10",
       "note": "map_keys: 1-arg lowering vs (map, arena)"
+    },
+    {
+      "file": "cases/x-load-field-nonmodel-base.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "load_field receiver must be a model register"
+    },
+    {
+      "file": "cases/x-field-missing-field.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "field reference must exist in the owner model"
+    },
+    {
+      "file": "cases/x-field-owner-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "field reference owner must match the receiver type"
+    },
+    {
+      "file": "cases/x-load-field-dest-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "load_field destination type must equal the field type"
+    },
+    {
+      "file": "cases/x-store-field-with-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "store_field does not write a destination"
+    },
+    {
+      "file": "cases/x-ctor-arity-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "constructor arity equals the model field count"
+    },
+    {
+      "file": "cases/x-model-field-unsupported-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "only int/bool/float/string fields are lowered"
+    },
+    {
+      "file": "cases/x-duplicate-model-name.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "D-M1-11",
+      "note": "duplicate model name"
+    },
+    {
+      "file": "cases/x-model-function-collision.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "D-M1-11",
+      "note": "model name collides with a function name"
+    },
+    {
+      "file": "cases/x-field-ref-kind.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-11",
+      "note": "field reference is a Symbol or String"
+    },
+    {
+      "file": "cases/x-ctor-unknown-model.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-11",
+      "note": "constructor target must be a declared model"
     }
   ],
   "accept": [
@@ -397,6 +474,12 @@
       "run_exit": 9,
       "rule": "V-13 (E-05)",
       "note": "call consumes exactly operand2 pending args; zero consumes none"
+    },
+    {
+      "file": "cases/ok-model-ctor.json",
+      "run_exit": 11,
+      "rule": "D-M1-11",
+      "note": "model constructor + field load round-trip inside main"
     }
   ]
 }
