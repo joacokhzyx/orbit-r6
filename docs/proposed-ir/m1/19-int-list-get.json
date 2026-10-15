@@ -1,0 +1,36 @@
+{
+  "format": "orbit-ir",
+  "version": 1,
+  "module": {
+    "functions": [
+      {
+        "name": "main",
+        "params": [],
+        "param_types": [],
+        "instructions": [
+          {"op":"list_create","dest":0,"operands":[{"int":"8"},{"int":"3"},{"none":null}],"elem_kind":2},
+          {"op":"load_const","dest":1,"operands":[{"int":"10"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"list_push","dest":2,"operands":[{"reg":0},{"reg":1},{"none":null}],"elem_kind":2},
+          {"op":"load_const","dest":3,"operands":[{"int":"20"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"list_push","dest":4,"operands":[{"reg":0},{"reg":3},{"none":null}],"elem_kind":2},
+          {"op":"load_const","dest":5,"operands":[{"int":"30"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"list_push","dest":6,"operands":[{"reg":0},{"reg":5},{"none":null}],"elem_kind":2},
+          {"op":"decl_var","dest":null,"operands":[{"symbol":"xs"},{"reg":0},{"none":null}],"elem_kind":0},
+          {"op":"load_var","dest":7,"operands":[{"symbol":"xs"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"load_const","dest":8,"operands":[{"int":"1"},{"none":null},{"none":null}],"elem_kind":0},
+          {"op":"list_get","dest":9,"operands":[{"reg":7},{"reg":8},{"none":null}],"elem_kind":2},
+          {"op":"ret","dest":null,"operands":[{"reg":9},{"none":null},{"none":null}],"elem_kind":0}
+        ],
+        "register_count": 10,
+        "register_types": ["list","int","void","int","void","int","void","list","int","int"],
+        "return_type": "int",
+        "extern": false,
+        "route": null
+      }
+    ],
+    "globals": [],
+    "models": [],
+    "types": [],
+    "migrations": []
+  }
+}

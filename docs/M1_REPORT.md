@@ -108,3 +108,11 @@ $env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
 Alternativa descartada: generar C o llamar a un compilador/assembler externo
 por programa. La máquina/COFF se codifica internamente; la representación
 textual GAS intermedia es privada al backend y el linker MinGW permanece.
+
+## Actualización de M1 — list_get (2026-10-14)
+
+- `19-int-list-get` y `20-int-list-get-oob`: **2/2 pass** aislado.
+- Gate completo manual: **20/20 pass**, exit 0; el caso válido devuelve 20 y el error de índice devuelve 2. Comparación exacta de exit y stdout bytes con el compiler pineado y GCC `C:\w64devkit\bin\gcc.exe`.
+- SHA-256 del driver probado: `E839C49E29223D6AF5C940537847F3FBFE0334D37C723298BCB9DDD8AFBA20D7`.
+- `list_get` usa el layout documentado de `OrbitList` para cargar el slot y llama a los errores oficiales para índice/kind. El alcance permanece `list<int>` en `main`; otros kinds, set/pop y helpers fuera de main siguen rechazados.
+- Esta evidencia es M1 manual, no la suite/std completa; no constituye benchmark.

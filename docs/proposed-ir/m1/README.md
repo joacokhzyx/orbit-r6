@@ -26,8 +26,10 @@ codes se comparan como exit status/stdout bytes con `orbit build` del pin.
 | `16-call-stack-args` | argumentos enteros 5.º/6.º por pila en llamada y callee | 11 | vacío |
 | `17-call-stack-float` | argumento binary64 en posición 5 y entero en posición 6 | 11 | vacío |
 | `18-int-list-literal-len` | create/push de lista int, referencia local y lectura de longitud | 3 | vacío |
+| `19-int-list-get` | lectura indexada de lista int | 20 | vacío |
+| `20-int-list-get-oob` | índice de lista fuera de rango vía función dinámica | 2 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–15 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–20 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-14: dieciocho pares pasan diferencial en Windows x86-64.
+medido al 2026-10-14: veinte pares pasan diferencial en Windows x86-64.

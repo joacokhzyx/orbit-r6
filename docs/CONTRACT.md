@@ -26,7 +26,7 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
   `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
   `and_op`, `or_op`, `not_op`, `neg`, `copy`, `jump`, `load_var`, `decl_var`,
-  `store_var`, `list_create`, `list_push`, `list_len`, `call` y `ret`, solo para
+  `store_var`, `list_create`, `list_push`, `list_len`, `list_get`, `call` y `ret`, solo para
   las combinaciones validadas en codegen.
   Un opcode no implementado produce error con nombre e instrucción.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
@@ -65,8 +65,11 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   runtime fijado. El retorno C `OrbitResult` usa sret; `ok` está en byte 0 y
   `value` en byte 16 según el layout del header (`runtime/orbit_api.h:179-184`).
   Longitud lee `OrbitList.len` (offset 8; `orbit_api.h:217-224,517-519`), igual
-  al accessor inline oficial. Los demás kinds, get/set/pop, helpers fuera de
-  `main` y uso de lista como argumento/retorno fallan cerrados.
+  al accessor inline oficial. `list_get` solo admite int en `main`; comprueba
+  nulos, bounds unsigned y kind, y llama a `orbit_list_index_error` o
+  `orbit_list_kind_error` oficiales ante fallo (`orbit_api.h:358-360,422-468`).
+  Los demás kinds, set/pop, helpers fuera de `main` y uso de lista como
+  argumento/retorno fallan cerrados.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Se admiten hasta

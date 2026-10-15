@@ -179,6 +179,7 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "pushq") == 0 && a1 && strcmp(a1, "%rbp") == 0) return emit(a, 0x55);
     if (strcmp(op, "leave") == 0) return emit(a, 0xc9);
     if (strcmp(op, "ret") == 0) return emit(a, 0xc3);
+    if (strcmp(op, "ud2") == 0) return emit(a, 0x0f) && emit(a, 0x0b);
     if (strcmp(op, "cqto") == 0) return emit(a, 0x48) && emit(a, 0x99);
     if (strcmp(op, "negq") == 0 && a1) {
         id1 = reg_id(a1, &w1, &x1);
@@ -219,6 +220,18 @@ static bool encode(Asm *a, char *line) {
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
     }
+    if (strcmp(op, "jae") == 0) {
+        uint32_t off;
+        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x83)) return false;
+        off = (uint32_t)a->sec[a->section].n;
+        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
+    }
+    if (strcmp(op, "jne") == 0) {
+        uint32_t off;
+        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x85)) return false;
+        off = (uint32_t)a->sec[a->section].n;
+        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
+    }
     if (strcmp(op, "jmp") == 0) {
         uint32_t off;
         if (!a1 || strchr(a1, ',') || !emit(a, 0xe9)) return bad(a, "jmp requires one local label");
@@ -240,6 +253,23 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 64, id2, m, 0x8d, 0, 0, -1);
     }
     id1 = reg_id(a1, &w1, &x1); id2 = reg_id(a2, &w2, &x2);
+    if (strcmp(op, "testq") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
+        uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
+        return emit(a, rex) && emit(a, 0x85) &&
+               emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
+    }
+    if ((strcmp(op, "addq") == 0 || strcmp(op, "cmpq") == 0) &&
+        id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
+        uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
+        uint8_t opcode = strcmp(op, "addq") == 0 ? 0x01 : 0x39;
+        return emit(a, rex) && emit(a, opcode) &&
+               emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
+    }
+    if (strcmp(op, "imulq") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
+        uint8_t rex = (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3));
+        return emit(a, rex) && emit(a, 0x0f) && emit(a, 0xaf) &&
+               emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
+    }
     if (strcmp(op, "movabsq") == 0) {
         if (!parse_imm(a1, &imm) || id2 != 0 || x2 || w2 != 64) return bad(a, "unsupported movabsq operands");
         return emit(a, 0x48) && emit(a, 0xb8) && emit64(a, imm);

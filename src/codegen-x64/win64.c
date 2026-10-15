@@ -286,6 +286,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 !is_list(type_at(f, i->operands[0].as.i32)))
                 return fail(d, i, "CGEN", "M1 list_len supports list registers in main only");
             break;
+        case R6_OP_LIST_GET:
+            if (strcmp(f->name, "main") != 0 || !valid_dest(f, i, true, d) ||
+                !is_int(type_at(f, i->dest)) || i->operands[0].kind != R6_VAL_REG ||
+                !is_list(type_at(f, i->operands[0].as.i32)) ||
+                i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)) ||
+                i->elem_kind != 2)
+                return fail(d, i, "CGEN", "M1 list_get supports int elements in main only");
+            break;
         case R6_OP_COPY:
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
@@ -494,6 +502,9 @@ static size_t max_outgoing_args(const R6Function *f) {
         } else if (i->opcode == R6_OP_LIST_CREATE && maximum < 5) {
             /* OrbitResult sret pointer plus four list_create_typed arguments. */
             maximum = 5;
+        } else if (i->opcode == R6_OP_LIST_GET && maximum < 6) {
+            /* orbit_list_index_error has six positional Win64 arguments. */
+            maximum = 6;
         }
     }
     return maximum;
@@ -639,6 +650,48 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                        ".Lr6_f%zu_list_len_done_%u:\n",
                     list_off, fn_index, null_id, list_off, off,
                     fn_index, done_id, fn_index, null_id, off, fn_index, done_id);
+            break;
+        }
+        case R6_OP_LIST_GET: {
+            unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned index_off = (unsigned)(i->operands[1].as.i32 + 1) * 8;
+            unsigned where_id = string_id++;
+            unsigned file_id = string_id++;
+            char null_list[96], null_data[96], out_of_range[96], kind_error[96];
+            char index_error[96], kind_ok[96], done[96];
+            snprintf(null_list, sizeof null_list, ".Lr6_f%zu_list_get_null_list_%zu", fn_index, pc);
+            snprintf(null_data, sizeof null_data, ".Lr6_f%zu_list_get_null_data_%zu", fn_index, pc);
+            snprintf(out_of_range, sizeof out_of_range, ".Lr6_f%zu_list_get_oob_%zu", fn_index, pc);
+            snprintf(kind_error, sizeof kind_error, ".Lr6_f%zu_list_get_kind_error_%zu", fn_index, pc);
+            snprintf(index_error, sizeof index_error, ".Lr6_f%zu_list_get_index_error_%zu", fn_index, pc);
+            snprintf(kind_ok, sizeof kind_ok, ".Lr6_f%zu_list_get_kind_ok_%zu", fn_index, pc);
+            snprintf(done, sizeof done, ".Lr6_f%zu_list_get_done_%zu", fn_index, pc);
+            emit_string(o, "orbit_main", where_id);
+            emit_string(o, "<orbit-ir>", file_id);
+            fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tmovq -%u(%%rbp), %%r11\n"
+                       "\ttestq %%r10, %%r10\n\tje %s\n\tmovq 0(%%r10), %%r9\n"
+                       "\ttestq %%r9, %%r9\n\tje %s\n\tmovq 8(%%r10), %%r8\n"
+                       "\tcmpq %%r8, %%r11\n\tjae %s\n"
+                       "\tcmpl $2, 32(%%r10)\n\tje %s\n"
+                       "\tcmpl $0, 32(%%r10)\n\tjne %s\n%s:\n"
+                       "\tmovq 24(%%r10), %%rax\n\timulq %%r11, %%rax\n"
+                       "\taddq %%rax, %%r9\n\tmovq 0(%%r9), %%rax\n"
+                       "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n"
+                       "\tjmp %s\n",
+                    list_off, index_off, null_list, null_data, out_of_range, kind_ok,
+                    kind_error, kind_ok, off, done);
+            fprintf(o, "%s:\n\tmovl $0, %%r8d\n\tmovl $0, %%r9d\n\tjmp %s\n"
+                       "%s:\n\tmovq 8(%%r10), %%r8\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n"
+                       "%s:\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n",
+                    null_list, index_error, null_data, index_error,
+                    out_of_range, index_error);
+            fprintf(o, "%s:\n\tmovl 32(%%r10), %%ecx\n\tmovl $2, %%edx\n"
+                       "\tcall orbit_list_kind_error\n\tud2\n%s:\n",
+                    kind_error, index_error);
+            fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tmovq %%r11, %%rdx\n"
+                       "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, 32(%%rsp)\n"
+                       "\tmovq $0, 40(%%rsp)\n\tcall orbit_list_index_error\n\tud2\n%s:\n",
+                    (unsigned long long)where_id, (unsigned long long)file_id, done);
             break;
         }
         case R6_OP_COPY:
