@@ -234,6 +234,11 @@ static bool encode(Asm *a, char *line) {
         { char *label = a1; char *paren = strchr(label, '('); *paren = 0; m.symbol = trim(label); }
         return rex_modrm_mem(a, 64, id2, m, 0x8d, 0, 0, -1);
     }
+    if (strcmp(op, "leaq") == 0 && parse_mem(a, a1, &m) && !m.rip) {
+        id2 = reg_id(a2, &w2, &x2);
+        if (id2 < 0 || x2 || w2 != 64) return bad(a, "lea destination must be a 64-bit GPR");
+        return rex_modrm_mem(a, 64, id2, m, 0x8d, 0, 0, -1);
+    }
     id1 = reg_id(a1, &w1, &x1); id2 = reg_id(a2, &w2, &x2);
     if (strcmp(op, "movabsq") == 0) {
         if (!parse_imm(a1, &imm) || id2 != 0 || x2 || w2 != 64) return bad(a, "unsupported movabsq operands");
@@ -244,7 +249,8 @@ static bool encode(Asm *a, char *line) {
         return emit(a, 0x48) && emit(a, 0x63) &&
                emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2) {
-        if (w2 == 32) return emit(a, (uint8_t)(0xb8 + (id2 & 7))) && emit32(a, (uint32_t)imm);
+        if (w2 == 32) return (id2 < 8 || emit(a, 0x41)) &&
+                         emit(a, (uint8_t)(0xb8 + (id2 & 7))) && emit32(a, (uint32_t)imm);
         if (w2 == 64) return bad(a, "movq immediate to GPR must use movabsq in M1 assembly");
     }
     if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
@@ -314,6 +320,10 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "cmpl") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
         if (imm <= 127) return rex_modrm_mem(a, 32, 7, m, 0x83, 0, 0, -1) && emit(a, (uint8_t)imm);
         return rex_modrm_mem(a, 32, 7, m, 0x81, 0, 0, -1) && emit32(a, (uint32_t)imm);
+    }
+    if (strcmp(op, "cmpb") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
+        if (imm > 127) return bad(a, "cmpb immediate outside signed-byte range");
+        return rex_modrm_mem(a, 8, 7, m, 0x80, 0, 0, -1) && emit(a, (uint8_t)imm);
     }
     if (strcmp(op, "subq") == 0 && parse_imm(a1, &imm) && strcmp(a2, "%rsp") == 0) {
         if (imm <= 127) return emit(a, 0x48) && emit(a, 0x83) && emit(a, 0xec) && emit(a, (uint8_t)imm);

@@ -26,7 +26,8 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
   `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
   `and_op`, `or_op`, `not_op`, `neg`, `copy`, `jump`, `load_var`, `decl_var`,
-  `store_var`, `call` y `ret`, solo para las combinaciones validadas en codegen.
+  `store_var`, `list_create`, `list_push`, `list_len`, `call` y `ret`, solo para
+  las combinaciones validadas en codegen.
   Un opcode no implementado produce error con nombre e instrucción.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
   temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
@@ -52,11 +53,20 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - `copy` mueve escalares a slots y `jump` resuelve labels locales por función;
   `12-jump-copy` confirma salto incondicional y copia; `13-while-counter`
   verifica back-edge, branch condicional y variable int local contra el pin.
-  `decl_var/store_var` soportan locales escalares declarados en la función e
-  inicializados/actualizados desde registros. `load_var` también lee globals
+  `decl_var/store_var` soportan locales escalares y referencias `list`
+  declaradas en la función, inicializadas/actualizadas desde registros.
+  `load_var` también lee globals
   `int`/`bool` literales: el pin serializa esos `IRGlobal.value` como String
   decimal (`builder.orb:2288-2304,2333-2338`; `c_backend.orb:1479-1503`). Otros
   globals, params por nombre y captures fallan explícitamente.
+- Listas: Win64 M1 soporta únicamente `list<int>` en `main`, usando
+  `list_create` (8-byte slots y `elem_kind=2`), `list_push` int y `list_len`.
+  Creación y push llaman `orbit_list_create_typed`/`orbit_list_push_int` del
+  runtime fijado. El retorno C `OrbitResult` usa sret; `ok` está en byte 0 y
+  `value` en byte 16 según el layout del header (`runtime/orbit_api.h:179-184`).
+  Longitud lee `OrbitList.len` (offset 8; `orbit_api.h:217-224,517-519`), igual
+  al accessor inline oficial. Los demás kinds, get/set/pop, helpers fuera de
+  `main` y uso de lista como argumento/retorno fallan cerrados.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Se admiten hasta

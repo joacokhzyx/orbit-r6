@@ -25,8 +25,9 @@ codes se comparan como exit status/stdout bytes con `orbit build` del pin.
 | `15-string-equality` | igualdad por contenido y desigualdad de strings, incluida concatenación | 5 | vacío |
 | `16-call-stack-args` | argumentos enteros 5.º/6.º por pila en llamada y callee | 11 | vacío |
 | `17-call-stack-float` | argumento binary64 en posición 5 y entero en posición 6 | 11 | vacío |
+| `18-int-list-literal-len` | create/push de lista int, referencia local y lectura de longitud | 3 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06–15 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-14: diecisiete pares pasan diferencial en Windows x86-64.
+medido al 2026-10-14: dieciocho pares pasan diferencial en Windows x86-64.

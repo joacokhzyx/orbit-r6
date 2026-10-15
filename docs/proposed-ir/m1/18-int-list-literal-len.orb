@@ -1,0 +1,4 @@
+fn main() -> int {
+    val xs = [10, 20, 30]
+    return xs.len()
+}

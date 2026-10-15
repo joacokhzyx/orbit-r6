@@ -1,6 +1,6 @@
 # Informe M1 — Windows x86-64
 
-Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para diecisiete
+Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para dieciocho
 casos en Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
 GCC como oráculo; R6 parseó IRv1 JSON, bajó a su representación assembler
@@ -23,8 +23,8 @@ dependencia de plataforma.
 - Runtime archive construido desde receta y fuentes del pin; SHA-256
   `3FC8FBE3E8D0733E7FA8161FD330011DF71C9DDB5E4B3A5D207AADC1D4F5AF8B`.
 - Driver construido sin optimizaciones, ahora con lectura de globals literales
-  int/bool, `strcmp` para igualdad de strings y parámetros Win64 en pila; SHA-256
-  `44C8DE541980A29F6933EBE79A1D575A46D7EC2FC26205B454F619F3B6342D3E`.
+  int/bool, igualdad string vía `strcmp`, parámetros Win64 en pila y listas int;
+  SHA-256 `F699D2E2FCEFB5708C8CDCA85378792A589F6CDC9C54FA51CF9A94ADB6AB2854`.
 - Fallo cerrado: IR version 2 devuelve exit 1 con `E_VERSION`; opcode `alloc`
   (fuera del subconjunto nativo actual) devuelve exit 1 con `E_UNSUPPORTED`.
 - El harness y los ejecutables temporales de esta corrida residieron bajo
@@ -52,6 +52,9 @@ dependencia de plataforma.
   exit `11`, stdout vacío. Cubren posiciones 5 y 6 enteras y binary64 en
   posición 5; repetición completa del gate: **17/17 pass**, exit 0, `R6_CC`
   apuntando a ruta inexistente. No es benchmark.
+- Fixture `18-int-list-literal-len`: **1/1 pass**, exit `3`, stdout vacío. Mide
+  create/push oficiales, local de referencia list y accessor de longitud; gate
+  completo repetido: **18/18 pass**, exit 0 con `R6_CC` inválido. No es benchmark.
 
 Comando del gate:
 
@@ -72,23 +75,24 @@ $env:R6_CC = 'C:\missing\gcc.exe'
   (numérico/bool/string), `ne` (int/float/string), `lt/le/gt/ge` (int/float),
   `and_op/or_op/not_op` (bool), `neg` (int/float),
   `copy`, `jump`, `jump_if_false`, `label`, `load_var/decl_var/store_var`
-  (locales escalares y lectura de globals literales int/bool), `arg`, `call` y
+  (locales escalares/list y lectura de globals literales int/bool),
+  `list_create/list_push/list_len` (solo list<int> en main), `arg`, `call` y
   `ret` para combinaciones probadas; llamadas directas permiten hasta 256
   argumentos escalares y usan slots Win64 para posiciones 5+. Stack
   slots; sin
   optimizaciones.
 - No se midió la suite completa de Orbit. No hay `--emit-ir`, spec upstream ni
-  corpus emitido por Orbit en el pin. Los diecisiete JSON son fixtures manuales
-  comparados contra sus fuentes `.orb`; los doce añadidos extienden cobertura
+  corpus emitido por Orbit en el pin. Los dieciocho JSON son fixtures manuales
+  comparados contra sus fuentes `.orb`; los trece añadidos extienden cobertura
   de aritmética entera/float, comparación signed/float, lógica, negación,
-  control de flujo/copia/loops, variables locales, globals int/bool y
-  comparación string por contenido.
+  control de flujo/copia/loops, variables locales, globals int/bool,
+  comparación string por contenido, llamadas con argumentos de pila y lista int.
 - Casos de overflow/extremos fuera de los fixtures siguen sin cobertura. El
   fixture 10 confirma comparación IEEE unordered para NaN y equivalencia de
   `+0.0`/`-0.0`; fixture 11 cubre negación finita, no todos los payloads NaN.
-  La evidencia semántica se limita al `c_backend.orb` fijado y estos quince
-  pares; los fixtures 14–17 añaden globals int/bool literales, comparaciones
-  string y llamadas con argumentos en pila. No extrapolar a todos
+  La evidencia semántica se limita al `c_backend.orb` fijado y estos dieciocho
+  pares; los fixtures 14–18 añaden globals int/bool literales, comparaciones
+  string, llamadas con argumentos en pila y lista int. No extrapolar a todos
   los bordes de IRv1.
 - Linux runtime/toolchain no verificados en este host. DB queda fuera hasta M3
   salvo variante oficial compatible. ARM64 macOS comienza en M3. Multihilo y

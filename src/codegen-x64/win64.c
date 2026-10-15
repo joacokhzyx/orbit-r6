@@ -32,8 +32,13 @@ static bool is_int(const char *t) { return t && strcmp(t, "int") == 0; }
 static bool is_float(const char *t) { return t && strcmp(t, "float") == 0; }
 static bool is_string(const char *t) { return t && strcmp(t, "string") == 0; }
 static bool is_bool(const char *t) { return t && strcmp(t, "bool") == 0; }
+static bool is_list(const char *t) { return t && strcmp(t, "list") == 0; }
+static bool is_void(const char *t) { return t && strcmp(t, "void") == 0; }
 static bool is_scalar(const char *t) {
     return is_int(t) || is_float(t) || is_string(t) || is_bool(t);
+}
+static bool is_register_type(const char *t) {
+    return is_scalar(t) || is_list(t) || is_void(t);
 }
 static bool same_type(const char *a, const char *b) {
     return a && b && strcmp(a, b) == 0;
@@ -240,7 +245,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
             const char *name = ir_name(&i->operands[0]), *vt = NULL, *lt = NULL;
             if (!name || !*name || i->operands[1].kind != R6_VAL_REG ||
-                !value_type(f, &i->operands[1], &vt) || !is_scalar(vt) ||
+                !value_type(f, &i->operands[1], &vt) || !(is_scalar(vt) || is_list(vt)) ||
                 !local_info(f, name, NULL, &lt) || !same_type(vt, lt))
                 return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar register",
                             r6_opcode_name(i->opcode));
@@ -253,11 +258,34 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             bool local = name && local_info(f, name, NULL, &lt);
             if (!valid_dest(f, i, true, d) || !name ||
                 (!local && (!global || !global_integer(global, &ignored))) ||
-                (local ? (!same_type(lt, type_at(f, i->dest)) || !is_scalar(lt)) :
+                (local ? (!same_type(lt, type_at(f, i->dest)) ||
+                          !(is_scalar(lt) || is_list(lt))) :
                          !same_type(global->type_name, type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local/global and matching destination type");
             break;
         }
+        case R6_OP_LIST_CREATE: {
+            const char *capacity_type = NULL;
+            if (strcmp(f->name, "main") != 0 || !valid_dest(f, i, true, d) ||
+                !is_list(type_at(f, i->dest)) || i->operands[0].kind != R6_VAL_INT ||
+                i->operands[0].as.i32 != 8 || i->elem_kind != 2 ||
+                !value_type(f, &i->operands[1], &capacity_type) || !is_int(capacity_type))
+                return fail(d, i, "CGEN", "M1 list_create supports int lists in main with 8-byte slots only");
+            break;
+        }
+        case R6_OP_LIST_PUSH:
+            if (strcmp(f->name, "main") != 0 || i->operands[0].kind != R6_VAL_REG ||
+                !is_list(type_at(f, i->operands[0].as.i32)) ||
+                i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)) ||
+                i->elem_kind != 2 || (i->has_dest && !is_void(type_at(f, i->dest))))
+                return fail(d, i, "CGEN", "M1 list_push supports int elements in main only");
+            break;
+        case R6_OP_LIST_LEN:
+            if (strcmp(f->name, "main") != 0 || !valid_dest(f, i, true, d) ||
+                !is_int(type_at(f, i->dest)) || i->operands[0].kind != R6_VAL_REG ||
+                !is_list(type_at(f, i->operands[0].as.i32)))
+                return fail(d, i, "CGEN", "M1 list_len supports list registers in main only");
+            break;
         case R6_OP_COPY:
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
@@ -463,9 +491,26 @@ static size_t max_outgoing_args(const R6Function *f) {
         else if (i->opcode == R6_OP_CALL) {
             if (pending > maximum) maximum = pending;
             pending = 0;
+        } else if (i->opcode == R6_OP_LIST_CREATE && maximum < 5) {
+            /* OrbitResult sret pointer plus four list_create_typed arguments. */
+            maximum = 5;
         }
     }
     return maximum;
+}
+
+static bool uses_result_scratch(const R6Function *f) {
+    size_t pc;
+    for (pc = 0; pc < f->instruction_count; ++pc)
+        if (f->instructions[pc].opcode == R6_OP_LIST_CREATE ||
+            f->instructions[pc].opcode == R6_OP_LIST_PUSH) return true;
+    return false;
+}
+
+static unsigned result_scratch_offset(const R6Function *f, bool is_main) {
+    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+                   f->param_count + local_count(f);
+    return (unsigned)(slots + 1) * 8;
 }
 
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
@@ -478,7 +523,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     const char *native_name = is_main ? "orbit_main" : f->name;
     size_t outgoing = max_outgoing_args(f);
     size_t frame = ((size_t)f->register_count * 8 + (is_main ? 8 : 0) +
-                    f->param_count * 8 + local_count(f) * 8 + 32 +
+                    f->param_count * 8 + local_count(f) * 8 +
+                    (uses_result_scratch(f) ? 24 : 0) + 32 +
                     (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
@@ -554,6 +600,47 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             } else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, off);
             else fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.boolean ? 1 : 0, off);
             break;
+        case R6_OP_LIST_CREATE: {
+            unsigned scratch = result_scratch_offset(f, is_main);
+            unsigned arena_off = (unsigned)(f->register_count + 1) * 8;
+            unsigned success_id = (unsigned)pc * 2;
+            unsigned done_id = success_id + 1;
+            emit_load_arg(o, f, &i->operands[1], "int", 3, 0);
+            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\tmovl $8, %%r8d\n\tmovl $2, 32(%%rsp)\n"
+                       "\tcall orbit_list_create_typed\n\tcmpb $1, -%u(%%rbp)\n"
+                       "\tje .Lr6_f%zu_list_create_ok_%u\n\tmovq $0, -%u(%%rbp)\n"
+                       "\tjmp .Lr6_f%zu_list_create_done_%u\n"
+                       ".Lr6_f%zu_list_create_ok_%u:\n\tmovq -%u(%%rbp), %%rax\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n.Lr6_f%zu_list_create_done_%u:\n",
+                    scratch, arena_off, scratch, fn_index, success_id, off,
+                    fn_index, done_id, fn_index, success_id, scratch - 16, off,
+                    fn_index, done_id);
+            break;
+        }
+        case R6_OP_LIST_PUSH: {
+            unsigned scratch = result_scratch_offset(f, is_main);
+            unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned value_off = (unsigned)(i->operands[1].as.i32 + 1) * 8;
+            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\tmovq -%u(%%rbp), %%r8\n\tcall orbit_list_push_int\n",
+                    scratch, list_off, value_off);
+            break;
+        }
+        case R6_OP_LIST_LEN: {
+            unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+            unsigned null_id = (unsigned)pc * 2;
+            unsigned done_id = null_id + 1;
+            fprintf(o, "\tmovl $0, %%eax\n\tcmpq -%u(%%rbp), %%rax\n"
+                       "\tje .Lr6_f%zu_list_len_null_%u\n\tmovq -%u(%%rbp), %%rax\n"
+                       "\tmovq 8(%%rax), %%rax\n\tmovl %%eax, -%u(%%rbp)\n"
+                       "\tjmp .Lr6_f%zu_list_len_done_%u\n"
+                       ".Lr6_f%zu_list_len_null_%u:\n\tmovl $0, -%u(%%rbp)\n"
+                       ".Lr6_f%zu_list_len_done_%u:\n",
+                    list_off, fn_index, null_id, list_off, off,
+                    fn_index, done_id, fn_index, null_id, off, fn_index, done_id);
+            break;
+        }
         case R6_OP_COPY:
             if (is_float(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG)
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
@@ -788,7 +875,7 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
         if (f->register_type_count && !f->register_types)
             return fail(diag, NULL, "CGEN", "function %s has missing register type metadata", f->name);
         for (k = 0; k < f->register_type_count; ++k)
-            if (!is_scalar(f->register_types[k]))
+            if (!is_register_type(f->register_types[k]))
                 return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", f->register_types[k]);
         if (!validate_function(module, f, diag)) return false;
     }
