@@ -202,3 +202,46 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   2026-10-15 (exit 7, empty stdout, identical to the oracle); loader suite
   still **51/51**; table updated in `docs/proposed-ir/m1/README.md`.
 - Status: **accepted**.
+
+## D-M1-08 — `result_*` opcodes lowered against the official runtime
+
+- Date: 2026-10-15.
+- Decision: the loader admits `result_ok`, `result_err`, `result_is_ok`,
+  `result_unwrap` and `result_unwrap_err`; codegen lowers them against the
+  pinned runtime. Each `result` register owns a private 24-byte `OrbitResult`
+  cell below the list scratch area (`ok` +0, `error_code` +4, `error_msg` +8,
+  `value` +16 — the layout `runtime/orbit_api.h` declares; `sizeof` 24 and the
+  offsets were verified against the pinned header), and the frame grows by
+  `24 * registerCount` when any register is typed `result`.
+- Lowering (read from `c_backend.orb:3452-3505` and confirmed against the
+  archive): `result_ok` calls `orbit_result_ok` with the `(void*)(uintptr_t)`
+  word cast for int/bool/string payloads, or `orbit_result_ok_float` for float
+  payloads; `result_err` calls `orbit_result_err(code, msg)`, with the
+  single-operand form (`operand2` None) passing the code and a NULL message;
+  `result_is_ok` reads the `.ok` byte; `result_unwrap` reads `.value` as a
+  word, or calls `orbit_result_get_float` for float destinations (the payload
+  travels as the IEEE-754 bit pattern, per the runtime's own comment);
+  `result_unwrap_err` reads `.error_msg` with the backend's `?: ""`
+  empty-string fallback.
+- ABI note: MS x64 argument registers are positional — argument N selects
+  RCX/RDX/R8/R9 or XMM(N-1) by position — and the hidden sret pointer of a
+  struct-returning function is argument 1, so the float parameter of
+  `orbit_result_ok_float` is passed in XMM1, not XMM0 (disassembly of the
+  pinned archive confirms it). The same rule applies to future sret runtime
+  calls with float parameters (e.g. `orbit_list_push_float`). The positional
+  order also fixes `orbit_result_err`: sret RCX, code RDX, message R8.
+- Fail-closed boundaries: construction destinations must be typed `result`
+  and observation destinations `bool`/`int`/`float`/`string`; operands are
+  result registers only; `result_ok` payloads are int/float/bool/string
+  (NUL-bearing string literals stay rejected as everywhere else); `ret` of a
+  `result` register is rejected with CGEN (the sret return contract is not
+  modelled); `copy`/`decl_var`/`store_var`/`arg` of `result` registers keep
+  failing as before; `unknown` registers remain unsupported at module level.
+- Producers: the pin's frontend emits these opcodes for `ok(...)`, `err(...)`
+  and `try ... catch` (`parser.orb:450-459`; `builder.orb:3117,3166,4215,4234,
+  4831,4842,4854`); the fixture is hand-written like cases 06–21 and the
+  oracle is the equivalent `.orb` (exit 46).
+- Evidence: fixture `22-result-ops` → differential **22/22** on 2026-10-15
+  (exit 46, empty stdout); loader suite **51/51**; table updated in
+  `docs/proposed-ir/m1/README.md`.
+- Status: **accepted**.

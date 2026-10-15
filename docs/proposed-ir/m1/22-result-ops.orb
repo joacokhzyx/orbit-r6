@@ -1,0 +1,16 @@
+fn main() -> int {
+    val c = ok(2.5)
+    val f: float = try c catch { return 3 }
+    var acc = 1
+    if f == 2.5 {
+        acc = 40
+    }
+    val b = err("boom", 404)
+    val y = try b catch e {
+        if e == "boom" {
+            return acc + 6
+        }
+        return 1
+    }
+    return y + acc
+}
