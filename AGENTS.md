@@ -17,7 +17,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 26/26 on 2026-10-15 with:
+Primary gate: differential — verified 27/27 on 2026-10-16 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -42,11 +42,11 @@ python tests/diff/run_diff.py `
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06;
 `map_*` pins are D-M1-10, model pins are D-M1-11, union pins are D-M1-12,
 alloc/free pins are D-M1-13, function-value pins are D-M1-14, the
-register-global pin is D-M1-15, edge-case pins are D-M1-16) — verified
-107/107 on 2026-10-16:
+register-global pin is D-M1-15, edge-case pins are D-M1-16, call-target pins
+are D-M1-18) — verified 114/114 on 2026-10-16:
 
 ```powershell
-python tests/reject/run_reject.py            # 99 rejections + 8 acceptance controls
+python tests/reject/run_reject.py            # 104 rejections + 10 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
@@ -62,7 +62,8 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured 2/89 on 2026-10-16:
+D-M1-17) — a **measurement, not a gate**. Measured 3/89 on 2026-10-16 (2/89 at
+the D-M1-17 pin; D-M1-18 lifted it to 3/89):
 
 ```powershell
 python tests/corpus/run_corpus.py `

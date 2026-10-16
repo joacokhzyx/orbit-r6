@@ -1,0 +1,10 @@
+extern fn orbit_print(s: string) -> void
+
+fn double(v: int) -> int {
+    return v + v
+}
+
+fn main() -> int {
+    orbit_print("string-target\n")
+    return double(21)
+}

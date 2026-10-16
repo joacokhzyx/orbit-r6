@@ -920,8 +920,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (model) {
                 /* The pinned builder emits model construction as a call whose
                    target is a String value (ir_string(instance)) carrying the
-                   field values as already-emitted args; function calls keep
-                   the Symbol-only form. */
+                   field values as already-emitted args; a named call carries
+                   the callee name in the same String form (spec 3.1 step 2). */
                 if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
                 arity = (size_t)i->operands[1].as.i32;
@@ -951,6 +951,49 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 arg_count -= arity;
                 break;
             }
+            /* Direct named call: the callee name arrives as a String (the form
+               the pinned builder emits for plain functions, externs and
+               builtins alike, spec 3.1 step 2) or as a Symbol. Model
+               construction is handled above and union-variant construction
+               below, so a String that names a declared function is the call. */
+            callee = (i->operands[0].kind == R6_VAL_SYMBOL || i->operands[0].kind == R6_VAL_STRING) &&
+                             valid_symbol(i->operands[0].as.string)
+                         ? find_function(m, i->operands[0].as.string) : NULL;
+            if (callee) {
+                if (strcmp(callee->name, "main") == 0)
+                    return fail(d, i, "CGEN", "main is an entry point and cannot be called from IR");
+                if (callee->param_count && !callee->param_types)
+                    return fail(d, i, "CGEN", "call target %s has missing parameter metadata", callee->name);
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                    return fail(d, i, "CGEN", "call arity must be a non-negative Int");
+                arity = (size_t)i->operands[1].as.i32;
+                if (arity > arg_count)
+                    return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
+                if (arity != callee->param_count)
+                    return fail(d, i, "CGEN", "call to %s passes %zu argument(s); declaration requires %zu",
+                                callee->name, arity, callee->param_count);
+                base = arg_count - arity;
+                for (k = 0; k < arity; ++k) {
+                    const char *t;
+                    R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
+                    if (!value_type(f, v, &t) || !same_type(t, callee->param_types[k]))
+                        return fail(d, i, "CGEN", "call argument %zu type does not match %s", k, callee->name);
+                }
+                if (is_void(callee->return_type)) {
+                    /* Spec 3.1 step 7: a void callee needs no destination; the
+                       pinned builder still allocates one typed `void`, and R6
+                       accepts both forms (a non-void dest would be a value
+                       nobody may read). */
+                    if (i->has_dest && !is_void(type_at(f, i->dest)))
+                        return fail(d, i, "CGEN", "void call destination must be a void register");
+                } else if (!i->has_dest || !same_type(type_at(f, i->dest), callee->return_type))
+                    return fail(d, i, "CGEN", "call destination does not match return type of %s", callee->name);
+                arg_count -= arity; /* E-05: consume exactly the last O2 pending args. */
+                break;
+            }
+            if (i->operands[0].kind == R6_VAL_SYMBOL)
+                return fail(d, i, "CGEN", "call target %s is not declared in the module",
+                            i->operands[0].as.string);
             if (i->operands[0].kind == R6_VAL_STRING) {
                 /* Variant construction: the pinned builder emits `call` with
                    the bare variant name as a String target, arity = payload
@@ -1023,36 +1066,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 arg_count -= arity;
                 break;
             }
-            if (i->operands[0].kind != R6_VAL_SYMBOL ||
-                !valid_symbol(i->operands[0].as.string))
-                return fail(d, i, "CGEN", "call requires a direct native symbol or a declared model constructor");
-            callee = find_function(m, i->operands[0].as.string);
-            if (!callee) return fail(d, i, "CGEN", "call target %s is not declared in the module", i->operands[0].as.string);
-            if (strcmp(callee->name, "main") == 0)
-                return fail(d, i, "CGEN", "main is an entry point and cannot be called from IR");
-            if (callee->param_count && !callee->param_types)
-                return fail(d, i, "CGEN", "call target %s has missing parameter metadata", callee->name);
-            if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
-                return fail(d, i, "CGEN", "call arity must be a non-negative Int");
-            arity = (size_t)i->operands[1].as.i32;
-            if (arity > arg_count)
-                return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
-            if (arity != callee->param_count)
-                return fail(d, i, "CGEN", "call to %s passes %zu argument(s); declaration requires %zu",
-                            callee->name, arity, callee->param_count);
-            base = arg_count - arity;
-            for (k = 0; k < arity; ++k) {
-                const char *t;
-                R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
-                if (!value_type(f, v, &t) || !same_type(t, callee->param_types[k]))
-                    return fail(d, i, "CGEN", "call argument %zu type does not match %s", k, callee->name);
-            }
-            if (callee->return_type && strcmp(callee->return_type, "void") == 0) {
-                if (i->has_dest) return fail(d, i, "CGEN", "void call cannot have a destination");
-            } else if (!i->has_dest || !same_type(type_at(f, i->dest), callee->return_type))
-                return fail(d, i, "CGEN", "call destination does not match return type of %s", callee->name);
-            arg_count -= arity; /* E-05: consume exactly the last O2 pending args. */
-            break;
+            return fail(d, i, "CGEN", "call requires a direct native symbol or a declared model constructor");
         }
         case R6_OP_RET:
             if (strcmp(f->return_type, "void") == 0) {
@@ -1836,6 +1850,29 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 pending = base;
                 break;
             }
+            if (i->operands[0].kind == R6_VAL_SYMBOL || i->operands[0].kind == R6_VAL_STRING) {
+                /* Direct named call (spec 3.1 step 2): the target String names
+                   a declared function. Model construction is handled above and
+                   union-variant construction below; validate() has already
+                   established which of the three the name is. */
+                const R6Function *named = find_function(m, i->operands[0].as.string);
+                if (named) {
+                    for (k = 0; k < arity; ++k) {
+                        const R6Value *av = &args[base + k]->operands[0];
+                        const char *at;
+                        value_type(f, av, &at);
+                        emit_load_arg(o, f, av, at, k,
+                                      arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
+                    }
+                    fprintf(o, "\tcall %s\n", strcmp(named->name, "main") == 0 ? "orbit_main" : named->name);
+                    if (i->has_dest && !is_void(type_at(f, i->dest))) {
+                        if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
+                        else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+                    }
+                    pending = base;
+                    break;
+                }
+            }
             if (i->operands[0].kind == R6_VAL_STRING) {
                 /* Variant construction: a 16-byte cell { int tag; void* data }
                    off orbit_alloc. The data word is the raw payload value
@@ -1938,21 +1975,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 pending = base;
                 break;
             }
-            {
-                const R6Function *callee = find_function(m, i->operands[0].as.string);
-                for (k = 0; k < arity; ++k) {
-                    const R6Value *av = &args[base + k]->operands[0];
-                    const char *at; value_type(f, av, &at);
-                    emit_load_arg(o, f, av, at, k, arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
-                }
-                fprintf(o, "\tcall %s\n", strcmp(callee->name, "main") == 0 ? "orbit_main" : callee->name);
-                if (i->has_dest) {
-                    if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
-                    else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
-                }
-            }
-            pending = base;
-            break;
+            return fail(d, i, "CGEN", "call requires a direct native symbol or a declared model constructor");
         }
         case R6_OP_RET:
             if (v->kind != R6_VAL_NONE) {
