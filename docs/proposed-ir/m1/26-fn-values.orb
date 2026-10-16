@@ -1,0 +1,74 @@
+// Function values without capture: `val` freezes the bound word and `var`
+// rebinds it; calls through the value are checked against the signature the
+// binding recorded. Bodies stay inside the native subset (no capture, no
+// lambdas, no fn parameters, no string concatenation in callees).
+extern fn orbit_print(s: string) -> void
+extern fn orbit_string_at(s: string, i: int) -> int
+
+fn inc(x: int) -> int {
+    return x + 1
+}
+
+fn dec(x: int) -> int {
+    return x - 1
+}
+
+fn add(x: int, y: int) -> int {
+    return x + y
+}
+
+fn tick() -> int {
+    return 7
+}
+
+fn tag() -> string {
+    return "ok"
+}
+
+fn basic_value() -> int {
+    val f = inc
+    if f(41) != 42 { return 1 }
+    return 0
+}
+
+fn two_params() -> int {
+    val a = add
+    if a(2, 3) != 5 { return 1 }
+    return 0
+}
+
+fn nullary() -> int {
+    val t = tick
+    if t() != 7 { return 1 }
+    return 0
+}
+
+fn string_value() -> int {
+    val g = tag
+    if g() != "ok" { return 1 }
+    return 0
+}
+
+fn extern_value() -> int {
+    val at = orbit_string_at
+    if at("abc", 1) != 98 { return 1 }
+    return 0
+}
+
+fn reassigned() -> int {
+    var h = inc
+    h = dec
+    if h(41) != 40 { return 1 }
+    return 0
+}
+
+fn main() -> int {
+    if basic_value() != 0 { return 1 }
+    if two_params() != 0 { return 2 }
+    if nullary() != 0 { return 3 }
+    if string_value() != 0 { return 4 }
+    if extern_value() != 0 { return 5 }
+    if reassigned() != 0 { return 6 }
+    orbit_print("fn-ok")
+    return 42
+}

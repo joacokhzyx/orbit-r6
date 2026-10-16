@@ -136,36 +136,6 @@ static bool global_integer(const R6Global *g, int32_t *value) {
     return true;
 }
 
-static bool local_info(const R6Function *f, const char *name,
-                       size_t *index, const char **type) {
-    size_t pc, prior_unique = 0;
-    for (pc = 0; pc < f->instruction_count; ++pc) {
-        const R6Instruction *i = &f->instructions[pc];
-        const char *candidate;
-        size_t j;
-        bool seen = false;
-        if (i->opcode != R6_OP_DECL_VAR) continue;
-        candidate = ir_name(&i->operands[0]);
-        if (!candidate) continue;
-        for (j = 0; j < pc; ++j) {
-            const R6Instruction *p = &f->instructions[j];
-            const char *prior;
-            if (p->opcode != R6_OP_DECL_VAR) continue;
-            prior = ir_name(&p->operands[0]);
-            if (prior && strcmp(prior, candidate) == 0) { seen = true; break; }
-        }
-        if (strcmp(candidate, name) == 0) {
-            const char *t;
-            if (!value_type(f, &i->operands[1], &t)) return false;
-            if (index) *index = prior_unique;
-            if (type) *type = t;
-            return true;
-        }
-        if (!seen) ++prior_unique;
-    }
-    return false;
-}
-
 static size_t local_count(const R6Function *f) {
     size_t pc, count = 0;
     for (pc = 0; pc < f->instruction_count; ++pc) {
@@ -190,6 +160,152 @@ static const R6Function *find_function(const R6Module *m, const char *name) {
         if (m->functions[n].name && strcmp(m->functions[n].name, name) == 0)
             return &m->functions[n];
     return NULL;
+}
+
+/* Function values carry the pinned builder's signature spelling
+ * `fn(p1;...;pn)->ret` (fnTypeSpellingFor, builder.orb:2202-2215); a bare
+ * function name in value position binds it (buildCallArgValue,
+ * builder.orb:1245-1252) and the call is checked against the spelling
+ * (buildFnVarCall, builder.orb:3646-3662). Only the corpus-measured scalar
+ * signatures are admitted: scalar parameters, one `;`-separated token each,
+ * and a scalar return. Everything else fails closed. */
+#define R6_FN_SPELLING_CAP 2048
+
+static bool is_fn_type(const char *t) {
+    return t && strncmp(t, "fn(", 3) == 0;
+}
+
+static bool fn_scalar_token(const char *s, size_t len) {
+    return (len == 3 && memcmp(s, "int", 3) == 0) ||
+           (len == 4 && memcmp(s, "bool", 4) == 0) ||
+           (len == 5 && memcmp(s, "float", 5) == 0) ||
+           (len == 6 && memcmp(s, "string", 6) == 0);
+}
+
+/* Validates a spelling and copies its return token to `ret`; a zero-parameter
+ * signature is `fn()->ret`. NULL reports a shape outside the measured subset. */
+static bool fn_type_ok(const char *t, char *ret, size_t cap, size_t *param_count) {
+    const char *arrow, *p;
+    size_t n = 0;
+    if (!t || strncmp(t, "fn(", 3) != 0) return false;
+    arrow = strstr(t + 3, ")->");
+    if (!arrow || (arrow > t + 3 && arrow[-1] == ';')) return false;
+    for (p = t + 3; p < arrow;) {
+        const char *semi = memchr(p, ';', (size_t)(arrow - p));
+        const char *end = semi ? semi : arrow;
+        if (!fn_scalar_token(p, (size_t)(end - p))) return false;
+        ++n;
+        if (!semi) break;
+        p = end + 1;
+    }
+    if (!fn_scalar_token(arrow + 3, strlen(arrow + 3))) return false;
+    if (strlen(arrow + 3) + 1 > cap) return false;
+    strcpy(ret, arrow + 3);
+    if (param_count) *param_count = n;
+    return true;
+}
+
+/* k-th parameter token; only called on spellings fn_type_ok accepted. */
+static bool fn_type_param(const char *t, size_t k, char *out, size_t cap) {
+    const char *arrow = strstr(t + 3, ")->"), *p;
+    size_t n = 0;
+    if (!arrow) return false;
+    for (p = t + 3; p < arrow;) {
+        const char *semi = memchr(p, ';', (size_t)(arrow - p));
+        const char *end = semi ? semi : arrow;
+        if (n == k) {
+            size_t len = (size_t)(end - p);
+            if (len + 1 > cap) return false;
+            memcpy(out, p, len);
+            out[len] = 0;
+            return true;
+        }
+        ++n;
+        if (!semi) break;
+        p = end + 1;
+    }
+    return false;
+}
+
+/* The spelling fnTypeSpellingFor would mint for this module function. `main`
+ * is an entry point, never a value (the pinned sema rejects it, n77). */
+static bool fn_value_spelling(const R6Module *m, const char *name, char *out, size_t cap) {
+    const R6Function *fn = find_function(m, name);
+    size_t i, at = 0;
+    int n;
+    if (!fn || !fn->name || !valid_symbol(fn->name) || !fn->return_type ||
+        strcmp(fn->name, "main") == 0)
+        return false;
+    n = snprintf(out, cap, "fn(");
+    if (n < 0 || (size_t)n >= cap) return false;
+    at = (size_t)n;
+    for (i = 0; i < fn->param_count; ++i) {
+        if (!fn->param_types || !fn->param_types[i]) return false;
+        n = snprintf(out + at, cap - at, "%s%s", i ? ";" : "", fn->param_types[i]);
+        if (n < 0 || (size_t)n >= cap - at) return false;
+        at += (size_t)n;
+    }
+    n = snprintf(out + at, cap - at, ")->%s", fn->return_type);
+    return n >= 0 && (size_t)n < cap - at;
+}
+
+/* A Symbol value in load_const/decl_var names a module function: the symbol
+ * must resolve, must not be `main`, must spell a scalar signature, and (when
+ * `want` is not NULL) the spelling must equal the expected register type. */
+static bool fn_value_bind(const R6Module *m, const R6Instruction *i,
+                          const char *sym, const char *want,
+                          char *out, size_t cap, R6Diagnostic *d) {
+    const R6Function *fn = find_function(m, sym);
+    char ret[16];
+    if (!fn || !fn->name || !valid_symbol(fn->name))
+        return fail(d, i, "CGEN", "function value %s is not declared in the module",
+                    sym ? sym : "<null>");
+    if (strcmp(fn->name, "main") == 0)
+        return fail(d, i, "CGEN", "main is an entry point and cannot be used as a function value");
+    if (!fn_value_spelling(m, sym, out, cap) || !fn_type_ok(out, ret, sizeof ret, NULL))
+        return fail(d, i, "CGEN", "function value %s has a signature outside the M1 native subset", sym);
+    if (want && !same_type(out, want))
+        return fail(d, i, "CGEN", "function value %s is a %s, not %s", sym, out, want);
+    return true;
+}
+
+/* Locals mirror decl_var order. A Symbol initializer (`val f = inc`) types
+ * the local with the function's signature spelling (fn_value_spelling). */
+static bool local_info(const R6Module *m, const R6Function *f, const char *name,
+                       size_t *index, const char **type, char *buf, size_t cap) {
+    size_t pc, prior_unique = 0;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        const char *candidate;
+        size_t j;
+        bool seen = false;
+        if (i->opcode != R6_OP_DECL_VAR) continue;
+        candidate = ir_name(&i->operands[0]);
+        if (!candidate) continue;
+        for (j = 0; j < pc; ++j) {
+            const R6Instruction *p = &f->instructions[j];
+            const char *prior;
+            if (p->opcode != R6_OP_DECL_VAR) continue;
+            prior = ir_name(&p->operands[0]);
+            if (prior && strcmp(prior, candidate) == 0) { seen = true; break; }
+        }
+        if (strcmp(candidate, name) == 0) {
+            const char *t;
+            if (i->operands[1].kind == R6_VAL_SYMBOL) {
+                char ret[16];
+                if (!fn_value_spelling(m, i->operands[1].as.string, buf, cap) ||
+                    !fn_type_ok(buf, ret, sizeof ret, NULL)) return false;
+                t = buf;
+            } else if (!value_type(f, &i->operands[1], &t)) {
+                return false;
+            }
+            if (index) *index = prior_unique;
+            if (type) *type = t;
+            return true;
+        }
+        if (!seen) ++prior_unique;
+    }
+    return false;
 }
 
 static const R6Model *find_model(const R6Module *m, const char *name) {
@@ -527,21 +643,43 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     if (is_model_type(m, f->return_type) || is_void_ptr(f->return_type))
         return fail(d, NULL, "CGEN", "returning model or void* values is not supported in M1");
+    if (is_fn_type(f->return_type))
+        return fail(d, NULL, "CGEN", "returning function values is not supported in M1");
     for (pc = 0; pc < f->instruction_count; ++pc) {
         const R6Instruction *i = &f->instructions[pc];
         const char *a = NULL, *b = NULL;
+        char fn_buf[R6_FN_SPELLING_CAP], local_buf[R6_FN_SPELLING_CAP];
         switch (i->opcode) {
         case R6_OP_LOAD_CONST:
             if (!valid_dest(f, i, true, d)) return false;
-            if (!validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
+            if (i->operands[0].kind == R6_VAL_SYMBOL) {
+                /* Function value: the symbol names a module function whose
+                   signature spelling must equal the destination's type. */
+                if (!fn_value_bind(m, i, i->operands[0].as.string, type_at(f, i->dest),
+                                   fn_buf, sizeof fn_buf, d)) return false;
+            } else if (!validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             break;
         case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
             const char *name = ir_name(&i->operands[0]), *vt = NULL, *lt = NULL;
-            if (!name || !*name || i->operands[1].kind != R6_VAL_REG ||
-                !value_type(f, &i->operands[1], &vt) ||
-                !(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_model_type(m, vt)) ||
-                !local_info(f, name, NULL, &lt) || !same_type(vt, lt))
-                return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, void*, or model register",
+            if (!name || !*name)
+                return fail(d, i, "CGEN", "%s requires a named local", r6_opcode_name(i->opcode));
+            if (i->operands[1].kind == R6_VAL_SYMBOL) {
+                /* `val f = inc` binds a function value: the builder stores a
+                   bare function name as a Symbol initializer (buildVarDecl
+                   via buildCallArgValue); a plain assignment loads it into a
+                   register first, so store_var keeps requiring a register. */
+                if (i->opcode != R6_OP_DECL_VAR)
+                    return fail(d, i, "CGEN", "store_var requires a register value");
+                if (!fn_value_bind(m, i, i->operands[1].as.string, NULL, fn_buf, sizeof fn_buf, d))
+                    return false;
+                vt = fn_buf;
+            } else if (!value_type(f, &i->operands[1], &vt)) {
+                return fail(d, i, "CGEN", "%s has an unsupported value operand", r6_opcode_name(i->opcode));
+            }
+            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_model_type(m, vt) ||
+                  is_fn_type(vt)) ||
+                !local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf) || !same_type(vt, lt))
+                return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, void*, model, or function value register",
                             r6_opcode_name(i->opcode));
             break;
         }
@@ -549,12 +687,13 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             const char *name = ir_name(&i->operands[0]), *lt = NULL;
             const R6Global *global = name ? find_global(m, name) : NULL;
             int32_t ignored, tag_value = 0;
-            bool local = name && local_info(f, name, NULL, &lt);
+            bool local = name && local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf);
             bool tag = !local && !global && union_tag_constant(m, name, &tag_value);
             if (!valid_dest(f, i, true, d) || !name ||
                 (!local && !tag && (!global || !global_integer(global, &ignored))) ||
                 (local ? (!same_type(lt, type_at(f, i->dest)) ||
-                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt))) :
+                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt) ||
+                            is_fn_type(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global->type_name, type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local, declared global, or union tag constant");
@@ -850,6 +989,37 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                         (!v->as.string || v->string_len != strlen(v->as.string)))
                         return fail(d, i, "CGEN", "string literal contains NUL and cannot be passed through the C ABI");
                 }
+                arg_count -= arity;
+                break;
+            }
+            if (i->operands[0].kind == R6_VAL_REG) {
+                /* Indirect call through a function value (buildFnVarCall,
+                   builder.orb:3646-3662): the callee register's spelling is
+                   the checked signature; arity rides operand2 (V-13). */
+                const char *ct = type_at(f, i->operands[0].as.i32);
+                char fret[16], fparam[16];
+                size_t fparams = 0;
+                if (!ct || !fn_type_ok(ct, fret, sizeof fret, &fparams))
+                    return fail(d, i, "CGEN", "call through register %d requires a function value signature",
+                                i->operands[0].as.i32);
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                    return fail(d, i, "CGEN", "call arity must be a non-negative Int");
+                arity = (size_t)i->operands[1].as.i32;
+                if (arity > arg_count)
+                    return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
+                if (arity != fparams)
+                    return fail(d, i, "CGEN", "function value call passes %zu argument(s); the signature takes %zu",
+                                arity, fparams);
+                base = arg_count - arity;
+                for (k = 0; k < arity; ++k) {
+                    const char *at;
+                    R6Value *av = (R6Value *)&arg_values[base + k]->operands[0];
+                    if (!fn_type_param(ct, k, fparam, sizeof fparam) ||
+                        !value_type(f, av, &at) || !same_type(at, fparam))
+                        return fail(d, i, "CGEN", "function value call argument %zu does not match the signature", k);
+                }
+                if (!i->has_dest || !same_type(type_at(f, i->dest), fret))
+                    return fail(d, i, "CGEN", "function value call destination does not match return type %s", fret);
                 arg_count -= arity;
                 break;
             }
@@ -1220,11 +1390,17 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
             size_t local_index;
             const char *local_type;
+            char local_buf[R6_FN_SPELLING_CAP];
             unsigned local_off;
-            local_info(f, ir_name(&i->operands[0]), &local_index, &local_type);
+            local_info(m, f, ir_name(&i->operands[0]), &local_index, &local_type,
+                       local_buf, sizeof local_buf);
             local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
                                    f->param_count + local_index + 1) * 8;
-            if (is_float(local_type))
+            if (i->operands[1].kind == R6_VAL_SYMBOL)
+                /* `val f = inc`: the local word is the function address. */
+                fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        i->operands[1].as.string, local_off);
+            else if (is_float(local_type))
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
             else
@@ -1235,10 +1411,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_LOAD_VAR: {
             size_t local_index;
             const char *local_type;
+            char local_buf[R6_FN_SPELLING_CAP];
             unsigned local_off;
             const char *name = ir_name(&i->operands[0]);
             const R6Global *global = find_global(m, name);
-            if (local_info(f, name, &local_index, &local_type)) {
+            if (local_info(m, f, name, &local_index, &local_type, local_buf, sizeof local_buf)) {
                 local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
                                        f->param_count + local_index + 1) * 8;
                 if (is_float(local_type))
@@ -1265,6 +1442,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (v->kind == R6_VAL_STRING) {
                 emit_string(o, v->as.string, string_id);
                 fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", string_id++, off);
+            } else if (v->kind == R6_VAL_SYMBOL) {
+                /* Function value: the loaded word is the function address. */
+                fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        v->as.string, off);
             } else if (v->kind == R6_VAL_FLOAT64) {
                 fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", (unsigned long long)v->as.f64_bits, off);
             } else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, off);
@@ -1737,6 +1918,26 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 pending = base;
                 break;
             }
+            if (i->operands[0].kind == R6_VAL_REG) {
+                /* Indirect call through a function value (buildFnVarCall):
+                   the callee word is loaded after the argument registers so
+                   the load cannot clobber them; %r10 is volatile scratch. */
+                unsigned callee_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
+                for (k = 0; k < arity; ++k) {
+                    const R6Value *av = &args[base + k]->operands[0];
+                    const char *at;
+                    value_type(f, av, &at);
+                    emit_load_arg(o, f, av, at, k,
+                                  arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
+                }
+                fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tcallq *%%r10\n", callee_off);
+                if (i->has_dest) {
+                    if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
+                    else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+                }
+                pending = base;
+                break;
+            }
             {
                 const R6Function *callee = find_function(m, i->operands[0].as.string);
                 for (k = 0; k < arity; ++k) {
@@ -1961,10 +2162,18 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
             return fail(diag, NULL, "CGEN", "function %s has inconsistent register types", f->name);
         if (f->register_type_count && !f->register_types)
             return fail(diag, NULL, "CGEN", "function %s has missing register type metadata", f->name);
-        for (k = 0; k < f->register_type_count; ++k)
-            if (!is_register_type(f->register_types[k]) && !is_void_ptr(f->register_types[k]) &&
-                !is_model_type(module, f->register_types[k]))
-                return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", f->register_types[k]);
+        for (k = 0; k < f->register_type_count; ++k) {
+            char fret[16];
+            const char *rt = f->register_types[k];
+            if (is_fn_type(rt)) {
+                /* Function values: the measured scalar signature subset. */
+                if (!fn_type_ok(rt, fret, sizeof fret, NULL))
+                    return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
+                continue;
+            }
+            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_model_type(module, rt))
+                return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
+        }
         if (!validate_function(module, f, diag)) return false;
     }
     if (!main_found) return fail(diag, NULL, "CGEN", "module must define one non-extern main");

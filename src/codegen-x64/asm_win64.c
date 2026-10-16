@@ -214,6 +214,13 @@ static bool encode(Asm *a, char *line) {
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 4);
     }
+    if (strcmp(op, "callq") == 0 && a1 && a1[0] == '*') {
+        /* Indirect call through a function value: FF /2 r/m64. */
+        id1 = reg_id(a1 + 1, &w1, &x1);
+        if (id1 < 0 || x1 || w1 != 64) return bad(a, "callq requires a 64-bit GPR");
+        return emit(a, (uint8_t)(0x40 | (id1 >> 3))) && emit(a, 0xff) &&
+               emit(a, (uint8_t)(0xd0 | (id1 & 7)));
+    }
     if (strcmp(op, "je") == 0) {
         uint32_t off;
         if (!a1 || !emit(a, 0x0f) || !emit(a, 0x84)) return false;
