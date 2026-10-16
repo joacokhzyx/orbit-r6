@@ -1,0 +1,188 @@
+{
+  "schema": "r6-corpus-baseline/1",
+  "corpusFilesSha256": "10f6e7d97977aaeec3018b9f8694e78dc7fee3ae614fa16cf4db27cc10b7f89b",
+  "summary": {
+    "members": 90,
+    "programs": 89,
+    "oracleOk": 89,
+    "r6BuildOk": 2,
+    "match": 2,
+    "unknownRegisterTypes": 84
+  },
+  "byCode": {
+    "CGEN": 87
+  },
+  "byFailingOpcode": {
+    "(module-level)": 63,
+    "load_var": 11,
+    "call": 6,
+    "decl_var": 6,
+    "load_const": 1
+  },
+  "byOpcode": {
+    "add": {
+      "cases": 62,
+      "match": 0
+    },
+    "and_op": {
+      "cases": 10,
+      "match": 0
+    },
+    "arg": {
+      "cases": 59,
+      "match": 0
+    },
+    "call": {
+      "cases": 74,
+      "match": 0
+    },
+    "copy": {
+      "cases": 7,
+      "match": 0
+    },
+    "decl_var": {
+      "cases": 72,
+      "match": 0
+    },
+    "div": {
+      "cases": 13,
+      "match": 0
+    },
+    "eq": {
+      "cases": 44,
+      "match": 0
+    },
+    "ge": {
+      "cases": 16,
+      "match": 0
+    },
+    "gt": {
+      "cases": 30,
+      "match": 0
+    },
+    "jump": {
+      "cases": 54,
+      "match": 0
+    },
+    "jump_if_false": {
+      "cases": 77,
+      "match": 0
+    },
+    "label": {
+      "cases": 77,
+      "match": 0
+    },
+    "le": {
+      "cases": 13,
+      "match": 0
+    },
+    "list_create": {
+      "cases": 32,
+      "match": 0
+    },
+    "list_get": {
+      "cases": 30,
+      "match": 0
+    },
+    "list_len": {
+      "cases": 35,
+      "match": 0
+    },
+    "list_pop": {
+      "cases": 2,
+      "match": 0
+    },
+    "list_push": {
+      "cases": 32,
+      "match": 0
+    },
+    "list_set": {
+      "cases": 1,
+      "match": 0
+    },
+    "load_const": {
+      "cases": 69,
+      "match": 0
+    },
+    "load_field": {
+      "cases": 18,
+      "match": 0
+    },
+    "load_var": {
+      "cases": 79,
+      "match": 0
+    },
+    "lt": {
+      "cases": 39,
+      "match": 0
+    },
+    "mod": {
+      "cases": 7,
+      "match": 0
+    },
+    "mul": {
+      "cases": 18,
+      "match": 0
+    },
+    "ne": {
+      "cases": 62,
+      "match": 0
+    },
+    "neg": {
+      "cases": 36,
+      "match": 0
+    },
+    "not_op": {
+      "cases": 2,
+      "match": 0
+    },
+    "or_op": {
+      "cases": 11,
+      "match": 0
+    },
+    "result_err": {
+      "cases": 13,
+      "match": 0
+    },
+    "result_is_ok": {
+      "cases": 13,
+      "match": 0
+    },
+    "result_ok": {
+      "cases": 13,
+      "match": 0
+    },
+    "result_unwrap": {
+      "cases": 13,
+      "match": 0
+    },
+    "result_unwrap_err": {
+      "cases": 2,
+      "match": 0
+    },
+    "ret": {
+      "cases": 90,
+      "match": 2
+    },
+    "store_field": {
+      "cases": 6,
+      "match": 0
+    },
+    "store_var": {
+      "cases": 36,
+      "match": 0
+    },
+    "sub": {
+      "cases": 23,
+      "match": 0
+    },
+    "union_get_data": {
+      "cases": 5,
+      "match": 0
+    },
+    "union_get_tag": {
+      "cases": 5,
+      "match": 0
+    }
+  }
+}
