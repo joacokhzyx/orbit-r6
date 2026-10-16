@@ -559,6 +559,20 @@
       "code": "E_SCHEMA",
       "rule": "D-M1-12",
       "note": "variants and richVariants must have equal lengths"
+    },
+    {
+      "file": "cases/x-alloc-opcode.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-13",
+      "note": "alloc: no producer; the raw pointer result has no consumer in the subset"
+    },
+    {
+      "file": "cases/x-free-opcode.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-13",
+      "note": "free: no producer; the lowering is a comment only, not semantics (U-09)"
     }
   ],
   "accept": [

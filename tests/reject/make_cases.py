@@ -501,6 +501,16 @@ def build_reject():
         "D-M1-12", "E_SCHEMA",
         "variants and richVariants must have equal lengths")
 
+    # ---- D-M1-13: alloc/free stay outside the native subset ------------------
+    add("x-alloc-opcode",
+        jd(DOC([MAIN([I("alloc", 0, Int(8)), I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-13", "E_UNSUPPORTED",
+        "alloc: no producer; the raw pointer result has no consumer in the subset")
+    add("x-free-opcode",
+        jd(DOC([MAIN([I("free", -1), I("ret", -1, Int(0))])])),
+        "D-M1-13", "E_UNSUPPORTED",
+        "free: no producer; the lowering is a comment only, not semantics (U-09)")
+
     return cases
 
 
