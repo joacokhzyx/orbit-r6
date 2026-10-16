@@ -580,3 +580,45 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Evidence: loader suite **104/104** (96 rejections + 8 acceptance controls);
   differential gate **26/26**; cites from the pinned checkout at `5c01cea`.
 - Status: **accepted**.
+
+## D-M1-16 — The spec edge cases E-03/E-04/E-06 stay fail-closed
+
+- Date: 2026-10-16.
+- Decision: the three spec edge cases the phase-B notes left open stay
+  outside the native subset and keep failing in codegen, pinned as
+  `x-list-get-kind-ref` (E-03), `x-list-create-kind-opaque` (E-04) and
+  `x-print-two-args` (E-06), all `CGEN`.
+- E-03 (`elemKind 5` on `list_get` with `registerTypes[D] == "unknown"`; the
+  spec table asks to accept, "ref elements keep unknown/void*"): kind 5 is
+  the builder's reference kind (`isReferenceKindName`, `builder.orb:1346-1353`;
+  sliced in `elemKindCode`, `builder.orb:1356-1363`) and
+  `registerTypeForElemKind` maps it to `"unknown"` (`builder.orb:1380-1386`).
+  R6 has no `unknown`/`void*` value registers — D-M1-09 already keeps kinds
+  0/5 CGEN fail-closed and D-M1-12 keeps `void*` at function boundaries out —
+  and the spec's own audit leaves the kind-5 predicate unaudited (U-01), so
+  admitting the shape would invent pointer-list semantics; the module
+  register-type gate reports `register type unknown is unsupported in M1`.
+- E-04 (`elemKind 0` on `list_create`, "untyped accessor + void* destination"):
+  kind 0 is the builder's could-not-tell fallback — no element type exists to
+  type an accessor or a destination with — and the shape keeps failing with
+  `list_create requires an 8-byte slot size, a kind in 1..4, ...`.
+- E-06 (`print` call with 2 pending args; the spec says "accept the IR; the
+  lowering emits `/* print */` and drops them"): no Orbit program can produce
+  it — the pinned sema refuses `print(a, b)` with `E1003` ("print takes
+  exactly 1 argument, got 2.", `sema.orb:3577-3584`) — and the reference
+  lowering pops the values into a comment (`c_backend.orb:2795-2800`; U-17
+  records the multi-arg shape as "a comment"). The only behavior would be
+  dropping values, so R6 keeps refusing (`call to orbit_print passes 2
+  argument(s); declaration requires 1`).
+- Alternatives: implementing the shapes (rejected: admits untyped/ref
+  register values and a value-dropping print — new contract semantics outside
+  the measured subset); leaving the divergence unrecorded (rejected: the spec
+  asks to accept all three, so the boundary must be explicit and pinned).
+- Consequence: the phase-B warnings in `tests/reject/README.md` and D-M1-06
+  are resolved; loader suite **107/107** (99 rejections + 8 acceptance
+  controls); differential gate unchanged at **26/26**.
+- Evidence: the three cases run red on the committed driver with exactly one
+  `error[CGEN]` line each; `make_cases.py --check` without drift; builder,
+  sema and backend cites read from the pinned checkout at `5c01cea`; the
+  spec edge table read at blob `110ce439…`.
+- Status: **accepted**.

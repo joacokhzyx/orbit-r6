@@ -198,3 +198,20 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
   `make_cases.py --check` sin drift.
 - SHA-256 del driver probado:
   `8D080E25331F4A5BD7889E44F3DCB1CE28846A8D9D99683F65D804956EB92004`.
+
+## Actualización de M1 — bordes de la spec E-03/E-04/E-06 (2026-10-16)
+
+- Los tres casos límite que las notas de fase B dejaron abiertos quedan
+  cerrados como rechazos con evidencia (D-M1-16): `list_get` con `elemKind 5`
+  y tipo `unknown` (E-03), `elemKind 0` en `list_create` (E-04) y `print` con
+  2 argumentos pendientes (E-06). La tabla de bordes de la spec pide "accept"
+  para los tres; R6 mantiene su subconjunto fail-closed sobre los límites ya
+  decididos (D-M1-09 para kinds 0/5) con evidencia adicional: los kinds 0/5 no
+  tienen tipo de acceso dentro del modelo de registros (`unknown`/`void*`) y
+  el print multicarácter no tiene productor — la sema del pin lo rechaza con
+  E1003 (`sema.orb:3577-3584`) — ni lowering con semántica (solo el
+  comentario `/* print */`, `c_backend.orb:2795-2800`; U-17).
+- Pins nuevos en `tests/reject/`: `x-list-get-kind-ref`,
+  `x-list-create-kind-opaque`, `x-print-two-args` (los tres `CGEN`).
+- Segunda puerta: **107/107** (99 rechazos + 8 controles); gate diferencial
+  **26/26** en el mismo árbol.

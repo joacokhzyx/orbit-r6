@@ -125,3 +125,11 @@ rechaza antes toda declaración de archivo no literal (`E1007`,
 ningún programa del corpus puede producirla; el rechazo del loader
 (`global ... is outside M1 literal int/bool support`) queda pineado como
 `x-global-register`.
+
+Los bordes E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04
+(`elemKind 0` en `list_create`) y E-06 (`print` con 2 argumentos pendientes)
+quedan cerrados como rechazos con evidencia en D-M1-16 (casos
+`x-list-get-kind-ref`, `x-list-create-kind-opaque` y `x-print-two-args`): sin
+accesor untyped/ref dentro del modelo de registros y sin productor del print
+multicarácter (la sema del pin lo rechaza con E1003; el lowering es solo el
+comentario `/* print */`, U-17).
