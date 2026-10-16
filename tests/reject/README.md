@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `110ce439…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 96 rechazos + 8 controles
+python tests/reject/run_reject.py            # 99 rechazos + 8 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,7 +17,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` — 96 rechazos + 7 controles locales; el octavo control es
+- `cases/` — 99 rechazos + 7 controles locales; el octavo control es
   `docs/proposed-ir/m1/01-int-call.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
@@ -56,12 +56,15 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-13 | `x-alloc-opcode`, `x-free-opcode` |
 | D-M1-14 | `x-fn-value-unknown`, `x-fn-value-main`, `x-fn-value-void-signature`, `x-fn-value-dest-type`, `x-fn-callee-not-fn`, `x-fn-arity-signature`, `x-fn-arg-type`, `x-fn-dest-mismatch`, `x-fn-store-symbol`, `x-fn-return-boundary`, `x-fn-type-spelling`, `x-fn-type-nonscalar`; aceptación: `ok-fn-value`, `ok-fn-extern` |
 | D-M1-15 | `x-global-register` |
+| D-M1-16 | `x-list-create-kind-opaque`, `x-list-get-kind-ref`, `x-print-two-args` |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
-`list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan para la fase
-C: R6 los rechaza en codegen por su subconjunto (`registerTypes` estricta,
-alias de runtime fuera del subconjunto) y exigen decisión D-M1-xx con
-evidencia, no un caso de aceptación.
+`list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan cerrados
+como rechazos con evidencia en D-M1-16 (casos `x-list-get-kind-ref`,
+`x-list-create-kind-opaque`, `x-print-two-args`): los kinds 0/5 no tienen tipo
+de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
+tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
+semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-15: **104/104** (96 rechazos + 8 controles); gate diferencial
+Estado 2026-10-16: **107/107** (99 rechazos + 8 controles); gate diferencial
 26/26 en el mismo árbol.

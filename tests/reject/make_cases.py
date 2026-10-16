@@ -594,6 +594,32 @@ def build_reject():
         "D-M1-15", "CGEN",
         "a global with an ir_register value has no producer; literals only")
 
+    # ---- D-M1-16: spec edge cases E-03/E-04/E-06 stay fail-closed ------------
+    # The spec edge table says "accept" for all three; R6 keeps its native
+    # subset and pins the rejections (see DECISIONS.md D-M1-16 and D-M1-09).
+    add("x-list-create-kind-opaque",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
+                      I("ret", -1, Int(0))], ["list"])])),
+        "D-M1-16", "CGEN",
+        "E-04: elemKind 0 (opaque) has no element type; untyped lists stay out")
+    add("x-list-get-kind-ref",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=1),
+                      I("load_const", 1, Int(0)),
+                      I("list_get", 2, Reg(0), Reg(1), ek=5),
+                      I("ret", -1, Int(0))],
+                     ["list", "int", "unknown"])])),
+        "D-M1-16", "CGEN",
+        "E-03: elemKind 5 keeps ref types unknown/void*, outside the subset")
+    add("x-print-two-args",
+        jd(DOC([MAIN([I("arg", -1, Str("a")), I("arg", -1, Str("b")),
+                      I("call", -1, Sym("orbit_print"), Int(2)),
+                      I("load_const", 0, Int(0)),
+                      I("ret", -1, Reg(0))]),
+                FN("orbit_print", [], [], rtype="void", extern=True,
+                   params=["s"], ptypes=["string"])])),
+        "D-M1-16", "CGEN",
+        "E-06: multi-argument print has no producer (sema E1003) and no lowering")
+
     return cases
 
 

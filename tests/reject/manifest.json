@@ -671,6 +671,27 @@
       "code": "CGEN",
       "rule": "D-M1-15",
       "note": "a global with an ir_register value has no producer; literals only"
+    },
+    {
+      "file": "cases/x-list-create-kind-opaque.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-16",
+      "note": "E-04: elemKind 0 (opaque) has no element type; untyped lists stay out"
+    },
+    {
+      "file": "cases/x-list-get-kind-ref.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-16",
+      "note": "E-03: elemKind 5 keeps ref types unknown/void*, outside the subset"
+    },
+    {
+      "file": "cases/x-print-two-args.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-16",
+      "note": "E-06: multi-argument print has no producer (sema E1003) and no lowering"
     }
   ],
   "accept": [
