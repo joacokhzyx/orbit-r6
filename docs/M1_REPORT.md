@@ -149,3 +149,27 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
 - La suite negativa (una prueba por regla V/E con código esperado) y su runner
   `tests/reject/` llegan en la fase B; esta nota sólo cubre la migración de
   formato.
+
+## Actualización de M1 — suite negativa y familias C (2026-10-15)
+
+- Segunda puerta del contrato del loader (`tests/reject/`, decisión D-M1-06):
+  **88/88** (82 rechazos + 6 controles de aceptación). `make_cases.py`
+  renderiza `cases/` y `manifest.json` de forma determinista; cada rechazo
+  exige exit 1 y una única línea `r6: <file>:<line>:<col>: error[CODE]` con el
+  código esperado del manifiesto, y los controles de aceptación corren con
+  exit/stdout comparados byte a byte. Cubre las reglas V-01..V-19/E-01..E-12
+  aplicables y los bordes de cada familia (D-M1-10 a D-M1-13).
+- Gate diferencial: **25/25 pass** (exit 0), con cinco fixtures nuevos respecto
+  de la migración: `21-nop-blocks` (D-M1-07), `22-result-ops` (D-M1-08),
+  `23-list-set-pop` (D-M1-09), `24-model-fields` (D-M1-11) y
+  `25-union-tag-data` (D-M1-12); los 20 `.orb` previos no cambiaron.
+- Familias cerradas con evidencia en lugar de implementadas: `map_*`
+  (D-M1-10) y `alloc`/`free` (D-M1-13) quedan `E_UNSUPPORTED` con pins
+  propios: sin productor en el builder (spec §1.1) o sin contrato estable
+  (lowerings incompletos y gaps U-04/U-09).
+- SHA-256 del driver probado:
+  `DDBF33F0BBB144A1EF4AA09481639E81BA74E18E0136463DDCB31B8CADC1053D`.
+- La fase D (emisor `--emit-ir` del lado lenguaje, corpus y re-pin) sigue
+  fuera de lo medido aquí; las preguntas abiertas P1-P5 están registradas en
+  `IR_SPEC_ALIGNMENT.md`. Esta evidencia es M1 manual (fixtures escritos a
+  mano; el pin aún no emite IR) y no es un benchmark.
