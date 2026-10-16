@@ -36,14 +36,15 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `22-result-ops` | `result_ok`/`err`/`is_ok`/`unwrap`/`unwrap_err` con payload float, int y string, `catch` con binding | 46 | vacío |
 | `23-list-set-pop` | `list_set`/`list_pop` y kinds string/int/float/bool fuera de `main` (arena global) | 135 | vacío |
 | `24-model-fields` | constructor de modelo y `load_field`/`store_field` int/float/bool/string (refs `Vec.*`) | 42 | `seed\nmut\nf-ok\n` |
+| `25-union-tag-data` | ctor de unión unit/single/multi (pack), `union_get_tag`/`union_get_data` y cuatro matches exhaustivos | 85 | `u-ok\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–24 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–25 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-15: los veinticuatro pares, ya en el formato de la spec,
+medido al 2026-10-15: los veinticinco pares, ya en el formato de la spec,
 pasan diferencial en Windows x86-64 con exit/stdout idénticos a la línea base
 previa a la migración (ver `../../DECISIONS.md`
-D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11 y `../../M1_REPORT.md`).
+D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
@@ -67,3 +68,20 @@ tipo colección, aridad o target de constructor incorrectos, nombres de modelo
 inválidos o duplicados —también la colisión con una función— y
 `types`/`migrations`. El borde está pineado en `tests/reject/` (casos `x-*`
 regla D-M1-11 y el control `ok-model-ctor`).
+
+La familia de uniones queda admitida solo dentro del subconjunto medido
+(D-M1-12): construcción de variante como `call` con target `String` (aridad =
+nº de payloads, destino `void*`), donde unit y single-payload usan el data
+word y multi-payload (≤ 2 partes `int`/`bool`/`string`) pasa por el struct
+pack `<Union>_<Variante>`; lectura de tag por ordinal (`union_get_tag`) y de
+payload (`union_get_data` + `load_field` con refs `<Union>_<Variante>._i`); y
+constantes `<Union>_TAG_<Variante>` cargadas como símbolo. Queda fuera y falla
+cerrado (CGEN, o `E_DUPLICATE`/`E_SCHEMA` en el loader): `union_create`,
+`switch_op` y `type_info` (`E_UNSUPPORTED`, sin productor en el builder),
+payloads float o de tipo nombrado, aridad de payload > 2, kinds distintos de
+`union_type`, tags no declarados, destinos o fuentes fuera del contrato de
+tipos, refs de pack inexistentes o sobre variantes sin pack, aridad de
+constructor, valores `void*` en fronteras de función, y colisiones o
+longitudes de `variants`/`richVariants` inconsistentes. El borde está pineado
+en `tests/reject/` (casos `x-union-*` regla D-M1-12 y el control
+`ok-union-ctor`).

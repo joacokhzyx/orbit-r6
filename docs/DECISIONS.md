@@ -406,3 +406,75 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (exit 42, stdout `seed\nmut\nf-ok\n`); loader suite **69/69** (64 rejections
   + 5 acceptance controls); table updated in `docs/proposed-ir/m1/README.md`.
 - Status: **accepted**.
+
+## D-M1-12 — Union tag dispatch and payload packs inside the measured subset
+
+- Date: 2026-10-15.
+- Decision: the loader admits `union_get_tag`/`union_get_data`, and codegen
+  lowers a declared type only when `kind` is `union_type` and the program
+  stays inside the measured union subset: tag constants `<Union>_TAG_<Variant>`
+  carry the variant ordinal and load as `Sym`/`String`; construction is a
+  `call` whose target is a `String` naming the variant, arity equal to the
+  payload count and a fresh `void*` destination; the value is a 16-byte cell
+  `{ int tag @0; void* data @8 }` off `orbit_alloc`, whose data word holds the
+  single payload (null for a unit variant) or a pointer to the synthesized
+  `<Union>_<Variant>` pack struct when the payload is a comma list of at most
+  two `int`/`bool`/`string` parts. `union_create`, `switch_op` and `type_info`
+  stay `E_UNSUPPORTED`: they have no producer in the builder, `switch_op`
+  lowers to an empty switch skeleton and `type_info` to a comment (U-12).
+  Everything else stays fail-closed (CGEN): float or named payloads, payload
+  arity > 2, kinds other than `union_type`, tag loads that do not name a
+  declared variant, `union_get_tag`/`union_get_data` sources that are not
+  `void*` registers or destinations outside
+  `int`/`void*`/`bool`/`string`/model, pack references that do not resolve to
+  a multi-payload variant or field of the receiver, constructor arity/target
+  errors, and `void*` at a function boundary (returns and parameters stay
+  scalar/model-only). The loader adds `E_DUPLICATE` for duplicate variant
+  names, a variant name declared by more than one type, and colliding variant
+  names or tag constants against functions, models or globals; `E_SCHEMA`
+  when `variants` and `richVariants` lengths disagree.
+- Producer shape: match arms emit `union_get_tag` and `union_get_data`
+  (`builder.orb:3326-3336`), bind the payload — `decl_var` from the data word
+  for one payload, `load_field` on `<Union>_<Variant>._i` for packs
+  (`builder.orb:3338-3388`) — and then compare the tag with a `load_var`
+  of the `<Union>_TAG_<Variant>` symbol plus `eq` + `jump_if_false`
+  (`builder.orb:3390-3428`); the payload-less variant used as a value builds
+  a real node through `call` with a `String` target and arity 0
+  (`builder.orb:4677-4690`); the C backend synthesizes the cell
+  (`c_backend.orb:105-109`) and one pack function per multi-payload variant
+  with positional `_i` fields (`c_backend.orb:150-160`). Pin note: that
+  emission puts each arm's binding prologue before the arm's tag test, so a
+  pack binding reached while the scrutinee still carries the unit data word
+  (null) faults in the oracle; fixture 25 orders the unit arm before the pack
+  arm — the order the corpus already uses — and both sides then agree. The
+  cell layout is locally emitted text (U-14), and the admitted subset never
+  lets a union cell cross a function boundary, so no document depends on it
+  as an external contract.
+- Lowering: constructor → `movl $16,%edx` + `orbit_alloc`, tag ordinal
+  stored at offset 0 (`movl $idx,0(%rax)`), data word at offset 8: a single
+  payload is the raw value word (`movl`/`movq` from the frame, `leaq` for
+  string literals), a unit variant stores `movl $0,%edx`, and multi-payload
+  variants first `orbit_alloc` the pack struct, store each part with its C
+  width (`movl`/`movb`/`movq`, declaration order) and then write the pack
+  pointer into the cell. `union_get_tag` lowers to `movslq 0(cell)` and
+  `union_get_data` to `movq 8(cell)`; pack reads (`load_field` on
+  `<Union>_<Variant>._i`, `void*` receiver) lower to
+  `movslq`/`movzbl`/`movq` of the pack field; a tag constant lowers to
+  `movq $ordinal` in the destination's int slot. `store_field` stays
+  model-only (no pack path).
+- Encoder: unchanged — `movl $imm,%r32`, `movl $imm,mem`, `movq $imm,mem`
+  and the `movslq`/`movzbl`/`movq` memory loads already covered every
+  emitted form.
+- Boundary pinned in `tests/reject/` (rule D-M1-12): `union_create`,
+  `switch_op`, `type_info` (`E_UNSUPPORTED`); float payloads, payload
+  arity > 2, non-`union_type` kinds, `union_get_tag` destination not `int`,
+  non-`void*` tag/data sources, unknown tag constants, missing or
+  single-payload pack fields, constructor arity (CGEN); duplicate variant
+  names, cross-type variant names, tag/function-name collisions
+  (`E_DUPLICATE`); `variants`/`richVariants` length mismatch (`E_SCHEMA`);
+  acceptance control `ok-union-ctor`.
+- Evidence: fixture `25-union-tag-data` → differential **25/25** on
+  2026-10-15 (exit 85, stdout `u-ok\n`); loader suite **86/86** (80
+  rejections + 6 acceptance controls); table updated in
+  `docs/proposed-ir/m1/README.md`.
+- Status: **accepted**.
