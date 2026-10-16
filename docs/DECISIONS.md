@@ -622,3 +622,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   sema and backend cites read from the pinned checkout at `5c01cea`; the
   spec edge table read at blob `110ce439…`.
 - Status: **accepted**.
+
+## D-F0-08 — Language-side answers to P1–P5 and emitter authorization
+
+- Date: 2026-10-16.
+- Decision: the language side answered the five questions that blocked the
+  emitter (`IR_SPEC_ALIGNMENT.md` §6) and authorized the phase-D branch. The
+  emitter serializes `registerTypes` **before** `inferRegisterTypes` (the
+  builder model; §5.1 defines the text form from the in-memory model); a
+  non-finite `ir_float` fails with a diagnostic (V-08, fail closed; no bit
+  encoding for now); unknown-key rejection applies to the whole document
+  (root and inner levels); §3.1/§3.2 are **normative for the audited rules**
+  (aliases, arity minimums, `print` shapes, returns) with U-04/U-05/U-17
+  explicitly open; the serialized corpus is emitted by the language and R6
+  pins it as a hash manifest plus a regeneration recipe (same pattern as
+  `runtime/orbit_api.h` and the runtime archive).
+- Alternatives: serializing after `inferRegisterTypes` (rejected: couples the
+  corpus to the unpinned U-10 rewrite rules and is not additive); a bit
+  encoding for NaN/Infinity (rejected while no program needs it); root-only
+  key rejection (rejected: silently accepts inner typos); C-backend
+  observation without normativity (rejected: leaves R6 no contract to
+  implement against); committing the corpus in either repository (rejected:
+  it is an emitted artifact, reproducible from the pinned emitter).
+- Consequence: phase D is unblocked. The corpus may legitimately carry
+  `unknown` register types; R6's strict register-type contract rejects some of
+  those programs today and they are expected in the D3 missing list, to be
+  resolved by later dated decisions. Re-pin only after branch, corpus and
+  manifest exist with their gates green.
+- Evidence: answers registered 2026-10-16 in `IR_SPEC_ALIGNMENT.md` §6; branch
+  `r6-emit-ir` from `5c01cea` in the separate clone (user checkout untouched).
+- Status: **accepted by user 2026-10-16**.

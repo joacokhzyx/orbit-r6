@@ -123,22 +123,31 @@ el lowering y el diferencial mediría una reconstrucción, no el IR del builder.
    `--emit-ir` (§5), corpus de 89+1 programas y manifiesto de hashes; nuevo pin
    con hashes en [PIN.md](PIN.md) y evidencia diferencial ampliada.
 
-## 6. Preguntas al lado lenguaje (bloquean emisor o migración)
+## 6. Respuestas del lado lenguaje (2026-10-16)
 
-- **P1** ¿El emisor serializa `registerTypes` antes o después de
-  `inferRegisterTypes`? Define si R6 puede seguir tratando los tipos como
-  contrato (§2.3, U-10).
-- **P2** V-08 prohíbe floats no finitos en JSON. ¿Qué debe hacer el emisor ante
-  un `ir_float` NaN/infinito: fallar, o se documenta un encoding (p. ej. bits)?
-  Hoy ningún fixture lo necesita, pero builder/sema pueden producirlo.
-- **P3** V-02 exige rechazar claves desconocidas en la raíz; §5.1 dice "accept
-  any order but reject unknown keys" para todo el documento. ¿La regla aplica a
-  función/instrucción/global/modelo/tipo? R6 hoy rechaza en todos los niveles.
-- **P4** §3.1 y §3.2 describen el lowering del backend C (alias, aridad, print,
-  arena). ¿Se declaran normativos para cualquier backend, o son observación del
-  backend C? R6 los necesita igual, pero la spec debería decirlo.
-- **P5** ¿Dónde vive el corpus serializado? Propuesta: lo emite el lenguaje y R6
-  lo pinea por hash + manifiesto (mismo patrón que `runtime/orbit_api.h`).
+Las cinco preguntas que bloqueaban el emisor quedaron respondidas el
+2026-10-16 (registradas también en DECISIONS.md, D-F0-08):
+
+- **P1 — serialización de `registerTypes`**: el emisor serializa **antes** de
+  `inferRegisterTypes` (modelo del builder; §5.1 define la forma del texto a
+  partir del modelo en memoria). Consecuencia aceptada: el corpus llevará
+  tipos `unknown` legítimos; R6 los rechaza hoy (contrato estricto) y quedarán
+  en la lista de faltantes del diferencial del corpus, con decisión datada
+  después.
+- **P2 — floats no finitos**: ante un `ir_float` NaN/infinito el emisor
+  **falla con diagnóstico** (V-08, fail-closed; sin encoding por bits mientras
+  ningún programa lo necesite).
+- **P3 — claves desconocidas**: el rechazo aplica a **todo el documento**
+  (raíz y niveles internos); R6 ya rechaza en todos los niveles.
+- **P4 — §3.1/§3.2**: **normativos en lo auditado** (alias, mínimos de
+  aridad, formas de `print`, retornos); U-04 (arena), U-05 (orden de argumentos
+  indirectos) y U-17 (formato de `print`) siguen explícitamente abiertas.
+- **P5 — corpus serializado**: lo emite el lenguaje; R6 lo **regenera y pinea
+  por hash + manifiesto** (mismo patrón que `runtime/orbit_api.h` y el archive
+  del runtime).
+- **Autorización (2026-10-16)**: rama `r6-emit-ir` desde `5c01cea` en un clon
+  aparte del lado lenguaje (checkout del usuario intacto); sin re-pin hasta
+  que rama, corpus y manifiesto existan con sus gates en verde.
 
 ## 7. Estado (2026-10-15): migración completada en R6
 
