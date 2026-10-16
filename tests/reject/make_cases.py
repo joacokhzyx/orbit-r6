@@ -393,6 +393,114 @@ def build_reject():
     add("x-ctor-unknown-model", jd({"irVersion": "1", "module": mod}),
         "D-M1-11", "CGEN", "constructor target must be a declared model")
 
+    # ---- D-M1-12: union tag dispatch + payload binding stay inside the ------
+    # ---- measured ctor/tag/data subset (docs/DECISIONS.md) -------------------
+    def utype(name, variants, rich):
+        return {"name": name, "kind": "union_type", "variants": list(variants),
+                "richVariants": list(rich), "methods": []}
+
+    add("x-union-create-opcode",
+        jd(DOC([MAIN([I("union_create", 0, Int(0)), I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-12", "E_UNSUPPORTED",
+        "union_create: no producer; construction stays on the call lowering")
+    add("x-union-switch-op",
+        jd(DOC([MAIN([I("switch_op", -1, Reg(0)), I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-12", "E_UNSUPPORTED",
+        "switch_op: no producer; the lowering is an empty switch skeleton")
+    add("x-union-type-info",
+        jd(DOC([MAIN([I("type_info", 0, Reg(0)), I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-12", "E_UNSUPPORTED",
+        "type_info: no producer; the lowering is a comment only (U-12)")
+
+    mod = MOD([MAIN()])
+    mod["types"] = [utype("Shape", ["Dot"], ["float"])]
+    add("x-union-payload-float", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN",
+        "single float payloads truncate in the pin and stay fail-closed")
+
+    mod = MOD([MAIN()])
+    mod["types"] = [utype("Shape", ["Many"], ["int\tint\tint"])]
+    add("x-union-payload-arity", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN", "payload arity beyond the measured pack subset")
+
+    mod = MOD([MAIN()])
+    mod["types"] = [{"name": "Color", "kind": "enumeration",
+                     "variants": ["Red", "Green"], "richVariants": ["", ""],
+                     "methods": []}]
+    add("x-union-kind-enumeration", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN", "only kind union_type is lowered")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)),
+                     I("call", 0, Str("Dot"), Int(1)),
+                     I("decl_var", -1, Str("d"), Reg(0)),
+                     I("load_var", 1, Str("d")),
+                     I("union_get_tag", 2, Reg(1)),
+                     I("ret", -1, Reg(2))], ["void*", "void*", "bool"])])
+    mod["types"] = [utype("Shape", ["Dot"], ["int"])]
+    add("x-union-get-tag-dest-bool", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN", "union_get_tag destination must be int")
+
+    add("x-union-get-tag-src-int",
+        jd(DOC([MAIN([I("load_const", 0, Int(3)),
+                      I("union_get_tag", 1, Reg(0)),
+                      I("ret", -1, Reg(1))], ["int", "int"])])),
+        "D-M1-12", "CGEN",
+        "union_get_tag source must be a void* cell pointer")
+
+    mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Nope")),
+                     I("ret", -1, Reg(0))], ["int"])])
+    mod["types"] = [utype("Shape", ["Dot"], ["int"])]
+    add("x-union-tag-unknown", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN", "tag constant must name a declared variant")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)), I("arg", -1, Str("s")),
+                     I("call", 0, Str("Pair"), Int(2)),
+                     I("union_get_data", 1, Reg(0)),
+                     I("load_field", 2, Reg(1), Sym("Shape_Pair._9")),
+                     I("ret", -1, Reg(2))], ["void*", "void*", "int"])])
+    mod["types"] = [utype("Shape", ["Pair"], ["int\tstring"])]
+    add("x-union-pack-missing-field", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN", "pack field index must exist in the variant")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)),
+                     I("call", 0, Str("Dot"), Int(1)),
+                     I("union_get_data", 1, Reg(0)),
+                     I("load_field", 2, Reg(1), Sym("Shape_Dot._0")),
+                     I("ret", -1, Reg(2))], ["void*", "void*", "int"])])
+    mod["types"] = [utype("Shape", ["Dot"], ["int"])]
+    add("x-union-pack-single", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN",
+        "single payloads are the data word, not a pack struct")
+
+    mod = MOD([MAIN([I("arg", -1, Int(1)),
+                     I("call", 0, Str("Pair"), Int(1)),
+                     I("ret", -1, Reg(0))], ["void*"])])
+    mod["types"] = [utype("Shape", ["Pair"], ["int\tstring"])]
+    add("x-union-ctor-arity", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "CGEN",
+        "constructor arity must equal the variant payload count")
+
+    mod = MOD([MAIN()])
+    mod["types"] = [utype("Shape", ["Dup", "Dup"], ["int", "int"])]
+    add("x-union-duplicate-variant", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "E_DUPLICATE", "duplicate variant name in one type")
+
+    mod = MOD([MAIN()])
+    mod["types"] = [utype("A", ["Same"], [""]), utype("B", ["Same"], [""])]
+    add("x-union-variant-two-types", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "E_DUPLICATE", "variant name declared by more than one type")
+
+    mod = MOD([MAIN(), FN("Shape_TAG_Dot", [], [], rtype="void", extern=True)])
+    mod["types"] = [utype("Shape", ["Dot"], ["int"])]
+    add("x-union-tag-collision", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "E_DUPLICATE", "tag constant collides with a function name")
+
+    mod = MOD([MAIN()])
+    mod["types"] = [utype("Shape", ["A", "B"], ["int"])]
+    add("x-union-rich-lengths", jd({"irVersion": "1", "module": mod}),
+        "D-M1-12", "E_SCHEMA",
+        "variants and richVariants must have equal lengths")
+
     return cases
 
 
@@ -424,6 +532,16 @@ def build_accept_files():
     mod["models"] = [{"name": "Box", "fields": [{"name": "n", "typeName": "int"}],
                       "typeParams": []}]
     files.append(("ok-model-ctor", jd({"irVersion": "1", "module": mod})))
+    mod = MOD([MAIN([I("arg", -1, Int(11)),
+                     I("call", 0, Str("Dot"), Int(1)),
+                     I("decl_var", -1, Str("d"), Reg(0)),
+                     I("load_var", 1, Str("d")),
+                     I("union_get_tag", 2, Reg(1)),
+                     I("union_get_data", 3, Reg(1)),
+                     I("ret", -1, Reg(3))], ["void*", "void*", "int", "int"])])
+    mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
+                     "richVariants": ["int"], "methods": []}]
+    files.append(("ok-union-ctor", jd({"irVersion": "1", "module": mod})))
     return files
 
 
@@ -444,6 +562,8 @@ def build_manifest(reject, accept_files):
              "note": "call consumes exactly operand2 pending args; zero consumes none"},
             {"file": "cases/ok-model-ctor.json", "run_exit": 11, "rule": "D-M1-11",
              "note": "model constructor + field load round-trip inside main"},
+            {"file": "cases/ok-union-ctor.json", "run_exit": 11, "rule": "D-M1-12",
+             "note": "union constructor + tag + data round-trip inside main"},
         ],
     }
 

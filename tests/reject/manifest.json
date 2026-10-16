@@ -447,6 +447,118 @@
       "code": "CGEN",
       "rule": "D-M1-11",
       "note": "constructor target must be a declared model"
+    },
+    {
+      "file": "cases/x-union-create-opcode.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-12",
+      "note": "union_create: no producer; construction stays on the call lowering"
+    },
+    {
+      "file": "cases/x-union-switch-op.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-12",
+      "note": "switch_op: no producer; the lowering is an empty switch skeleton"
+    },
+    {
+      "file": "cases/x-union-type-info.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-12",
+      "note": "type_info: no producer; the lowering is a comment only (U-12)"
+    },
+    {
+      "file": "cases/x-union-payload-float.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "single float payloads truncate in the pin and stay fail-closed"
+    },
+    {
+      "file": "cases/x-union-payload-arity.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "payload arity beyond the measured pack subset"
+    },
+    {
+      "file": "cases/x-union-kind-enumeration.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "only kind union_type is lowered"
+    },
+    {
+      "file": "cases/x-union-get-tag-dest-bool.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "union_get_tag destination must be int"
+    },
+    {
+      "file": "cases/x-union-get-tag-src-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "union_get_tag source must be a void* cell pointer"
+    },
+    {
+      "file": "cases/x-union-tag-unknown.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "tag constant must name a declared variant"
+    },
+    {
+      "file": "cases/x-union-pack-missing-field.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "pack field index must exist in the variant"
+    },
+    {
+      "file": "cases/x-union-pack-single.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "single payloads are the data word, not a pack struct"
+    },
+    {
+      "file": "cases/x-union-ctor-arity.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-12",
+      "note": "constructor arity must equal the variant payload count"
+    },
+    {
+      "file": "cases/x-union-duplicate-variant.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "D-M1-12",
+      "note": "duplicate variant name in one type"
+    },
+    {
+      "file": "cases/x-union-variant-two-types.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "D-M1-12",
+      "note": "variant name declared by more than one type"
+    },
+    {
+      "file": "cases/x-union-tag-collision.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "D-M1-12",
+      "note": "tag constant collides with a function name"
+    },
+    {
+      "file": "cases/x-union-rich-lengths.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-12",
+      "note": "variants and richVariants must have equal lengths"
     }
   ],
   "accept": [
@@ -480,6 +592,12 @@
       "run_exit": 11,
       "rule": "D-M1-11",
       "note": "model constructor + field load round-trip inside main"
+    },
+    {
+      "file": "cases/ok-union-ctor.json",
+      "run_exit": 11,
+      "rule": "D-M1-12",
+      "note": "union constructor + tag + data round-trip inside main"
     }
   ]
 }
