@@ -173,3 +173,28 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
   fuera de lo medido aquí; las preguntas abiertas P1-P5 están registradas en
   `IR_SPEC_ALIGNMENT.md`. Esta evidencia es M1 manual (fixtures escritos a
   mano; el pin aún no emite IR) y no es un benchmark.
+
+## Actualización de M1 — valores de función, llamada indirecta y globales (2026-10-15)
+
+- Fixture `26-fn-values` (D-M1-14): `val`/`var f = inc` liga un nombre de
+  función en posición de valor (`decl_var` + Symbol), `f(args)` baja como
+  `arg` pendientes, `load_var` del callee y `call` con la aridad en
+  `operand2`, chequeada contra el spelling `fn(p1;...;pn)->ret` del registro;
+  el rebinding (`h = dec`) carga el símbolo a un registro y usa `store_var`.
+  Seis subtests: un parámetro, dos parámetros, nullary, string, externo y
+  rebinding. El oráculo del pin acepta el binding externo
+  (`orbit_string_at("abc", 1) == 98`) y R6 lo replica: exit 42, stdout
+  `fn-ok` (idénticos).
+- La rama de globales con valor `ir_register` queda cerrada con evidencia
+  (D-M1-15): el builder contiene la ruta `IRGlobal(ir_register)` para un
+  `const` de archivo no literal (`builder.orb:2377`) pero la sema la hace
+  inalcanzable (`E1007`, `sema.orb:1824-1831`); el loader mantiene el rechazo
+  y el borde queda pineado (`x-global-register`).
+- Gate diferencial: **26/26 pass** (exit 0); los 25 pares previos y sus `.orb`
+  no cambiaron.
+- Segunda puerta: **104/104** (96 rechazos + 8 controles de aceptación):
+  trece pins `x-fn-*` (doce `CGEN` + uno V-13 `E_SCHEMA`), el pin
+  `x-global-register` y los controles `ok-fn-value`/`ok-fn-extern`;
+  `make_cases.py --check` sin drift.
+- SHA-256 del driver probado:
+  `8D080E25331F4A5BD7889E44F3DCB1CE28846A8D9D99683F65D804956EB92004`.

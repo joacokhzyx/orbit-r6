@@ -511,3 +511,72 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   differential gate unchanged at **25/25**; lines cited from the pinned
   checkout at `5c01cea`.
 - Status: **accepted**.
+
+## D-M1-14 — Function values and indirect calls inside the measured subset
+
+- Date: 2026-10-15.
+- Decision: the native subset admits function values without capture and the
+  indirect `call` through them, mirroring the pinned builder: a bare function
+  name in value position serializes as `ir_symbol`
+  (`buildCallArgValue`, `builder.orb:1235`); `val f = inc` / `var h = inc`
+  binds it with `decl_var` + Symbol initializer (`buildVarDecl`,
+  `builder.orb:2509`); the signature spelling is `fn(p1;...;pn)->ret`
+  (`fnTypeSpellingFor`, `builder.orb:2202`); and `f(args)` lowers as pending
+  `arg` instructions, a `load_var` of the callee register, and a `call` with
+  the callee in `operand1` and the arity in `operand2` (`buildFnVarCall`,
+  `builder.orb:3646`). `tests/suite/function_pointers.orb` is the measured
+  corpus test; the fixture covers its int/string/two-param/nullary and
+  reassignment shapes.
+- Admitted: register types whose `fn(...)` spelling is well-formed with scalar
+  parameter and return tokens (`int`/`bool`/`float`/`string`; zero parameters
+  spell `fn()->ret`); Symbol initializers in `decl_var` (the local is typed by
+  the spelling) and in `load_const` (the spelling must equal the destination
+  register type); `store_var` rebinding through a register word; indirect
+  calls checked against the register's spelling (exact arity, each pending
+  argument's type, destination type) and emitted as a word load plus
+  `callq *%r10` (`win64.c:1933`, encoder `asm_win64.c:217`). Fn values may
+  name any module function with a scalar spelling except `main`
+  (`sema.orb:3365` — "Cannot use 'main' as a value"); extern functions are
+  measured in position: the oracle accepts `orbit_string_at` as a value and
+  calls it through the binding with identical exit to R6 (fixture
+  `26-fn-values`, subtest `extern_value`).
+- Rejected fail closed: undeclared symbols, `main`, non-scalar spellings
+  (void return, list/model parameters — `CGEN`), destination type mismatches,
+  malformed or non-scalar `fn(...)` register types (module register-type
+  gate), `store_var` with a Symbol initializer (the builder loads the symbol
+  into a register first), fn-typed function returns (`win64.c:647`), calls
+  through a non-`fn` register (`win64.c:1003`), arity different from the
+  spelling's parameter count (`win64.c:1011`), argument/destination type
+  mismatches, and a call consuming more pending arguments than exist (V-13,
+  `E_SCHEMA`, generic rule). String concatenation inside callees stays under
+  the D-M1-09 boundary and is not re-litigated here
+  (`greet`/`shout`/`whisper` remain outside).
+- Consequence: fixture `26-fn-values` (exit 42, stdout `fn-ok`), 13 rejection
+  pins (twelve `CGEN` + one V-13) and the acceptance controls
+  `ok-fn-value`/`ok-fn-extern`; differential gate **26/26**; loader suite
+  **104/104** (96 rejections + 8 acceptance controls).
+- Evidence: builder/sema cites from the pinned checkout at `5c01cea`;
+  `tests/suite/function_pointers.orb`; the oracle and R6 build and run the
+  fixture pair with identical exit/stdout, including the extern binding
+  (oracle probe: `orbit_string_at("abc", 1) == 98`).
+- Status: **accepted**.
+
+## D-M1-15 — Register-valued globals stay rejected
+
+- Date: 2026-10-15.
+- Decision: module globals keep admitting only the D-M1-01 literal forms; a
+  global whose value is anything else — `ir_register` included — keeps
+  failing with `global %s is outside M1 literal int/bool support`
+  (`win64.c:2093`), now pinned as case `x-global-register`.
+- Why it stays out: the builder does contain a path that would mint
+  `IRGlobal(name, ir_register(valueReg))` for a non-literal top-level
+  `const` (`builder.orb:2377`), but the module sema refuses every non-literal
+  top-level declaration first (`E1007`, `sema.orb:1824-1831`; accepted shapes
+  in `isTopLevelConstantExpr`, `sema.orb:1840`), so no corpus program can
+  produce one. Admitting the shape would invent storage semantics the module
+  contract never defines (a global pointing into frame state).
+- Consequence: no fixture is added. Together with D-M1-14 this closes C8
+  (globals + indirect calls).
+- Evidence: loader suite **104/104** (96 rejections + 8 acceptance controls);
+  differential gate **26/26**; cites from the pinned checkout at `5c01cea`.
+- Status: **accepted**.

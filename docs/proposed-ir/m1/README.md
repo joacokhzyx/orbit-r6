@@ -37,14 +37,16 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `23-list-set-pop` | `list_set`/`list_pop` y kinds string/int/float/bool fuera de `main` (arena global) | 135 | vacío |
 | `24-model-fields` | constructor de modelo y `load_field`/`store_field` int/float/bool/string (refs `Vec.*`) | 42 | `seed\nmut\nf-ok\n` |
 | `25-union-tag-data` | ctor de unión unit/single/multi (pack), `union_get_tag`/`union_get_data` y cuatro matches exhaustivos | 85 | `u-ok\n` |
+| `26-fn-values` | valores de función sin captura, llamada indirecta, rebinding `var` y binding externo | 42 | `fn-ok\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–25 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–26 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-15: los veinticinco pares, ya en el formato de la spec,
+medido al 2026-10-15: los veintiséis pares, ya en el formato de la spec,
 pasan diferencial en Windows x86-64 con exit/stdout idénticos a la línea base
 previa a la migración (ver `../../DECISIONS.md`
-D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12 y `../../M1_REPORT.md`).
+D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14 y
+`../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
@@ -94,3 +96,32 @@ lowering es solo el comentario `/* free - arena managed */`) y el resultado de
 un puntero crudo sin consumidor en el subconjunto admitido. Ambos quedan
 pineados como rechazos `E_UNSUPPORTED` en `tests/reject/` (casos
 `x-alloc-opcode` y `x-free-opcode`, regla D-M1-13).
+
+La familia de valores de función queda admitida solo dentro del subconjunto
+medido (D-M1-14): un nombre de función en posición de valor se serializa como
+símbolo (`buildCallArgValue`, `builder.orb:1235`), `val`/`var f = inc` lo liga
+con `decl_var` (+Symbol) y la llamada indirecta consume `arg` pendientes con
+la aridad en `operand2` (`buildFnVarCall`, `builder.orb:3646`), chequeada
+contra el spelling `fn(p1;...;pn)->ret` del registro callee
+(`fnTypeSpellingFor`, `builder.orb:2202`). Solo se admiten spellings escalares
+bien formadas (`int`/`bool`/`float`/`string`, cero params `fn()->ret`), el
+binding de cualquier función del módulo —usuario o extern— salvo `main`
+(`sema.orb:3365`), y el rebinding vía registro. Queda fuera y falla cerrado
+(CGEN): símbolos no declarados, `main`, spellings void/no escalares, tipos de
+registro `fn(...)` malformados, `store_var` con Symbol, retorno de fn,
+llamada por registro no-`fn`, aridad distinta del spelling y desajustes de
+tipo de argumento o destino; consumir más `arg` que los pendientes es V-13
+(`E_SCHEMA`). El caso externo está medido (`orbit_string_at` como valor,
+subtest `extern_value`; `ok-fn-extern`). La concatenación de strings en
+callees queda bajo la frontera D-M1-09. El borde está pineado en
+`tests/reject/` (casos `x-fn-*` regla D-M1-14 y controles
+`ok-fn-value`/`ok-fn-extern`).
+
+Los globales con valor no literal quedan cerrados con evidencia (D-M1-15): el
+builder contiene la ruta que acuñaría `IRGlobal(name, ir_register(...))` para
+un `const` de nivel superior no literal (`builder.orb:2377`), pero la sema
+rechaza antes toda declaración de archivo no literal (`E1007`,
+`sema.orb:1824-1831`; `isTopLevelConstantExpr`, `sema.orb:1840`), así que
+ningún programa del corpus puede producirla; el rechazo del loader
+(`global ... is outside M1 literal int/bool support`) queda pineado como
+`x-global-register`.
