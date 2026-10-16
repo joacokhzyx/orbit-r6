@@ -1,0 +1,63 @@
+// Union construction (unit, single and multi-payload), tag dispatch and
+// payload binding: four exhaustive matches whose arm constants identify the
+// selected variant and whose payload arithmetic round-trips the data word.
+extern fn orbit_print(s: string) -> void
+
+union Shape {
+    Dot(int)
+    Name(string)
+    Pair(int, string)
+    Empty
+}
+
+fn main() -> int {
+    var total = 0
+    val a = Shape.Dot(41)
+    match a {
+        Shape.Dot(n) => { total = total + n }
+        Shape.Name(s) => { orbit_print(s) }
+        Shape.Pair(n, s) => {
+            total = total + n
+            orbit_print(s)
+        }
+        Shape.Empty => { total = total + 100 }
+    }
+    val b = Shape.Name("seed")
+    match b {
+        Shape.Dot(n) => { total = total + n }
+        Shape.Name(s) => {
+            if s == "seed" { total = total + 2 }
+            else { orbit_print(s) }
+        }
+        Shape.Pair(n, s) => {
+            total = total + n
+            orbit_print(s)
+        }
+        Shape.Empty => { total = total + 200 }
+    }
+    val c = Shape.Pair(38, "pair")
+    match c {
+        Shape.Dot(n) => { total = total + n }
+        Shape.Name(s) => { orbit_print(s) }
+        Shape.Pair(n, s) => {
+            if s == "pair" { total = total + n }
+            else { orbit_print(s) }
+        }
+        Shape.Empty => { total = total + 300 }
+    }
+    val d = Shape.Empty
+    // The pin binds each arm's payload before testing its tag, so the Empty
+    // arm is listed before the Pair arm: a Pair binding evaluated while the
+    // scrutinee carries the unit data word (null) would fault in the oracle.
+    match d {
+        Shape.Dot(n) => { total = total + n }
+        Shape.Name(s) => { orbit_print(s) }
+        Shape.Empty => { total = total + 4 }
+        Shape.Pair(n, s) => {
+            total = total + n
+            orbit_print(s)
+        }
+    }
+    orbit_print("u-ok")
+    return total
+}
