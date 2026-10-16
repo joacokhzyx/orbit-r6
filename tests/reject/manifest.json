@@ -666,6 +666,41 @@
       "note": "only scalar parameter and return tokens are admitted"
     },
     {
+      "file": "cases/x-call-string-target-arity.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-18",
+      "note": "a String target naming a function is a named call: arity must match"
+    },
+    {
+      "file": "cases/x-call-string-target-arg-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-18",
+      "note": "each pending argument must match the declared parameter type"
+    },
+    {
+      "file": "cases/x-call-string-target-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-18",
+      "note": "the destination must match the return type of the String-named callee"
+    },
+    {
+      "file": "cases/x-call-string-target-main.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-18",
+      "note": "main is an entry point, never a String call target either"
+    },
+    {
+      "file": "cases/x-call-void-dest-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-18",
+      "note": "a void call may only carry a void-typed destination, never a value"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -703,6 +738,13 @@
       "note": "valid m1 fixture compiles, runs and prints"
     },
     {
+      "file": "../../docs/proposed-ir/m1/27-call-string-target.json",
+      "run_exit": 42,
+      "run_stdout": "string-target\r\n\r\n",
+      "rule": "D-M1-18",
+      "note": "String call targets and a void-typed destination compile and run"
+    },
+    {
       "file": "cases/ok-extern-body.json",
       "run_exit": 7,
       "rule": "V-18 (E-09)",
@@ -719,6 +761,12 @@
       "run_exit": 9,
       "rule": "V-13 (E-05)",
       "note": "call consumes exactly operand2 pending args; zero consumes none"
+    },
+    {
+      "file": "cases/ok-call-void-dest.json",
+      "run_exit": 6,
+      "rule": "D-M1-18",
+      "note": "a void call may carry a void-typed destination (builder form)"
     },
     {
       "file": "cases/ok-model-ctor.json",

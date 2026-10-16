@@ -587,6 +587,46 @@ def build_reject():
                      ["fn(list)->int"])])),
         "D-M1-14", "CGEN", "only scalar parameter and return tokens are admitted")
 
+    # ---- D-M1-18: the builder's direct-call form (O1 String = named call) ----
+    # The pinned builder writes the callee name as a String target (spec 3.1
+    # step 2) and always allocates a `void`-typed destination for a void callee
+    # (step 7 says the destination is optional, not forbidden). Both facts come
+    # from the language-emitted corpus; the rejections below keep every other
+    # shape fail-closed.
+    def one_arg_fn():
+        return FN("one", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))],
+                  ["int"], params=["a"], ptypes=["int"])
+
+    add("x-call-string-target-arity",
+        jd(DOC([one_arg_fn(), MAIN([I("arg", -1, Int(1)), I("arg", -1, Int(2)),
+                                    I("call", 0, Str("one"), Int(2)),
+                                    I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-18", "CGEN",
+        "a String target naming a function is a named call: arity must match")
+    add("x-call-string-target-arg-type",
+        jd(DOC([one_arg_fn(), MAIN([I("arg", -1, Str("x")),
+                                    I("call", 0, Str("one"), Int(1)),
+                                    I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-18", "CGEN",
+        "each pending argument must match the declared parameter type")
+    add("x-call-string-target-dest",
+        jd(DOC([one_arg_fn(), MAIN([I("arg", -1, Int(1)),
+                                    I("call", 1, Str("one"), Int(1)),
+                                    I("load_const", 0, Int(0)),
+                                    I("ret", -1, Reg(0))], ["int", "bool"])])),
+        "D-M1-18", "CGEN",
+        "the destination must match the return type of the String-named callee")
+    add("x-call-string-target-main",
+        jd(DOC([MAIN([I("call", 0, Str("main"), Int(0)),
+                      I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-18", "CGEN",
+        "main is an entry point, never a String call target either")
+    add("x-call-void-dest-type",
+        jd(DOC([ZERO(), MAIN([I("call", 0, Str("zero"), Int(0)),
+                              I("ret", -1, Int(0))], ["int"])])),
+        "D-M1-18", "CGEN",
+        "a void call may only carry a void-typed destination, never a value")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -642,6 +682,10 @@ def build_accept_files():
                  I("call", 2, Sym("add2"), Int(2)),
                  I("ret", -1, Reg(2))], Types(3))
     files.append(("ok-call-arity-suffix", jd(DOC([main, ZERO(), add2]))))
+    files.append(("ok-call-void-dest",
+                  jd(DOC([ZERO(), MAIN([I("call", 1, Str("zero"), Int(0)),
+                                        I("load_const", 0, Int(6)),
+                                        I("ret", -1, Reg(0))], ["int", "void"])]))))
     mod = MOD([MAIN([I("arg", -1, Int(11)),
                      I("call", 0, Str("Box"), Int(1)),
                      I("decl_var", -1, Str("b"), Reg(0)),
@@ -693,12 +737,17 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/01-int-call.json", "run_exit": 42,
              "run_stdout": "M1-add\r\n\r\n", "rule": "corpus",
              "note": "valid m1 fixture compiles, runs and prints"},
+            {"file": "../../docs/proposed-ir/m1/27-call-string-target.json",
+             "run_exit": 42, "run_stdout": "string-target\r\n\r\n", "rule": "D-M1-18",
+             "note": "String call targets and a void-typed destination compile and run"},
             {"file": "cases/ok-extern-body.json", "run_exit": 7, "rule": "V-18 (E-09)",
              "note": "extern body is parsed and ignored, never emitted"},
             {"file": "cases/ok-untargeted-label.json", "run_exit": 5, "rule": "E-07",
              "note": "label never targeted by a jump is accepted"},
             {"file": "cases/ok-call-arity-suffix.json", "run_exit": 9, "rule": "V-13 (E-05)",
              "note": "call consumes exactly operand2 pending args; zero consumes none"},
+            {"file": "cases/ok-call-void-dest.json", "run_exit": 6, "rule": "D-M1-18",
+             "note": "a void call may carry a void-typed destination (builder form)"},
             {"file": "cases/ok-model-ctor.json", "run_exit": 11, "rule": "D-M1-11",
              "note": "model constructor + field load round-trip inside main"},
             {"file": "cases/ok-union-ctor.json", "run_exit": 11, "rule": "D-M1-12",

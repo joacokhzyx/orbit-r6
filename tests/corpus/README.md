@@ -44,64 +44,69 @@ dos cosas:
    `unknown` del lenguaje).
 
 ## Medición 2026-10-16 (emisor `1e6a378`, corpus `10f6e7d9`)
-
 | Métrica | Valor |
 |---|---|
 | miembros / programas | 90 / 89 (+1 módulo de soporte) |
 | oráculo compila y corre | 89/89 |
-| R6 compila | **2/89** |
-| R6 coincide (exit + stdout) | **2/89** |
+| R6 compila | **3/89** |
+| R6 coincide (exit + stdout) | **3/89** |
 | documentos con `unknown` en `registerTypes` | **84/90** |
 
-Los dos únicos programas que R6 compila y reproduce son degenerados: su único
-registro no existe y su única instrucción es `ret` con un literal `Int`
-(`bom_utf8` exit 0, `nesting_legal` exit 9). Ningún otro opcode del corpus
-(40 de 41) aparece en un programa que R6 haya corrido completo.
+El pin se tomó con **2/89** (D-M1-17) y D-M1-18 lo lleva a **3/89**:
+`tests/suite/imports.orb` (exit 37, opcodes `call` + `ret`) pasa de rechazo a
+coincidencia completa, y es el primer programa no degenerado que R6 completa.
+Los otros dos siguen siendo degenerados: `bom_utf8` (exit 0) y `nesting_legal`
+(exit 9) tienen un único registro inexistente y una única instrucción `ret` con
+literal `Int`. 39 de los 41 opcodes del corpus no aparecen todavía en un
+programa que R6 haya corrido completo.
 
-Primer rechazo por opcode (dónde se detiene cada programa):
+Primer rechazo por opcode (dónde se detiene cada programa), tras D-M1-18:
 
 | Primer rechazo | Casos |
 |---|---|
-| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 63 |
-| `load_var` | 11 |
-| `call` | 6 |
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 65 |
+| `load_var` | 13 |
 | `decl_var` | 6 |
 | `load_const` | 1 |
+| `ret` | 1 |
 
-Mensajes dominantes (`error[CGEN]` en los 87): `register type unknown is
-unsupported in M1` 45, `load_var requires a supported local, declared global,
-or union tag constant` 11, `decl_var requires a declared local and a matching
+Mensajes dominantes (`error[CGEN]` en los 86): `register type unknown is
+unsupported in M1` 47, `load_var requires a supported local, declared global,
+or union tag constant` 13, `decl_var requires a declared local and a matching
 scalar, list, void*, model, or function value register` 6, `parameter type
 list<string> is unsupported in M1` 3, y una cola de 1-2 casos (globales
 `CHAR_SPACE`/`WALK_MAX_DEPTH`, `type kind enumeration`, `extern return type`,
-`call target system_pid`/`system_uptime`/`print`/`imported_value`, `function
-value 1.5`, campos de modelo con `list<...>`, `register type Shape`/`object`/
-`string_raw`, payloads de union). El detalle completo está en el informe de la
-corrida (`--json`) y en `docs/M1_REPORT.md`.
+`function value 1.5`, campos de modelo con `list<...>`, `register type
+Shape`/`object`/`string_raw`, payloads de union). Ya no queda ningún `call
+target ...` entre los primeros rechazos: el frente 2 cerró con D-M1-18. El
+detalle completo está en el informe de la corrida (`--json`) y en
+`docs/M1_REPORT.md`.
 
-## Las tres paredes, en orden de tamaño
+## Las paredes, en orden de tamaño
 
 El corpus, medido sobre los 90 documentos, usa los kinds `Int`, `String`,
 `Sym`, `Bool`, `Register`, `Label` y `None`: **`Float` no aparece nunca** (0
 ocurrencias). El emisor serializa el modelo del builder (D-F0-08 P1), y eso
-deja tres huecos que R6 no cubre hoy, de mayor a menor alcance:
+deja huecos que R6 no cubre hoy, de mayor a menor alcance:
 
 1. `unknown` en `registerTypes`: **84/90 documentos**. Las entradas se
    serializan antes de `inferRegisterTypes` (P1), así que todo programa con
    registros arrastra tipos `unknown` legítimos; R6 los rechaza con contrato
-   estricto (D-M1-09). Es el primer rechazo en 45 programas.
-2. `call` con O1 `String`: **2917 llamadas en 74/90 documentos** (el resto, 6,
-   son indirectas por `Register`; no hay ni una `Sym`). La spec §3.1 paso 2
-   dice "`call` reads O1: `String`/`Sym` → named call"; R6 solo resuelve `Sym`
-   como función y trata `String` como construcción de variante (D-M1-12), de
-   modo que rechaza llamadas a funciones declaradas en el mismo documento
-   (`print`, `system_pid`, `system_uptime`, `imported_value`).
+   estricto (D-M1-09). Es el primer rechazo en 47 programas.
+2. `call` con O1 `String`: **cerrado por D-M1-18** para los 2227 nombres que
+   resuelven a una función declarada (de 2917 llamadas `String` en 74/90
+   documentos; no hay ni un `Sym` como target y las otras 6 son indirectas por
+   `Register`). Quedan **409 llamadas a nombres que el documento no declara**
+   —el frente de builtins/alias de la spec §3.1 pasos 4-6: `orbit_string_at`
+   130, `print` 121, `orbit_string_len` 78, `orbit_string_slice` 38,
+   `orbit_object_*` 24, `orbit_db_*` 4, `orbit_string_find` 3, `system_*` 8—
+   que sigue fail-closed.
 3. literales de float/bool como `Sym`: **412 `load_const` con `Sym` en 36/90
    documentos** (`0.0`, `1.5`, `true`, `false`). La spec §2.1 ya registra que
    `Float` "no dedicated constructor observed" y que `Sym` se emite crudo en
    C (por eso `1.5` y `true` llegan como texto), pero R6 lee todo `Sym` de
    `load_const` como valor de función (D-M1-14).
 
-Las tres son decisiones de contrato (alcance del subconjunto nativo, no
-semántica inventada) y quedan registradas en D-M1-17 como abiertas: se
+Los huecos 1 y 3 son decisiones de contrato (alcance del subconjunto nativo,
+no semántica inventada) y siguen registradas como abiertas en D-M1-17: se
 resuelven con una entrada datada nueva, no relajando el gate sobre la marcha.

@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `110ce439…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 99 rechazos + 8 controles
+python tests/reject/run_reject.py            # 104 rechazos + 10 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,8 +17,9 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` — 99 rechazos + 7 controles locales; el octavo control es
-  `docs/proposed-ir/m1/01-int-call.json`.
+- `cases/` - 104 rechazos + 8 controles locales; los otros dos controles son
+  `docs/proposed-ir/m1/01-int-call.json` y
+  `docs/proposed-ir/m1/27-call-string-target.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
   `r6: <file>:<line>:<col>: error[CODE]: <msg>` y el `CODE` del manifiesto.
@@ -57,6 +58,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-14 | `x-fn-value-unknown`, `x-fn-value-main`, `x-fn-value-void-signature`, `x-fn-value-dest-type`, `x-fn-callee-not-fn`, `x-fn-arity-signature`, `x-fn-arg-type`, `x-fn-dest-mismatch`, `x-fn-store-symbol`, `x-fn-return-boundary`, `x-fn-type-spelling`, `x-fn-type-nonscalar`; aceptación: `ok-fn-value`, `ok-fn-extern` |
 | D-M1-15 | `x-global-register` |
 | D-M1-16 | `x-list-create-kind-opaque`, `x-list-get-kind-ref`, `x-print-two-args` |
+| D-M1-18 | `x-call-string-target-arity`, `x-call-string-target-arg-type`, `x-call-string-target-dest`, `x-call-string-target-main`, `x-call-void-dest-type`; aceptación: `ok-call-void-dest` |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
 `list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan cerrados
@@ -66,5 +68,5 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-16: **107/107** (99 rechazos + 8 controles); gate diferencial
-26/26 en el mismo árbol.
+Estado 2026-10-16: **114/114** (104 rechazos + 10 controles); gate diferencial
+27/27 en el mismo árbol.
