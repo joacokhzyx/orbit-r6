@@ -722,3 +722,71 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   **26/26** and the loader suite **107/107**.
 - Status: **accepted** (P5 authorization, 2026-10-16); the three gaps stay
   open, to be decided separately.
+
+## D-M1-18 — The builder's direct-call form: a `String` target is a named call
+
+- Date: 2026-10-16.
+- Decision: `call` resolves `operand1` exactly as spec §3.1 step 2 states
+  ("`call` reads O1: `String`/`Sym` -> named call"). A `String` target is now
+  resolved in the order declared function -> declared model constructor
+  (D-M1-11) -> declared union variant (D-M1-12); a `Sym` target keeps the
+  named-call reading only. That closes gap 2 of D-M1-17 with the user's
+  explicit ruling (P2 answer, D-F0-08): the builder's form is normative, so the
+  `String` reading is the primary one and variant construction becomes the
+  fallback instead of the only reading.
+- Why the order is unambiguous: the census of the pinned corpus (D-M1-17,
+  `1e6a378`, `filesSha256 10f6e7d9…`) finds **2917 `call` with O1 `String`
+  across 74/90 documents and not one `Sym`** (the remaining 6 calls are
+  indirect through `Register`). Resolving those 2917 names inside their own
+  documents gives **2227 declared functions**, 177 declared models, 104
+  declared union variants and **409 names with no declaration at all**
+  (runtime symbols: `orbit_string_at` 130, `print` 121, `orbit_string_len` 78,
+  `orbit_string_slice` 38, `orbit_object_*` 24, `orbit_db_*` 4,
+  `orbit_string_find` 3, `system_*` 8) with **zero name hitting more than one
+  of the three namespaces**. The 409 unresolved names are the builtin/alias
+  workstream (spec §3.1 steps 4-6) and stay fail closed until their own
+  decision; the module gate already forbids a model/function name collision
+  (E_DUPLICATE, case `x-model-function-collision`).
+- Also decided here, same rule and same source: spec §3.1 step 7 says a
+  destination is not *needed* for a void callee, not that it is forbidden. The
+  pinned builder always allocates one and types it `void` (**205 void calls
+  across 14 documents carry a `void`-typed destination; none omits it**), so a
+  void call may now carry a destination whose declared register type is
+  `void`; any other destination type on a void call stays `CGEN`, and the
+  emitter does not write the unspecified return word into a `void` slot. The
+  `dest:-1` form of step 7 stays admitted (equality, not precedence).
+- Admitted: `String` target naming a declared function — the whole named-call
+  body the `Symbol` path always used (exact arity against the declaration,
+  per-argument type equality, destination equal to the return type, `main`
+  refused as an entry point), now shared by both value kinds; `String` naming
+  a model or a union variant exactly as D-M1-11/D-M1-12 defined; the
+  `void`-typed destination for a void callee.
+- Rejected fail closed: a `String` naming nothing keeps the pre-existing
+  `call target %s is not a declared function, model, or union variant`
+  (pinned by `x-ctor-unknown-model`); arity different from the declaration,
+  argument type mismatch, destination mismatch and a non-`void` destination on
+  a void call are new `CGEN` pins; a `Symbol` naming no function keeps
+  `call target %s is not declared in the module`. Invalid symbol text is
+  never looked up as a function.
+- Consequence: fixture `27-call-string-target` (`String` targets, inline `arg`
+  literal and a `void`-typed destination, exit 42, stdout `string-target`),
+  five rejection pins (`x-call-string-target-{arity,arg-type,dest,main}` and
+  `x-call-void-dest-type`, all `CGEN`) plus the controls `ok-call-void-dest`
+  and fixture 27, which is also registered as an acceptance case with
+  `run_exit`/`run_stdout`. Differential gate **26/26 -> 27/27**; loader suite
+  **107/107 -> 114/114** (104 rejections + 10 acceptance controls);
+  `make_cases.py --check` without drift.
+- Fixture fidelity: the call shapes in `27` mirror the builder (String targets,
+  a `void`-typed destination, a constant folded into `arg`) while the callee
+  body stays inside the measured subset — the builder's own body for `v + v`
+  carries an `unknown` destination, which is gap 1 of D-M1-17 and is still
+  rejected.
+- Evidence: corpus census recomputed from the pinned corpus; oracle and R6
+  build and run fixture 27 and `ok-call-void-dest` with identical
+  exit/stdout; the five rejections run red on the committed driver with
+  exactly one `error[CGEN]` line each; the corpus measurement after the change
+  is **3/89** (2/89 before) with `tests/suite/imports.orb` moving from
+  first-refusal-at-`call` to a full match and the ratchet re-taken at
+  `r6BuildOk 3` / `match 3`; recorded in `tests/corpus/baseline.json` and
+  `docs/M1_REPORT.md`.
+- Status: **accepted**.

@@ -76,7 +76,10 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   256 parámetros escalares: Win64 ubica posiciones 0–3 en registros y las
   restantes en slots de 8 bytes a partir de `[rsp+32]`; el callee los recibe
   desde `[rbp+48]`. Se reserva el área saliente por función y se conserva la
-  alineación de 16 bytes. Solo se admite llamada directa a símbolo del módulo.
+  alineación de 16 bytes. Se admiten llamadas directas por nombre —target
+  `String` o `Sym`, resuelto a función declarada, constructor de modelo o
+  variante de unión (D-M1-18)— y llamadas indirectas por un registro `fn(...)`
+  (D-M1-14); un callee void puede llevar destino declarado `void`.
 - ABI externa: C ABI del target. Win64: los primeros cuatro argumentos usan
   slots posicionales RCX/RDX/R8/R9 o XMM0-XMM3 según su tipo; caller reserva
   32 bytes de shadow space y mantiene alineación de stack; retorno entero en

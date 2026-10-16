@@ -289,3 +289,37 @@ Mensajes completos de la corrida:
 - Gate diferencial **26/26** y suite del loader **107/107** sin cambios en el
   mismo árbol; `tests/corpus/README.md` documenta la medición, el pin y el
   trinquete.
+
+## Actualización de M1 - target de `call` String y destino `void` (2026-10-16)
+
+- Decisión: D-M1-18. El target de `call` se resuelve como dice la spec §3.1
+  paso 2: `String`/`Sym` es llamada nombrada, en el orden función declarada →
+  constructor de modelo (D-M1-11) → variante de unión (D-M1-12). Es el
+  formulario del builder: el corpus emitido tiene 2917 `call` con O1 `String`
+  en 74/90 documentos y **ninguna** con `Sym` (las otras 6 son indirectas por
+  `Register`). De esos 2917 nombres, 2227 resuelven a una función declarada,
+  177 a un modelo, 104 a una variante y 409 no están declarados en su
+  documento (builtins/alias de la spec §3.1 pasos 4-6: `orbit_string_at` 130,
+  `print` 121, `orbit_string_len` 78, `orbit_string_slice` 38,
+  `orbit_object_*` 24, `orbit_db_*` 4, `orbit_string_find` 3, `system_*` 8),
+  que siguen fail-closed. Sin solapes: ningún nombre cae en dos de los tres
+  espacios de nombres.
+- Misma entrada: un callee void puede llevar destino declarado `void` (paso 7:
+  el destino no es necesario, no está prohibido). El builder siempre lo asigna
+  y lo tipa `void` (205 llamadas void en 14 documentos, ninguna sin destino);
+  un destino no `void` en una llamada void sigue siendo `CGEN`, y el emisor no
+  escribe el retorno en un slot `void`.
+- Artefactos: fixture `27-call-string-target` (exit 42, stdout
+  `string-target`), cinco pines de rechazo (`x-call-string-target-arity`,
+  `x-call-string-target-arg-type`, `x-call-string-target-dest`,
+  `x-call-string-target-main` y `x-call-void-dest-type`, todos `CGEN`) y los
+  controles `ok-call-void-dest` y el propio fixture 27.
+- Gates: diferencial **27/27**; suite del loader **114/114** (104 rechazos + 10
+  controles); `make_cases.py --check` sin drift.
+- Medición del corpus (no puerta): **3/89** (antes 2/89);
+  `tests/suite/imports.orb` (exit 37, opcodes `call` + `ret`) pasa a
+  coincidencia y es el primer programa no degenerado que R6 completa. `call`
+  deja de ser el primer rechazo de cualquier programa: el reparto queda en
+  módulo 65, `load_var` 13, `decl_var` 6, `load_const` 1 y `ret` 1, con
+  `unknown` en `registerTypes` todavía en 84/90 (47 primeros rechazos).
+  Trinquete re-tomado tras `--check`: `r6BuildOk 3`, `match 3`.

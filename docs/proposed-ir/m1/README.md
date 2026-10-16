@@ -38,14 +38,16 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `24-model-fields` | constructor de modelo y `load_field`/`store_field` int/float/bool/string (refs `Vec.*`) | 42 | `seed\nmut\nf-ok\n` |
 | `25-union-tag-data` | ctor de unión unit/single/multi (pack), `union_get_tag`/`union_get_data` y cuatro matches exhaustivos | 85 | `u-ok\n` |
 | `26-fn-values` | valores de función sin captura, llamada indirecta, rebinding `var` y binding externo | 42 | `fn-ok\n` |
+| `27-call-string-target` | target de llamada `String` (el formulario del builder) con destino `void` y con destino `int` | 42 | `string-target\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–26 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–27 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
-medido al 2026-10-15: los veintiséis pares, ya en el formato de la spec,
-pasan diferencial en Windows x86-64 con exit/stdout idénticos a la línea base
-previa a la migración (ver `../../DECISIONS.md`
-D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14 y
+medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
+diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
+la línea base previa a la migración, y el par 27 desde D-M1-18 (2026-10-16)
+(ver `../../DECISIONS.md`
+D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18 y
 `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
@@ -133,3 +135,19 @@ quedan cerrados como rechazos con evidencia en D-M1-16 (casos
 accesor untyped/ref dentro del modelo de registros y sin productor del print
 multicarácter (la sema del pin lo rechaza con E1003; el lowering es solo el
 comentario `/* print */`, U-17).
+
+La resolución del target de `call` sigue la spec §3.1 paso 2 dentro del
+subconjunto medido (D-M1-18): `operand1` `String`/`Sym` es una llamada
+nombrada, resuelta en el orden función declarada → constructor de modelo
+(D-M1-11) → variante de unión (D-M1-12), que es el formulario que emite el
+builder (`String` para toda llamada directa; el corpus emitido no contiene un
+solo `Sym` como target). Un `Sym` solo puede ser llamada a función. Además, un
+callee void puede llevar destino declarado `void` (paso 7: el destino no es
+necesario, no está prohibido; el builder siempre lo asigna y lo tipa `void`).
+Queda fuera y falla cerrado (CGEN): un `String` que no nombra función, modelo
+ni variante, aridad distinta de la declaración, tipo de argumento o destino
+incompatible, destino no `void` en llamada void, y `main` como target. Los
+nombres runtime/builtin sin declaración (`orbit_string_*`, `orbit_object_*`,
+`orbit_db_*`, `print`, `system_*`) son el frente de builtins/alias (§3.1 pasos
+4–6) y siguen rechazados. El borde está pineado en `tests/reject/` (casos
+`x-call-*` regla D-M1-18 y el control `ok-call-void-dest`).
