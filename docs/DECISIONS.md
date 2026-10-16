@@ -652,3 +652,73 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Evidence: answers registered 2026-10-16 in `IR_SPEC_ALIGNMENT.md` §6; branch
   `r6-emit-ir` from `5c01cea` in the separate clone (user checkout untouched).
 - Status: **accepted by user 2026-10-16**.
+
+## D-M1-17 - The language-emitted corpus is pinned as a measurement (2/89)
+
+- Date: 2026-10-16.
+- Decision: phase D pins the language-emitted corpus under `tests/corpus/`
+  (`manifest.json` with a per-file sha256 plus one `filesSha256`, the runner
+  `run_corpus.py`, and `baseline.json`), and treats the corpus differential as
+  a **measurement, not a gate**: only corpus drift from the pin, and a
+  `--check` regression below the baseline (`r6BuildOk`/`match`), can fail it.
+  Failing corpus programs are the number being measured, never a failure.
+- Pin: 90 members (89 programs + `imports.support.orb`), 5334302 bytes,
+  `filesSha256 10f6e7d97977aaeec3018b9f8694e78dc7fee3ae614fa16cf4db27cc10b7f89b`,
+  emitted by the pinned fixed-point `orbit 0.1.0-rc.2`
+  (`1e6a378a6a67a6bfdd36df127584f49c54405538`, binary sha256
+  `805cf61894ca83aec0afa1fe5a80a652a0cdc3e3e88a2e6be6a6abdf6e2e07dc`) through
+  the language's `scripts/emit_ir_corpus.py`; regenerating and comparing the
+  hashes is the contract, the `.ir` files are never committed.
+- Measurement 2026-10-16: the oracle builds and runs 89/89; R6 builds **2/89**
+  and matches **2/89** (identical exit + stdout bytes); 87 refusals, all
+  `error[CGEN]`, none `E_*` (the loader admits the whole corpus). The two
+  matching programs are degenerate - one `ret` with an `Int` literal and no
+  registers (`bom_utf8` exit 0, `nesting_legal` exit 9) - and 40 of the 41
+  opcodes present in the corpus never appear in a program R6 completed.
+- First refusal per program (by opcode where the diagnostic carries a
+  position, by module scope otherwise): module-level 63, `load_var` 11, `call`
+  6, `decl_var` 6, `load_const` 1. Dominant message: `register type unknown is
+  unsupported in M1` (45).
+- The corpus uses the kinds `Int`/`String`/`Sym`/`Bool`/`Register`/`Label`/
+  `None` and **never** `Float` (0 occurrences), which exposes three gaps,
+  recorded here as **open contract questions** - not decided, and not relaxed
+  on the fly:
+  1. `unknown` in `registerTypes` in **84/90** documents, a direct consequence
+     of serializing before `inferRegisterTypes` (P1 in D-F0-08); R6's strict
+     register-type contract (D-M1-09) is the first refusal in 45 programs.
+     Relaxing it means admitting value registers whose type is unknown at
+     emission time, so it needs its own dated decision plus a definition of
+     what may then be lowered.
+  2. `call` with O1 `String` in **2917 calls across 74/90** documents (the
+     remaining 6 are indirect through `Register`; there is not one `Sym`).
+     Spec §3.1 step 2 is normative for the audited call rules (D-F0-08 P4):
+     "`call` reads O1: `String`/`Sym` -> named call". R6 resolves `Sym` only
+     and routes `String` to variant construction (D-M1-12), so it refuses
+     calls to functions the same document declares (`print`, `system_pid`,
+     `system_uptime`, `imported_value`). The spec-ordered fix is to resolve
+     `String` as a named call first and keep variant construction as the
+     fallback; that changes a measured lowering, so it needs its own entry.
+  3. float/bool literals as `Sym`: **412 `load_const` with `Sym` across 36/90**
+     documents (`0.0`, `1.5`, `true`, `false`). Spec §2.1 already records
+     `Float` as "no dedicated constructor observed" and renders `Sym` raw in C,
+     so literal text legitimately arrives as `Sym`; R6 reads every `Sym` in
+     `load_const` as a function value (D-M1-14). Disambiguating by text
+     grammar (numeric/bool literal vs identifier) is a new loader/codegen rule
+     and needs its own dated decision.
+- Alternatives: not measuring the corpus (rejected: the pin exists to be
+  measured); a hard gate on `match` (rejected: the subset gap is precisely the
+  measurement, and a red gate would hide the number); committing the emitted
+  `.ir` files (rejected: emitted artifact, reproducible from the pin);
+  relaxing the three gaps now (rejected: each widens the native subset and
+  needs its own contract decision).
+- Consequence: D3 closes with the corpus pinned and measured; the three gaps
+  are the priority-ordered backlog for extending the native subset, and the
+  re-pin (D4) is the next phase. `unknown` stays rejected until the user rules
+  on it.
+- Evidence: full run `--check --write-baseline` exits 0 with `ratchet holds:
+  r6BuildOk 2 -> 2, match 2 -> 2`; per-case detail kept by `--json`; drift and
+  tamper detection exercised (exit 1); the generator's `--self-test` 20/20 and
+  `dev.py all` 19/19 in the language clone; in R6 the differential gate stays
+  **26/26** and the loader suite **107/107**.
+- Status: **accepted** (P5 authorization, 2026-10-16); the three gaps stay
+  open, to be decided separately.

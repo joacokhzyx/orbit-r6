@@ -61,6 +61,29 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
 - The runner executes the driver with the repo root as CWD (the runtime
   archive path is resolved relative to the CWD).
 
+Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
+D-M1-17) — a **measurement, not a gate**. Measured 2/89 on 2026-10-16:
+
+```powershell
+python tests/corpus/run_corpus.py `
+  --compiler C:\Temp\orbit-fp-67e4ecfa75.exe `
+  --cc C:\w64devkit\bin\gcc.exe `
+  --orbit-root C:\Users\Usuario\Downloads\orbit-lang-emit-ir `
+  --check `
+  --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
+```
+
+- Regenerates the 89+1 corpus with the pinned compiler (`--orbit-root` is the
+  tree carrying the language's `scripts/emit_ir_corpus.py`; `--ir-dir` measures
+  an already-emitted one), verifies every `sha256` against
+  `tests/corpus/manifest.json`, then builds both sides per program and requires
+  identical exit + stdout bytes.
+- Only two things go red: corpus drift from the pin, and `--check` when
+  `r6BuildOk`/`match` drop below `tests/corpus/baseline.json` (one-way
+  ratchet). Failing corpus programs are the measurement, never a failure.
+- `--json report.json` keeps the per-case detail; `--write-baseline` re-takes
+  the baseline after the check passes.
+
 Probe binaries (historical COFF/assembler probes, not part of the gate):
 
 ```powershell

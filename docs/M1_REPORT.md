@@ -215,3 +215,77 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
   `x-list-create-kind-opaque`, `x-print-two-args` (los tres `CGEN`).
 - Segunda puerta: **107/107** (99 rechazos + 8 controles); gate diferencial
   **26/26** en el mismo árbol.
+
+## Actualización de M1 - corpus IR emitido por el lenguaje (2026-10-16)
+
+- Fase D: el lenguaje ya emite su corpus (rama `r6-emit-ir` en el clon
+  aparte, desde `5c01cea`; el checkout del usuario queda intacto). Son 89+1
+  documentos IRv1 -67 programas de `tests/suite` + `imports.support.orb`, y 22
+  de `tests/std`- de 5334302 bytes, pineados por
+  `filesSha256 10f6e7d97977aaeec3018b9f8694e78dc7fee3ae614fa16cf4db27cc10b7f89b`
+  en `tests/corpus/manifest.json`; el emisor es el canónico
+  `1e6a378a6a67…` (`805cf61894ca…`).
+- El diferencial del corpus (D-M1-17) es una **medición, no una puerta**. La
+  corrida completa del 2026-10-16 (`--check --write-baseline`) sale con exit 0
+  e imprime `ratchet holds: r6BuildOk 2 -> 2, match 2 -> 2`:
+
+| Métrica | Valor |
+|---|---|
+| miembros / programas | 90 / 89 (+1 módulo de soporte) |
+| oráculo compila y corre | 89/89 |
+| R6 compila | 2/89 |
+| R6 coincide (exit + stdout) | 2/89 |
+| documentos con `unknown` en `registerTypes` | 84/90 |
+
+- Los dos programas que coinciden son degenerados -un solo `ret` con literal
+  `Int` y ningún registro-: `bom_utf8` (exit 0) y `nesting_legal` (exit 9). 40
+  de los 41 opcodes presentes en el corpus no aparecen en ningún programa que
+  R6 haya corrido completo.
+- Rechazos: 87, todos `error[CGEN]` y ninguno `E_*` (el loader acepta el
+  corpus entero). Primer rechazo por opcode (por posición del diagnóstico, o
+  nivel de módulo cuando no la tiene): módulo 63, `load_var` 11, `call` 6,
+  `decl_var` 6, `load_const` 1.
+
+Mensajes completos de la corrida:
+
+| Casos | Mensaje |
+|---|---|
+| 45 | register type unknown is unsupported in M1 |
+| 11 | load_var requires a supported local, declared global, or union tag constant |
+| 6 | decl_var requires a declared local and a matching scalar, list, void*, model, or function value register |
+| 3 | parameter type list<string> is unsupported in M1 |
+| 2 | global CHAR_SPACE is outside M1 literal int/bool support |
+| 2 | global WALK_MAX_DEPTH is outside M1 literal int/bool support |
+| 2 | M1 codegen does not support type kind enumeration |
+| 2 | extern return type is unsupported in M1 |
+| 2 | call target system_pid is not a declared function, model, or union variant |
+| 2 | call target system_uptime is not a declared function, model, or union variant |
+| 1 | call target imported_value is not a declared function, model, or union variant |
+| 1 | call target print is not a declared function, model, or union variant |
+| 1 | function value 1.5 is not declared in the module |
+| 1 | model Bag_int field items has unsupported type list<int> |
+| 1 | model Nested_float field grid has unsupported type list<list<float>> |
+| 1 | model Post field tags has unsupported type list<string> |
+| 1 | register type Shape is unsupported in M1 |
+| 1 | register type object is unsupported in M1 |
+| 1 | register type string_raw is unsupported in M1 |
+| 1 | union Wrapped variant At payloads are outside the M1 native subset |
+
+- Tres huecos, en orden de tamaño, registrados como preguntas abiertas en
+  D-M1-17 (cita de la spec incluida):
+  1. `unknown` en `registerTypes` (84/90): consecuencia de serializar antes de
+     `inferRegisterTypes` (D-F0-08 P1); R6 lo rechaza por contrato (D-M1-09) y
+     es el primer rechazo en 45 programas.
+  2. `call` con O1 `String` (2917 llamadas en 74/90; las otras 6 son indirectas
+     por `Register`, ninguna por `Sym`): la spec §3.1 paso 2 dice
+     "`call` reads O1: `String`/`Sym` → named call"; R6 solo resuelve `Sym` y
+     manda `String` al camino de variante (D-M1-12), así que rechaza llamadas a
+     funciones declaradas en el mismo documento (`print`, `system_pid`,
+     `system_uptime`, `imported_value`).
+  3. Float/bool como `Sym` (412 `load_const` en 36/90): la spec §2.1 registra
+     `Float` como "no dedicated constructor observed" y `Sym` crudo en C, pero
+     R6 lee todo `Sym` de `load_const` como valor de función (D-M1-14). El
+     corpus **no usa nunca `Float`** (0 ocurrencias).
+- Gate diferencial **26/26** y suite del loader **107/107** sin cambios en el
+  mismo árbol; `tests/corpus/README.md` documenta la medición, el pin y el
+  trinquete.
