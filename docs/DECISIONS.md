@@ -478,3 +478,36 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   rejections + 6 acceptance controls); table updated in
   `docs/proposed-ir/m1/README.md`.
 - Status: **accepted**.
+
+## D-M1-13 — `alloc`/`free` stay outside the native subset
+
+- Date: 2026-10-15.
+- Decision: the loader keeps rejecting `alloc` and `free` with
+  `E_UNSUPPORTED`. Both exist only in the opcode enum and the C lowerings —
+  no producer anywhere in `compiler/*.orb` at the pin (spec §1.1) — so no
+  corpus program (§5) can carry them and no `.orb` can back a differential
+  fixture that executes them with observable effect. The family is closed
+  with evidence instead of lowered, mirroring the producer-less opcodes
+  already refused (`switch_op`/`type_info`/`union_create`, D-M1-12).
+- `free` (§1.2 row 107): the observed lowering is the comment
+  `/* free - arena managed */` and never frees (`c_backend.orb:3287-3290`);
+  the spec's audit note keeps its semantics `UNSPECIFIED` (U-09) and states
+  the no-op is NOT semantics, so admitting it would invent behavior.
+  `cteval.orb:49,86` only classifies it (impure / side-effecting); nothing
+  emits it.
+- `alloc` (§1.2 row 106): the observed lowering is
+  `D ← orbit_arena_alloc(arena, O1)`, with `sizeof(void*)` when O1 is absent
+  (`c_backend.orb:3274-3286`), but the destination is a raw pointer with no
+  consumer inside the measured subset: no admitted opcode reads through it
+  (union cells and packs only come from the admitted constructors), `void*`
+  values cannot cross a function boundary (D-M1-11/D-M1-12 fail closed on
+  returns, parameters and `arg`), and no oracle program can pin the
+  default-size branch of a producer-less opcode. A fixture could only drive
+  it as an inert side effect, adding surface the corpus can never hit.
+- Consequence: no fixture is added; `tests/reject/` pins one rejection per
+  opcode (cases `x-alloc-opcode` and `x-free-opcode`, both `E_UNSUPPORTED`)
+  and the closure is recorded in `docs/proposed-ir/m1/README.md`.
+- Evidence: loader suite **88/88** (82 rejections + 6 acceptance controls);
+  differential gate unchanged at **25/25**; lines cited from the pinned
+  checkout at `5c01cea`.
+- Status: **accepted**.

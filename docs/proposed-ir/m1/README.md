@@ -85,3 +85,12 @@ constructor, valores `void*` en fronteras de función, y colisiones o
 longitudes de `variants`/`richVariants` inconsistentes. El borde está pineado
 en `tests/reject/` (casos `x-union-*` regla D-M1-12 y el control
 `ok-union-ctor`).
+
+La familia `alloc`/`free` queda cerrada con evidencia y sin fixture propio
+(D-M1-13): ninguno tiene productor en el builder (spec §1.1), la spec deja
+`free` como `UNSPECIFIED` (U-09: el no-op observado no es semántica, el
+lowering es solo el comentario `/* free - arena managed */`) y el resultado de
+`alloc` (`D ← orbit_arena_alloc(arena, O1)`; `sizeof(void*)` sin operando) es
+un puntero crudo sin consumidor en el subconjunto admitido. Ambos quedan
+pineados como rechazos `E_UNSUPPORTED` en `tests/reject/` (casos
+`x-alloc-opcode` y `x-free-opcode`, regla D-M1-13).
