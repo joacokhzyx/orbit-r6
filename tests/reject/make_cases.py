@@ -511,6 +511,89 @@ def build_reject():
         "D-M1-13", "E_UNSUPPORTED",
         "free: no producer; the lowering is a comment only, not semantics (U-09)")
 
+    # ---- D-M1-14: function values and indirect calls -------------------------
+    def inc_fn():
+        return FN("inc", [I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+                          I("add", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+                  ["int", "int", "int"], params=["x"], ptypes=["int"])
+
+    add("x-fn-value-unknown",
+        jd(DOC([MAIN([I("decl_var", -1, Sym("f"), Sym("nosuch"))] + base_instrs())])),
+        "D-M1-14", "CGEN", "symbol initializer must name a module function")
+    add("x-fn-value-main",
+        jd(DOC([MAIN([I("decl_var", -1, Sym("f"), Sym("main"))] + base_instrs())])),
+        "D-M1-14", "CGEN", "main is an entry point, never a function value (n77)")
+    add("x-fn-value-void-signature",
+        jd(DOC([MAIN([I("decl_var", -1, Sym("g"), Sym("sink"))] + base_instrs()),
+                FN("sink", [], [], rtype="void", extern=True)])),
+        "D-M1-14", "CGEN", "only the scalar signature spellings are admitted")
+    add("x-fn-value-dest-type",
+        jd(DOC([inc_fn(), MAIN([I("load_const", 0, Sym("inc")),
+                                I("ret", -1, Reg(0))])])),
+        "D-M1-14", "CGEN", "the spelling must equal the destination register type")
+    add("x-fn-callee-not-fn",
+        jd(DOC([MAIN([I("load_const", 0, Int(5)),
+                      I("call", 1, Reg(0), Int(0)),
+                      I("ret", -1, Reg(1))], Types(3))])),
+        "D-M1-14", "CGEN", "an indirect callee register must carry a fn(...) spelling")
+    add("x-fn-arity-pending",
+        jd(DOC([inc_fn(), MAIN([I("decl_var", -1, Sym("f"), Sym("inc")),
+                                I("call", 1, Reg(0), Int(2)),
+                                I("load_var", 0, Sym("f")),
+                                I("load_const", 2, Int(0)),
+                                I("ret", -1, Reg(2))],
+                               ["fn(int)->int", "int", "int"])])),
+        "V-13", "E_SCHEMA", "call consumes at most the pending argument count")
+    add("x-fn-arity-signature",
+        jd(DOC([inc_fn(), MAIN([I("decl_var", -1, Sym("f"), Sym("inc")),
+                                I("arg", -1, Int(2)), I("arg", -1, Int(3)),
+                                I("load_var", 0, Sym("f")),
+                                I("call", 1, Reg(0), Int(2)),
+                                I("load_const", 2, Int(0)),
+                                I("ret", -1, Reg(2))],
+                               ["fn(int)->int", "int", "int"])])),
+        "D-M1-14", "CGEN", "arity must equal the spelling's parameter count")
+    add("x-fn-arg-type",
+        jd(DOC([inc_fn(), MAIN([I("decl_var", -1, Sym("f"), Sym("inc")),
+                                I("arg", -1, Flt(1.5)),
+                                I("load_var", 0, Sym("f")),
+                                I("call", 1, Reg(0), Int(1)),
+                                I("load_const", 2, Int(0)),
+                                I("ret", -1, Reg(2))],
+                               ["fn(int)->int", "int", "int"])])),
+        "D-M1-14", "CGEN", "each pending argument must match its parameter token")
+    add("x-fn-dest-mismatch",
+        jd(DOC([inc_fn(), MAIN([I("decl_var", -1, Sym("f"), Sym("inc")),
+                                I("arg", -1, Int(41)),
+                                I("load_var", 0, Sym("f")),
+                                I("call", 1, Reg(0), Int(1)),
+                                I("load_const", 2, Int(0)),
+                                I("ret", -1, Reg(2))],
+                               ["fn(int)->int", "bool", "int"])])),
+        "D-M1-14", "CGEN", "the destination must match the spelling's return token")
+    add("x-fn-store-symbol",
+        jd(DOC([MAIN([I("store_var", -1, Sym("h"), Sym("inc"))] + base_instrs())])),
+        "D-M1-14", "CGEN",
+        "only decl_var takes a Symbol initializer; a rebinding loads a register first")
+    add("x-fn-return-boundary",
+        jd(DOC([MAIN(), FN("badret", [I("ret")], [], rtype="fn(int)->int")])),
+        "D-M1-14", "CGEN", "functions never return function values in M1")
+    add("x-fn-type-spelling",
+        jd(DOC([MAIN([I("load_const", 0, Int(0)), I("ret", -1, Reg(0))],
+                     ["fn(int->int"])])),
+        "D-M1-14", "CGEN", "register fn(...) types must be well-formed spellings")
+    add("x-fn-type-nonscalar",
+        jd(DOC([MAIN([I("load_const", 0, Int(0)), I("ret", -1, Reg(0))],
+                     ["fn(list)->int"])])),
+        "D-M1-14", "CGEN", "only scalar parameter and return tokens are admitted")
+
+    # ---- D-M1-15: globals hold literals, never register words ----------------
+    mod = MOD([MAIN()])
+    mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
+    add("x-global-register", jd({"irVersion": "1", "module": mod}),
+        "D-M1-15", "CGEN",
+        "a global with an ir_register value has no producer; literals only")
+
     return cases
 
 
@@ -552,6 +635,26 @@ def build_accept_files():
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
                      "richVariants": ["int"], "methods": []}]
     files.append(("ok-union-ctor", jd({"irVersion": "1", "module": mod})))
+    inc = FN("inc", [I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+                     I("add", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+             ["int", "int", "int"], params=["x"], ptypes=["int"])
+    main = MAIN([I("decl_var", -1, Sym("f"), Sym("inc")),
+                 I("arg", -1, Int(41)),
+                 I("load_var", 0, Sym("f")),
+                 I("call", 1, Reg(0), Int(1)),
+                 I("ret", -1, Reg(1))],
+                ["fn(int)->int", "int"])
+    files.append(("ok-fn-value", jd(DOC([inc, main]))))
+    ext = FN("orbit_string_at", [], [], rtype="int", extern=True,
+             params=["s", "i"], ptypes=["string", "int"])
+    main = MAIN([I("decl_var", -1, Sym("at"), Sym("orbit_string_at")),
+                 I("arg", -1, Str("abc")),
+                 I("arg", -1, Int(1)),
+                 I("load_var", 0, Sym("at")),
+                 I("call", 1, Reg(0), Int(2)),
+                 I("ret", -1, Reg(1))],
+                ["fn(string;int)->int", "int"])
+    files.append(("ok-fn-extern", jd(DOC([ext, main]))))
     return files
 
 
@@ -574,6 +677,10 @@ def build_manifest(reject, accept_files):
              "note": "model constructor + field load round-trip inside main"},
             {"file": "cases/ok-union-ctor.json", "run_exit": 11, "rule": "D-M1-12",
              "note": "union constructor + tag + data round-trip inside main"},
+            {"file": "cases/ok-fn-value.json", "run_exit": 42, "rule": "D-M1-14",
+             "note": "function value binding + indirect call round-trip (f(41) == 42)"},
+            {"file": "cases/ok-fn-extern.json", "run_exit": 98, "rule": "D-M1-14",
+             "note": "extern function value binding (orbit_string_at(\"abc\", 1) == 98)"},
         ],
     }
 

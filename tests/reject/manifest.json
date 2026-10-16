@@ -573,6 +573,104 @@
       "code": "E_UNSUPPORTED",
       "rule": "D-M1-13",
       "note": "free: no producer; the lowering is a comment only, not semantics (U-09)"
+    },
+    {
+      "file": "cases/x-fn-value-unknown.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "symbol initializer must name a module function"
+    },
+    {
+      "file": "cases/x-fn-value-main.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "main is an entry point, never a function value (n77)"
+    },
+    {
+      "file": "cases/x-fn-value-void-signature.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "only the scalar signature spellings are admitted"
+    },
+    {
+      "file": "cases/x-fn-value-dest-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "the spelling must equal the destination register type"
+    },
+    {
+      "file": "cases/x-fn-callee-not-fn.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "an indirect callee register must carry a fn(...) spelling"
+    },
+    {
+      "file": "cases/x-fn-arity-pending.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-13",
+      "note": "call consumes at most the pending argument count"
+    },
+    {
+      "file": "cases/x-fn-arity-signature.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "arity must equal the spelling's parameter count"
+    },
+    {
+      "file": "cases/x-fn-arg-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "each pending argument must match its parameter token"
+    },
+    {
+      "file": "cases/x-fn-dest-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "the destination must match the spelling's return token"
+    },
+    {
+      "file": "cases/x-fn-store-symbol.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "only decl_var takes a Symbol initializer; a rebinding loads a register first"
+    },
+    {
+      "file": "cases/x-fn-return-boundary.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "functions never return function values in M1"
+    },
+    {
+      "file": "cases/x-fn-type-spelling.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "register fn(...) types must be well-formed spellings"
+    },
+    {
+      "file": "cases/x-fn-type-nonscalar.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-14",
+      "note": "only scalar parameter and return tokens are admitted"
+    },
+    {
+      "file": "cases/x-global-register.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-15",
+      "note": "a global with an ir_register value has no producer; literals only"
     }
   ],
   "accept": [
@@ -612,6 +710,18 @@
       "run_exit": 11,
       "rule": "D-M1-12",
       "note": "union constructor + tag + data round-trip inside main"
+    },
+    {
+      "file": "cases/ok-fn-value.json",
+      "run_exit": 42,
+      "rule": "D-M1-14",
+      "note": "function value binding + indirect call round-trip (f(41) == 42)"
+    },
+    {
+      "file": "cases/ok-fn-extern.json",
+      "run_exit": 98,
+      "rule": "D-M1-14",
+      "note": "extern function value binding (orbit_string_at(\"abc\", 1) == 98)"
     }
   ]
 }

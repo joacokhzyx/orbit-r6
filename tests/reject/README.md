@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `110ce439…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 82 rechazos + 6 controles
+python tests/reject/run_reject.py            # 96 rechazos + 8 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,7 +17,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` — 82 rechazos + 5 controles locales; el sexto control es
+- `cases/` — 96 rechazos + 7 controles locales; el octavo control es
   `docs/proposed-ir/m1/01-int-call.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
@@ -40,7 +40,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | V-10 (E-01) | `v10-dest-minus-one-load-const`, `v10-call-nonvoid-no-dest` |
 | V-11 | `v11-dest-out-of-range`, `v11-register-out-of-range`, `v11-registertypes-length` |
 | V-12 | `v12-paramtypes-length`, `v12-arg-index-out-of-range` |
-| V-13 (E-05) | `v13-arity-exceeds-pending`, `v13-arity-negative`, `v13-arity-not-int`; aceptación: `ok-call-arity-suffix` |
+| V-13 (E-05) | `v13-arity-exceeds-pending`, `v13-arity-negative`, `v13-arity-not-int`, `x-fn-arity-pending`; aceptación: `ok-call-arity-suffix` |
 | V-14 (E-08) | `v14-jump-undefined-label`, `v14-jump-target-not-label` |
 | V-15 | `v15-model-typeparams` |
 | V-16 (E-10) | `v16-route-path-without-method`, `v16-route-limits-without-method` |
@@ -54,6 +54,8 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-11 | `x-load-field-nonmodel-base`, `x-field-missing-field`, `x-field-owner-mismatch`, `x-load-field-dest-mismatch`, `x-store-field-with-dest`, `x-ctor-arity-mismatch`, `x-model-field-unsupported-type`, `x-field-ref-kind`, `x-ctor-unknown-model`, `x-duplicate-model-name`, `x-model-function-collision`; aceptación: `ok-model-ctor` |
 | D-M1-12 | `x-union-create-opcode`, `x-union-switch-op`, `x-union-type-info`, `x-union-payload-float`, `x-union-payload-arity`, `x-union-kind-enumeration`, `x-union-get-tag-dest-bool`, `x-union-get-tag-src-int`, `x-union-tag-unknown`, `x-union-pack-missing-field`, `x-union-pack-single`, `x-union-ctor-arity`, `x-union-duplicate-variant`, `x-union-variant-two-types`, `x-union-tag-collision`, `x-union-rich-lengths`; aceptación: `ok-union-ctor` |
 | D-M1-13 | `x-alloc-opcode`, `x-free-opcode` |
+| D-M1-14 | `x-fn-value-unknown`, `x-fn-value-main`, `x-fn-value-void-signature`, `x-fn-value-dest-type`, `x-fn-callee-not-fn`, `x-fn-arity-signature`, `x-fn-arg-type`, `x-fn-dest-mismatch`, `x-fn-store-symbol`, `x-fn-return-boundary`, `x-fn-type-spelling`, `x-fn-type-nonscalar`; aceptación: `ok-fn-value`, `ok-fn-extern` |
+| D-M1-15 | `x-global-register` |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
 `list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan para la fase
@@ -61,5 +63,5 @@ C: R6 los rechaza en codegen por su subconjunto (`registerTypes` estricta,
 alias de runtime fuera del subconjunto) y exigen decisión D-M1-xx con
 evidencia, no un caso de aceptación.
 
-Estado 2026-10-15: **88/88** (82 rechazos + 6 controles); gate diferencial
-25/25 en el mismo árbol.
+Estado 2026-10-15: **104/104** (96 rechazos + 8 controles); gate diferencial
+26/26 en el mismo árbol.
