@@ -866,7 +866,94 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   exit/stdout; the five rejections run red on the committed driver with
   exactly one `error[CGEN]` line each; the corpus measurement stays **3/89**
   (the module-level and `unknown` gates dominate) but `load_const` disappears
-  as a first refusal — the document that stopped there now advances to `ret` —
+  as a first refusal - the document that stopped there now advances to `ret` -
   and the ratchet is re-taken at `r6BuildOk 3` / `match 3` in
   `tests/corpus/baseline.json`.
+- Status: **accepted**.
+
+## D-M1-20 - Register types left `unknown`: a mirror of the language backend
+
+- Date: 2026-10-16. Authorized gap: D-M1-17 gap 1 (spec §2.3: `registerTypes`
+  is advisory, the backend derives it).
+- Decision: before the module is validated, R6 walks every function and
+  **recovers the type of a register declared `unknown` from its defining
+  instruction**, mirroring the rules of `inferRegisterTypes`
+  (`c_backend.orb:562-1030`) restricted to the opcodes of the native subset, as
+  a three-pass fixed point like the original. Only the literal text `unknown`
+  is replaced: a declared type is never touched, and a register no rule
+  explains **stays `unknown` and stays refused** by the module check, with the
+  same message and code (`CGEN`).
+- Why infer instead of tolerating `unknown`: the language backend declares
+  every register as an untyped `uintptr_t` word (`c_backend.orb:3735-3744`) and
+  only casts at the point of use, so it can emit with a `unknown` slot; R6
+  emits **typed** x64 and must choose `addl`/`addsd`, so it needs the real
+  type. Accepting `unknown` without one would invent semantics (forbidden);
+  inferring it is not, because the rule is the same rule the oracle uses to
+  emit the code R6 is compared against.
+- Mirrored rules (only over `unknown`, three passes): `load_const` by value
+  (`Int`/`Float`/`Bool`/`String`; a `Sym` only as `true`/`false` -> bool);
+  `load_var` -> the homonymous parameter type, else the type of the first
+  `decl_var`/global of that name (`local_info` already resolves the
+  initializer: a typed register or a D-M1-19 inline literal), else a
+  `<Union>_TAG_<Variant>` constant as `int` (D-M1-12); `add` -> `string` when
+  either operand is one, else arithmetic; `sub`/`mul`/`div`/`mod` ->
+  arithmetic; `neg` -> the operand's type; `eq`/`ne`/`lt`/`le`/`gt`/`ge`/
+  `and_op`/`or_op`/`not_op`/`result_is_ok`/`map_has` -> `bool`;
+  `result_unwrap_err` -> `string`; `copy` -> the source type; `arg` -> the
+  parameter type of the index; `call` -> the callee's `returnType` / a model
+  name (constructor, D-M1-11) / `void*` (variant constructor, the D-M1-12
+  union cell); `load_field` -> the receiver model's field type
+  (`resolve_field`); `list_create` -> `list`; `list_len` -> `int`; `list_get`
+  -> the `elemKind` type (1-4); `map_keys` -> `list`; `union_get_tag` -> `int`
+  (the D-M1-12 ordinal tag).
+- Two deliberate narrowings against `inferRegisterTypes`, both *shrinking*
+  what R6 accepts:
+  1. **Arithmetic**: the original is `int`-biased because its registers carry
+     no type (`add` is `string` or `int`; `sub`/`mul`/`div`/`mod`/`neg` are
+     always `int`). R6 infers `float` when an operand is float, `int` when both
+     are int, and leaves the slot `unknown` when they do not agree (an operand
+     still untyped, typically) - it never guesses.
+  2. **No native type**: what the original resolves through its string/float
+     spreading passes, or what the native backend has no register for, leaves
+     the slot `unknown`: an **enum** tag constant (`TokType_TAG_*`, the bulk of
+     the leftovers; no access type outside `union`), `result_unwrap` (the
+     original does not infer it either), `union_get_data` (payload outside the
+     subset D-M1-12 already closed), a `call` target not declared in the module
+     (builtins/aliases, the D-M1-18 front) and a `map` (no register type; the
+     family is closed by D-M1-10). Also a `load_var` whose name is not a
+     parameter, a local, a global, or a declared union tag.
+- Measured evidence (pinned corpus `10f6e7d9`, `1e6a378`): of the **6735
+  `unknown` registers in 84/90 documents**, the pass recovers **5941 (88.2%)**
+  and **leaves 40 of those 84 documents with no `unknown` at all**; 794
+  survive, headed by `load_var` 492 (mostly the enum tags), `call` 131,
+  `result_unwrap` 71, `list_get` 32, `load_field` 21, `union_get_data` 20. The
+  attribution is a measurement, not a gate (`tests/corpus/`).
+- Gate evidence (same tree): differential **29/29 -> 31/31** with fixtures
+  30/31; loader **124/124 -> 137/137** (113 rejections + 24 controls);
+  `make_cases.py --check` with no drift (131 case files + manifest);
+  `migrate-m1-fixtures.py --check` 20/20 (28-31 skip, newer than `06d7d2c`).
+  Corpus re-measured: `r6BuildOk` **3 -> 6** and `match` **3 -> 6`;
+  `tests/suite/model_fields.orb` (exit 7), `tests/suite/model_two_fields.orb`
+  and `tests/suite/unary_neg.orb` (exit 2) go from refusal to a full
+  byte-for-byte coincidence with the oracle. The ratchet is re-taken in
+  `tests/corpus/baseline.json` (`r6BuildOk 6`, `match 6`).
+- Fixtures 30/31 are the pinned emitter's **verbatim stream with its `unknown`
+  slots included** - the opposite of 28/29, which complete the types - and that
+  is the point: the second gate now exercises the inference against the real
+  oracle. The edge is pinned in `tests/reject/` by the refusals
+  `x-infer-arith-unknown-operand`, `x-infer-unresolved-call`,
+  `x-infer-unknown-load-var`, `x-infer-result-unwrap` (rule D-M1-20) and the
+  controls `ok-infer-eq-bool` (5), `ok-infer-load-var` (3),
+  `ok-infer-neg-chain` (5), `ok-infer-call-return` (7), `ok-infer-arg-param`
+  (33), `ok-infer-list-create` (8), `ok-infer-union-tag` (0).
+- Contract surface: `r6_codegen_win64` becomes `R6Module *` and rewrites
+  `register_types` **in place** before any other reader (the loader keeps
+  owning the memory: each replaced entry is `free()`d and replaced by a heap
+  copy). The parser and the loader are untouched, and a register that is still
+  `unknown` produces the same diagnostic as before.
+- Measured next wall: none of the 4 documents that still stop at `unknown`
+  (`test_regex`, `float_literals`, `if_expression_return`,
+  `list_index_out_of_range`) is recoverable by these rules. The dominant front
+  after D-M1-20 is the **literal operand inside a binary operation** already
+  reported by D-M1-19 (2622 sites in 76/90).
 - Status: **accepted**.

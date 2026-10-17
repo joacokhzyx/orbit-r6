@@ -372,3 +372,46 @@ Mensajes completos de la corrida:
   propia del emisor del pin para el `.orb` pareado; solo `registerTypes` se
   completa a los tipos concretos, porque el emisor serializa antes de
   `inferRegisterTypes` y deja `unknown` (hueco 1 de D-M1-17, D-M1-20).
+
+## Actualización de M1 - tipos `unknown`: inferencia espejo del backend (2026-10-16)
+
+- Decisión: D-M1-20. Antes de validar el módulo, R6 recorre cada función y
+  recupera el tipo de un registro declarado `unknown` a partir de su
+  instrucción definidora, espejando `inferRegisterTypes` (`c_backend.orb:562`)
+  restringido a los opcodes del subconjunto nativo, en un punto fijo de tres
+  pasadas. Solo se sustituye el texto exacto `unknown`; un tipo declarado no se
+  toca y un registro que ninguna regla explica sigue rechazado con el mismo
+  `CGEN`.
+- Por qué: el backend del lenguaje declara cada registro como palabra
+  `uintptr_t` sin tipo (`c_backend.orb:3735`) y castea en el punto de uso; R6
+  emite x64 tipado y debe elegir `addl`/`addsd`, así que necesita el tipo. Los
+  dos estrechamientos frente al original -la aritmética con operandos que no
+  coinciden, y todo lo que el original resuelve por sus pasadas de "spreading"
+  o el backend nativo no representa (tags de **enum**, `result_unwrap`,
+  `union_get_data`, targets de `call` no declarados, `map`)- dejan el registro
+  `unknown` en lugar de adivinar.
+- Evidencia de la corrida (corpus `10f6e7d9`, `1e6a378`): de **6735 registros
+  `unknown` en 84/90 documentos** se recuperan **5941 (88.2%)** y **40 de esos
+  84 documentos quedan sin ningún `unknown`**; sobreviven 794, encabezados por
+  `load_var` 492 (tags de enum en su mayoría), `call` 131, `result_unwrap` 71,
+  `list_get` 32, `load_field` 21 y `union_get_data` 20.
+- Artefactos: fixtures `30-inferred-model-fields` (exit 7) y
+  `31-inferred-unary-neg` (exit 2), que son el stream textual del emisor **con
+  sus `unknown` incluidos** (lo contrario de 28/29); cuatro rechazos nuevos
+  (`x-infer-arith-unknown-operand`, `x-infer-unresolved-call`,
+  `x-infer-unknown-load-var`, `x-infer-result-unwrap`, todos `CGEN`) y siete
+  controles (`ok-infer-eq-bool` 5, `ok-infer-load-var` 3, `ok-infer-neg-chain`
+  5, `ok-infer-call-return` 7, `ok-infer-arg-param` 33,
+  `ok-infer-list-create` 8, `ok-infer-union-tag` 0).
+- Gates: diferencial **31/31**; suite del loader **137/137** (113 rechazos + 24
+  controles); `make_cases.py --check` sin drift; `migrate-m1-fixtures.py
+  --check` 20/20.
+- Medición del corpus (no puerta): `r6BuildOk` **6/89** (antes 3/89) y `match`
+  **6/89**; `tests/suite/model_fields.orb` (exit 7),
+  `tests/suite/model_two_fields.orb` y `tests/suite/unary_neg.orb` (exit 2)
+  pasan a coincidencia byte a byte con el oráculo. De los 4 documentos que aún
+  se detienen en `unknown` (`test_regex`, `float_literals`,
+  `if_expression_return`, `list_index_out_of_range`) ninguno es inferible con
+  estas reglas. El frente dominante pasa a ser el operando literal dentro de
+  una operación binaria ya reportado por D-M1-19. Trinquete re-tomado tras
+  `--check --write-baseline`: `r6BuildOk 6`, `match 6`.

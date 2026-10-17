@@ -41,16 +41,19 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `27-call-string-target` | target de llamada `String` (el formulario del builder) con destino `void` y con destino `int` | 42 | `string-target\n` |
 | `28-sym-literals` | literales bool/float como texto `Sym` en `load_const`, con el `decl_var` del builder | 42 | vacío |
 | `29-decl-var-literals` | inicializadores literales inline en `decl_var` (int/string/bool) leídos por `load_var` | 42 | `ok\n` |
+| `30-inferred-model-fields` | stream del emisor con los seis registros en `unknown`: ctor de modelo, local, `load_field` y `add` inferidos | 7 | vacío |
+| `31-inferred-unary-neg` | stream del emisor con cuatro registros en `unknown`: cadena de `neg`/`add` inferida | 2 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–29 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–31 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
-la línea base previa a la migración, el par 27 desde D-M1-18 (2026-10-16) y
-los pares 28–29 desde D-M1-19 (2026-10-16) (ver `../../DECISIONS.md`
+la línea base previa a la migración, el par 27 desde D-M1-18 (2026-10-16), los
+pares 28–29 desde D-M1-19 (2026-10-16) y los pares 30–31 desde D-M1-20
+(2026-10-16) (ver `../../DECISIONS.md`
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
-D-M1-19 y `../../M1_REPORT.md`).
+D-M1-19/D-M1-20 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
@@ -170,3 +173,20 @@ borde. Un **operando literal dentro de una operación binaria** (`ne`/`eq`/
 `add`/… con inmediato) sigue rechazado y queda reportado como hueco propio
 (2622 sitios en 76/90 documentos, incluida la concatenación de strings por
 `add`, frontera U-17).
+
+Los tipos de registro que el builder serializa como `unknown` se recuperan
+dentro del subconjunto nativo (D-M1-20): antes de validar el módulo, una pasada
+de tres puntos fijos espeja las reglas de `inferRegisterTypes`
+(`c_backend.orb:562`) para los opcodes admitidos -`load_const`/`load_var`/
+aritmética/`neg`/comparaciones y lógicos/`copy`/`arg`/`call`/`load_field`/
+`list_create`/`list_len`/`list_get`/`map_keys`/`union_get_tag`- y **solo**
+sustituye el texto `unknown`, nunca un tipo declarado. Dos estrechamientos
+deliberados: la aritmética no adivina (infiere `float` si algún operando lo es,
+`int` si ambos lo son, y deja `unknown` si no coinciden) y lo que el backend
+nativo no representa deja el registro `unknown` (tags de **enum**,
+`result_unwrap`, `union_get_data`, `map`, targets de `call` no declarados).
+Cierra el hueco 1 de D-M1-17 y está medido en detalle en D-M1-20 (6735
+registros en 84/90 documentos; 5941 recuperados, 40 documentos sin `unknown`).
+Los pares 30–31 son el stream del emisor **verbatim, con sus `unknown`**, y el
+borde queda pineado en `tests/reject/` (casos `x-infer-*` regla D-M1-20 y
+controles `ok-infer-*`).

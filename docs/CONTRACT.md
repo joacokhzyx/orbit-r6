@@ -39,6 +39,15 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   literal bool/float correspondiente (spec §2.1; D-M1-19) y debe coincidir con
   el tipo del registro destino; un texto numérico no finito falla (V-08) y un
   entero desnudo no es un float literal.
+- Tipos de registro `unknown`: el builder serializa antes de
+  `inferRegisterTypes` (P1), así que un registro que el builder no tipó llega
+  como el texto literal `unknown`. Antes de validar el módulo,
+  `r6_codegen_win64` (firma `R6Module *`; reescribe `register_types` in situ,
+  el loader sigue siendo el dueño de la memoria) recupera esos registros desde
+  su instrucción definidora, espejando las reglas de `inferRegisterTypes`
+  (`c_backend.orb:562`) para los opcodes del subconjunto, en tres pasadas.
+  Solo sustituye `unknown`, nunca un tipo declarado, y un registro que ninguna
+  regla explica sigue rechazado con el mismo `CGEN`. Decisión D-M1-20.
 - Evidencia semántica entera: `runtime/orbit_api.h:114` declara
   `typedef int orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
   `div/mod` vía `orbit_int` signed y comparaciones relacionales vía `intptr_t`.

@@ -48,41 +48,51 @@ dos cosas:
 |---|---|
 | miembros / programas | 90 / 89 (+1 módulo de soporte) |
 | oráculo compila y corre | 89/89 |
-| R6 compila | **3/89** |
-| R6 coincide (exit + stdout) | **3/89** |
+| R6 compila | **6/89** |
+| R6 coincide (exit + stdout) | **6/89** |
 | documentos con `unknown` en `registerTypes` | **84/90** |
 
-El pin se tomó con **2/89** (D-M1-17) y D-M1-18 lo lleva a **3/89**:
-`tests/suite/imports.orb` (exit 37, opcodes `call` + `ret`) pasa de rechazo a
-coincidencia completa, y es el primer programa no degenerado que R6 completa.
-Los otros dos siguen siendo degenerados: `bom_utf8` (exit 0) y `nesting_legal`
-(exit 9) tienen un único registro inexistente y una única instrucción `ret` con
-literal `Int`. 39 de los 41 opcodes del corpus no aparecen todavía en un
-programa que R6 haya corrido completo. D-M1-19 mantiene el conteo (las puertas
-de nivel de módulo y `unknown` dominan) pero corrige el lowering de los
-literales: `load_const` deja de ser el primer rechazo de cualquier programa.
+El pin se tomó con **2/89** (D-M1-17), D-M1-18 lo llevó a **3/89**
+(`tests/suite/imports.orb`, exit 37, opcodes `call` + `ret`, el primer programa
+no degenerado que R6 completa, junto a los degenerados `bom_utf8` exit 0 y
+`nesting_legal` exit 9) y D-M1-20 lo lleva a **6/89**:
+`tests/suite/model_fields.orb` (exit 7), `tests/suite/model_two_fields.orb` y
+`tests/suite/unary_neg.orb` (exit 2) pasan a coincidencia byte a byte al
+recuperar los tipos `unknown` de su stream. D-M1-19 mantuvo el conteo (las
+puertas de nivel de módulo y `unknown` dominaban) pero corrigió el lowering de
+los literales: `load_const` dejó de ser el primer rechazo de cualquier
+programa. 32 de los 41 opcodes del corpus no aparecen todavía en un programa
+que R6 haya corrido completo.
 
-Primer rechazo por opcode (dónde se detiene cada programa), tras D-M1-19:
+Primer rechazo por opcode (dónde se detiene cada programa), tras D-M1-20:
 
 | Primer rechazo | Casos |
 |---|---|
-| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 65 |
-| `load_var` | 13 |
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 26 |
+| `load_var` | 23 |
+| `add` | 10 |
+| `ne` | 7 |
 | `decl_var` | 6 |
+| `lt` | 2 |
 | `ret` | 2 |
+| `gt` | 2 |
+| `mul`, `sub`, `div`, `list_create`, `call` | 1 cada uno |
 
-Mensajes dominantes (`error[CGEN]` en los 86): `register type unknown is
-unsupported in M1` 47, `load_var requires a supported local, declared global,
-or union tag constant` 13, `decl_var requires a declared local and a matching
-scalar, list, void*, model, or function value register` 6, `parameter type
-list<string> is unsupported in M1` 3, y una cola de 1-2 casos (globales
+Mensajes dominantes (`error[CGEN]` en los 83): `load_var requires a supported
+local, declared global, or union tag constant` **23** (el grueso, tags de
+enum sin tipo de acceso), la familia de **operando literal dentro de una
+operación binaria** (`ne`/`add`/`gt`/`lt`/`mul`/`sub`/`div` `... operand N must
+be a valid register`) **22** más `add supports matching int, float, or string
+registers only` 2, `decl_var requires a declared local and a matching scalar,
+list, void*, model, or function value register` 6, `register type unknown is
+unsupported in M1` **4** (los no inferibles por D-M1-20), `parameter type
+list<string> is unsupported in M1` 3 y una cola de 1-2 casos (globales
 `CHAR_SPACE`/`WALK_MAX_DEPTH`, `type kind enumeration`, `extern return type`,
-campos de modelo con `list<...>`, `register type
-Shape`/`object`/`string_raw`, payloads de union, `returning result values`,
-`void ret must not carry a value`). Ya no queda ningún `call target ...` entre
-los primeros rechazos (cerró con D-M1-18) ni ningún `function value 1.5` (lo
-cerró D-M1-19). El detalle completo está en el informe de la corrida (`--json`)
-y en `docs/M1_REPORT.md`.
+campos de modelo con `list<...>`, `register type Shape`/`object`/`string_raw`,
+payloads de union, `returning result values`, `void ret must not carry a
+value`). Ya no queda ningún `load_const` entre los primeros rechazos (cerró con
+D-M1-19) ni ningún `call target ...` (cerró con D-M1-18). El detalle completo
+está en el informe de la corrida (`--json`) y en `docs/M1_REPORT.md`.
 
 ## Las paredes, en orden de tamaño
 
@@ -91,10 +101,17 @@ El corpus, medido sobre los 90 documentos, usa los kinds `Int`, `String`,
 ocurrencias). El emisor serializa el modelo del builder (D-F0-08 P1), y eso
 deja huecos que R6 no cubre hoy, de mayor a menor alcance:
 
-1. `unknown` en `registerTypes`: **84/90 documentos**. Las entradas se
-   serializan antes de `inferRegisterTypes` (P1), así que todo programa con
-   registros arrastra tipos `unknown` legítimos; R6 los rechaza con contrato
-   estricto (D-M1-09). Es el primer rechazo en 47 programas.
+1. `unknown` en `registerTypes`: **cerrado por D-M1-20**. Los **6735 registros
+   `unknown` en 84/90 documentos** (las entradas se serializan antes de
+   `inferRegisterTypes`, P1) se recuperan por una inferencia espejo del backend
+   del lenguaje: **5941 (88.2%)**, y **40 de esos 84 documentos quedan sin
+   `unknown`**. Los 794 restantes son lo que el backend nativo no representa
+   (tags de **enum** -el grueso, `load_var` 492-, `result_unwrap` 71,
+   `union_get_data` 20, `map`, targets de `call` no declarados, aritmética con
+   operandos sin tipo) y mantienen el rechazo fail-closed. Solo **4
+   documentos** se detienen hoy en `unknown` (`test_regex`, `float_literals`,
+   `if_expression_return`, `list_index_out_of_range`), ninguno inferible con
+   esas reglas.
 2. `call` con O1 `String`: **cerrado por D-M1-18** para los 2227 nombres que
    resuelven a una función declarada (de 2917 llamadas `String` en 74/90
    documentos; no hay ni un `Sym` como target y las otras 6 son indirectas por
@@ -111,9 +128,14 @@ deja huecos que R6 no cubre hoy, de mayor a menor alcance:
    de `decl_var` en 46 documentos. Queda abierto, y reportado sin arreglar, el
    **operando literal dentro de una operación binaria** (`ne`/`eq`/`add`/… con
    inmediato): 2622 sitios en 76/90 documentos, incluida la concatenación de
-   strings por `add` (376 sitios, frontera U-17) — necesita decisión propia.
+   strings por `add` (376 sitios, frontera U-17) - necesita decisión propia.
+   Tras D-M1-20 es el **frente abierto dominante**: 22 primeros rechazos por
+   `... must be a valid register` más 2 por `add supports matching int, float,
+   or string registers only`.
 
-El hueco 1 sigue siendo una decisión de contrato (alcance del subconjunto
-nativo, no semántica inventada) y sigue registrado como abierto en D-M1-17: se
-resuelve con una entrada datada nueva, no relajando el gate sobre la marcha.
-Los huecos 2 y 3 cerraron con D-M1-18 y D-M1-19.
+El hueco 1 cerró con D-M1-20 como decisión de contrato datada (inferencia
+espejo del backend del lenguaje, no relajación del gate: un registro que sigue
+`unknown` mantiene el rechazo, con el mismo mensaje y código). Los huecos 2 y 3
+cerraron con D-M1-18 y D-M1-19. El residuo medido del hueco 3 -el operando
+literal dentro de una operación binaria, 2622 sitios en 76/90- es hoy el frente
+abierto dominante y sigue necesitando una decisión datada propia.

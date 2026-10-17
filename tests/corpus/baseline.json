@@ -5,23 +5,32 @@
     "members": 90,
     "programs": 89,
     "oracleOk": 89,
-    "r6BuildOk": 3,
-    "match": 3,
+    "r6BuildOk": 6,
+    "match": 6,
     "unknownRegisterTypes": 84
   },
   "byCode": {
-    "CGEN": 86
+    "CGEN": 83
   },
   "byFailingOpcode": {
-    "(module-level)": 65,
-    "load_var": 13,
+    "(module-level)": 26,
+    "load_var": 23,
+    "add": 10,
+    "ne": 7,
     "decl_var": 6,
-    "ret": 2
+    "lt": 2,
+    "ret": 2,
+    "gt": 2,
+    "mul": 1,
+    "sub": 1,
+    "div": 1,
+    "list_create": 1,
+    "call": 1
   },
   "byOpcode": {
     "add": {
       "cases": 62,
-      "match": 0
+      "match": 3
     },
     "and_op": {
       "cases": 10,
@@ -29,11 +38,11 @@
     },
     "arg": {
       "cases": 59,
-      "match": 0
+      "match": 2
     },
     "call": {
       "cases": 74,
-      "match": 1
+      "match": 3
     },
     "copy": {
       "cases": 7,
@@ -41,7 +50,7 @@
     },
     "decl_var": {
       "cases": 72,
-      "match": 0
+      "match": 2
     },
     "div": {
       "cases": 13,
@@ -101,15 +110,15 @@
     },
     "load_const": {
       "cases": 69,
-      "match": 0
+      "match": 1
     },
     "load_field": {
       "cases": 18,
-      "match": 0
+      "match": 2
     },
     "load_var": {
       "cases": 79,
-      "match": 0
+      "match": 2
     },
     "lt": {
       "cases": 39,
@@ -129,7 +138,7 @@
     },
     "neg": {
       "cases": 36,
-      "match": 0
+      "match": 1
     },
     "not_op": {
       "cases": 2,
@@ -161,7 +170,7 @@
     },
     "ret": {
       "cases": 90,
-      "match": 3
+      "match": 6
     },
     "store_field": {
       "cases": 6,
