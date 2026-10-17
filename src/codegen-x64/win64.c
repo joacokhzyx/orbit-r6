@@ -2190,7 +2190,187 @@ static void emit_entry_wrapper(FILE *o) {
           "\t.seh_endproc\n", o);
 }
 
-bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
+/* ---- D-M1-20: recovering a register type the builder left `unknown` ------
+ *
+ * The pinned builder serializes the module before the C backend's
+ * inferRegisterTypes runs (c_backend.orb:562), so a register it could not
+ * type is written as the literal text `unknown` and the module check below
+ * refuses it. That is the widest wall the emitted corpus hits: 84 of the 90
+ * documents carry `unknown`, 6735 slots in all, and 47 documents stop exactly
+ * there. Spec 2.3 makes registerTypes advisory - the language recovers those
+ * slots from the defining instruction, that recovery is part of the contract,
+ * and its rules are the authority mirrored here.
+ *
+ * Three passes, like the original, because a rule can only fire once its
+ * operands are known. Two differences, both narrowing what R6 accepts:
+ *
+ *   * the language's registers are untyped uintptr_t words, so its arithmetic
+ *     rules are loose (`add` is "string" when an operand is a string and
+ *     "int" otherwise; sub/mul/div/mod/neg are always "int"). R6 emits typed
+ *     x64 and needs the real type, so it infers "float" when an arithmetic
+ *     operand is float, "int" when both operands are int, and leaves the slot
+ *     unknown when they do not agree.
+ *   * a rule the language resolves through its string/float spreading passes
+ *     (an enum tag constant, `result_unwrap`), through a call target that is
+ *     not declared in the module, or into a type the native backend has no
+ *     register for (`map`) leaves the slot unknown, which keeps the
+ *     fail-closed rejection.
+ *
+ * A replaced slot is reallocated: the loader frees every register type with
+ * free() (ir.c). The replacement happens in place and before any other
+ * reader, so the module check and the emitter both see the recovered type and
+ * no lookup path changes. */
+
+static char *dup_type_text(const char *s) {
+    size_t n = strlen(s) + 1;
+    char *p = (char *)malloc(n);
+    if (p) memcpy(p, s, n);
+    return p;
+}
+
+/* A value's type where any literal is allowed. NULL for a Symbol (D-M1-19:
+ * its text is a literal only when the declared type says so) and for a
+ * register whose slot is still unknown. */
+static const char *infer_value_type(const R6Function *f, const R6Value *v) {
+    switch (v->kind) {
+    case R6_VAL_INT: return "int";
+    case R6_VAL_FLOAT64: return "float";
+    case R6_VAL_BOOL: return "bool";
+    case R6_VAL_STRING: return "string";
+    case R6_VAL_REG: return type_at(f, v->as.i32);
+    default: return NULL;
+    }
+}
+
+/* "float" when either side is float, "int" when both are int, NULL when
+ * neither holds (including when a side is still unknown). */
+static const char *infer_arith_type(const char *a, const char *b) {
+    if (is_float(a) || is_float(b)) return "float";
+    if (is_int(a) && is_int(b)) return "int";
+    return NULL;
+}
+
+/* The dest classes the opcode alone decides, mirroring the language's
+ * eq/ne/.../map_has -> bool and result_unwrap_err -> string rules. */
+static const char *infer_cls_type(R6Opcode op) {
+    switch (op) {
+    case R6_OP_EQ: case R6_OP_NE: case R6_OP_LT: case R6_OP_LE:
+    case R6_OP_GT: case R6_OP_GE: case R6_OP_AND_OP: case R6_OP_OR_OP:
+    case R6_OP_NOT_OP: case R6_OP_RESULT_IS_OK: case R6_OP_MAP_HAS:
+        return "bool";
+    case R6_OP_RESULT_UNWRAP_ERR:
+        return "string";
+    default:
+        return NULL;
+    }
+}
+
+static const char *infer_dest_type(const R6Module *m, const R6Function *f,
+                                   const R6Instruction *i,
+                                   char *buf, size_t cap) {
+    const R6Value *o1 = &i->operands[0], *o2 = &i->operands[1];
+    const char *cls = infer_cls_type(i->opcode);
+    if (cls) return cls;
+    switch (i->opcode) {
+    case R6_OP_LOAD_CONST:
+        if (o1->kind == R6_VAL_SYMBOL) {
+            const char *s = o1->as.string;
+            return s && (strcmp(s, "true") == 0 || strcmp(s, "false") == 0)
+                       ? "bool" : NULL;
+        }
+        return infer_value_type(f, o1);
+    case R6_OP_LOAD_VAR: {
+        const char *name = ir_name(o1), *type = NULL;
+        const R6Global *g;
+        int32_t ordinal;
+        size_t k;
+        if (!name) return NULL;
+        for (k = 0; k < f->param_count; ++k)
+            if (f->params[k] && strcmp(f->params[k], name) == 0)
+                return f->param_types[k];
+        if (local_info(m, f, name, NULL, &type, buf, cap)) return type;
+        if ((g = find_global(m, name)) != NULL) return g->type_name;
+        /* `<union>_TAG_<variant>` is the ordinal constant D-M1-12 loads as an
+         * int; an enum tag constant has no native type and stays unknown. */
+        if (union_tag_constant(m, name, &ordinal)) return "int";
+        return NULL;
+    }
+    case R6_OP_ADD: {
+        const char *t1 = infer_value_type(f, o1), *t2 = infer_value_type(f, o2);
+        if (is_string(t1) || is_string(t2)) return "string";
+        return infer_arith_type(t1, t2);
+    }
+    case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
+        return infer_arith_type(infer_value_type(f, o1),
+                                infer_value_type(f, o2));
+    case R6_OP_NEG: {
+        const char *t = infer_value_type(f, o1);
+        return is_float(t) ? "float" : is_int(t) ? "int" : NULL;
+    }
+    case R6_OP_COPY:
+        return infer_value_type(f, o1);
+    case R6_OP_ARG:
+        if (o1->kind == R6_VAL_INT && o1->as.i32 >= 0 &&
+            (size_t)o1->as.i32 < f->param_count)
+            return f->param_types[o1->as.i32];
+        return NULL;
+    case R6_OP_CALL: {
+        const char *name = ir_name(o1);
+        const R6Function *callee;
+        const R6Model *model;
+        if (!name) return NULL;    /* indirect: no spelling to read */
+        if ((callee = find_function(m, name)) != NULL) return callee->return_type;
+        if ((model = find_model(m, name)) != NULL) return model->name;
+        /* A variant constructor lands in the union cell D-M1-12 defines. */
+        if (find_union_variant(m, name, NULL) != NULL) return "void*";
+        return NULL;               /* builtin or alias: fail closed */
+    }
+    case R6_OP_LOAD_FIELD: {
+        const R6Model *model;
+        size_t index;
+        R6Diagnostic scratch;
+        if (!resolve_field(m, f, i, &model, &index, &scratch)) return NULL;
+        return model->fields[index].type_name;
+    }
+    case R6_OP_LIST_CREATE: return "list";
+    case R6_OP_LIST_LEN: return "int";
+    case R6_OP_LIST_GET: return elem_kind_type(i->elem_kind);
+    case R6_OP_MAP_KEYS: return "list";
+    case R6_OP_UNION_GET_TAG: return "int";   /* D-M1-12's ordinal tag */
+    default: return NULL;
+    }
+}
+
+static void infer_register_types(const R6Module *m, R6Function *f) {
+    char buf[R6_FN_SPELLING_CAP];
+    size_t pass;
+    if (!f || !f->register_types || !f->register_type_count) return;
+    for (pass = 0; pass < 3; ++pass) {
+        size_t pc;
+        bool changed = false;
+        for (pc = 0; pc < f->instruction_count; ++pc) {
+            const R6Instruction *i = &f->instructions[pc];
+            const char *type;
+            char *copy;
+            if (!i->has_dest || i->dest < 0 ||
+                (size_t)i->dest >= f->register_type_count)
+                continue;
+            if (!f->register_types[i->dest] ||
+                strcmp(f->register_types[i->dest], "unknown") != 0)
+                continue;
+            type = infer_dest_type(m, f, i, buf, sizeof buf);
+            if (!type || strcmp(type, "unknown") == 0) continue;
+            copy = dup_type_text(type);
+            if (!copy) return;     /* out of memory: keep the fail-closed state */
+            free(f->register_types[i->dest]);
+            f->register_types[i->dest] = copy;
+            changed = true;
+        }
+        if (!changed) break;
+    }
+}
+
+bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     size_t n;
     bool main_found = false;
     if (diag) memset(diag, 0, sizeof *diag);
@@ -2264,7 +2444,8 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
         }
     }
     for (n = 0; n < module->function_count; ++n) {
-        const R6Function *f = &module->functions[n];
+        R6Function *fm = &module->functions[n];   /* D-M1-20 rewrites types */
+        const R6Function *f = fm;
         size_t k;
         if (!f->name) return fail(diag, NULL, "CGEN", "function has null name");
         if (strcmp(f->name, "main") == 0 && !f->is_extern) main_found = true;
@@ -2275,6 +2456,10 @@ bool r6_codegen_win64(FILE *out, const R6Module *module, R6Diagnostic *diag) {
             return fail(diag, NULL, "CGEN", "function %s has inconsistent register types", f->name);
         if (f->register_type_count && !f->register_types)
             return fail(diag, NULL, "CGEN", "function %s has missing register type metadata", f->name);
+        /* D-M1-20: recover the slots the builder serialized before it could
+         * type them; a slot no rule explains stays `unknown` and is refused
+         * by the loop below. */
+        infer_register_types(module, fm);
         for (k = 0; k < f->register_type_count; ++k) {
             char fret[16];
             const char *rt = f->register_types[k];
