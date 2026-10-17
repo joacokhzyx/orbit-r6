@@ -58,17 +58,18 @@ coincidencia completa, y es el primer programa no degenerado que R6 completa.
 Los otros dos siguen siendo degenerados: `bom_utf8` (exit 0) y `nesting_legal`
 (exit 9) tienen un único registro inexistente y una única instrucción `ret` con
 literal `Int`. 39 de los 41 opcodes del corpus no aparecen todavía en un
-programa que R6 haya corrido completo.
+programa que R6 haya corrido completo. D-M1-19 mantiene el conteo (las puertas
+de nivel de módulo y `unknown` dominan) pero corrige el lowering de los
+literales: `load_const` deja de ser el primer rechazo de cualquier programa.
 
-Primer rechazo por opcode (dónde se detiene cada programa), tras D-M1-18:
+Primer rechazo por opcode (dónde se detiene cada programa), tras D-M1-19:
 
 | Primer rechazo | Casos |
 |---|---|
 | (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 65 |
 | `load_var` | 13 |
 | `decl_var` | 6 |
-| `load_const` | 1 |
-| `ret` | 1 |
+| `ret` | 2 |
 
 Mensajes dominantes (`error[CGEN]` en los 86): `register type unknown is
 unsupported in M1` 47, `load_var requires a supported local, declared global,
@@ -76,11 +77,12 @@ or union tag constant` 13, `decl_var requires a declared local and a matching
 scalar, list, void*, model, or function value register` 6, `parameter type
 list<string> is unsupported in M1` 3, y una cola de 1-2 casos (globales
 `CHAR_SPACE`/`WALK_MAX_DEPTH`, `type kind enumeration`, `extern return type`,
-`function value 1.5`, campos de modelo con `list<...>`, `register type
-Shape`/`object`/`string_raw`, payloads de union). Ya no queda ningún `call
-target ...` entre los primeros rechazos: el frente 2 cerró con D-M1-18. El
-detalle completo está en el informe de la corrida (`--json`) y en
-`docs/M1_REPORT.md`.
+campos de modelo con `list<...>`, `register type
+Shape`/`object`/`string_raw`, payloads de union, `returning result values`,
+`void ret must not carry a value`). Ya no queda ningún `call target ...` entre
+los primeros rechazos (cerró con D-M1-18) ni ningún `function value 1.5` (lo
+cerró D-M1-19). El detalle completo está en el informe de la corrida (`--json`)
+y en `docs/M1_REPORT.md`.
 
 ## Las paredes, en orden de tamaño
 
@@ -101,12 +103,17 @@ deja huecos que R6 no cubre hoy, de mayor a menor alcance:
    130, `print` 121, `orbit_string_len` 78, `orbit_string_slice` 38,
    `orbit_object_*` 24, `orbit_db_*` 4, `orbit_string_find` 3, `system_*` 8—
    que sigue fail-closed.
-3. literales de float/bool como `Sym`: **412 `load_const` con `Sym` en 36/90
-   documentos** (`0.0`, `1.5`, `true`, `false`). La spec §2.1 ya registra que
-   `Float` "no dedicated constructor observed" y que `Sym` se emite crudo en
-   C (por eso `1.5` y `true` llegan como texto), pero R6 lee todo `Sym` de
-   `load_const` como valor de función (D-M1-14).
+3. literales del builder: **cerrado por D-M1-19**. Los **412 `load_const` con
+   `Sym` en 36/90 documentos** (`true` 206, `false` 112, floats 93, un valor
+   de función) se clasifican por gramática de texto (bool, float finito con
+   fracción o exponente, o valor de función); el mismo frente descubrió y
+   cerró un **miscompile silencioso** de 299 inicializadores literales inline
+   de `decl_var` en 46 documentos. Queda abierto, y reportado sin arreglar, el
+   **operando literal dentro de una operación binaria** (`ne`/`eq`/`add`/… con
+   inmediato): 2622 sitios en 76/90 documentos, incluida la concatenación de
+   strings por `add` (376 sitios, frontera U-17) — necesita decisión propia.
 
-Los huecos 1 y 3 son decisiones de contrato (alcance del subconjunto nativo,
-no semántica inventada) y siguen registradas como abiertas en D-M1-17: se
-resuelven con una entrada datada nueva, no relajando el gate sobre la marcha.
+El hueco 1 sigue siendo una decisión de contrato (alcance del subconjunto
+nativo, no semántica inventada) y sigue registrado como abierto en D-M1-17: se
+resuelve con una entrada datada nueva, no relajando el gate sobre la marcha.
+Los huecos 2 y 3 cerraron con D-M1-18 y D-M1-19.

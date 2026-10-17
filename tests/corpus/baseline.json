@@ -16,8 +16,7 @@
     "(module-level)": 65,
     "load_var": 13,
     "decl_var": 6,
-    "load_const": 1,
-    "ret": 1
+    "ret": 2
   },
   "byOpcode": {
     "add": {

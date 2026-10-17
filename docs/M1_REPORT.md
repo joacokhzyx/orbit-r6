@@ -323,3 +323,52 @@ Mensajes completos de la corrida:
   módulo 65, `load_var` 13, `decl_var` 6, `load_const` 1 y `ret` 1, con
   `unknown` en `registerTypes` todavía en 84/90 (47 primeros rechazos).
   Trinquete re-tomado tras `--check`: `r6BuildOk 3`, `match 3`.
+
+## Actualización de M1 - literales del builder: `Sym` y `decl_var` inline (2026-10-16)
+
+- Decisión: D-M1-19. `load_const` clasifica un `Sym` por su **gramática de
+  texto**: `true`/`false` es el literal bool, un texto numérico con fracción o
+  exponente es el literal float (finito, spec V-08) y cualquier otro texto
+  sigue siendo un valor de función (D-M1-14). Un entero desnudo (`"7"`) no es
+  un float literal. El censo del corpus pineado da **412 `load_const` con
+  `Sym` en 36/90 documentos**: `true` 206, `false` 112, 28 spellings de float
+  93 (`0.0`, `1.5`, `2.5e3`, `1.5E-3`, `100000000000000000000.0`) y **un solo
+  valor de función** (`whisper`); gramática y tipo destino coinciden en los
+  412. `Sym` no aparece en ningún otro slot de valor del corpus.
+- Segundo hueco, hallado al medir la misma familia: el emisor de
+  `decl_var`/`store_var` suponía que el inicializador era siempre un registro y
+  copiaba un slot de registro, pero el builder **inlinea literales**
+  (`val n = 7`, `val s = "x"`, `val b = true`: **299 sitios en 46
+  documentos**, Int 212 / String 53 / Bool 34) sin que ninguno de los tres
+  documentos que hoy coinciden lo ejerza, así que la medición no podía verlo:
+  era una compilación incorrecta silenciosa (el local recibía palabras de un
+  registro ajeno). El emit materializa ahora la constante en el slot del local
+  para `Int`/`Bool`/`Float64`/`String`, conserva la copia para `Register` y el
+  `leaq` para un `Symbol` de función; el loader ya tipaba los inicializadores
+  literales, así que no se relajó ninguna puerta. Fixture 28 fue el testigo:
+  antes del arreglo el diferencial leía `gcc exit=42, r6 exit=7`.
+- Reportado y **no** arreglado (fuera de esta decisión; una parte es una
+  pregunta de semántica): un operando literal dentro de una operación binaria
+  (`eq` 884, `add` 737, `ne` 474, `sub` 123, `ge` 84, `lt` 83, `gt` 71,
+  `le` 66, `mul` 39, `div` 35, `mod` 26 = 2622 sitios en 76/90 documentos)
+  sigue rechazado con `operand 2 must be a valid register`; `add` con un
+  operando `String` (376 sitios) es concatenación de strings, frontera U-17.
+- Artefactos: fixtures `28-sym-literals` (exit 42, stdout vacío) y
+  `29-decl-var-literals` (exit 42, stdout `ok`), ambos registrados como casos
+  de aceptación; cinco pines de rechazo (`x-sym-literal-float-dest-type`,
+  `x-sym-literal-bool-dest-type`, `x-sym-literal-not-finite`,
+  `x-sym-integer-text-is-a-symbol`, `x-decl-var-literal-type`, todos `CGEN`) y
+  tres controles nuevos (`ok-sym-bool-literal` exit 5,
+  `ok-sym-float-literal` exit 6, `ok-decl-var-literal` exit 3).
+- Gates: diferencial **29/29**; suite del loader **124/124** (109 rechazos + 15
+  controles); `make_cases.py --check` sin drift.
+- Medición del corpus (no puerta): **3/89** (las puertas module-level y
+  `unknown` dominan). Cambio observable: `load_const` deja de ser primer
+  rechazo de cualquier programa (el documento que paraba ahí avanza ahora a
+  `ret`), con reparto módulo 65, `load_var` 13, `decl_var` 6 y `ret` 2.
+  Trinquete re-tomado tras `--check --write-baseline`: `r6BuildOk 3`,
+  `match 3`.
+- Linaje de fixtures: los streams de instrucciones de 28 y 29 son la salida
+  propia del emisor del pin para el `.orb` pareado; solo `registerTypes` se
+  completa a los tipos concretos, porque el emisor serializa antes de
+  `inferRegisterTypes` y deja `unknown` (hueco 1 de D-M1-17, D-M1-20).

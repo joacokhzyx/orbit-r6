@@ -33,6 +33,12 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
   No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve
   símbolos del runtime oficial/CRT. M1 no optimiza.
+- `load_const` baja literales `Int`/`String`/`Bool`/`Float` y valores de
+  función (un `Symbol` que nombra una función del módulo, D-M1-14). Un `Symbol`
+  que es `true`/`false`, o un texto numérico con fracción o exponente, es el
+  literal bool/float correspondiente (spec §2.1; D-M1-19) y debe coincidir con
+  el tipo del registro destino; un texto numérico no finito falla (V-08) y un
+  entero desnudo no es un float literal.
 - Evidencia semántica entera: `runtime/orbit_api.h:114` declara
   `typedef int orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
   `div/mod` vía `orbit_int` signed y comparaciones relacionales vía `intptr_t`.
@@ -54,7 +60,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   `12-jump-copy` confirma salto incondicional y copia; `13-while-counter`
   verifica back-edge, branch condicional y variable int local contra el pin.
   `decl_var/store_var` soportan locales escalares y referencias `list`
-  declaradas en la función, inicializadas/actualizadas desde registros.
+  declaradas en la función, inicializadas/actualizadas desde registros o desde
+  un literal inline (`val n = 7`, `val s = "x"`, `val b = true`; D-M1-19);
+  un `Symbol` inicializador liga un valor de función (D-M1-14).
   `load_var` también lee globals
   `int`/`bool` literales: el pin serializa esos `IRGlobal.value` como String
   decimal (`builder.orb:2288-2304,2333-2338`; `c_backend.orb:1479-1503`). Otros

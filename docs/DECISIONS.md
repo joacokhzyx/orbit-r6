@@ -790,3 +790,83 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `r6BuildOk 3` / `match 3`; recorded in `tests/corpus/baseline.json` and
   `docs/M1_REPORT.md`.
 - Status: **accepted**.
+
+## D-M1-19 — Literal forms: raw `Sym` text in `load_const` and inline `decl_var` initializers
+
+- Date: 2026-10-16.
+- Decision (the authorized gap, spec §2.1): `load_const` classifies a `Sym`
+  value by its **text grammar**, not by position. `"true"`/`"false"` is the
+  bool literal; a numeric text with a **fraction or an exponent** is the float
+  literal (finite value required, spec V-08); anything else keeps the
+  function-value reading of D-M1-14. A bare integer is deliberately *not* a
+  float literal (`"7"` stays a function name), so the reading is deterministic
+  and fail closed. The classified literal is then checked against the
+  destination register exactly like the native `Bool`/`Float` kinds, so a bool
+  literal in an `int` register is still `CGEN`.
+- Why text grammar is the source: spec §2.1 records that IRv1 has no dedicated
+  constructor for bool and float literals, and the pinned builder renders them
+  as raw `Sym` text. The census of the pinned corpus (`1e6a378`,
+  `filesSha256 10f6e7d9.`) finds **412 `load_const` with a `Sym` value across
+  36/90 documents**: `true` 206, `false` 112, 28 distinct float spellings 93
+  (`0.0`, `1.5`, `2.5e3`, `1.5E-3`, `100000000000000000000.0`) and exactly
+  **one function value** (`whisper`). Text grammar and destination type agree
+  on all 412 (bool 318, float 93, `fn(string)->string` 1), and `Sym` appears in
+  no other value slot of the corpus (`load_var`/`decl_var`/`store_var` names
+  and `load_field`/`store_field` refs are not values).
+- Decision (second gap, found by measuring the same family): the
+  `decl_var`/`store_var` emitter assumed the initializer was always a register
+  and copied a register slot, but the builder inlines a **literal
+  initializer** for `val n = 7`, `val s = "x"`, `val b = true`
+  (`buildVarDecl`). The corpus carries **299 of them across 46 documents (Int
+  212, String 53, Bool 34)** and none of the three documents that currently
+  match R6 has one, so the measurement could not see it while the lowering was
+  a silent miscompile: the local received the words of an unrelated register.
+  The emit now materializes the constant into the local slot for
+  `Int`/`Bool`/`Float64`/`String`, keeps the register copy for `Register` and
+  keeps the `leaq` for a function `Symbol`; the loader side already typed
+  literal initializers (`value_type`), so no gate was relaxed. `store_var`
+  keeps accepting a literal for symmetry with `decl_var` (no producer either
+  way; the corpus only ever stores registers there: 534 sites).
+- Reported, not fixed (outside this decision; one part is a semantics
+  question): a **literal operand inside a binary op** (`eq`/`ne`/`add`/… with
+  an `Int`/`Bool`/`String` immediate) is still rejected with `operand 2 must
+  be a valid register`. The census is **2622 such operands across 76/90
+  documents** (`eq` 884, `add` 737, `ne` 474, `sub` 123, `ge` 84, `lt` 83,
+  `gt` 71, `le` 66, `mul` 39, `div` 35, `mod` 26), and `add` with a `String`
+  operand (376 sites) is string concatenation, i.e. the U-17 boundary rather
+  than a literal form. Both need their own decision; fixture 29 deliberately
+  compares two locals so it stays inside the measured subset.
+- Admitted: `load_const` with a `Sym` that is `true`/`false` or a finite
+  float text, with a matching destination type; `decl_var`/`store_var` with an
+  inline `Int`/`Bool`/`Float`/`String` initializer.
+- Rejected fail closed (new pins, all `CGEN`):
+  `x-sym-literal-float-dest-type` (float text in an `int` register),
+  `x-sym-literal-bool-dest-type`, `x-sym-literal-not-finite` (`1e999` is
+  numeric text but its value is not finite, spec V-08),
+  `x-sym-integer-text-is-a-symbol` (a bare integer is not a float literal) and
+  `x-decl-var-literal-type` (a local keeps the type of its first `decl_var`);
+  the function-value rejections of D-M1-14 still hold because non-literal text
+  resolves as a function name.
+- Consequence: fixtures `28-sym-literals` (`Sym` bool/float literals plus the
+  builder's own `decl_var` stream, exit 42) and `29-decl-var-literals` (inline
+  `Int`/`String`/`Bool` initializers read back through `load_var`, exit 42,
+  stdout `ok`), both registered as acceptance cases; three new controls
+  (`ok-sym-bool-literal`, `ok-sym-float-literal`, `ok-decl-var-literal`).
+  Differential gate **27/27 -> 29/29**; loader suite **114/114 -> 124/124**
+  (109 rejections + 15 acceptance controls); `make_cases.py --check` without
+  drift.
+- Fixture fidelity: the instruction streams of `28` and `29` are the pinned
+  emitter's own output for the paired `.orb`; only `registerTypes` is
+  completed to the concrete types, because the emitter serializes before
+  `inferRegisterTypes` and leaves `unknown` (gap 1 of D-M1-17, D-M1-20).
+  Fixture `28` is the witness for the second gap: before the fix the
+  differential read `gcc exit=42, r6 exit=7`.
+- Evidence: corpus census recomputed from the pinned corpus; oracle and R6
+  build and run fixtures 28/29 and the three controls with identical
+  exit/stdout; the five rejections run red on the committed driver with
+  exactly one `error[CGEN]` line each; the corpus measurement stays **3/89**
+  (the module-level and `unknown` gates dominate) but `load_const` disappears
+  as a first refusal — the document that stopped there now advances to `ret` —
+  and the ratchet is re-taken at `r6BuildOk 3` / `match 3` in
+  `tests/corpus/baseline.json`.
+- Status: **accepted**.

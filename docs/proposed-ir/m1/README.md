@@ -39,16 +39,18 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `25-union-tag-data` | ctor de unión unit/single/multi (pack), `union_get_tag`/`union_get_data` y cuatro matches exhaustivos | 85 | `u-ok\n` |
 | `26-fn-values` | valores de función sin captura, llamada indirecta, rebinding `var` y binding externo | 42 | `fn-ok\n` |
 | `27-call-string-target` | target de llamada `String` (el formulario del builder) con destino `void` y con destino `int` | 42 | `string-target\n` |
+| `28-sym-literals` | literales bool/float como texto `Sym` en `load_const`, con el `decl_var` del builder | 42 | vacío |
+| `29-decl-var-literals` | inicializadores literales inline en `decl_var` (int/string/bool) leídos por `load_var` | 42 | `ok\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–27 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–29 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
-la línea base previa a la migración, y el par 27 desde D-M1-18 (2026-10-16)
-(ver `../../DECISIONS.md`
-D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18 y
-`../../M1_REPORT.md`).
+la línea base previa a la migración, el par 27 desde D-M1-18 (2026-10-16) y
+los pares 28–29 desde D-M1-19 (2026-10-16) (ver `../../DECISIONS.md`
+D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
+D-M1-19 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
@@ -149,5 +151,22 @@ ni variante, aridad distinta de la declaración, tipo de argumento o destino
 incompatible, destino no `void` en llamada void, y `main` como target. Los
 nombres runtime/builtin sin declaración (`orbit_string_*`, `orbit_object_*`,
 `orbit_db_*`, `print`, `system_*`) son el frente de builtins/alias (§3.1 pasos
-4–6) y siguen rechazados. El borde está pineado en `tests/reject/` (casos
+4-6) y siguen rechazados. El borde está pineado en `tests/reject/` (casos
 `x-call-*` regla D-M1-18 y el control `ok-call-void-dest`).
+
+Los literales del builder quedan admitidos en sus dos formas medidas
+(D-M1-19): un `Sym` en `load_const` es el literal bool (`true`/`false`) o
+float (texto numérico con fracción o exponente, finito) según su gramática de
+texto, y solo si no es ninguna de las dos sigue siendo un valor de función
+(D-M1-14); y `decl_var`/`store_var` aceptan un inicializador literal inline
+(`val n = 7`, `val s = "x"`, `val b = true`: 299 sitios en 46 documentos), que
+antes se bajaba como una copia de registro equivocada. Queda fuera y falla
+cerrado (CGEN): un literal cuyo tipo no coincide con el registro destino, un
+texto numérico no finito (V-08), un entero desnudo como `Sym` (no es un float
+literal) y un local declarado dos veces con tipos distintos. El censo de
+ambas formas está en D-M1-19; los pares 28–29 y los controles
+`ok-sym-bool-literal`/`ok-sym-float-literal`/`ok-decl-var-literal` pinean el
+borde. Un **operando literal dentro de una operación binaria** (`ne`/`eq`/
+`add`/… con inmediato) sigue rechazado y queda reportado como hueco propio
+(2622 sitios en 76/90 documentos, incluida la concatenación de strings por
+`add`, frontera U-17).
