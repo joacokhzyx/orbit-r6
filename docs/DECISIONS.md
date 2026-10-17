@@ -957,3 +957,35 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   after D-M1-20 is the **literal operand inside a binary operation** already
   reported by D-M1-19 (2622 sites in 76/90).
 - Status: **accepted**.
+
+## D-F0-09 — Local re-pin: the language pin stays at `5c01cea` and the emitter is an added local input
+
+- Date: 2026-10-16.
+- Decision: D4 records the pin without publishing anything. The public
+  language/runtime pin stays at `5c01cea` (still reproducible from the upstream
+  repository; the runtime and header blobs are unchanged by the branch) and
+  `PIN.md` **adds** the emitter as a local input: branch `r6-emit-ir` at
+  `1e6a378a6a67` in the separate clone
+  `C:\Users\Usuario\Downloads\orbit-lang-emit-ir` (three additive commits on
+  the pin, `ed17dac`/`a610905`/`1e6a378`), with the oracle binary hash
+  (`805cf618…`), the corpus manifest (`filesSha256 10f6e7d9…`) and the promoted
+  self-host canonical (`32FE98D7…`). The entry states explicitly that the
+  branch is **not merged and not pushed**.
+- Alternatives: moving the language commit pin itself to `1e6a378` (rejected:
+  that commit exists only in the local clone, so the pin would stop being
+  publicly reproducible while publishing nothing new, since the branch is
+  additive); pushing the branch to a remote (rejected by the user 2026-10-16:
+  no production upload); committing the emitted corpus or a git bundle into R6
+  (rejected: the corpus is an emitted artifact reproducible from the pinned
+  emitter, D-F0-08, and a bundle would add binaries to the repository).
+- Consequence: R6's documented pin now covers the emitter the corpus was
+  measured against, entirely offline. The trade is that the emitter pin is
+  **local**: it stops resolving if the clone is deleted, and making it public is
+  a separate, later decision (a push or a bundle would only add provenance; it
+  does not change what R6 verifies).
+- Evidence: the emitter rows in `docs/PIN.md`; branch and commit verified in the
+  clone (`git rev-parse r6-emit-ir` -> `1e6a378…`, tree clean, full clone);
+  corpus re-checked against the pin (`run_corpus.py --check`: `filesSha256`
+  matches, ratchet `r6BuildOk 6 -> 6`, `match 6 -> 6`); the emitter binary
+  SHA-256 is `805cf6…`; both R6 gates are green on the same tree.
+- Status: **accepted by user 2026-10-16**.
