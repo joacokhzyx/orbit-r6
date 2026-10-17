@@ -100,6 +100,32 @@ static bool value_type(const R6Function *f, const R6Value *v,
     }
 }
 
+/* D-M1-21: the two forms a value operand may take in the admitted
+ * operations - a register with a known type, or the inline literal the
+ * pinned builder writes in that position. Only Int/String/Bool are admitted
+ * (the builder never inlines a Float into an operation, so one stays fail
+ * closed) and every other kind still goes through operand_reg(). */
+static bool operand_value(const R6Function *f, const R6Instruction *i,
+                          unsigned n, const char **type, R6Diagnostic *d) {
+    R6Value v = i->operands[n];
+    if (v.kind == R6_VAL_FLOAT64)
+        return fail(d, i, "CGEN",
+                    "%s operand %u is a float literal: the pinned builder never inlines one into an operation",
+                    r6_opcode_name(i->opcode), n + 1);
+    if (v.kind == R6_VAL_INT || v.kind == R6_VAL_STRING || v.kind == R6_VAL_BOOL)
+        return value_type(f, &v, type);
+    return operand_reg(f, i, n, type, d);
+}
+
+/* The type of a value operand, register or inline literal. Validation has
+ * already admitted the form, so on a reached emit path this is never NULL. */
+static const char *operand_type_of(const R6Function *f, const R6Instruction *i,
+                                   unsigned n) {
+    const char *type = NULL;
+    value_type(f, &i->operands[n], &type);
+    return type;
+}
+
 static const char *ir_name(const R6Value *v) {
     if (v->kind == R6_VAL_SYMBOL || v->kind == R6_VAL_STRING) return v->as.string;
     return NULL;
@@ -882,8 +908,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 return fail(d, i, "CGEN", "copy from string literal is not supported; load_const handles literals");
             break;
         case R6_OP_ADD:
-            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
-                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
+                !operand_value(f, i, 1, &b, d)) return false;
             if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
                 !(is_int(a) || is_float(a) || is_string(a)))
                 return fail(d, i, "CGEN", "add supports matching int, float, or string registers only");
@@ -891,22 +917,22 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 return fail(d, i, "CGEN", "string add outside main requires the Orbit arena parameter contract");
             break;
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
-            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
-                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
+                !operand_value(f, i, 1, &b, d)) return false;
             if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
                 !(is_int(a) || (i->opcode != R6_OP_MOD && is_float(a))))
                 return fail(d, i, "CGEN", "sub/mul/div require matching int/float operands; mod requires int");
             break;
         case R6_OP_EQ:
-            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
-                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
+                !operand_value(f, i, 1, &b, d)) return false;
             if (!same_type(a, b) || !is_bool(type_at(f, i->dest)) ||
                 !(is_int(a) || is_float(a) || is_bool(a) || is_string(a)))
                 return fail(d, i, "CGEN", "eq supports matching int, float, bool, or string registers and bool destination only");
             break;
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
-            if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
-                !operand_reg(f, i, 1, &b, d)) return false;
+            if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
+                !operand_value(f, i, 1, &b, d)) return false;
             if (!(is_int(a) || is_float(a) ||
                   (i->opcode == R6_OP_NE && is_string(a))) || !same_type(a, b) ||
                 !is_bool(type_at(f, i->dest)))
@@ -1315,6 +1341,80 @@ static unsigned result_cell_offset(const R6Function *f, bool is_main, int32_t re
     return (unsigned)(slots * 8 + 24 + 24u * (unsigned)(reg + 1));
 }
 
+/* D-M1-21: the operation opcodes whose value operands may carry an inline
+ * literal, and how many of their operands are values. This is exactly the
+ * set the pinned corpus produces (2661 operands across 79/94 documents,
+ * kinds Int/String/Bool); a literal in any other operation still fails
+ * closed through operand_reg(). */
+static unsigned value_operand_count(R6Opcode op) {
+    switch (op) {
+    case R6_OP_ADD: case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV:
+    case R6_OP_MOD: case R6_OP_EQ: case R6_OP_NE: case R6_OP_LT:
+    case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+static bool uses_literal_scratch(const R6Function *f) {
+    size_t pc;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        unsigned n, count = value_operand_count(i->opcode);
+        for (n = 0; n < count; ++n)
+            if (i->operands[n].kind != R6_VAL_REG) return true;
+    }
+    return false;
+}
+
+/* The bytes the list scratch and the result cells reserve below the register
+ * slots; mirrors the frame arithmetic of emit_function(). */
+static size_t result_area_bytes(const R6Function *f) {
+    if (!uses_result_scratch(f) && !has_result_registers(f)) return 0;
+    return 24 + (has_result_registers(f) ? 24 * (size_t)f->register_count : 0);
+}
+
+/* The two 8-byte immediate slots an operation with an inline literal needs,
+ * placed below the result area so no existing offset moves and no cell or
+ * scratch block is overlapped. `n` is the operand index (0 or 1). */
+static unsigned literal_scratch_offset(const R6Function *f, bool is_main, unsigned n) {
+    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+                   f->param_count + local_count(f);
+    return (unsigned)(slots * 8 + result_area_bytes(f) + 8u * (n + 1));
+}
+
+/* The distance from %rbp to the word holding operand `n` of a D-M1-21
+ * operation: the register's own slot, or the scratch slot its literal was
+ * materialized into. */
+static unsigned operand_slot(const R6Function *f, bool is_main,
+                             const R6Instruction *i, unsigned n) {
+    if (i->operands[n].kind == R6_VAL_REG)
+        return (unsigned)(i->operands[n].as.i32 + 1) * 8;
+    return literal_scratch_offset(f, is_main, n);
+}
+
+/* Writes the immediate slots of an operation before the operation reads
+ * them, with the same materialization load_const/decl_var already use. */
+static void materialize_literals(FILE *o, const R6Function *f,
+                                 const R6Instruction *i, bool is_main,
+                                 unsigned long long *string_id) {
+    unsigned n, count = value_operand_count(i->opcode);
+    for (n = 0; n < count; ++n) {
+        const R6Value *v = &i->operands[n];
+        unsigned slot = literal_scratch_offset(f, is_main, n);
+        if (v->kind == R6_VAL_REG) continue;
+        if (v->kind == R6_VAL_STRING) {
+            emit_string(o, v->as.string, *string_id);
+            fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    (*string_id)++, slot);
+        } else if (v->kind == R6_VAL_INT)
+            fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, slot);
+        else
+            fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.boolean ? 1 : 0, slot);
+    }
+}
+
 /* The pinned C backend assigns the executable arena to a file-scope global
  * (`OrbitArena* arena = NULL;` + `arena = _init_arena;` in orbit_main) and
  * every non-main function that creates a list or allocates a model instance
@@ -1433,10 +1533,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
                    f->param_count + local_count(f);
     size_t used = slots * 8;
-    if (uses_result_scratch(f) || has_result_registers(f)) {
-        used += 24; /* scratch base at slots * 8 + 24 */
-        if (has_result_registers(f)) used += 24 * (size_t)f->register_count;
-    }
+    used += result_area_bytes(f);
+    if (uses_literal_scratch(f)) used += 16; /* two immediate slots, D-M1-21 */
     size_t frame = (used + 32 + (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
@@ -1667,27 +1765,32 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             else
                 return fail(d, i, "CGEN", "copy from this scalar literal kind is unsupported");
             break;
-        case R6_OP_ADD:
+        case R6_OP_ADD: {
+            /* D-M1-21: an operand may be an inline literal; it is written to
+               its scratch slot first, so the op reads slots either way. */
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            unsigned boff = operand_slot(f, is_main, i, 1);
+            materialize_literals(o, f, i, is_main, &string_id);
             t = type_at(f, i->dest);
             if (is_string(t)) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tmovq -%u(%%rbp), %%r8\n\tcall orbit_string_concat\n\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned)(f->register_count + 1) * 8,
-                        (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                        (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+                        aoff, boff, off);
                 break;
             }
             if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\taddsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
-                        (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                        (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+                        aoff, boff, off);
             } else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\taddq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                           (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                           (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+                           aoff, boff, off);
             break;
+        }
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD: {
-            unsigned aoff = (unsigned)(i->operands[0].as.i32 + 1) * 8;
-            unsigned boff = (unsigned)(i->operands[1].as.i32 + 1) * 8;
-            if (is_float(type_at(f, i->operands[0].as.i32))) {
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            unsigned boff = operand_slot(f, is_main, i, 1);
+            const char *t0 = operand_type_of(f, i, 0);
+            materialize_literals(o, f, i, is_main, &string_id);
+            if (is_float(t0)) {
                 const char *ins = i->opcode == R6_OP_SUB ? "subsd" :
                                   i->opcode == R6_OP_MUL ? "mulsd" : "divsd";
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\t%s -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
@@ -1705,31 +1808,33 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             break;
         }
-        case R6_OP_EQ:
-            t = type_at(f, i->operands[0].as.i32);
+        case R6_OP_EQ: {
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            unsigned boff = operand_slot(f, is_main, i, 1);
+            materialize_literals(o, f, i, is_main, &string_id);
+            t = operand_type_of(f, i, 0);
             if (is_string(t)) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                        (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                        (unsigned)(i->operands[1].as.i32 + 1) * 8, off, off, off);
+                        aoff, boff, off, off, off);
             } else if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\tsete %%al\n\tsetnp %%dl\n\tandb %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                        (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                        (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+                        aoff, boff, off);
             } else if (is_int(t)) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                           (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                           (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+                           aoff, boff, off);
             else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcmpl -%u(%%rbp), %%eax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                         (unsigned)(i->operands[0].as.i32 + 1) * 8,
-                         (unsigned)(i->operands[1].as.i32 + 1) * 8, off);
+                         aoff, boff, off);
             break;
+        }
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE: {
             const char *setcc;
-            unsigned aoff = (unsigned)(i->operands[0].as.i32 + 1) * 8;
-            unsigned boff = (unsigned)(i->operands[1].as.i32 + 1) * 8;
-            if (i->opcode == R6_OP_NE && is_string(type_at(f, i->operands[0].as.i32))) {
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            unsigned boff = operand_slot(f, is_main, i, 1);
+            const char *t0 = operand_type_of(f, i, 0);
+            materialize_literals(o, f, i, is_main, &string_id);
+            if (i->opcode == R6_OP_NE && is_string(t0)) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         aoff, boff, off, off, off);
-            } else if (is_float(type_at(f, i->operands[0].as.i32))) {
+            } else if (is_float(t0)) {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setb" :
                         i->opcode == R6_OP_LE ? "setbe" :

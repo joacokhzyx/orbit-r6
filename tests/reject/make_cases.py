@@ -727,6 +727,32 @@ def build_reject():
         "D-M1-16", "CGEN",
         "E-06: multi-argument print has no producer (sema E1003) and no lowering")
 
+    # ---- D-M1-21: the inline literal operand form of the operations ---------
+    # The pinned builder writes a literal straight into the operand of
+    # add/sub/mul/div/mod/eq/ne/lt/le/gt/ge instead of loading it into a
+    # register (2661 operands across 79/94 documents, kinds Int/String/Bool).
+    # R6 materializes each admitted one into a reserved scratch slot. Nothing
+    # outside that measured set is admitted, and admitting the form never
+    # admits a mismatched type.
+    add("x-lit-float-operand",
+        jd(DOC([MAIN([I("load_const", 0, Int(1)),
+                      I("add", 1, Reg(0), Flt(1.5)),
+                      I("ret", -1, Reg(1))], ["int", "int"])])),
+        "D-M1-21", "CGEN",
+        "a float literal operand has no producer in the pinned builder")
+    add("x-lit-and-op-operand",
+        jd(DOC([MAIN([I("load_const", 0, Sym("true")),
+                      I("and_op", 1, Reg(0), Bool(False)),
+                      I("ret", -1, Reg(1))], ["bool", "bool"])])),
+        "D-M1-21", "CGEN",
+        "an inline literal outside the measured operation set still fails closed")
+    add("x-lit-type-mismatch",
+        jd(DOC([MAIN([I("load_const", 0, Int(1)),
+                      I("add", 1, Reg(0), Str("x")),
+                      I("ret", -1, Reg(1))], ["int", "int"])])),
+        "D-M1-21", "CGEN",
+        "admitting the operand form does not admit a mismatched literal type")
+
     return cases
 
 
@@ -859,6 +885,25 @@ def build_accept_files():
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
                      "richVariants": ["int"], "methods": []}]
     files.append(("ok-infer-union-tag", jd({"irVersion": "1", "module": mod})))
+    # D-M1-21: a frame that reserves the result scratch of the list calls and
+    # the immediate slots of the literal operands at the same time. The list
+    # round-trip is fixture 18's, so the length is the one the oracle verifies;
+    # the add puts a literal into a frame whose offsets neighbour the scratch.
+    files.append(("ok-lit-operands",
+                  jd(DOC([MAIN([I("list_create", 0, Int(8), Int(3), ek=2),
+                                I("load_const", 1, Int(10)),
+                                I("list_push", 2, Reg(0), Reg(1), ek=2),
+                                I("load_const", 3, Int(20)),
+                                I("list_push", 4, Reg(0), Reg(3), ek=2),
+                                I("load_const", 5, Int(30)),
+                                I("list_push", 6, Reg(0), Reg(5), ek=2),
+                                I("decl_var", -1, Sym("xs"), Reg(0)),
+                                I("load_var", 7, Sym("xs")),
+                                I("list_len", 8, Reg(7)),
+                                I("add", 9, Reg(8), Int(2)),
+                                I("ret", -1, Reg(9))],
+                               ["list", "int", "void", "int", "void", "int",
+                                "void", "list", "int", "int"])]))))
     return files
 
 
@@ -922,6 +967,11 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/31-inferred-unary-neg.json",
              "run_exit": 2, "run_stdout": "", "rule": "D-M1-20",
              "note": "the emitter stream for neg/add is recovered and runs"},
+            {"file": "../../docs/proposed-ir/m1/32-inline-literal-operands.json",
+             "run_exit": 42, "run_stdout": "lit-ok\r\n\r\n", "rule": "D-M1-21",
+             "note": "the emitter stream with inline literal operands matches the oracle"},
+            {"file": "cases/ok-lit-operands.json", "run_exit": 5, "rule": "D-M1-21",
+             "note": "literal immediate slots and the list result scratch coexist"},
         ],
     }
 

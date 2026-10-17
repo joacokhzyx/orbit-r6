@@ -1099,3 +1099,81 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `orbit_alloc`, `orbit_result_ok` and `orbit_string_concat` present and
   `orbit_handle_request` absent.
 - Status: **applied 2026-10-17** (re-pin requested by the user).
+
+## D-M1-21 - The inline literal operand: materialized into a frame scratch slot
+
+- Date: 2026-10-17. Authorized gap: the "measured next wall" D-M1-20 names
+  (the literal operand inside a binary operation), spec §2.3.
+- Decision: `add`/`sub`/`mul`/`div`/`mod`/`eq`/`ne`/`lt`/`le`/`gt`/`ge` accept an
+  inline literal as operand1 and/or operand2. Admitted kinds: `Int`, `String`,
+  `Bool`. The per-opcode **type rule is unchanged**: the literal is typed by the
+  same `value_type` a register goes through, so a mismatched literal type is
+  still `CGEN` (a `String` literal in `sub`, an `Int` literal in `eq` against a
+  string register, ...). Everything else keeps failing closed: an inline
+  `Float` gets a dedicated `CGEN`, a literal in an operation outside the eleven
+  keeps the `operand_reg` refusal, and a register with no type keeps its own.
+- Why those kinds: measured, not assumed. The pinned corpus carries **2661
+  inline-literal operand sites across 79/94 documents**, kinds `Int` 1692,
+  `String` 572, `Bool` 397, and **no `Float` at all**. The builder inlines
+  whatever value it already holds (`builder.orb` `buildCallArgValue`), and a
+  float value reaches a binary op as a register, because the emitter renders
+  float literals through `load_const`/`decl_var`. A `Float` immediate therefore
+  has no producer in this position and stays refused rather than generalised.
+- Why those opcodes: the same census - the eleven are exactly the operations
+  that carry an inline literal in the corpus, and exactly the operations R6
+  implements with both operands as values. `and_op`/`or_op`/`not_op`/`neg`
+  carry none (the builder folds or materialises those operands), so they keep
+  failing closed through `operand_reg`.
+- Reference (normative, the oracle's own rule): the pinned C backend types an
+  inline literal exactly like a register. `irVerifierOperandType`
+  (`compiler/emit/c_backend.orb:1174-1196`) maps `IRValue.Int` -> `"int"`,
+  `Float` -> `"float"`, `Bool` -> `"bool"`, `String` -> `"string"` (the mirror
+  R6's `value_type` already implemented for D-M1-20); `isStringOperand`
+  (`:3881`) treats an inline `IRValue.String` as a string operand;
+  `verifyarithBinop` (`:1321`) and `verifycmpBinop` (`:1354`) type both operands
+  through it; `add`'s inference (`:802`) and its emit (`:1049`) test
+  `isStringOperand` on both sides. R6 mirrors that rule; it invents nothing.
+- Mechanism: two 8-byte immediate slots below the result area. The bytes the
+  list scratch and the result cells reserve are factored out of the frame
+  arithmetic (`result_area_bytes()`), so `used` grows by 16 only when a
+  function actually needs the slots and **no existing offset moves**;
+  `literal_scratch_offset()` places them at `slots * 8 + result_area + 8 * (n + 1)`
+  (above every cell, below nothing else in use). `materialize_literals()` writes
+  the operand with the same materialization `load_const`/`decl_var` already use
+  (`movq $imm` for `Int`, `movl $0/1` for `Bool`, `emit_string` + `leaq .LCr6_*`
+  for `String`) and `operand_slot()` then returns either the register's slot or
+  the scratch slot, so every operation stays a plain slot read. Validation swaps
+  `operand_reg` for `operand_value` in those eleven cases only.
+- Measured effect (pinned corpus `0106d531`, oracle `orbit-fp-26cfb87400.exe`):
+  first refusals whose opcode is one of the eleven fall **24 -> 6**, and the 6
+  are not the literal form: four are the D-M1-20 residue (a register operand or
+  destination still `unknown`: `for_index_labels`, `integer_literals`,
+  `interpolation`, `if_expression_value`), one is `peephole_folds`'s
+  `add` of a `String` literal with an `Int` literal - the language's
+  **string-spreading** conversion, which R6 does not implement - and one is
+  `list_element_type`'s `ne` over a bool, which R6 refuses by rule.
+  `r6BuildOk` **7 -> 21** and `match` **7 -> 21**: `arith`, `bool_and_or`,
+  `compound_assignment`, `div_mod_signed`, `division`, `for_range`, `if_branch`,
+  `model_mutation`, `numeric_literals`, `peephole_int_bool_only`, `strings_eq`,
+  `ternary`, `while_break`, `while_counter` go from refusal to a byte-for-byte
+  coincidence with the oracle. **Zero documents regressed** (0 lost).
+- Measured next fronts (questions to the language, not admissions): the
+  string-spreading `add` (what text does the oracle produce for the non-string
+  side?) and `ne` over `bool` (the reference accepts it; R6's `ne` rule admits
+  int/float/string only). Both are reported through the channel and neither is
+  implementable in R6 without a rule.
+- Gate evidence: differential **31/31 -> 32/32** (fixture 32 is the pinned
+  emitter's own stream for its paired `.orb`, `unknown` slots included, exit 42
+  and stdout `lit-ok\r\n\r\n`); loader **137/137 -> 142/142** (116 rejections +
+  26 controls); `make_cases.py --check` no drift (135 case files + manifest);
+  `migrate-m1-fixtures.py --check` 20/20 (32 skips, newer than `06d7d2c`); the
+  corpus ratchet is re-taken in `tests/corpus/baseline.json` (`r6BuildOk 21`,
+  `match 21`).
+- Negative controls (the form admits nothing beyond the measurement):
+  `x-lit-float-operand` (an inline `Float` is refused),
+  `x-lit-and-op-operand` (a literal outside the eleven operations is refused),
+  `x-lit-type-mismatch` (admitting the form does not admit a mismatched type).
+  Positive control `ok-lit-operands` (exit 5): a frame that reserves the list
+  result scratch and the immediate slots at the same time, which is the
+  offset arithmetic this decision introduces.
+- Status: **accepted**.

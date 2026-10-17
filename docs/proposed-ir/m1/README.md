@@ -43,17 +43,18 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `29-decl-var-literals` | inicializadores literales inline en `decl_var` (int/string/bool) leídos por `load_var` | 42 | `ok\n` |
 | `30-inferred-model-fields` | stream del emisor con los seis registros en `unknown`: ctor de modelo, local, `load_field` y `add` inferidos | 7 | vacío |
 | `31-inferred-unary-neg` | stream del emisor con cuatro registros en `unknown`: cadena de `neg`/`add` inferida | 2 | vacío |
+| `32-inline-literal-operands` | stream del emisor con literales inline en operandos de `mul`/`sub`/`div`/`mod`/`add`/`ne`/`ge`/`lt`/`eq`/`le`/`gt` y concatenación de strings | 42 | `lit-ok\n\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–31 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–32 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
 la línea base previa a la migración, el par 27 desde D-M1-18 (2026-10-16), los
-pares 28–29 desde D-M1-19 (2026-10-16) y los pares 30–31 desde D-M1-20
-(2026-10-16) (ver `../../DECISIONS.md`
+pares 28–29 desde D-M1-19 (2026-10-16), los pares 30–31 desde D-M1-20
+(2026-10-16) y el par 32 desde D-M1-21 (2026-10-17) (ver `../../DECISIONS.md`
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
-D-M1-19/D-M1-20 y `../../M1_REPORT.md`).
+D-M1-19/D-M1-20/D-M1-21 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
@@ -169,10 +170,18 @@ texto numérico no finito (V-08), un entero desnudo como `Sym` (no es un float
 literal) y un local declarado dos veces con tipos distintos. El censo de
 ambas formas está en D-M1-19; los pares 28–29 y los controles
 `ok-sym-bool-literal`/`ok-sym-float-literal`/`ok-decl-var-literal` pinean el
-borde. Un **operando literal dentro de una operación binaria** (`ne`/`eq`/
-`add`/… con inmediato) sigue rechazado y queda reportado como hueco propio
-(2622 sitios en 76/90 documentos, incluida la concatenación de strings por
-`add`, frontera U-17).
+borde.
+
+El **operando literal dentro de una operación** queda admitido en su forma
+medida (D-M1-21): los once opcodes `add`/`sub`/`mul`/`div`/`mod`/`eq`/`ne`/`lt`/
+`le`/`gt`/`ge` aceptan un literal inline (`Int`/`String`/`Bool`; 2661 sitios en
+79/94 documentos, **ningún `Float`**) y R6 lo materializa en un slot de
+inmediatos reservado en el frame, con la regla de tipos por opcode intacta. Un
+`Float` inline, un literal fuera de esos once y un tipo que no encaja siguen
+`CGEN`. El par 32 (stream propio del emisor, incluida la concatenación de
+strings) y el control `ok-lit-operands` pinean el borde; quedan reportados como
+frentes propios el *string spreading* de `add` (`String` + `Int`, sin regla de
+conversión en R6) y `ne` sobre bool.
 
 Los tipos de registro que el builder serializa como `unknown` se recuperan
 dentro del subconjunto nativo (D-M1-20): antes de validar el módulo, una pasada

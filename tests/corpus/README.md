@@ -184,3 +184,43 @@ espejo del backend del lenguaje, no relajación del gate: un registro que sigue
 cerraron con D-M1-18 y D-M1-19. El residuo medido del hueco 3 -el operando
 literal dentro de una operación binaria, 2622 sitios en 76/90- es hoy el frente
 abierto dominante y sigue necesitando una decisión datada propia.
+
+## Ronda 2026-10-17 (D-M1-21, operandos literales inline, corpus sin cambio)
+
+El residuo del hueco 3 cerró con D-M1-21: los once opcodes
+`add`/`sub`/`mul`/`div`/`mod`/`eq`/`ne`/`lt`/`le`/`gt`/`ge` admiten un literal
+inline en operand1 y/o operand2 (`Int`/`String`/`Bool`; 2661 sitios en 79/94
+documentos, ningún `Float`), materializado en un slot de inmediatos del frame.
+
+| Métrica | D-F0-11 (7/93) | D-M1-21 |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531…` | **`0106d531…`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 7/93 | **21/93** |
+| R6 coincide (exit + stdout) | 7/93 | **21/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+| opcodes que nunca aparecen en un programa que coincide | 32/41 | **16/41** |
+
+Los 14 programas nuevos (`arith`, `bool_and_or`, `compound_assignment`,
+`div_mod_signed`, `division`, `for_range`, `if_branch`, `model_mutation`,
+`numeric_literals`, `peephole_int_bool_only`, `strings_eq`, `ternary`,
+`while_break`, `while_counter`) pasan de rechazo a coincidencia byte a byte con
+el oráculo, sin ningún retroceso. Primer rechazo por opcode tras D-M1-21:
+
+| Primer rechazo | Casos |
+|---|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 29 |
+| `load_var` | 23 |
+| `decl_var` | 6 |
+| `add` | 4 |
+| `ret`, `list_create`, `list_len` | 2 cada uno |
+| `arg`, `gt`, `ne`, `call` | 1 cada uno |
+
+El frente del literal deja de ser un muro: los 6 primeros rechazos que aún caen
+en una operación no son la forma del literal, sino (a) cuatro por residuo de
+D-M1-20 (un registro operando o destino todavía `unknown`), (b) el `add` de
+`String` + `Int` de `peephole_folds`, que es el *string spreading* del lenguaje
+-una regla de conversión que R6 no tiene y que se reporta como pregunta-, y (c)
+el `ne` sobre bool de `list_element_type`, que el backend acepta y la regla de
+R6 para `ne` no. Los dos últimos son frentes nuevos, no admisiones.

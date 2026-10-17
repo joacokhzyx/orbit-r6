@@ -433,3 +433,56 @@ Mensajes completos de la corrida:
   estas reglas. El frente dominante pasa a ser el operando literal dentro de
   una operación binaria ya reportado por D-M1-19. Trinquete re-tomado tras
   `--check --write-baseline`: `r6BuildOk 6`, `match 6`.
+
+## Actualización de M1 - operandos literales inline en las operaciones (2026-10-17)
+
+- Decisión: D-M1-21. Los once opcodes `add`/`sub`/`mul`/`div`/`mod`/`eq`/`ne`/
+  `lt`/`le`/`gt`/`ge` admiten un literal inline en operand1 y/o operand2, con
+  los kinds medidos en el corpus (`Int`, `String`, `Bool`; **nunca `Float`**).
+  La regla de tipos por opcode no cambia: el literal se tipa con el mismo
+  `value_type` que un registro, así que un tipo que no encaja sigue siendo
+  `CGEN`. Un `Float` inline, un literal fuera de esos once opcodes y un registro
+  sin tipo siguen rechazados.
+- Mecanismo: dos slots de 8 bytes bajo el área de resultados
+  (`literal_scratch_offset`, con `result_area_bytes()` extraído de la aritmética
+  del frame para que **ningún offset existente se mueva**); el preludio de la
+  instrucción escribe el inmediato con la misma materialización que
+  `load_const`/`decl_var` y `operand_slot()` devuelve el slot del registro o el
+  del literal, de modo que la operación sigue siendo una lectura de slot.
+- Referencia: `c_backend.orb:1174-1196` (`irVerifierOperandType` tipa el literal
+  inline igual que un registro), `:3881` (`isStringOperand` acepta un
+  `IRValue.String` inline), `:1321`/`:1354` (`verifyarithBinop`/`verifycmpBinop`)
+  y `:802`/`:1049` (inferencia y emisión de `add`).
+- Evidencia del corpus (pin `0106d531`): los primeros rechazos cuyo opcode es uno
+  de los once caen **24 -> 6**, y esos 6 no son el literal: cuatro son residuo de
+  D-M1-20 (un registro operando o destino que sigue `unknown`), uno es el
+  `add` de `String` + `Int` de `peephole_folds` (el *string spreading* del
+  lenguaje, no implementado en R6) y uno es el `ne` sobre bool de
+  `list_element_type`. `r6BuildOk` **7 -> 21** y `match` **7 -> 21**
+  (`arith`, `bool_and_or`, `compound_assignment`, `div_mod_signed`, `division`,
+  `for_range`, `if_branch`, `model_mutation`, `numeric_literals`,
+  `peephole_int_bool_only`, `strings_eq`, `ternary`, `while_break`,
+  `while_counter`), **sin que ningún documento retroceda**.
+- Frentes nuevos medidos (preguntas, no admisiones): el *string spreading* de
+  `add` (qué texto produce el oráculo para el lado no-string) y `ne` sobre bool
+  (el backend lo acepta; la regla de R6 para `ne` solo admite int/float/string).
+- Puertas: diferencial **31/31 -> 32/32** (fixture 32, stream propio del emisor
+  del pin con sus `unknown` incluidos, exit 42 y stdout `lit-ok\r\n\r\n`); loader
+  **137/137 -> 142/142** (116 rechazos + 26 controles); `make_cases.py --check`
+  sin drift (135 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  20/20; trinquete re-tomado (`r6BuildOk 21`, `match 21`). Controles negativos
+  `x-lit-float-operand`, `x-lit-and-op-operand`, `x-lit-type-mismatch`; control
+  positivo `ok-lit-operands` (exit 5), que reserva el scratch de resultados de
+  lista y los slots de inmediatos en el mismo frame.
+- Observación de entorno (afecta a la reproducibilidad de la medición): mientras
+  se tomaba esta medición, el working tree del lenguaje **avanzó** de `862f257`
+  (pin D-F0-11) a `ce87d508` con trabajo concurrente sin commitear
+  (`M scripts/_common.py`, `M scripts/alive_check.py`, `?? scripts/cc_cached.py`).
+  Durante esa ventana la envoltura de caché de C del harness pasó a `ORBIT_CC`
+  multi-token entrecomillado, que el fp del pin no puede lanzar
+  (`ERROR_INVALID_NAME`), y varias corridas del corpus dieron `oracle-fail 93`
+  con `r6BuildOk 0`: el trinquete lo detectó y **se negó a escribir baseline**.
+  La medición final se tomó con `ORBIT_CCACHE=0` (escotilla documentada del
+  harness). El oráculo es el mismo binario de D-F0-11 (sha256 `10a16956.`) y el
+  corpus emitido es **idéntico** (`filesSha256 0106d531.`), de modo que la
+  medición corresponde al contenido del pin D-F0-11.

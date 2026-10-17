@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `371f873e…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 113 rechazos + 24 controles
+python tests/reject/run_reject.py            # 116 rechazos + 26 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,13 +17,14 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` - 113 rechazos + 18 controles locales; los otros seis controles
+- `cases/` - 116 rechazos + 19 controles locales; los otros siete controles
   son `docs/proposed-ir/m1/01-int-call.json`,
   `docs/proposed-ir/m1/27-call-string-target.json`,
   `docs/proposed-ir/m1/28-sym-literals.json`,
   `docs/proposed-ir/m1/29-decl-var-literals.json`,
-  `docs/proposed-ir/m1/30-inferred-model-fields.json` y
-  `docs/proposed-ir/m1/31-inferred-unary-neg.json`.
+  `docs/proposed-ir/m1/30-inferred-model-fields.json`,
+  `docs/proposed-ir/m1/31-inferred-unary-neg.json` y
+  `docs/proposed-ir/m1/32-inline-literal-operands.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
   `r6: <file>:<line>:<col>: error[CODE]: <msg>` y el `CODE` del manifiesto.
@@ -74,5 +75,8 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-16: **137/137** (113 rechazos + 24 controles); gate diferencial
-31/31 en el mismo árbol.
+Estado 2026-10-17: **142/142** (116 rechazos + 26 controles); gate diferencial
+32/32 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
+operaciones) queda pineado por los rechazos `x-lit-float-operand`,
+`x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
+`ok-lit-operands` y `32-inline-literal-operands`.

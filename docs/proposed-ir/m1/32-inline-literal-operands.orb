@@ -1,0 +1,27 @@
+// expect-exit 42
+// The pinned builder inlines a literal operand directly into the operation
+// instead of a load_const: the corpus carries 2661 such operands across 79/94
+// documents, kinds Int/String/Bool, in add/sub/mul/div/mod/eq/ne/lt/le/gt/ge
+// (D-M1-21). R6 materializes each one into a reserved scratch slot before the
+// operation, so a wrong materialization or a wrong operand slot changes the
+// exit code. Every guard below fires only when the expected value is wrong, so
+// a divergence shows up as a different exit status, and the concat covers the
+// String form (the U-17 boundary) through stdout. The instruction stream of
+// the paired .json is the pinned emitter's own output for this source.
+extern fn orbit_print(s: string) -> void
+
+fn main() -> int {
+    val a = 3 * 4              // mul: both operands are inline literals
+    val b = a - 5              // sub: literal on the right
+    val c = b / 2              // div: literal on the right
+    val d = c % 2              // mod: literal on the right
+    val e = d + 41             // add: literal on the right
+    if e != 42 { return 1 }    // ne:  literal on the right
+    if !(7 >= b) { return 2 }  // ge:  literal on the left
+    if !(b < 8) { return 3 }   // lt:  literal on the right
+    if !(6 == b - 1) { return 4 }  // eq: literal on the left
+    if !(b - 1 <= 6) { return 5 }  // le
+    if !(b - 1 > 5) { return 6 }   // gt
+    orbit_print("lit" + "-ok\n")   // add: string concatenation with literals
+    return e
+}

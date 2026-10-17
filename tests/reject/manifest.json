@@ -790,6 +790,27 @@
       "code": "CGEN",
       "rule": "D-M1-16",
       "note": "E-06: multi-argument print has no producer (sema E1003) and no lowering"
+    },
+    {
+      "file": "cases/x-lit-float-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-21",
+      "note": "a float literal operand has no producer in the pinned builder"
+    },
+    {
+      "file": "cases/x-lit-and-op-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-21",
+      "note": "an inline literal outside the measured operation set still fails closed"
+    },
+    {
+      "file": "cases/x-lit-type-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-21",
+      "note": "admitting the operand form does not admit a mismatched literal type"
     }
   ],
   "accept": [
@@ -942,6 +963,19 @@
       "run_stdout": "",
       "rule": "D-M1-20",
       "note": "the emitter stream for neg/add is recovered and runs"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/32-inline-literal-operands.json",
+      "run_exit": 42,
+      "run_stdout": "lit-ok\r\n\r\n",
+      "rule": "D-M1-21",
+      "note": "the emitter stream with inline literal operands matches the oracle"
+    },
+    {
+      "file": "cases/ok-lit-operands.json",
+      "run_exit": 5,
+      "rule": "D-M1-21",
+      "note": "literal immediate slots and the list result scratch coexist"
     }
   ]
 }
