@@ -224,3 +224,45 @@ D-M1-20 (un registro operando o destino todavía `unknown`), (b) el `add` de
 -una regla de conversión que R6 no tiene y que se reporta como pregunta-, y (c)
 el `ne` sobre bool de `list_element_type`, que el backend acepta y la regla de
 R6 para `ne` no. Los dos últimos son frentes nuevos, no admisiones.
+
+## Ronda 2026-10-17 (D-M1-22, `load_var` de un parámetro, corpus sin cambio)
+
+El muro de `load_var` era una sola regla: los 23 primeros rechazos de esa
+familia, decodificados en su offset de diagnóstico, son **23/23 lecturas de
+parámetro por nombre** (tipos `int` 16, `string` 5, `float` 1, `bool` 1; 14
+funciones). D-M1-22 los admite y la familia cae **23 -> 0**.
+
+| Métrica | D-M1-21 | D-M1-22 |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531…` | **`0106d531…`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 21/93 | **23/93** |
+| R6 coincide (exit + stdout) | 21/93 | **23/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+| opcodes que nunca aparecen en un programa que coincide | 16/41 | **15/41** (`le`) |
+
+Los dos programas nuevos son `float_boundaries` (parámetro float) y
+`fn_recursive` (parámetro int), byte a byte con el oráculo y sin retrocesos. Los
+otros 21 documentos de la familia avanzan a su siguiente muro: las paredes son
+conjuntivas, así que cerrar una familia no cierra por sí solo un programa.
+Primer rechazo por opcode tras D-M1-22:
+
+| Primer rechazo | D-M1-21 | D-M1-22 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 29 | **35** |
+| `call` | 1 | **11** |
+| `add` | 4 | **7** |
+| `decl_var` | 6 | 6 |
+| `list_create` | 2 | **4** |
+| `ret`, `list_len` | 2 cada uno | 2 cada uno |
+| `arg`, `gt`, `ne` | 1 cada uno | 1 cada uno |
+| `load_var` | 23 | **0** |
+
+Lo que crece es el avance de los 21 programas liberados: el siguiente muro
+dominante es de nuevo el nivel de módulo (`register type unknown` 9, tipo de
+registro `object` 3, `parameter type list<string>` 3) y las llamadas a nombres
+que el documento no declara (`orbit_string_len` 5, `orbit_string_slice`,
+`orbit_db_query_all`, `orbit_object_*`: el frente de builtins de la spec §3.1
+pasos 4-6, que sigue fail-closed a la espera de la tabla del lenguaje). El
+`unknown` estructural no se movió: sigue en 87/94 documentos.

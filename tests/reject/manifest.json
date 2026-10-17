@@ -811,6 +811,20 @@
       "code": "CGEN",
       "rule": "D-M1-21",
       "note": "admitting the operand form does not admit a mismatched literal type"
+    },
+    {
+      "file": "cases/x-load-var-foreign-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-22",
+      "note": "a parameter name is scoped to its own function; another's is not guessed"
+    },
+    {
+      "file": "cases/x-load-var-param-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-22",
+      "note": "loading a parameter into a differently typed register is refused"
     }
   ],
   "accept": [
@@ -976,6 +990,19 @@
       "run_exit": 5,
       "rule": "D-M1-21",
       "note": "literal immediate slots and the list result scratch coexist"
+    },
+    {
+      "file": "cases/ok-load-var-param.json",
+      "run_exit": 42,
+      "rule": "D-M1-22",
+      "note": "a parameter read by name is the value of its arg binding"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/33-parameter-by-name.json",
+      "run_exit": 42,
+      "run_stdout": "",
+      "rule": "D-M1-22",
+      "note": "the emitter stream reading int/string/bool/float parameters by name matches the oracle"
     }
   ]
 }

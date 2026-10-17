@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `371f873e…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 116 rechazos + 26 controles
+python tests/reject/run_reject.py            # 116 rechazos + 30 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,14 +17,15 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` - 116 rechazos + 19 controles locales; los otros siete controles
+- `cases/` - 116 rechazos + 22 controles locales; los otros ocho controles
   son `docs/proposed-ir/m1/01-int-call.json`,
   `docs/proposed-ir/m1/27-call-string-target.json`,
   `docs/proposed-ir/m1/28-sym-literals.json`,
   `docs/proposed-ir/m1/29-decl-var-literals.json`,
   `docs/proposed-ir/m1/30-inferred-model-fields.json`,
-  `docs/proposed-ir/m1/31-inferred-unary-neg.json` y
-  `docs/proposed-ir/m1/32-inline-literal-operands.json`.
+  `docs/proposed-ir/m1/31-inferred-unary-neg.json`,
+  `docs/proposed-ir/m1/32-inline-literal-operands.json` y
+  `docs/proposed-ir/m1/33-parameter-by-name.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
   `r6: <file>:<line>:<col>: error[CODE]: <msg>` y el `CODE` del manifiesto.
@@ -66,6 +67,8 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-18 | `x-call-string-target-arity`, `x-call-string-target-arg-type`, `x-call-string-target-dest`, `x-call-string-target-main`, `x-call-void-dest-type`; aceptación: `ok-call-void-dest` |
 | D-M1-19 | `x-sym-literal-float-dest-type`, `x-sym-literal-bool-dest-type`, `x-sym-literal-not-finite`, `x-sym-integer-text-is-a-symbol`, `x-decl-var-literal-type`; aceptación: `ok-sym-bool-literal`, `ok-sym-float-literal`, `ok-decl-var-literal` (+ los fixtures 28/29) |
 | D-M1-20 | `x-infer-arith-unknown-operand`, `x-infer-unresolved-call`, `x-infer-unknown-load-var`, `x-infer-result-unwrap`; aceptación: `ok-infer-eq-bool`, `ok-infer-load-var`, `ok-infer-neg-chain`, `ok-infer-call-return`, `ok-infer-arg-param`, `ok-infer-list-create`, `ok-infer-union-tag` (+ los fixtures 30/31) |
+| D-M1-21 | `x-lit-float-operand`, `x-lit-and-op-operand`, `x-lit-type-mismatch`; aceptación: `ok-lit-operands` (+ el fixture 32) |
+| D-M1-22 | `x-load-var-foreign-param`, `x-load-var-param-mismatch`; aceptación: `ok-load-var-param` (+ el fixture 33) |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
 `list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan cerrados
@@ -75,8 +78,13 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-17: **142/142** (116 rechazos + 26 controles); gate diferencial
-32/32 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
+Estado 2026-10-17: **146/146** (116 rechazos + 30 controles); gate diferencial
+33/33 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
-`ok-lit-operands` y `32-inline-literal-operands`.
+`ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de
+un parámetro) queda pineado por `x-load-var-foreign-param` (un parámetro de
+otra función no es un nombre del módulo), `x-load-var-param-mismatch` (el tipo
+del destino debe ser `paramTypes[p]`) y los controles `ok-load-var-param` y
+`33-parameter-by-name`; `x-infer-unknown-load-var` sigue cubriendo el nombre
+sin declarar.

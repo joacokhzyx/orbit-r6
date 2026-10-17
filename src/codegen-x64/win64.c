@@ -350,6 +350,26 @@ static int sym_literal_kind(const R6Value *v, R6Value *out) {
     return 2;
 }
 
+/* A parameter is loadable by name. The pinned builder emits `arg` to bind each
+ * parameter and reads it in the body with `load_var <name>`; the C backend
+ * types that read from `paramTypes` after matching `func.params`
+ * (c_backend.orb:775-800) and the `arg` binding emits the parameter itself
+ * (:2860-2873), so a `load_var` of a parameter is that same value. Parameters
+ * resolve before locals, in the backend's order (D-M1-22). */
+static bool param_info(const R6Function *f, const char *name, size_t *index,
+                       const char **type) {
+    size_t p;
+    if (!f || !name || !f->param_count || !f->params || !f->param_types) return false;
+    for (p = 0; p < f->param_count; ++p) {
+        if (f->params[p] && strcmp(f->params[p], name) == 0) {
+            if (index) *index = p;
+            if (type) *type = f->param_types[p];
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Locals mirror decl_var order. A Symbol initializer (`val f = inc`) types
  * the local with the function's signature spelling (fn_value_spelling). */
 static bool local_info(const R6Module *m, const R6Function *f, const char *name,
@@ -779,16 +799,20 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             const char *name = ir_name(&i->operands[0]), *lt = NULL;
             const R6Global *global = name ? find_global(m, name) : NULL;
             int32_t ignored, tag_value = 0;
-            bool local = name && local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf);
-            bool tag = !local && !global && union_tag_constant(m, name, &tag_value);
+            /* A parameter resolves first, in the backend's order
+               (c_backend.orb:786-792), and carries paramTypes[p] (D-M1-22). */
+            bool param = param_info(f, name, NULL, &lt);
+            bool local = !param && name &&
+                         local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf);
+            bool tag = !param && !local && !global && union_tag_constant(m, name, &tag_value);
             if (!valid_dest(f, i, true, d) || !name ||
-                (!local && !tag && (!global || !global_integer(global, &ignored))) ||
-                (local ? (!same_type(lt, type_at(f, i->dest)) ||
+                (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
+                ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
                           !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt) ||
                             is_fn_type(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global->type_name, type_at(f, i->dest))))
-                return fail(d, i, "CGEN", "load_var requires a supported local, declared global, or union tag constant");
+                return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or union tag constant");
             break;
         }
         case R6_OP_LIST_CREATE: {
@@ -1602,13 +1626,24 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         }
         case R6_OP_LOAD_VAR: {
-            size_t local_index;
-            const char *local_type;
+            size_t local_index, param_index;
+            const char *local_type, *param_type;
             char local_buf[R6_FN_SPELLING_CAP];
             unsigned local_off;
             const char *name = ir_name(&i->operands[0]);
             const R6Global *global = find_global(m, name);
-            if (local_info(m, f, name, &local_index, &local_type, local_buf, sizeof local_buf)) {
+            if (param_info(f, name, &param_index, &param_type)) {
+                /* The parameter's home slot, exactly as its `arg` binding
+                   writes and reads it (D-M1-22). */
+                unsigned home = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+                                           param_index + 1) * 8;
+                if (is_float(param_type))
+                    fprintf(o, "\tmovsd -%u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n",
+                            home, off);
+                else
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                            home, off);
+            } else if (local_info(m, f, name, &local_index, &local_type, local_buf, sizeof local_buf)) {
                 local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
                                        f->param_count + local_index + 1) * 8;
                 if (is_float(local_type))
@@ -2388,11 +2423,8 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         const char *name = ir_name(o1), *type = NULL;
         const R6Global *g;
         int32_t ordinal;
-        size_t k;
         if (!name) return NULL;
-        for (k = 0; k < f->param_count; ++k)
-            if (f->params[k] && strcmp(f->params[k], name) == 0)
-                return f->param_types[k];
+        if (param_info(f, name, NULL, &type)) return type;
         if (local_info(m, f, name, NULL, &type, buf, cap)) return type;
         if ((g = find_global(m, name)) != NULL) return g->type_name;
         /* `<union>_TAG_<variant>` is the ordinal constant D-M1-12 loads as an

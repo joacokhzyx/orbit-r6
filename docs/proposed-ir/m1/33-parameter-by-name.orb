@@ -1,0 +1,39 @@
+// expect-exit 42
+// Reading a parameter by name. The pinned builder emits `arg` to bind each
+// parameter and reads it in the body with `load_var <name>`: the C backend
+// types that read from `paramTypes` (c_backend.orb:775-800) and the bind emits
+// the parameter itself (:2860-2873), so a `load_var` of a parameter is the same
+// value as its `arg` binding. The emitted corpus reaches this form in 23
+// programs -- the whole `load_var` wall -- with int, string, bool and float
+// parameters (D-M1-22). R6 already inferred the type of such a read
+// (win64.c:2393-2395) but refused the instruction, so every function body that
+// read its own parameter failed closed. Every guard below fires only when the
+// loaded value is wrong, so a divergence shows up as a different exit status.
+fn pick(flag: int) -> int {
+    if flag == 1 { return 40 }
+    return 0
+}
+
+fn mark(prefix: string) -> int {
+    if prefix == "ok" { return 1 }
+    return 0
+}
+
+fn truthy(b: bool) -> int {
+    if b { return 1 }
+    return 0
+}
+
+fn twice(x: float) -> float {
+    return x + x
+}
+
+fn main() -> int {
+    val a = pick(1)         // 40: int parameter read by name
+    val b = mark("ok")      // 1: string parameter read by name
+    val c = truthy(true)    // 1: bool parameter read by name
+    val d = twice(1.5)      // float parameter read by name, twice
+    val e = twice(1.5)      // a second float read, compared register to
+    if d != e { return 7 }  // register so no Float literal is involved
+    return a + b + c        // 42
+}

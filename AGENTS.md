@@ -23,7 +23,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 32/32 on 2026-10-17 with:
+Primary gate: differential — verified 33/33 on 2026-10-17 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -50,11 +50,12 @@ Second gate: loader contract suite (`tests/reject/`, decision D-M1-06;
 alloc/free pins are D-M1-13, function-value pins are D-M1-14, the
 register-global pin is D-M1-15, edge-case pins are D-M1-16, call-target pins
 are D-M1-18, literal-form pins are D-M1-19, unknown-register-type pins are
-D-M1-20, inline-literal-operand pins are D-M1-21) — verified 142/142 on
+D-M1-20, inline-literal-operand pins are D-M1-21, parameter-by-name pins are
+D-M1-22) — verified 146/146 on
 2026-10-17:
 
 ```powershell
-python tests/reject/run_reject.py            # 116 rejections + 26 acceptance controls
+python tests/reject/run_reject.py            # 116 rejections + 30 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
@@ -70,14 +71,16 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **21/93** on 2026-10-17 at the
-D-M1-21 round (2/89 at the D-M1-17 pin; D-M1-18 lifted it to 3/89; D-M1-19 kept
+D-M1-17) — a **measurement, not a gate**. Measured **23/93** on 2026-10-17 at the
+D-M1-22 round (2/89 at the D-M1-17 pin; D-M1-18 lifted it to 3/89; D-M1-19 kept
 3/89 while removing `load_const` as a first refusal anywhere; D-M1-20 lifted it
 to 6/89 by recovering, by inference, the register types the builder serialized
 as `unknown`; the merge + re-pin lifted it to 7/93 on the grown corpus;
 **unchanged at the D-F0-11 re-pin** (`862f257`, same `filesSha256 0106d531…`);
 D-M1-21 lifted it to 21/93 by admitting the inline literal operand — the first
-wall of 24 documents — with zero regressions):
+wall of 24 documents — and D-M1-22 to 23/93 by admitting `load_var` of a
+parameter, the whole `load_var` wall of 23 programs — both with zero
+regressions):
 
 ```powershell
 python tests/corpus/run_corpus.py `

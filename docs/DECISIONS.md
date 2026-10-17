@@ -1233,3 +1233,80 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   corpus ratchet **holds 21 -> 21** (`r6BuildOk` and `match` unchanged, oracle
   green).
 - Status: **applied**.
+
+## D-M1-22 - `load_var` of a parameter: the value of its `arg` binding
+
+- Date: 2026-10-17. Authorized gap: the measured next wall. After D-M1-21 the
+  largest first refusal of the pinned corpus is `load_var` (**23 of 93
+  programs**), and all 23 read a **parameter by name**: the pinned builder
+  binds each parameter with `arg` and reads it in the body with
+  `load_var <name>`.
+- Decision: `load_var` whose O1 names a **parameter of the enclosing function**
+  is admitted. The destination is typed `paramTypes[p]` and the lowered value is
+  the parameter itself - the same slot that parameter's `arg` binding reads.
+  Name resolution inside a function is, in this order: **parameter**, then
+  `decl_var` local, then declared global, then union tag constant. Everything
+  else is unchanged: a name that is none of those keeps its refusal; a name that
+  is a parameter of *another* function keeps it (parameters are function
+  scoped, they are not module names); and a destination whose type differs from
+  `paramTypes[p]` keeps it.
+- Reference (normative, the oracle's own rule), all read from the pinned blob
+  `compiler/emit/c_backend.orb 2d64c8de…` at `ce87d508`:
+  - the emission of `load_var` (`:2598-2651`) takes the name text and, when the
+    variable's own type is unknown or empty, **falls back to `func.params` and
+    takes `paramTypes[p]`** (`:2623-2631`); the cast that follows is chosen from
+    that type (`:2633-2649`), and a `Sym` renders as the name verbatim
+    (`generateValue`, `:IRValue.Sym -> v.value`). So a `load_var` of a parameter
+    is its own C variable, cast by `paramTypes[p]`.
+  - the type inference (`:775-800`) consults `func.params` **before** the
+    locals and infers `params.get(p) == vn -> paramTypes.get(p)`; that is the
+    pass that decides the register type, and the order R6 mirrors.
+  - the `arg` binding (`:2860-2873`) emits `reg[dest] = params[index]`, i.e. the
+    same value, so the two instructions are the same source.
+  - `docs/IR_SPEC.md` (blob `371f873e…`) §1.2 states the same rule: `load_var`
+    is `D <- variable named by O1`, and `arg` with `D` is `Int O1 is a parameter
+    index, D <- parameter name`. Its own internal line cites are against an older
+    revision of the backend than the pinned blob, so the pinned lines above are
+    what is auditable here.
+- Why the whole family at once: measured, not assumed. Decoding every one of the
+  23 first refusals at its diagnostic offset (R6 reports the byte offset into
+  the single-line IR JSON) gives **23/23 parameter reads** and nothing else:
+  parameter types `int` 16, `string` 5, `float` 1, `bool` 1, across 14 distinct
+  functions (`intToString` 8, `getEnv` 2, `addSeconds` 2, and ten singletons).
+  There is no other `load_var` form behind the wall, so one rule clears it.
+- Mechanism: R6 already spills parameter `p` to its home slot
+  `(registerCount + isMain + p + 1) * 8` in the prologue and reads that slot for
+  the `arg` binding, and its inference already resolved the name
+  (`param_info` is now the single definition of that lookup, extracted from the
+  inference pass). The change is therefore a param branch in the `load_var`
+  validation and a param branch in its emission that copies the home slot into
+  the destination (the `movq`/`movsd` pair the `arg` binding already uses). No
+  frame arithmetic changes and no other offset moves.
+- Measured effect (pinned corpus `0106d531`, oracle `orbit-fp-26cfb87400.exe`):
+  first refusals whose opcode is `load_var` fall **23 -> 0**; `r6BuildOk` and
+  `match` go **21 -> 23**. `tests/suite/float_boundaries.orb` (float parameter)
+  and `tests/suite/fn_recursive.orb` (int parameter) go from refusal to a
+  byte-for-byte coincidence with the oracle. **Zero documents regressed**. The
+  remaining 21 of those 23 programs advance to their next wall, which is what the
+  new histogram measures; the walls are conjunctive, so clearing one family does
+  not by itself clear a program.
+- Gate evidence: differential **33/33** (fixture 33 is the pinned emitter's own
+  stream for its paired `.orb`, reading int/string/bool/float parameters by
+  name, exit 42, stdout empty); loader **146/146** (116 rejections + 30
+  controls, +2 rejections and +3 positive controls of D-M1-22);
+  `make_cases.py --check` no drift (138 case files + manifest);
+  `migrate-m1-fixtures.py --check` 20/20; the corpus ratchet is re-taken in
+  `tests/corpus/baseline.json` (`r6BuildOk 23`, `match 23`).
+- Negative controls: `x-load-var-foreign-param` (a name that is a parameter of
+  another function, not of the enclosing one, keeps the refusal - parameters are
+  not module names) and `x-load-var-param-mismatch` (loading a parameter into a
+  differently typed register keeps it). Positive control `ok-load-var-param`
+  (exit 42): a body that never reads the bound register still sees the argument,
+  which is the equivalence this decision rests on. The pre-existing
+  `x-infer-unknown-load-var` (an undeclared name stays unknown) still holds.
+- Diagnostic wording: the message becomes `load_var requires a supported local,
+  parameter, declared global, or union tag constant` so it names the source it
+  now admits. The rejection code (`CGEN`) and the fail-closed contract are
+  unchanged; the historical message quoted in the D-M1-20/21 measurements is
+  left as that run's record.
+- Status: **accepted**.

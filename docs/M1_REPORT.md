@@ -486,3 +486,51 @@ Mensajes completos de la corrida:
   harness). El oráculo es el mismo binario de D-F0-11 (sha256 `10a16956.`) y el
   corpus emitido es **idéntico** (`filesSha256 0106d531.`), de modo que la
   medición corresponde al contenido del pin D-F0-11.
+
+## Actualización de M1 - `load_var` de un parámetro (2026-10-17)
+
+- Decisión: D-M1-22. `load_var` cuyo O1 nombra un **parámetro de la función**
+  queda admitido: el destino se tipa `paramTypes[p]` y el valor es el propio
+  parámetro, el mismo slot que lee su binding `arg`. El orden de resolución
+  dentro de la función es parámetro, luego local de `decl_var`, luego global
+  declarada, luego tag de unión. Nada más se relaja: un nombre que no es nada de
+  eso sigue rechazado, el parámetro de **otra** función sigue rechazado (el
+  parámetro es de ámbito de función, no un nombre de módulo) y un destino con
+  tipo distinto de `paramTypes[p]` sigue rechazado.
+- Referencia (blob pineado `compiler/emit/c_backend.orb 2d64c8de…`): la emisión
+  de `load_var` (`:2598-2651`) cae a `func.params` y toma `paramTypes[p]` cuando
+  el tipo propio de la variable es `unknown`/vacío (`:2623-2631`), el cast sale
+  de ese tipo (`:2633-2649`) y un `Sym` se rinde como el nombre tal cual
+  (`generateValue`); la inferencia (`:775-800`) consulta `func.params` **antes**
+  que los locales; el binding `arg` (`:2860-2873`) emite `reg[dest] =
+  params[index]`, el mismo valor. La spec (`docs/IR_SPEC.md`, blob `371f873e…`)
+  §1.2 dice lo mismo (`load_var` = `D <- variable named by O1`; `arg` con `D` =
+  índice de parámetro, `D <- parameter name`), aunque sus citas internas de
+  línea apuntan a una revisión anterior del backend, no al blob pineado.
+- Mecanismo: R6 ya derrama el parámetro `p` a su home `(registerCount + isMain +
+  p + 1) * 8` en el preludio y ya lee ese slot para el binding `arg`, y su
+  inferencia ya resolvía el nombre (`param_info` es ahora la única definición de
+  esa búsqueda, extraída del pase de inferencia). El cambio es una rama de
+  parámetro en la validación y otra en la emisión de `load_var`, que copia el
+  home al destino con el par `movq`/`movsd` que ya usa `arg`. No cambia la
+  aritmética del frame ni se mueve ningún offset.
+- Evidencia del corpus (pin `0106d531`): decodificados los 23 primeros rechazos
+  de `load_var` en su offset de diagnóstico, **23/23 son lecturas de parámetro**
+  y nada más (tipos `int` 16, `string` 5, `float` 1, `bool` 1; 14 funciones
+  distintas, con `intToString` 8, `getEnv` 2 y `addSeconds` 2). Los primeros
+  rechazos con opcode `load_var` caen **23 -> 0**, `r6BuildOk` y `match` suben
+  **21 -> 23** (`tests/suite/float_boundaries.orb` y `tests/suite/fn_recursive.orb`
+  pasan a coincidencia byte a byte), **sin retrocesos**. Los otros 21 programas
+  avanzan a su siguiente muro: las paredes son conjuntivas.
+- Puertas: diferencial **32/32 -> 33/33** (fixture 33, stream propio del emisor
+  del pin leyendo parámetros int/string/bool/float por nombre, exit 42 y stdout
+  vacío); loader **142/142 -> 146/146** (116 rechazos + 30 controles);
+  `make_cases.py --check` sin drift (138 archivos de caso + manifest);
+  `migrate-m1-fixtures.py --check` 20/20; trinquete re-tomado (`r6BuildOk 23`,
+  `match 23`). Controles negativos `x-load-var-foreign-param` y
+  `x-load-var-param-mismatch`; control positivo `ok-load-var-param` (exit 42).
+- Mensaje: el diagnóstico pasa a `load_var requires a supported local,
+  parameter, declared global, or union tag constant`, para nombrar la fuente que
+  ahora admite. El código (`CGEN`) y el contrato fail-closed no cambian; el
+  mensaje histórico citado en las mediciones de D-M1-20/21 se deja como registro
+  de aquellas corridas.

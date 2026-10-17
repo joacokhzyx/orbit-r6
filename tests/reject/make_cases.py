@@ -753,6 +753,33 @@ def build_reject():
         "D-M1-21", "CGEN",
         "admitting the operand form does not admit a mismatched literal type")
 
+    # ---- D-M1-22: a parameter read by name is function-scoped ---------------
+    # The pinned builder binds every parameter with `arg` and reads it in the
+    # body with `load_var <name>`: the backend types that read from paramTypes
+    # (c_backend.orb:775-800) and its `arg` emits the parameter itself
+    # (:2860-2873). Admitting the read makes no name global, guesses no type,
+    # and rescues no undeclared name.
+    add("x-load-var-foreign-param",
+        jd(DOC([FN("other", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))],
+                   ["int"], params=["x"], ptypes=["int"]),
+                FN("takes", [I("arg", 0, Int(0)),
+                             I("load_var", 1, Sym("x")),
+                             I("ret", -1, Reg(1))],
+                   ["int", "int"], params=["y"], ptypes=["int"]),
+                MAIN([I("load_const", 0, Int(7)), I("ret", -1, Reg(0))],
+                     ["int"])])),
+        "D-M1-22", "CGEN",
+        "a parameter name is scoped to its own function; another's is not guessed")
+    add("x-load-var-param-mismatch",
+        jd(DOC([FN("takes", [I("arg", 0, Int(0)),
+                             I("load_var", 1, Sym("y")),
+                             I("ret", -1, Reg(1))],
+                   ["int", "float"], params=["y"], ptypes=["int"]),
+                MAIN([I("load_const", 0, Int(7)), I("ret", -1, Reg(0))],
+                     ["int"])])),
+        "D-M1-22", "CGEN",
+        "loading a parameter into a differently typed register is refused")
+
     return cases
 
 
@@ -904,6 +931,17 @@ def build_accept_files():
                                 I("ret", -1, Reg(9))],
                                ["list", "int", "void", "int", "void", "int",
                                 "void", "list", "int", "int"])]))))
+    # D-M1-22: reading a parameter by name is reading its `arg` binding, so a
+    # body that never touches the bound register still sees the argument.
+    sum2 = FN("sum2",
+              [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+               I("load_var", 2, Sym("x")), I("load_var", 3, Sym("y")),
+               I("add", 4, Reg(2), Reg(3)), I("ret", -1, Reg(4))],
+              Types(5), params=["x", "y"], ptypes=["int", "int"])
+    files.append(("ok-load-var-param",
+                  jd(DOC([sum2, MAIN([I("arg", -1, Int(20)), I("arg", -1, Int(22)),
+                                      I("call", 0, Sym("sum2"), Int(2)),
+                                      I("ret", -1, Reg(0))], ["int"])]))))
     return files
 
 
@@ -972,6 +1010,11 @@ def build_manifest(reject, accept_files):
              "note": "the emitter stream with inline literal operands matches the oracle"},
             {"file": "cases/ok-lit-operands.json", "run_exit": 5, "rule": "D-M1-21",
              "note": "literal immediate slots and the list result scratch coexist"},
+            {"file": "cases/ok-load-var-param.json", "run_exit": 42, "rule": "D-M1-22",
+             "note": "a parameter read by name is the value of its arg binding"},
+            {"file": "../../docs/proposed-ir/m1/33-parameter-by-name.json",
+             "run_exit": 42, "run_stdout": "", "rule": "D-M1-22",
+             "note": "the emitter stream reading int/string/bool/float parameters by name matches the oracle"},
         ],
     }
 

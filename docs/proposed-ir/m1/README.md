@@ -44,17 +44,19 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `30-inferred-model-fields` | stream del emisor con los seis registros en `unknown`: ctor de modelo, local, `load_field` y `add` inferidos | 7 | vacío |
 | `31-inferred-unary-neg` | stream del emisor con cuatro registros en `unknown`: cadena de `neg`/`add` inferida | 2 | vacío |
 | `32-inline-literal-operands` | stream del emisor con literales inline en operandos de `mul`/`sub`/`div`/`mod`/`add`/`ne`/`ge`/`lt`/`eq`/`le`/`gt` y concatenación de strings | 42 | `lit-ok\n\n` |
+| `33-parameter-by-name` | stream del emisor leyendo por nombre parámetros int/string/bool/float (`load_var` de un parámetro) | 42 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–32 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06–33 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
 la línea base previa a la migración, el par 27 desde D-M1-18 (2026-10-16), los
 pares 28–29 desde D-M1-19 (2026-10-16), los pares 30–31 desde D-M1-20
-(2026-10-16) y el par 32 desde D-M1-21 (2026-10-17) (ver `../../DECISIONS.md`
+(2026-10-16), el par 32 desde D-M1-21 (2026-10-17) y el par 33 desde D-M1-22
+(2026-10-17) (ver `../../DECISIONS.md`
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
-D-M1-19/D-M1-20/D-M1-21 y `../../M1_REPORT.md`).
+D-M1-19/D-M1-20/D-M1-21/D-M1-22 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
