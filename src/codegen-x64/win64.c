@@ -1,6 +1,7 @@
 #include "win64.h"
 
 #include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -267,6 +268,60 @@ static bool fn_value_bind(const R6Module *m, const R6Instruction *i,
     if (want && !same_type(out, want))
         return fail(d, i, "CGEN", "function value %s is a %s, not %s", sym, out, want);
     return true;
+}
+
+/* Spec 2.1 records that IRv1 has no dedicated constructor for bool and float
+ * literals: the builder renders them as raw `Sym` text ("true", "1.5"). A
+ * fraction or an exponent is required, so a bare integer never reads as a
+ * float. */
+static bool float_literal_text(const char *s) {
+    bool fraction = false, exponent = false;
+    if (!s || !*s) return false;
+    if (*s == '-') ++s;
+    if (*s < '0' || *s > '9') return false;
+    while (*s >= '0' && *s <= '9') ++s;
+    if (*s == '.') {
+        fraction = true;
+        ++s;
+        if (*s < '0' || *s > '9') return false;
+        while (*s >= '0' && *s <= '9') ++s;
+    }
+    if (*s == 'e' || *s == 'E') {
+        exponent = true;
+        ++s;
+        if (*s == '+' || *s == '-') ++s;
+        if (*s < '0' || *s > '9') return false;
+        while (*s >= '0' && *s <= '9') ++s;
+    }
+    return *s == '\0' && (fraction || exponent);
+}
+
+/* A Symbol in load_const is a function value (D-M1-14) or one of the two
+ * literal forms spec 2.1 renders as raw text (D-M1-19). The pinned corpus is
+ * unambiguous - all 412 load_const Symbols land in a register typed bool
+ * (318), float (93) or fn(...) (1) - so the text grammar decides. Returns 2
+ * (float, `out` filled), 1 (bool, `out` filled), 0 (function value) or -1
+ * (numeric text whose value is not finite, which spec V-08 forbids). */
+static int sym_literal_kind(const R6Value *v, R6Value *out) {
+    const char *s;
+    char *end;
+    double d;
+    if (v->kind != R6_VAL_SYMBOL || !v->as.string) return 0;
+    s = v->as.string;
+    if (strcmp(s, "true") == 0 || strcmp(s, "false") == 0) {
+        memset(out, 0, sizeof *out);
+        out->kind = R6_VAL_BOOL;
+        out->as.boolean = (s[0] == 't');
+        return 1;
+    }
+    if (!float_literal_text(s)) return 0;
+    d = strtod(s, &end);
+    if (*end) return 0;              /* not fully numeric: a function value */
+    if (!isfinite(d)) return -1;     /* spec V-08: floats must be finite */
+    memset(out, 0, sizeof *out);
+    out->kind = R6_VAL_FLOAT64;
+    memcpy(&out->as.f64_bits, &d, sizeof d);
+    return 2;
 }
 
 /* Locals mirror decl_var order. A Symbol initializer (`val f = inc`) types
@@ -650,15 +705,26 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         const char *a = NULL, *b = NULL;
         char fn_buf[R6_FN_SPELLING_CAP], local_buf[R6_FN_SPELLING_CAP];
         switch (i->opcode) {
-        case R6_OP_LOAD_CONST:
+        case R6_OP_LOAD_CONST: {
+            R6Value lit;
+            int literal;
             if (!valid_dest(f, i, true, d)) return false;
-            if (i->operands[0].kind == R6_VAL_SYMBOL) {
+            literal = sym_literal_kind(&i->operands[0], &lit);
+            if (literal < 0)
+                return fail(d, i, "CGEN", "float literal %s is not finite",
+                            i->operands[0].as.string);
+            if (literal > 0) {
+                /* Spec 2.1: a bool or float literal arrives as `Sym` text and
+                   must still match the destination register's type. */
+                if (!validate_value_for_register(f, &lit, i->dest, i, d)) return false;
+            } else if (i->operands[0].kind == R6_VAL_SYMBOL) {
                 /* Function value: the symbol names a module function whose
                    signature spelling must equal the destination's type. */
                 if (!fn_value_bind(m, i, i->operands[0].as.string, type_at(f, i->dest),
                                    fn_buf, sizeof fn_buf, d)) return false;
             } else if (!validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             break;
+        }
         case R6_OP_DECL_VAR: case R6_OP_STORE_VAR: {
             const char *name = ir_name(&i->operands[0]), *vt = NULL, *lt = NULL;
             if (!name || !*name)
@@ -1414,12 +1480,27 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 /* `val f = inc`: the local word is the function address. */
                 fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                         i->operands[1].as.string, local_off);
-            else if (is_float(local_type))
-                fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
-                        (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
+            else if (i->operands[1].kind == R6_VAL_REG) {
+                if (is_float(local_type))
+                    fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                            (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
+                else
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                            (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
+            } else if (i->operands[1].kind == R6_VAL_STRING) {
+                /* The builder inlines a literal initializer (buildVarDecl):
+                   `val s = "x"`, `val n = 7`, `val b = true`. The corpus
+                   carries 299 of them across 46 documents (D-M1-19). */
+                emit_string(o, i->operands[1].as.string, string_id);
+                fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        string_id++, local_off);
+            } else if (i->operands[1].kind == R6_VAL_FLOAT64)
+                fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                        (unsigned long long)i->operands[1].as.f64_bits, local_off);
+            else if (i->operands[1].kind == R6_VAL_INT)
+                fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", i->operands[1].as.i32, local_off);
             else
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                        (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
+                fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", i->operands[1].as.boolean ? 1 : 0, local_off);
             break;
         }
         case R6_OP_LOAD_VAR: {
@@ -1452,19 +1533,28 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             break;
         }
-        case R6_OP_LOAD_CONST:
-            if (v->kind == R6_VAL_STRING) {
-                emit_string(o, v->as.string, string_id);
+        case R6_OP_LOAD_CONST: {
+            /* Spec 2.1: a Symbol that is a bool or float literal (D-M1-19)
+               lowers exactly like the literal, not like a function value. */
+            R6Value lit;
+            const R6Value *cv = v;
+            int literal = sym_literal_kind(v, &lit);
+            if (literal < 0)
+                return fail(d, i, "CGEN", "float literal %s is not finite", v->as.string);
+            if (literal > 0) cv = &lit;
+            if (cv->kind == R6_VAL_STRING) {
+                emit_string(o, cv->as.string, string_id);
                 fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", string_id++, off);
-            } else if (v->kind == R6_VAL_SYMBOL) {
+            } else if (cv->kind == R6_VAL_SYMBOL) {
                 /* Function value: the loaded word is the function address. */
                 fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                        v->as.string, off);
-            } else if (v->kind == R6_VAL_FLOAT64) {
-                fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", (unsigned long long)v->as.f64_bits, off);
-            } else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, off);
-            else fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.boolean ? 1 : 0, off);
+                        cv->as.string, off);
+            } else if (cv->kind == R6_VAL_FLOAT64) {
+                fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", (unsigned long long)cv->as.f64_bits, off);
+            } else if (cv->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", cv->as.i32, off);
+            else fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", cv->as.boolean ? 1 : 0, off);
             break;
+        }
         case R6_OP_LIST_CREATE: {
             unsigned scratch = result_scratch_offset(f, is_main);
             unsigned arena_off = (unsigned)(f->register_count + 1) * 8;

@@ -1,0 +1,27 @@
+// The builder inlines a literal initializer in decl_var (buildVarDecl): the
+// corpus carries 299 of them across 46 documents (212 Int, 53 String, 34 Bool).
+// The local slot must receive the constant, not a register copy. Each value is
+// read back and compared against a second local, so a wrong slot changes the
+// exit code. (The comparisons compare two locals on purpose: folding a literal
+// into a binary operand is a separate, larger gap.)
+extern fn orbit_print(s: string) -> void
+
+fn main() -> int {
+    val n = 7
+    val m = 7
+    val f = 1.5
+    val g = 1.5
+    val s = "ok"
+    val b = true
+    if !b {
+        return 1
+    }
+    if n != m {
+        return 2
+    }
+    if f != g {
+        return 3
+    }
+    orbit_print(s)
+    return 42
+}

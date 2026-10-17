@@ -1,0 +1,15 @@
+// Spec 2.1 renders bool and float literals as raw `Sym` text in IRv1: the
+// language emitter has no dedicated constructor for them, so load_const
+// carries "true", "false", "1.5" or "2.5e3" as a Symbol. The pinned corpus
+// measures 412 of them (318 bool, 93 float, 1 function value). All four
+// spellings below decide the exit code: misreading any one changes it.
+fn main() -> int {
+    val scaled = 2.5e3
+    val plain = 2500.0
+    val yes = true
+    val no = false
+    if scaled == plain && yes && !no {
+        return 42
+    }
+    return 7
+}
