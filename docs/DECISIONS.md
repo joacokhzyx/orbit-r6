@@ -1177,3 +1177,59 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   result scratch and the immediate slots at the same time, which is the
   offset arithmetic this decision introduces.
 - Status: **accepted**.
+
+## D-F0-12 - Re-pin to the language `main` at `ce87d508` (five commits, runtime-only)
+
+- Date: 2026-10-17. Requested by the user (the pin moves as its own dated
+  round, never inside a lowering round).
+- Decision: the pin moves from `862f257` to
+  `ce87d508e8bdb7a1a0059726d3f45ecc73f8f5e3` (`main`, not pushed, not in any
+  remote). Tramo: `8878225` (runtime: hold the hot retention at the request's
+  footprint, not a fixed 256 KB) -> `5cfc12b` / `8f7acbf` (perf docs) ->
+  `5ea4366` / `ce87d50` (C-cache harness fixes).
+- What did **not** move, measured at the new commit:
+  - `compiler/` is untouched by the tramo (`git diff --name-only 862f257..ce87d508
+    -- compiler/` is empty), so the fixed-point binary is **byte-identical**:
+    `C:\Temp\orbit-fp-26cfb87400.exe`, sha256 `10a16956…`, unchanged, and the
+    oracle of the differential and the corpus is the same binary D-F0-11 pinned.
+    The canonical is unchanged too: `compiler/selfhost/stage3.exe.c` at HEAD has
+    sha256 `9906A6F7…`, equal to `PUBLISHED_C`.
+  - The emitted corpus is **byte-identical**: a full regenerate-and-verify run
+    gives `filesSha256 0106d531cc10f2edb02097db2babdef4291f845a03be85dcfee47c3d91b5bfb9`
+    (94 documents, 5419454 bytes) with every per-file `sha256` matching
+    `tests/corpus/manifest.json`; oracle `93/93` build and run.
+  - Every previously pinned blob is unchanged: `docs/IR_SPEC.md 371f873e…`,
+    `docs/architecture/TYPED_IR.md c5558d55…`, `runtime/orbit_api.h bf098c54…`,
+    `runtime/runtime.h ffbd6a94…`, `scripts/mklib_runtime.py 86858c14…`.
+- What moved: `runtime/arena.c` (`f9a31e5c…`, +26/-3: the hot retention follows
+  the request's footprint instead of a fixed 256 KB) and the harness
+  (`scripts/orbit_ccache.py b14f0df7…`, `scripts/alive_check.py 3fb63b8c…`,
+  `scripts/runtime_c_tests.py cb5e2f6a…`). The runtime archive was rebuilt from
+  the new tree with the pinned recipe: one member, **324 defined symbols, an
+  identical set in both directions** against the `862f257` build, with
+  `orbit_print`, `orbit_alloc`, `orbit_result_ok`, `orbit_string_concat` present
+  and `orbit_handle_request` absent. Its sha256 `86e63f0d…` is an *observation*
+  of this build (the previous one was `6ebfc05d…`); per D-F0-11 no archive hash
+  is an anchor.
+- New blob pins recorded (named by path before, cited by line by decisions):
+  `compiler/emit/c_backend.orb 2d64c8de…` (the normative reference D-M1-19/
+  D-M1-20/D-M1-21 cite), `compiler/emit/ir_emit.orb 54f0601b…`,
+  `scripts/emit_ir_corpus.py 057887fd…`.
+- Observation, recorded and deliberately **not** part of the pin: the
+  checkout's working tree is dirty while this re-pin is taken
+  (`M scripts/_common.py`, `M scripts/alive_check.py`, `?? scripts/cc_cached.py`
+  — a concurrent session's C-cache work, all class (ii) `scripts/**`, none of it
+  under `compiler/`). The pin rests on the commit, and `git show ce87d508:<path>`
+  yields the pinned bytes, so the dirty harness does not enter it. It did break
+  the oracle build mid-round, though: an `ORBIT_CC` wrapper spelled as two quoted
+  tokens, which the pinned fixed point cannot spawn (Windows
+  `ERROR_INVALID_NAME`), produced whole-corpus `oracle-fail` runs with
+  `r6BuildOk 0`. The ratchet caught exactly that and refused to write a baseline.
+  The D-M1-21 measurement and the gates below were taken with `ORBIT_CCACHE=0`,
+  the harness's own single-run escape hatch.
+- Gates re-run on the new pin with the rebuilt runtime archive: differential
+  **32/32**; loader **142/142** (116 rejections + 26 controls);
+  `make_cases.py --check` no drift; `migrate-m1-fixtures.py --check` 20/20;
+  corpus ratchet **holds 21 -> 21** (`r6BuildOk` and `match` unchanged, oracle
+  green).
+- Status: **applied**.

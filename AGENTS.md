@@ -1,12 +1,16 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `862f257352f5bb7f5ce57c12d387a3ff8bc65f40` (D-F0-11,
-after the H-ARENA landing, the Arena Oracle removal, the loader `normalizePath`
-fix and the `compiler/` stage reorg — all verified IR-neutral). This is a
+`orbit-lang` `main` commit `ce87d508e8bdb7a1a0059726d3f45ecc73f8f5e3` (D-F0-12,
+a runtime + harness tramo that leaves `compiler/` untouched, so the oracle,
+the canonical and the emitted corpus are byte-identical to D-F0-11
+`862f257`; before that: the H-ARENA landing, the Arena Oracle removal, the
+loader `normalizePath` fix and the `compiler/` stage reorg). This is a
 separate repo from the language: `C:\Users\Usuario\Downloads\orbit-lang` is
-read-only to R6, and its working tree is **the pin** — clean at `862f257`, not a
-moving dev tree. Do not write there.
+read-only to R6, and *its commit* is the pin — note the working tree there can
+be **dirty** (a concurrent session's harness work, class (ii) `scripts/**`);
+the pin rests on the commit, so read pinned bytes with `git show
+ce87d508:<path>`, never from the working tree. Do not write there.
 
 ## Commands
 
