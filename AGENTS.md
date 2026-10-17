@@ -1,11 +1,12 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `299eb094d51098945a6618a60ba2efc02dfe59d9` (the
-local merge of the emitter branch `r6-emit-ir`; D-F0-10). This is a separate
-repo from the language: `C:\Users\Usuario\Downloads\orbit-lang` is read-only to
-R6, and its working tree is **the pin** — clean at `299eb09`, not a moving dev
-tree. Do not write there.
+`orbit-lang` `main` commit `862f257352f5bb7f5ce57c12d387a3ff8bc65f40` (D-F0-11,
+after the H-ARENA landing, the Arena Oracle removal, the loader `normalizePath`
+fix and the `compiler/` stage reorg — all verified IR-neutral). This is a
+separate repo from the language: `C:\Users\Usuario\Downloads\orbit-lang` is
+read-only to R6, and its working tree is **the pin** — clean at `862f257`, not a
+moving dev tree. Do not write there.
 
 ## Commands
 
@@ -68,7 +69,8 @@ D-M1-17) — a **measurement, not a gate**. Measured **7/93** on 2026-10-16 at t
 D-F0-10 re-pin (2/89 at the D-M1-17 pin; D-M1-18 lifted it to 3/89; D-M1-19 kept
 3/89 while removing `load_const` as a first refusal anywhere; D-M1-20 lifted it
 to 6/89 by recovering, by inference, the register types the builder serialized
-as `unknown`; the merge + re-pin lifted it to 7/93 on the grown corpus):
+as `unknown`; the merge + re-pin lifted it to 7/93 on the grown corpus;
+**unchanged at the D-F0-11 re-pin** (`862f257`, same `filesSha256 0106d531…`)):
 
 ```powershell
 python tests/corpus/run_corpus.py `
@@ -152,7 +154,7 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
    they predate the emitter and stay manual. The pinned language does emit its
    own corpus with `orbit build --emit-ir` (`tests/corpus/`, D-F0-10).
 2. **Format (migrated 2026-10-15, commit `06d7d2c`)**: the loader implements
-   the language-side `orbit-lang/docs/IR_SPEC.md` format (blob `16f26a9d…`):
+   the language-side `orbit-lang/docs/IR_SPEC.md` format (blob `371f873e…`):
    root `{"irVersion":"1","module":M}`, instructions
    `opcode`/`dest`/`operand1..3`/`elemKind`, values `{"kind":K,"value":V}`
    (`{"kind":"None"}` bare), `dest` `-1` for none, flat `route*` fields, ints

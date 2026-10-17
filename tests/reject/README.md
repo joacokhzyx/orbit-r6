@@ -1,7 +1,7 @@
 # tests/reject — suite del contrato del loader (segundo gate)
 
 Fecha: 2026-10-15. Decisión: `DECISIONS.md` D-M1-06. Contrato: formato IRv1 del
-lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `16f26a9d…`), reglas V-01..V-19 y
+lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `371f873e…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell

@@ -3,8 +3,8 @@
 Fecha: 2026-10-16. Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 93+1
 documentos IRv1 que el lenguaje emite sobre `tests/suite` (71 programas +
 `imports.support.orb`) y `tests/std` (22 programas) - el corpus designado por
-`orbit-lang/docs/IR_SPEC.md` §5.5 y reconciliado con el árbol en D-F0-10 -
-pineados por hash en `manifest.json`.
+`orbit-lang/docs/IR_SPEC.md` §5.5 y reconciliado con el árbol en D-F0-10 (sin
+cambio en D-F0-11) - pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
@@ -18,9 +18,9 @@ python tests/corpus/run_corpus.py `
 - `manifest.json` - el pin: 94 entradas (`path`, `kind`, `ir`, `bytes`,
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
-  `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, `299eb09`):
-  regenerar y comparar es el contrato, no copiar ficheros. Mismo patrón con el
-  que se pinean `runtime/orbit_api.h` y el archivo del runtime.
+  `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
+  `862f257`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
   `byFailingOpcode` y `byOpcode`. Se re-toma con `--write-baseline` (que corre
@@ -69,7 +69,26 @@ reconciliado con el árbol) y el conteo subió de 6/89 a **7/93**; el trinquete 
 | `lt`, `ret`, `gt` | 2 cada uno |
 | `mul`, `sub`, `div`, `list_create`, `call` | 1 cada uno |
 
-## Medición previa 2026-10-16 (emisor `1e6a378`, corpus `10f6e7d9`)
+## Re-pin 2026-10-17 (D-F0-11, emisor `862f257`, corpus sin cambio)
+
+El lenguaje avanzó cuatro commits más (`e75f2c7` H-ARENA, `8b9107a` retirada del
+Arena Oracle, `0a145cc` fix del cargador, `862f257` reorg de `compiler/`) y R6
+re-pinó **una vez**, al final del tramo.
+
+| Métrica | `299eb09` (D-F0-10) | `862f257` (D-F0-11) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| bytes | 5419454 | 5419454 |
+| `filesSha256` | `0106d531…` | **`0106d531…`** (idéntico) |
+| R6 compila / coincide | 7/93 | **7/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+
+El corpus **no se movió**: medido por R6 con punto fijo propio en `299eb09`,
+`8b9107a` y `862f257` (los tres dan `0106d531…`). En `manifest.json` sólo cambia
+el bloque `emitter` (ruta, sha256 del binario, `languageCommit`); `baseline.json`
+no cambia ninguna métrica. La identidad reproducible del emisor es el commit y el
+canónico `9906A6F7…`: el sha256 del binario depende del directorio de build
+(embebe su ruta absoluta; ver `docs/PIN.md`).
 | Métrica | Valor |
 |---|---|
 | miembros / programas | 90 / 89 (+1 módulo de soporte) |

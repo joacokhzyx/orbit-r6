@@ -232,6 +232,17 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
   pasa a `filesSha256 0106d531…` con emisor `299eb09` (`36c42e20…`) y se midió
   en **7/93** (trinquete `r6BuildOk 7`, `match 7`). La corrida en
   `1e6a378`/`10f6e7d9` (6/89) queda arriba como la medición de ese pin.
+- **Re-pin (2026-10-17, D-F0-11)**: `main` avanzó cuatro commits (`e75f2c7`
+  H-ARENA, `8b9107a` retirada del Arena Oracle, `0a145cc` fix del cargador,
+  `862f257` reorg de `compiler/`) y el pin pasa a `862f257`. El corpus **no se
+  movió** (`filesSha256 0106d531…`, 93+1, 5419454 bytes; medido por R6 con punto
+  fijo propio en `299eb09`, `8b9107a` y `862f257`) y la medición sigue en
+  **7/93**. Canónico `9906A6F7…`; `runtime/orbit_api.h` `bf098c54…`;
+  `runtime/runtime.h` `ffbd6a94…` (fila nueva); receta `86858c14…` sin cambio.
+  Las puertas siguen verdes (31/31, 137/137, ratchet 7→7, sin drift de casos).
+  Se documenta además que **ningún sha256 de artefacto local** (binario emisor,
+  archivo de runtime) es un ancla estable: ambos embeben la ruta absoluta del
+  directorio de build (D-F0-11).
 - El diferencial del corpus (D-M1-17) es una **medición, no una puerta**. La
   corrida completa del 2026-10-16 (`--check --write-baseline`) sale con exit 0
   e imprime `ratchet holds: r6BuildOk 2 -> 2, match 2 -> 2`:

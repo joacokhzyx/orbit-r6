@@ -4,9 +4,11 @@ Fecha: 2026-10-15. Decisión de adopción: [DECISIONS.md](DECISIONS.md) D-F0-06.
 
 Fuentes comparadas:
 
-- `orbit-lang` `docs/IR_SPEC.md`, blob `16f26a9dc2707466dd2d2e8e7695aa28db3bbc9b`
-  en `main` `299eb09` (el pin actual; D-F0-10 movió la cita desde `110ce439…`,
-  que era el blob en `0837185`, al reconciliar §5.5 con el árbol).
+- `orbit-lang` `docs/IR_SPEC.md`, blob `371f873eb9713ae2849ca35a761ee7ec0d47260f`
+  en `main` `862f257` (el pin actual; D-F0-11 movió la cita desde `16f26a9d…`,
+  que era el blob en `299eb09`, y ese cambio es solo menciones de ruta por la
+  reorg de `compiler/`; D-F0-10 la había movido desde `110ce439…`, que era el
+  blob en `0837185`, al reconciliar §5.5 con el árbol).
 - Implementación actual: `src/loader/ir.c` y draft local
   [IR_SPEC_DRAFT.md](IR_SPEC_DRAFT.md).
 
@@ -214,3 +216,13 @@ corpus pineado por `filesSha256` y su diferencial de medición (D-M1-17 en
 22 std) y el primer pin del corpus es `filesSha256 0106d531…`
 (`languageCommit 299eb09`), medido en **7/93**; `PIN.md` y esta cita pasan al
 blob `16f26a9d…`.
+
+Estado posterior del pin (2026-10-17, **D-F0-11**): el lenguaje siguió moviéndose
+dentro del mismo tramo (`e75f2c7` H-ARENA, `8b9107a` retirada del Arena Oracle,
+`0a145cc` fix del cargador, `862f257` reorg de `compiler/`) y R6 re-pinó a `main`
+`862f257`. Lo relevante para esta alineación: **el corpus no cambió**
+(`filesSha256 0106d531…`, 93+1, 5419454 B — medido por R6 en `299eb09`,
+`8b9107a` y `862f257`), `--emit-ir` y `scripts/emit_ir_corpus.py` no cambiaron de
+ruta ni de comportamiento, y la cita de la spec pasa al blob `371f873e…` (solo
+menciones de ruta: 16 líneas). La medición sigue en **7/93**. El canónico pasa a
+`9906A6F7…` y `runtime/orbit_api.h` a `bf098c54…`.

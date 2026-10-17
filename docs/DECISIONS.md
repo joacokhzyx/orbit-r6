@@ -1033,3 +1033,69 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `make_cases.py --check` no drift; `migrate-m1-fixtures.py --check` 20/20;
   corpus `run_corpus.py --check` ratchet `r6BuildOk 7 -> 7`, `match 7 -> 7`.
 - Status: **accepted by user 2026-10-16**.
+
+## D-F0-11 — Re-pin to `main` `862f257` (H-ARENA, Oracle removal, loader fix, `compiler/` reorg): all IR-neutral
+
+- Date: 2026-10-17.
+- Decision: the language `main` moved four commits past the D-F0-10 pin and R6
+  re-pins once, after the last of them: `e75f2c7` (H-ARENA: the ledger's memory
+  columns measure the request, not a prediction), `8b9107a` (remove the Arena
+  Oracle, whose last consumer was the ledger), `0a145cc` (loader: identify a
+  module by its file, not by the spelling that reached it) and `862f257` (split
+  `compiler/` by stage into `front/ ir/ tir/ emit/ host/ tools/`). `PIN.md`
+  re-pins to `862f257352f5bb7f5ce57c12d387a3ff8bc65f40`: the spec blob
+  `371f873e…` (was `16f26a9d…`; path mentions only), the emitter fixed point
+  rebuilt in place (`orbit-fp-26cfb87400.exe`, sha256 `10a16956…`), the corpus
+  with `languageCommit 862f257` and `filesSha256 0106d531…` **unchanged**, the
+  self-host canonical `PUBLISHED_C 9906A6F7…` (through `ACB0245D…` at H-ARENA),
+  and the runtime rows: `runtime/orbit_api.h` blob `bf098c54…` (was
+  `27fc52b8…`), `runtime/runtime.h` blob `ffbd6a94…` (new row), recipe blob
+  `86858c14…` (unchanged), Windows archive rebuilt from the pinned recipe.
+- Why one pin and not several: H-ARENA, the Oracle removal and the reorg are all
+  class (ii) for R6 — emission, runtime and file layout, no IR change — so
+  pinning after each would have moved `PIN.md` repeatedly for the same corpus.
+  The pin is taken after the reorg, the last commit of the tramo.
+- Why the corpus did not move: measured, not assumed. R6 regenerated the corpus
+  with its own fixed point at `299eb09`, `8b9107a` and `862f257`; all three give
+  `filesSha256 0106d531…` (94 documents, 5419454 bytes). The literal operands
+  found in binary ops are produced by the IRBuilder (`builder.orb`
+  `buildCallArgValue`), not by `ir_emit.orb`, so moving the emitter file into
+  `compiler/emit/` cannot change the emitted bytes — and it did not.
+- Not purely additive in the runtime: `orbit_ledger_exit` gained a
+  `const OrbitArena*` parameter and two arena accessors
+  (`orbit_arena_active_bytes`, `orbit_arena_overflowed`) were added, and
+  `runtime/oracle.c` + `runtime/oracle.h` were deleted. R6 emits no ledger call,
+  so the differential is unaffected; the rows are recorded because the pin names
+  a header the R6 archive compiles against.
+- Finding (pin discipline): **no SHA-256 of a locally built binary is a stable
+  anchor.** Both the emitter binary and the runtime archive/member object embed
+  the absolute directory they were built in (measured: `…\runtime/json.c` is a
+  literal string inside `orbit_lib.o`, and the fixed point contains its worktree
+  path), and `ar` adds container metadata. Two R6 rebuilds of the archive in the
+  same directory agree on the member object and disagree on the archive;
+  rebuilds in different directories disagree on both, while the **324 defined
+  symbols** are identical. `PIN.md` now anchors on commit + canonical +
+  recipe/source blobs + corpus `filesSha256` + symbol set, and marks artifact
+  hashes as observations of one build. The archive hash recorded by D-F0-10
+  (`BFEE5395…`) was the same kind of observation.
+- Alternatives: re-pinning at `8b9107a` and again after the reorg (rejected: two
+  pins for one corpus, and one pin was what the user asked for); adopting the
+  language's own archive hash `2ffe2301…` as the pin (rejected: it is a
+  build-site observation, and R6 must link an archive built from the pinned
+  recipe); keeping the `299eb09` fixed point because "behaviour is the same"
+  (rejected: the pin must name the tree it was built from, and the documented
+  recipe points at `orbit-fp-26cfb87400.exe`).
+- Consequence: the differential oracle and the corpus emitter are `862f257`; the
+  runtime archive in `.r6-build` was rebuilt from it. **Nothing was pushed** to
+  any remote (R6 has none configured; the language `main` is 16 commits ahead of
+  `origin`). D-F0-10 remains the record of the merge pin.
+- Evidence: R6's own fixed point, built from `862f257` in a fresh worktree
+  (`orbit-verify-862f257`), converges to `9906A6F7…`, equal to the language's
+  `PUBLISHED_C`; the corpus regenerated at `862f257` gives
+  `filesSha256 0106d531…`; differential **31/31** against that oracle; loader
+  **137/137**; `make_cases.py --check` no drift; corpus `run_corpus.py --check`
+  ratchet `r6BuildOk 7 -> 7`, `match 7 -> 7`; the runtime archive rebuilt from
+  the pinned recipe reports 324 defined symbols with `orbit_print`,
+  `orbit_alloc`, `orbit_result_ok` and `orbit_string_concat` present and
+  `orbit_handle_request` absent.
+- Status: **applied 2026-10-17** (re-pin requested by the user).
