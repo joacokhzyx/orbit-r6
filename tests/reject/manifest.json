@@ -736,6 +736,34 @@
       "note": "a local keeps the type of its first decl_var initializer"
     },
     {
+      "file": "cases/x-infer-arith-unknown-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-20",
+      "note": "an arithmetic slot with an untyped operand is never guessed"
+    },
+    {
+      "file": "cases/x-infer-unresolved-call.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-20",
+      "note": "a call whose target is not declared in the module stays unknown"
+    },
+    {
+      "file": "cases/x-infer-unknown-load-var.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-20",
+      "note": "a load_var of an undeclared name stays unknown"
+    },
+    {
+      "file": "cases/x-infer-result-unwrap.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-20",
+      "note": "result_unwrap has no rule in the language either: the slot stays unknown"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -858,6 +886,62 @@
       "run_exit": 3,
       "rule": "D-M1-19",
       "note": "inline Int/String/Bool decl_var initializers fill the local slot"
+    },
+    {
+      "file": "cases/ok-infer-eq-bool.json",
+      "run_exit": 5,
+      "rule": "D-M1-20",
+      "note": "an unknown comparison destination is recovered as bool"
+    },
+    {
+      "file": "cases/ok-infer-load-var.json",
+      "run_exit": 3,
+      "rule": "D-M1-20",
+      "note": "an unknown load_var destination takes the local's declared type"
+    },
+    {
+      "file": "cases/ok-infer-neg-chain.json",
+      "run_exit": 5,
+      "rule": "D-M1-20",
+      "note": "an unknown neg destination takes its operand's type, twice"
+    },
+    {
+      "file": "cases/ok-infer-call-return.json",
+      "run_exit": 7,
+      "rule": "D-M1-20",
+      "note": "an unknown call destination takes the callee's return type"
+    },
+    {
+      "file": "cases/ok-infer-arg-param.json",
+      "run_exit": 33,
+      "rule": "D-M1-20",
+      "note": "an unknown arg binding takes the parameter's declared type"
+    },
+    {
+      "file": "cases/ok-infer-list-create.json",
+      "run_exit": 8,
+      "rule": "D-M1-20",
+      "note": "an unknown list_create destination is recovered as list"
+    },
+    {
+      "file": "cases/ok-infer-union-tag.json",
+      "run_exit": 0,
+      "rule": "D-M1-20",
+      "note": "an unknown <union>_TAG_<variant> load is recovered as int"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",
+      "run_exit": 7,
+      "run_stdout": "",
+      "rule": "D-M1-20",
+      "note": "the emitter stream with six unknown slots converges and runs"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/31-inferred-unary-neg.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "rule": "D-M1-20",
+      "note": "the emitter stream for neg/add is recovered and runs"
     }
   ]
 }

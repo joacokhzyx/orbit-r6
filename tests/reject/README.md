@@ -5,7 +5,7 @@ lenguaje (`orbit-lang/docs/IR_SPEC.md`, blob `110ce439…`), reglas V-01..V-19 y
 casos límite E-01..E-12.
 
 ```powershell
-python tests/reject/run_reject.py            # 109 rechazos + 15 controles
+python tests/reject/run_reject.py            # 113 rechazos + 24 controles
 python tests/reject/run_reject.py --case v13 # un caso (substring del stem)
 python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 ```
@@ -17,11 +17,13 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
   regeneran aquí, no a mano.
 - `manifest.json` — verdad de la suite: archivo, exit esperado, código de
   diagnóstico esperado y regla de la spec. Generado; no editar a mano.
-- `cases/` - 109 rechazos + 11 controles locales; los otros cuatro controles
+- `cases/` - 113 rechazos + 18 controles locales; los otros seis controles
   son `docs/proposed-ir/m1/01-int-call.json`,
   `docs/proposed-ir/m1/27-call-string-target.json`,
-  `docs/proposed-ir/m1/28-sym-literals.json` y
-  `docs/proposed-ir/m1/29-decl-var-literals.json`.
+  `docs/proposed-ir/m1/28-sym-literals.json`,
+  `docs/proposed-ir/m1/29-decl-var-literals.json`,
+  `docs/proposed-ir/m1/30-inferred-model-fields.json` y
+  `docs/proposed-ir/m1/31-inferred-unary-neg.json`.
 - `run_reject.py` — ejecuta el driver con la raíz del repo como CWD (el
   runtime se resuelve relativo al CWD) y exige: exit 1, exactamente una línea
   `r6: <file>:<line>:<col>: error[CODE]: <msg>` y el `CODE` del manifiesto.
@@ -62,6 +64,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-16 | `x-list-create-kind-opaque`, `x-list-get-kind-ref`, `x-print-two-args` |
 | D-M1-18 | `x-call-string-target-arity`, `x-call-string-target-arg-type`, `x-call-string-target-dest`, `x-call-string-target-main`, `x-call-void-dest-type`; aceptación: `ok-call-void-dest` |
 | D-M1-19 | `x-sym-literal-float-dest-type`, `x-sym-literal-bool-dest-type`, `x-sym-literal-not-finite`, `x-sym-integer-text-is-a-symbol`, `x-decl-var-literal-type`; aceptación: `ok-sym-bool-literal`, `ok-sym-float-literal`, `ok-decl-var-literal` (+ los fixtures 28/29) |
+| D-M1-20 | `x-infer-arith-unknown-operand`, `x-infer-unresolved-call`, `x-infer-unknown-load-var`, `x-infer-result-unwrap`; aceptación: `ok-infer-eq-bool`, `ok-infer-load-var`, `ok-infer-neg-chain`, `ok-infer-call-return`, `ok-infer-arg-param`, `ok-infer-list-create`, `ok-infer-union-tag` (+ los fixtures 30/31) |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
 `list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan cerrados
@@ -71,5 +74,5 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-16: **124/124** (109 rechazos + 15 controles); gate diferencial
-29/29 en el mismo árbol.
+Estado 2026-10-16: **137/137** (113 rechazos + 24 controles); gate diferencial
+31/31 en el mismo árbol.

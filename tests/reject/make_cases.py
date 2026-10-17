@@ -665,6 +665,35 @@ def build_reject():
         "D-M1-19", "CGEN",
         "a local keeps the type of its first decl_var initializer")
 
+    # ---- D-M1-20: the slots the builder serialized before it could type them -
+    # Spec 2.3 makes registerTypes advisory: the pinned builder writes
+    # `unknown` for a slot it has not typed yet (it serializes before
+    # inferRegisterTypes), and the language backend recovers the slot from
+    # the defining instruction. R6 mirrors those rules for the opcodes in the
+    # native subset and keeps failing closed wherever a rule cannot decide.
+    add("x-infer-arith-unknown-operand",
+        jd(DOC([MAIN([I("load_const", 0, Int(1)),
+                      I("add", 2, Reg(1), Reg(0)),
+                      I("ret", -1, Int(0))],
+                     ["int", "unknown", "unknown"])])),
+        "D-M1-20", "CGEN",
+        "an arithmetic slot with an untyped operand is never guessed")
+    add("x-infer-unresolved-call",
+        jd(DOC([MAIN([I("call", 0, Sym("nosuchfn"), Int(0)),
+                      I("ret", -1, Int(0))], ["unknown"])])),
+        "D-M1-20", "CGEN",
+        "a call whose target is not declared in the module stays unknown")
+    add("x-infer-unknown-load-var",
+        jd(DOC([MAIN([I("load_var", 0, Sym("nosuchlocal")),
+                      I("ret", -1, Int(0))], ["unknown"])])),
+        "D-M1-20", "CGEN",
+        "a load_var of an undeclared name stays unknown")
+    add("x-infer-result-unwrap",
+        jd(DOC([MAIN([I("result_unwrap", 0, Reg(1)),
+                      I("ret", -1, Int(0))], ["unknown", "result"])])),
+        "D-M1-20", "CGEN",
+        "result_unwrap has no rule in the language either: the slot stays unknown")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -791,6 +820,45 @@ def build_accept_files():
                                 I("load_var", 2, Sym("b")),
                                 I("ret", -1, Reg(0))],
                                ["int", "string", "bool"])]))))
+    files.append(("ok-infer-eq-bool",
+                  jd(DOC([MAIN([I("load_const", 0, Int(7)),
+                                I("load_const", 1, Int(7)),
+                                I("eq", 2, Reg(0), Reg(1)),
+                                I("jump_if_false", -1, Reg(2), Lab(1)),
+                                I("load_const", 3, Int(5)),
+                                I("ret", -1, Reg(3)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 3, Int(9)),
+                                I("ret", -1, Reg(3))],
+                               ["int", "int", "unknown", "int"])]))))
+    files.append(("ok-infer-load-var",
+                  jd(DOC([MAIN([I("decl_var", -1, Sym("a"), Int(3)),
+                                I("load_var", 0, Sym("a")),
+                                I("ret", -1, Reg(0))], ["unknown"])]))))
+    files.append(("ok-infer-neg-chain",
+                  jd(DOC([MAIN([I("load_const", 0, Int(5)),
+                                I("neg", 1, Reg(0)),
+                                I("neg", 2, Reg(1)),
+                                I("ret", -1, Reg(2))],
+                               ["int", "unknown", "unknown"])]))))
+    seven = FN("seven", [I("load_const", 0, Int(7)), I("ret", -1, Reg(0))], ["int"])
+    files.append(("ok-infer-call-return",
+                  jd(DOC([seven, MAIN([I("call", 0, Str("seven"), Int(0)),
+                                       I("ret", -1, Reg(0))], ["unknown"])]))))
+    files.append(("ok-infer-arg-param",
+                  jd(DOC([FN("echo", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))],
+                             ["unknown"], params=["x"], ptypes=["int"]),
+                          MAIN([I("arg", -1, Int(33)),
+                                I("call", 0, Sym("echo"), Int(1)),
+                                I("ret", -1, Reg(0))], ["int"])]))))
+    files.append(("ok-infer-list-create",
+                  jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=1),
+                                I("ret", -1, Int(8))], ["unknown"])]))))
+    mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
+                     I("ret", -1, Reg(0))], ["unknown"])])
+    mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
+                     "richVariants": ["int"], "methods": []}]
+    files.append(("ok-infer-union-tag", jd({"irVersion": "1", "module": mod})))
     return files
 
 
@@ -834,6 +902,26 @@ def build_manifest(reject, accept_files):
              "note": "Sym \"0.5\" and \"5e-1\" lower as equal float literals"},
             {"file": "cases/ok-decl-var-literal.json", "run_exit": 3, "rule": "D-M1-19",
              "note": "inline Int/String/Bool decl_var initializers fill the local slot"},
+            {"file": "cases/ok-infer-eq-bool.json", "run_exit": 5, "rule": "D-M1-20",
+             "note": "an unknown comparison destination is recovered as bool"},
+            {"file": "cases/ok-infer-load-var.json", "run_exit": 3, "rule": "D-M1-20",
+             "note": "an unknown load_var destination takes the local's declared type"},
+            {"file": "cases/ok-infer-neg-chain.json", "run_exit": 5, "rule": "D-M1-20",
+             "note": "an unknown neg destination takes its operand's type, twice"},
+            {"file": "cases/ok-infer-call-return.json", "run_exit": 7, "rule": "D-M1-20",
+             "note": "an unknown call destination takes the callee's return type"},
+            {"file": "cases/ok-infer-arg-param.json", "run_exit": 33, "rule": "D-M1-20",
+             "note": "an unknown arg binding takes the parameter's declared type"},
+            {"file": "cases/ok-infer-list-create.json", "run_exit": 8, "rule": "D-M1-20",
+             "note": "an unknown list_create destination is recovered as list"},
+            {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
+             "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
+            {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",
+             "run_exit": 7, "run_stdout": "", "rule": "D-M1-20",
+             "note": "the emitter stream with six unknown slots converges and runs"},
+            {"file": "../../docs/proposed-ir/m1/31-inferred-unary-neg.json",
+             "run_exit": 2, "run_stdout": "", "rule": "D-M1-20",
+             "note": "the emitter stream for neg/add is recovered and runs"},
         ],
     }
 
