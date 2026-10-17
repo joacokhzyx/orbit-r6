@@ -47,6 +47,10 @@ def Str(s):
     return {"kind": "String", "value": s}
 
 
+def Bool(b):
+    return {"kind": "Bool", "value": b}
+
+
 def Types(n):
     return ["int"] * n
 
@@ -627,6 +631,40 @@ def build_reject():
         "D-M1-18", "CGEN",
         "a void call may only carry a void-typed destination, never a value")
 
+    # ---- D-M1-19: the literal forms the builder writes -----------------------
+    # Spec 2.1 has no dedicated constructor for bool and float literals: the
+    # pinned builder renders them as raw `Sym` text ("true", "2.5e3"), and it
+    # inlines a literal initializer in decl_var (buildVarDecl). The text
+    # grammar decides (a fraction or an exponent is required), the literal
+    # still has to match the destination type, and every other shape keeps
+    # failing closed.
+    add("x-sym-literal-float-dest-type",
+        jd(DOC([MAIN([I("load_const", 0, Sym("1.5")),
+                      I("ret", -1, Int(0))], ["int"])])),
+        "D-M1-19", "CGEN",
+        "a float literal in Sym text must still match the register type")
+    add("x-sym-literal-bool-dest-type",
+        jd(DOC([MAIN([I("load_const", 0, Sym("true")),
+                      I("ret", -1, Int(0))], ["float"])])),
+        "D-M1-19", "CGEN",
+        "a bool literal in Sym text must still match the register type")
+    add("x-sym-literal-not-finite",
+        jd(DOC([MAIN([I("load_const", 0, Sym("1e999")),
+                      I("ret", -1, Int(0))], ["float"])])),
+        "D-M1-19", "CGEN",
+        "numeric Sym text whose value is not finite is rejected (spec V-08)")
+    add("x-sym-integer-text-is-a-symbol",
+        jd(DOC([MAIN([I("load_const", 0, Sym("7")),
+                      I("ret", -1, Int(0))], ["int"])])),
+        "D-M1-19", "CGEN",
+        "a bare integer is not a float literal: it stays a function value")
+    add("x-decl-var-literal-type",
+        jd(DOC([MAIN([I("decl_var", -1, Sym("a"), Int(1)),
+                      I("decl_var", -1, Sym("a"), Str("x")),
+                      I("ret", -1, Int(0))])])),
+        "D-M1-19", "CGEN",
+        "a local keeps the type of its first decl_var initializer")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -725,6 +763,34 @@ def build_accept_files():
                  I("ret", -1, Reg(1))],
                 ["fn(string;int)->int", "int"])
     files.append(("ok-fn-extern", jd(DOC([ext, main]))))
+    files.append(("ok-sym-bool-literal",
+                  jd(DOC([MAIN([I("load_const", 0, Sym("true")),
+                                I("jump_if_false", -1, Reg(0), Lab(1)),
+                                I("load_const", 1, Int(5)),
+                                I("ret", -1, Reg(1)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 1, Int(9)),
+                                I("ret", -1, Reg(1))], ["bool", "int"])]))))
+    files.append(("ok-sym-float-literal",
+                  jd(DOC([MAIN([I("load_const", 0, Sym("0.5")),
+                                I("load_const", 1, Sym("5e-1")),
+                                I("eq", 2, Reg(0), Reg(1)),
+                                I("jump_if_false", -1, Reg(2), Lab(1)),
+                                I("load_const", 3, Int(6)),
+                                I("ret", -1, Reg(3)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 3, Int(1)),
+                                I("ret", -1, Reg(3))],
+                               ["float", "float", "bool", "int"])]))))
+    files.append(("ok-decl-var-literal",
+                  jd(DOC([MAIN([I("decl_var", -1, Sym("i"), Int(3)),
+                                I("decl_var", -1, Sym("s"), Str("z")),
+                                I("decl_var", -1, Sym("b"), Bool(True)),
+                                I("load_var", 0, Sym("i")),
+                                I("load_var", 1, Sym("s")),
+                                I("load_var", 2, Sym("b")),
+                                I("ret", -1, Reg(0))],
+                               ["int", "string", "bool"])]))))
     return files
 
 
@@ -756,6 +822,18 @@ def build_manifest(reject, accept_files):
              "note": "function value binding + indirect call round-trip (f(41) == 42)"},
             {"file": "cases/ok-fn-extern.json", "run_exit": 98, "rule": "D-M1-14",
              "note": "extern function value binding (orbit_string_at(\"abc\", 1) == 98)"},
+            {"file": "../../docs/proposed-ir/m1/28-sym-literals.json",
+             "run_exit": 42, "run_stdout": "", "rule": "D-M1-19",
+             "note": "emitter Sym bool/float literals compile and run"},
+            {"file": "../../docs/proposed-ir/m1/29-decl-var-literals.json",
+             "run_exit": 42, "run_stdout": "ok\r\n", "rule": "D-M1-19",
+             "note": "emitter inline literal decl_var initializers compile and run"},
+            {"file": "cases/ok-sym-bool-literal.json", "run_exit": 5, "rule": "D-M1-19",
+             "note": "Sym \"true\" lowers as the bool literal and drives the branch"},
+            {"file": "cases/ok-sym-float-literal.json", "run_exit": 6, "rule": "D-M1-19",
+             "note": "Sym \"0.5\" and \"5e-1\" lower as equal float literals"},
+            {"file": "cases/ok-decl-var-literal.json", "run_exit": 3, "rule": "D-M1-19",
+             "note": "inline Int/String/Bool decl_var initializers fill the local slot"},
         ],
     }
 

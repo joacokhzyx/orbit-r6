@@ -701,6 +701,41 @@
       "note": "a void call may only carry a void-typed destination, never a value"
     },
     {
+      "file": "cases/x-sym-literal-float-dest-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-19",
+      "note": "a float literal in Sym text must still match the register type"
+    },
+    {
+      "file": "cases/x-sym-literal-bool-dest-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-19",
+      "note": "a bool literal in Sym text must still match the register type"
+    },
+    {
+      "file": "cases/x-sym-literal-not-finite.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-19",
+      "note": "numeric Sym text whose value is not finite is rejected (spec V-08)"
+    },
+    {
+      "file": "cases/x-sym-integer-text-is-a-symbol.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-19",
+      "note": "a bare integer is not a float literal: it stays a function value"
+    },
+    {
+      "file": "cases/x-decl-var-literal-type.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-19",
+      "note": "a local keeps the type of its first decl_var initializer"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -791,6 +826,38 @@
       "run_exit": 98,
       "rule": "D-M1-14",
       "note": "extern function value binding (orbit_string_at(\"abc\", 1) == 98)"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/28-sym-literals.json",
+      "run_exit": 42,
+      "run_stdout": "",
+      "rule": "D-M1-19",
+      "note": "emitter Sym bool/float literals compile and run"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/29-decl-var-literals.json",
+      "run_exit": 42,
+      "run_stdout": "ok\r\n",
+      "rule": "D-M1-19",
+      "note": "emitter inline literal decl_var initializers compile and run"
+    },
+    {
+      "file": "cases/ok-sym-bool-literal.json",
+      "run_exit": 5,
+      "rule": "D-M1-19",
+      "note": "Sym \"true\" lowers as the bool literal and drives the branch"
+    },
+    {
+      "file": "cases/ok-sym-float-literal.json",
+      "run_exit": 6,
+      "rule": "D-M1-19",
+      "note": "Sym \"0.5\" and \"5e-1\" lower as equal float literals"
+    },
+    {
+      "file": "cases/ok-decl-var-literal.json",
+      "run_exit": 3,
+      "rule": "D-M1-19",
+      "note": "inline Int/String/Bool decl_var initializers fill the local slot"
     }
   ]
 }
