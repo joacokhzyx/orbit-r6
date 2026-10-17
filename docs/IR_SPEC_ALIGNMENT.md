@@ -99,6 +99,26 @@ comportamiento del backend C documentado por la spec que R6 hoy no modela:
   (D-M1-01). Models, enums, unions y fields del corpus quedan fuera del
   subconjunto actual.
 
+Estado de esta lista tras las fases C–E (2026-10-16):
+
+- **Cerrado por decisión datada**: §2.3 `unknown` (D-M1-20: inferencia espejo de
+  `inferRegisterTypes`, tres pasadas, fail-closed cuando ninguna regla decide);
+  `call` con target `String` (D-M1-18: resuelve por orden de declaración
+  función → modelo → variante); literal `Sym` float/bool y inicializadores
+  literales inline de `decl_var` (D-M1-19); globals con valor `ir_register`
+  (D-M1-15: ruta inalcanzable del builder, rechazo pineado); modelos y fields
+  (D-M1-11) y uniones (D-M1-12); llamada indirecta con valores de función
+  (D-M1-14); aridad O2 de `call` (A4/E-05) y `extern` con cuerpo (E-09).
+- **Sigue abierto, reportado y sin autorización**: la tabla de **alias de
+  callee** de §3.1 (`slice`/`at`/`find` → `orbit_string_*`) y las formas
+  especiales de `print`. El diferencial mide **409 `call` con target `String`
+  sin declaración en el módulo, en 37 documentos y 22 nombres** (dominados por
+  `orbit_string_at` 130, `print` 121, `orbit_string_len` 78,
+  `orbit_string_slice` 38), todos fail-closed. También siguen abiertas U-04
+  (`arena` prependido), U-05 (orden de argumentos indirectos) y U-17 (formato
+  de `print`), y los **enum** (constantes de tag sin tipo de acceso fuera de
+  `union`).
+
 No confundir con TIR: `orbit frontend` emite `orbit-tir 1`
 (`compiler/frontend/tir.orb`), un formato de texto con bloques y value ids para
 el pipeline interno. No es IRv1 ni un candidato: convertir TIR→IRv1 invertiría
@@ -179,6 +199,14 @@ pasos 1–4 de §5 quedaron así:
 Evidencia: gate **20/20** con exit/stdout idénticos a la línea base
 (`.r6-build/baseline-20.txt` vs `.r6-build/migrated-20.txt`), el ejemplo mínimo
 de §5.2 de la spec compila y corre (exit 0), y el draft de `01-int-call`
-termina con `error[E_FORMAT]`. Pendiente: la suite negativa de §3 con caso y
-código esperado por regla (`tests/reject/`, fase B) y las respuestas P1–P5
-para el emisor (fase D).
+termina con `error[E_FORMAT]`.
+
+Estado posterior (2026-10-16): la suite negativa de §3 quedó commiteada en
+`tests/reject/` con caso y código esperado por regla (**137/137**: 113 rechazos
++ 24 controles, decisiones D-M1-06..D-M1-20) y el gate diferencial creció a
+**31/31** con los fixtures `21`–`31`; las respuestas P1–P5 llegaron el
+2026-10-16 (§6, D-F0-08) y la fase D tiene el emisor `--emit-ir` aditivo, el
+corpus 89+1 pineado por `filesSha256 10f6e7d9` y su diferencial de medición
+(D-M1-17: **6/89**). Solo queda el re-pin de la fase D (D4), a la espera de que
+la rama `r6-emit-ir` exista en el repo del usuario; hasta entonces `PIN.md`
+sigue en `5c01cea`.
