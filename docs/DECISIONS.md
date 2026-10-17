@@ -989,3 +989,47 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   matches, ratchet `r6BuildOk 6 -> 6`, `match 6 -> 6`); the emitter binary
   SHA-256 is `805cf6…`; both R6 gates are green on the same tree.
 - Status: **accepted by user 2026-10-16**.
+
+## D-F0-10 — Re-pin to the merged language: `main` `299eb09`, spec blob `16f26a9d`, corpus `93+1`
+
+- Date: 2026-10-16.
+- Decision: the user merged the emitter branch into the `orbit-lang` `main`
+  locally (no push), so the language pin moves from `5c01cea` to the merge
+  commit `299eb094d51098945a6618a60ba2efc02dfe59d9`, whose second parent is the
+  emitter tip `1e6a378…`. `PIN.md` re-pins every language-side input to it: the
+  spec blob `16f26a9dc2707466dd2d2e8e7695aa28db3bbc9b` (was `110ce439…`), the
+  emitter as a first-class in-repo input (fixed point
+  `orbit-fp-26cfb87400.exe`, sha256 `36c42e20…`), the designated corpus
+  (`93+1` = 71 suite + 22 std, `filesSha256 0106d531…`) and the promoted
+  self-host canonical (`PUBLISHED_C 15341D24…`, was `32FE98D7…`). The runtime
+  rows move with the commit: `runtime/orbit_api.h` blob `27fc52b8…` (was
+  `6a29a5a0…`), recipe blob `86858c14…` (was `7a5e008…`) and the rebuilt
+  Windows archive `BFEE5395…` (was `3FC8FBE3…`).
+- Why the spec blob moved: the merge surfaced a drift that predated it — the
+  language had added four `tests/suite` programs after `docs/IR_SPEC.md` was
+  written, so §5.5 still said `67+1` while the tree held `71+1`, and R6's
+  emitter self-test asserted the spec's number (`alive_check` went red on the
+  merged tree). The user chose to reconcile upward (§5.5 and
+  `scripts/emit_ir_corpus.py` to `93+1`) over keeping the spec as the pin's
+  frozen snapshot.
+- Alternatives: keeping the language commit at `5c01cea` and only recording the
+  merged emitter (rejected: incoherent once the emitter lives in `main`, and the
+  corpus/emitter pin would name a commit that is not the tree measured);
+  re-pinning without rebuilding the runtime archive (rejected: the runtime
+  source moved, so the pin would name `299eb09` while linking a `5c01cea`
+  archive, which `PIN.md` forbids); keeping the corpus at `89+1` by excluding
+  the four new tests from discovery (rejected: the corpus is the discovered test
+  tree, not a hand-picked set — D-M1-17).
+- Consequence: the emitter pin is now reproducible from the user's own
+  repository (`299eb09` is on `main`), so the local-only caveat of D-F0-09 no
+  longer applies; **nothing was pushed** to any remote. The previous pin's
+  measurements stay in `M1_REPORT.md` and `tests/corpus/README.md` as the
+  `1e6a378` record; the corpus re-measurement at `299eb09` is `7/93` (from
+  `6/89`), a ratchet increase.
+- Evidence: merged tree clean at `299eb09` (`dev.py all` **21/21**, canonical
+  re-promoted to `15341D24…`, `emit_ir_corpus.py --self-test` **20/20**, real
+  emission **94/94**, `filesSha256 0106d531…`); R6 differential **31/31**
+  against the merged oracle and the rebuilt archive; loader suite **137/137**;
+  `make_cases.py --check` no drift; `migrate-m1-fixtures.py --check` 20/20;
+  corpus `run_corpus.py --check` ratchet `r6BuildOk 7 -> 7`, `match 7 -> 7`.
+- Status: **accepted by user 2026-10-16**.

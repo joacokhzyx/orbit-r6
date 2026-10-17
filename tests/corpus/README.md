@@ -1,23 +1,24 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16. Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 89+1
-documentos IRv1 que el lenguaje emite sobre `tests/suite` (67 programas +
+Fecha: 2026-10-16. Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 93+1
+documentos IRv1 que el lenguaje emite sobre `tests/suite` (71 programas +
 `imports.support.orb`) y `tests/std` (22 programas) - el corpus designado por
-`orbit-lang/docs/IR_SPEC.md` §5.5 - pineados por hash en `manifest.json`.
+`orbit-lang/docs/IR_SPEC.md` §5.5 y reconciliado con el árbol en D-F0-10 -
+pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-67e4ecfa75.exe `
+  --compiler C:\Temp\orbit-fp-26cfb87400.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Users\Usuario\Downloads\orbit-lang-emit-ir `
+  --orbit-root C:\Users\Usuario\Downloads\orbit-lang `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- `manifest.json` - el pin: 90 entradas (`path`, `kind`, `ir`, `bytes`,
+- `manifest.json` - el pin: 94 entradas (`path`, `kind`, `ir`, `bytes`,
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
-  `scripts/emit_ir_corpus.py` en el árbol del lenguaje (rama `r6-emit-ir`):
+  `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, `299eb09`):
   regenerar y comparar es el contrato, no copiar ficheros. Mismo patrón con el
   que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
@@ -43,7 +44,32 @@ dos cosas:
    (trinquete de una sola dirección, mismo contrato que el ratchet de tipos
    `unknown` del lenguaje).
 
-## Medición 2026-10-16 (emisor `1e6a378`, corpus `10f6e7d9`)
+## Re-pin 2026-10-16 (D-F0-10, emisor `299eb09`, corpus `0106d531`)
+
+| Métrica | Valor |
+|---|---|
+| miembros / programas | 94 / 93 (+1 módulo de soporte) |
+| oráculo compila y corre | 93/93 |
+| R6 compila | **7/93** |
+| R6 coincide (exit + stdout) | **7/93** |
+| documentos con `unknown` en `registerTypes` | **87/94** |
+
+Al mergear el emisor en el `main` del usuario (`299eb09`, sin push) el corpus
+designado creció de 89+1 a 93+1 (cuatro programas de suite nuevos, §5.5
+reconciliado con el árbol) y el conteo subió de 6/89 a **7/93**; el trinquete de
+`baseline.json` queda en `r6BuildOk 7`, `match 7`. Primer rechazo por opcode:
+
+| Primer rechazo | Casos |
+|---|---|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 29 |
+| `load_var` | 23 |
+| `add` | 10 |
+| `ne` | 7 |
+| `decl_var` | 6 |
+| `lt`, `ret`, `gt` | 2 cada uno |
+| `mul`, `sub`, `div`, `list_create`, `call` | 1 cada uno |
+
+## Medición previa 2026-10-16 (emisor `1e6a378`, corpus `10f6e7d9`)
 | Métrica | Valor |
 |---|---|
 | miembros / programas | 90 / 89 (+1 módulo de soporte) |

@@ -4,8 +4,9 @@ Fecha: 2026-10-15. Decisión de adopción: [DECISIONS.md](DECISIONS.md) D-F0-06.
 
 Fuentes comparadas:
 
-- `orbit-lang` `docs/IR_SPEC.md`, blob `110ce439be8969d0e97986ad5eaa0cf0db92b1af`
-  en HEAD `0837185` (posterior al pin `5c01cea`; el pin no se mueve todavía).
+- `orbit-lang` `docs/IR_SPEC.md`, blob `16f26a9dc2707466dd2d2e8e7695aa28db3bbc9b`
+  en `main` `299eb09` (el pin actual; D-F0-10 movió la cita desde `110ce439…`,
+  que era el blob en `0837185`, al reconciliar §5.5 con el árbol).
 - Implementación actual: `src/loader/ir.c` y draft local
   [IR_SPEC_DRAFT.md](IR_SPEC_DRAFT.md).
 
@@ -206,7 +207,10 @@ Estado posterior (2026-10-16): la suite negativa de §3 quedó commiteada en
 + 24 controles, decisiones D-M1-06..D-M1-20) y el gate diferencial creció a
 **31/31** con los fixtures `21`–`31`; las respuestas P1–P5 llegaron el
 2026-10-16 (§6, D-F0-08) y la fase D tiene el emisor `--emit-ir` aditivo, el
-corpus 89+1 pineado por `filesSha256 10f6e7d9` y su diferencial de medición
-(D-M1-17: **6/89**). Solo queda el re-pin de la fase D (D4), a la espera de que
-la rama `r6-emit-ir` exista en el repo del usuario; hasta entonces `PIN.md`
-sigue en `5c01cea`.
+corpus pineado por `filesSha256` y su diferencial de medición (D-M1-17 en
+**2/89**, D-M1-20 en **6/89**). **El re-pin de la fase D quedó hecho**
+(D-F0-10, 2026-10-16): la rama `r6-emit-ir` se mergeó en el `main` del usuario
+(`299eb09`, sin push), §5.5 se reconcilió con el árbol a **93+1** (71+1 suite +
+22 std) y el primer pin del corpus es `filesSha256 0106d531…`
+(`languageCommit 299eb09`), medido en **7/93**; `PIN.md` y esta cita pasan al
+blob `16f26a9d…`.

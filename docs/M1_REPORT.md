@@ -225,6 +225,13 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
   `filesSha256 10f6e7d97977aaeec3018b9f8694e78dc7fee3ae614fa16cf4db27cc10b7f89b`
   en `tests/corpus/manifest.json`; el emisor es el canónico
   `1e6a378a6a67…` (`805cf61894ca…`).
+- **Re-pin (2026-10-16, D-F0-10)**: la rama se mergeó en el `main` del usuario
+  (`299eb09`, sin push). El corpus designado se reconcilió con el árbol a
+  **93+1** (71+1 de `tests/suite` + 22 de `tests/std`, `IR_SPEC.md` §5.5) porque
+  `main` había añadido cuatro programas de suite posteriores a la spec; el pin
+  pasa a `filesSha256 0106d531…` con emisor `299eb09` (`36c42e20…`) y se midió
+  en **7/93** (trinquete `r6BuildOk 7`, `match 7`). La corrida en
+  `1e6a378`/`10f6e7d9` (6/89) queda arriba como la medición de ese pin.
 - El diferencial del corpus (D-M1-17) es una **medición, no una puerta**. La
   corrida completa del 2026-10-16 (`--check --write-baseline`) sale con exit 0
   e imprime `ratchet holds: r6BuildOk 2 -> 2, match 2 -> 2`:

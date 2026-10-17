@@ -1,10 +1,11 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` commit `5c01cea68f125f06dd3ac82a61776827bdb0c6f3`. This is a
-separate repo from the language: `C:\Users\Usuario\Downloads\orbit-lang` is
-read-only to R6 and is currently a live dev tree (HEAD ahead of the pin, dirty
-files present) — never treat that working tree as the pin.
+`orbit-lang` `main` commit `299eb094d51098945a6618a60ba2efc02dfe59d9` (the
+local merge of the emitter branch `r6-emit-ir`; D-F0-10). This is a separate
+repo from the language: `C:\Users\Usuario\Downloads\orbit-lang` is read-only to
+R6, and its working tree is **the pin** — clean at `299eb09`, not a moving dev
+tree. Do not write there.
 
 ## Commands
 
@@ -63,22 +64,22 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured 6/89 on 2026-10-16 (2/89 at
-the D-M1-17 pin; D-M1-18 lifted it to 3/89; D-M1-19 kept 3/89 while removing
-`load_const` as a first refusal anywhere; D-M1-20 lifted it to 6/89 by
-recovering, by inference, the register types the builder serialized as
-`unknown`):
+D-M1-17) — a **measurement, not a gate**. Measured **7/93** on 2026-10-16 at the
+D-F0-10 re-pin (2/89 at the D-M1-17 pin; D-M1-18 lifted it to 3/89; D-M1-19 kept
+3/89 while removing `load_const` as a first refusal anywhere; D-M1-20 lifted it
+to 6/89 by recovering, by inference, the register types the builder serialized
+as `unknown`; the merge + re-pin lifted it to 7/93 on the grown corpus):
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-67e4ecfa75.exe `
+  --compiler C:\Temp\orbit-fp-26cfb87400.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Users\Usuario\Downloads\orbit-lang-emit-ir `
+  --orbit-root C:\Users\Usuario\Downloads\orbit-lang `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- Regenerates the 89+1 corpus with the pinned compiler (`--orbit-root` is the
+- Regenerates the 93+1 corpus with the pinned compiler (`--orbit-root` is the
   tree carrying the language's `scripts/emit_ir_corpus.py`; `--ir-dir` measures
   an already-emitted one), verifies every `sha256` against
   `tests/corpus/manifest.json`, then builds both sides per program and requires
@@ -148,9 +149,10 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 ## Adding IR support
 
 1. Fixtures are hand-written `.json` + `.orb` pairs in `docs/proposed-ir/m1/`;
-   Orbit has no `--emit-ir` even at its HEAD, so nothing generates them yet.
+   they predate the emitter and stay manual. The pinned language does emit its
+   own corpus with `orbit build --emit-ir` (`tests/corpus/`, D-F0-10).
 2. **Format (migrated 2026-10-15, commit `06d7d2c`)**: the loader implements
-   the language-side `orbit-lang/docs/IR_SPEC.md` format (blob `110ce439…`):
+   the language-side `orbit-lang/docs/IR_SPEC.md` format (blob `16f26a9d…`):
    root `{"irVersion":"1","module":M}`, instructions
    `opcode`/`dest`/`operand1..3`/`elemKind`, values `{"kind":K,"value":V}`
    (`{"kind":"None"}` bare), `dest` `-1` for none, flat `route*` fields, ints

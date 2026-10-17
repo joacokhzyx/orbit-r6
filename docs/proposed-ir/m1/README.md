@@ -1,7 +1,7 @@
 # Fixtures M1 manuales IRv1 (diferencial contra el pin)
 
 Cada `.json` usa el formato IRv1 del lado lenguaje
-(`orbit-lang/docs/IR_SPEC.md`, blob `110ce439be8969d0e97986ad5eaa0cf0db92b1af`):
+(`orbit-lang/docs/IR_SPEC.md`, blob `16f26a9dc2707466dd2d2e8e7695aa28db3bbc9b`):
 raíz `irVersion`+`module`, operandos `{"kind":K,"value":V}`, `dest` `-1` para
 "sin destino" y la aridad de cada `call` en `operand2` (V-13). El draft local
 `docs/IR_SPEC_DRAFT.md` está superseded (D-F0-06) y los archivos son LF por

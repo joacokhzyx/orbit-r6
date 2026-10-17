@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Differential over the language-emitted IR corpus -- a measurement, not a gate.
 
-The pin lives in `tests/corpus/manifest.json`: the 89+1 IRv1 documents the
-language emits for `tests/suite` (67 programs plus `imports.support.orb`) and
+The pin lives in `tests/corpus/manifest.json`: the 93+1 IRv1 documents the
+language emits for `tests/suite` (71 programs plus `imports.support.orb`) and
 `tests/std` (22 programs), each with a sha256.  This runner
 regenerates that corpus with the pinned compiler, checks every hash against
 the pin, and then differentially compares R6 against the language for each
