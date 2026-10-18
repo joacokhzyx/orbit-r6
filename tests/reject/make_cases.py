@@ -1015,6 +1015,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/33-parameter-by-name.json",
              "run_exit": 42, "run_stdout": "", "rule": "D-M1-22",
              "note": "the emitter stream reading int/string/bool/float parameters by name matches the oracle"},
+            {"file": "../../docs/proposed-ir/m1/35-list-len-bound.json",
+             "run_exit": 42, "run_stdout": "", "rule": "D-M1-25",
+             "note": "a list-length-bounded indexed loop in a non-main function matches the oracle"},
         ],
     }
 

@@ -45,6 +45,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `31-inferred-unary-neg` | stream del emisor con cuatro registros en `unknown`: cadena de `neg`/`add` inferida | 2 | vacío |
 | `32-inline-literal-operands` | stream del emisor con literales inline en operandos de `mul`/`sub`/`div`/`mod`/`add`/`ne`/`ge`/`lt`/`eq`/`le`/`gt` y concatenación de strings | 42 | `lit-ok\n\n` |
 | `33-parameter-by-name` | stream del emisor leyendo por nombre parámetros int/string/bool/float (`load_var` de un parámetro) | 42 | vacío |
+| `35-list-len-bound` | bucle indexado sobre una lista en una función distinta de `main`: la longitud de 64 bits y la etiqueta por función | 42 | vacío |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06–33 amplían la

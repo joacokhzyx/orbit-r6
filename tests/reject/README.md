@@ -69,6 +69,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-20 | `x-infer-arith-unknown-operand`, `x-infer-unresolved-call`, `x-infer-unknown-load-var`, `x-infer-result-unwrap`; aceptación: `ok-infer-eq-bool`, `ok-infer-load-var`, `ok-infer-neg-chain`, `ok-infer-call-return`, `ok-infer-arg-param`, `ok-infer-list-create`, `ok-infer-union-tag` (+ los fixtures 30/31) |
 | D-M1-21 | `x-lit-float-operand`, `x-lit-and-op-operand`, `x-lit-type-mismatch`; aceptación: `ok-lit-operands` (+ el fixture 32) |
 | D-M1-22 | `x-load-var-foreign-param`, `x-load-var-param-mismatch`; aceptación: `ok-load-var-param` (+ el fixture 33) |
+| D-M1-25 | aceptación: `35-list-len-bound` (el fixture del bucle con bound de `list_len` en una función no-`main`) |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
 `list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan cerrados
@@ -78,8 +79,8 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-17: **146/146** (116 rechazos + 30 controles); gate diferencial
-33/33 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
+Estado 2026-10-18: **147/147** (118 rechazos + 29 controles); gate diferencial
+34/34 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
 `ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de
@@ -88,3 +89,10 @@ otra función no es un nombre del módulo), `x-load-var-param-mismatch` (el tipo
 del destino debe ser `paramTypes[p]`) y los controles `ok-load-var-param` y
 `33-parameter-by-name`; `x-infer-unknown-load-var` sigue cubriendo el nombre
 sin declarar.
+
+D-M1-24 y D-M1-25 no añaden rechazos: son dos defectos preexistentes del
+lowering que la ronda del corpus destapó, y no cambian ninguna regla de
+validación. Su pin es el control de aceptación `35-list-len-bound` (bucle
+indexado sobre una lista en una función distinta de `main`: la etiqueta de la
+lectura de lista lleva el ordinal de función y la longitud de `list_len` ocupa el
+slot `int` completo). Medido: el resto del corpus no se mueve (23 -> 23).

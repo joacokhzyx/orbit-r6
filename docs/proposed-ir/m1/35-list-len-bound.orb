@@ -1,0 +1,20 @@
+// Indexed iteration in a non-main function: the loop bound comes from
+// `list_len` and the element from `list_get`, so the program pins both the
+// 64-bit length slot (D-M1-25) and the per-function list-read label (D-M1-24).
+// It deliberately avoids the string `add` (D-M1-23) and any builtin call.
+fn sum_indices() -> int {
+    var total = 0
+    var last = 0
+    for x, i in [10, 20, 30] {
+        total = total + i
+        last = x
+    }
+    if total != 3 { return 1 }
+    if last != 30 { return 2 }
+    return 42
+}
+
+fn main() -> int {
+    if sum_indices() != 42 { return 7 }
+    return 42
+}

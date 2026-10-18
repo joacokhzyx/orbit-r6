@@ -1470,7 +1470,7 @@ static bool module_needs_arena_global(const R6Module *m) {
 static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
                            size_t pc, unsigned list_off, unsigned index_off,
                            unsigned dest_off, int kind, bool is_pop,
-                           unsigned where_id, unsigned file_id) {
+                           unsigned long long where_id, unsigned long long file_id) {
     unsigned scratch = result_scratch_offset(f, strcmp(f->name, "main") == 0);
     const char *tag = is_pop ? "list_pop" : "list_get";
     char null_list[112], null_data[112], out_of_range[112], kind_error[112];
@@ -1731,11 +1731,16 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
             unsigned null_id = (unsigned)pc * 2;
             unsigned done_id = null_id + 1;
+            /* The length is an `int` register: `OrbitList.len` is a size_t
+               (orbit_api.h:219) and every consumer of an int slot reads all
+               eight bytes (`lt`/`le`/`gt`/`ge` compare with `cmpq`, D-M1-25),
+               so the store must be 64-bit. A 32-bit `movl` left the high half
+               stale and made `for x, i in xs` over-run its bound. */
             fprintf(o, "\tmovl $0, %%eax\n\tcmpq -%u(%%rbp), %%rax\n"
                        "\tje .Lr6_f%zu_list_len_null_%u\n\tmovq -%u(%%rbp), %%rax\n"
-                       "\tmovq 8(%%rax), %%rax\n\tmovl %%eax, -%u(%%rbp)\n"
+                       "\tmovq 8(%%rax), %%rax\n\tmovq %%rax, -%u(%%rbp)\n"
                        "\tjmp .Lr6_f%zu_list_len_done_%u\n"
-                       ".Lr6_f%zu_list_len_null_%u:\n\tmovl $0, -%u(%%rbp)\n"
+                       ".Lr6_f%zu_list_len_null_%u:\n\tmovq $0, -%u(%%rbp)\n"
                        ".Lr6_f%zu_list_len_done_%u:\n",
                     list_off, fn_index, null_id, list_off, off,
                     fn_index, done_id, fn_index, null_id, off, fn_index, done_id);
@@ -1744,8 +1749,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_LIST_GET: {
             unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
             unsigned index_off = (unsigned)(i->operands[1].as.i32 + 1) * 8;
-            unsigned where_id = string_id++;
-            unsigned file_id = string_id++;
+            unsigned long long where_id = string_id++;
+            unsigned long long file_id = string_id++;
             emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
             emit_list_read(o, f, fn_index, pc, list_off, index_off, off,
@@ -1775,8 +1780,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         }
         case R6_OP_LIST_POP: {
             unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
-            unsigned where_id = string_id++;
-            unsigned file_id = string_id++;
+            unsigned long long where_id = string_id++;
+            unsigned long long file_id = string_id++;
             emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
             emit_list_read(o, f, fn_index, pc, list_off, 0, off,

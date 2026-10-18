@@ -1310,3 +1310,76 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   unchanged; the historical message quoted in the D-M1-20/21 measurements is
   left as that run's record.
 - Status: **accepted**.
+
+## D-M1-24 - list read labels: the id carries the function ordinal
+
+- Date: 2026-10-18. Found while measuring the round-4 result (D-M1-23), and
+  **pre-existing**: present in the working tree at `432c205`, introduced with
+  the list opcodes and never exercised, because no fixture and no corpus
+  program reached the assembler through it until round 4 cleared the wall in
+  front of `for_index_labels`.
+- Symptom: a module with a `list_get`/`list_pop` in a **non-main** function
+  fails at assembly with `error[ASSEMBLER]: duplicate assembler label
+  '.LCr6_0'`.
+- Root cause: the private label id `string_id` is initialised once per function
+  as `((unsigned long long)fn_index) << 32` (`win64.c:1635`), so the **function
+  ordinal lives in the high 32 bits** and the low 32 bits are the per-function
+  string ordinal. Every other consumer keeps all 64 bits (`emit_string` takes
+  `unsigned long long`, `materialize_literals` takes `unsigned long long *`,
+  `arg_string_ids` is `unsigned long long[256]`), but the two list-read sites
+  stored the id in 32-bit locals, `unsigned where_id = string_id++;`,
+  truncating the function ordinal: every function emitted `.LCr6_0`,
+  `.LCr6_1`, ... from zero, so the second function to read a list collided with
+  the first. A module that only reads lists in `main` never collides (the
+  ordinal stays 0 and is defined once), which is why the fixtures 19/20 and the
+  whole M1 corpus before round 4 never exposed it.
+- Fix: `emit_list_read`'s `where_id`/`file_id` parameters and the two call
+  sites (`list_get`, `list_pop`) widen to `unsigned long long`. No other
+  truncation remains (audited: no `unsigned <x> = string_id` left in the file).
+- Reference: this is an R6-internal contract, not a language admission - a
+  private assembler label must be defined once. The evidence is the emitted
+  assembly carrying two `.LCr6_0:` definitions and the assembler's own refusal;
+  the 64-bit convention the neighbouring code already follows is the contract
+  that was violated, so no spec line applies.
+- Effect: `for_index_labels`'s duplicate-label refusal disappears when the
+  program reaches the assembler (measured in the D-M1-23 round). No other
+  program changes: the label **set** only gains the high bits it lost, so labels
+  become unique - never fewer, never different in kind. No frame arithmetic,
+  offset or opcode path is touched.
+- Status: **applied**.
+
+## D-M1-25 - `list_len`: the length slot is written 64-bit
+
+- Date: 2026-10-18. Found while measuring the round-4 result, and
+  **pre-existing**: present in the working tree at `432c205`, introduced with
+  the list opcodes. The label fix (D-M1-24) is what let the corpus program
+  `for_index_labels` compile, exposing it.
+- Symptom: `for x, i in xs` over-runs its bound. R6 built the program and the
+  runtime aborted inside the element read with `orbit: list index out of range /
+  index 3 / length 3 / elements int / in index_binding`; the oracle returns 0.
+- Root cause: `R6_OP_LIST_LEN` stored the length with a 32-bit `movl` (and the
+  null branch with `movl $0`) into an `int` slot, while every consumer of an
+  `int` slot reads all eight bytes - `lt`/`le`/`gt`/`ge` compare with `cmpq`
+  (the int arm of the relational emission), `eq`/`ne` likewise. `OrbitList.len`
+  is a `size_t` (`runtime/orbit_api.h:219`) and `orbit_list_len` returns
+  `size_t` (`runtime/orbit_api.h:519-521`), so the eight-byte load the emission
+  already used is right and only the store was narrow: the high half of the slot
+  kept whatever the frame last held, and `i < len` compared `i` against that
+  garbage bound.
+- Fix: the non-null branch stores with `movq` (the value the `movq 8(%rax)`
+  load already produced) and the null branch with `movq $0`. No other 32-bit
+  store targets an `int` slot: the remaining ones (bool literals, bool locals,
+  comparison results, `result_is_ok`) all feed `cmpl`, which reads four bytes,
+  and every `int` producer is already 64-bit (`movq`/`addq`/`movslq`).
+- Reference: the pinned runtime's own types - `OrbitList.len` is `size_t`
+  (`orbit_api.h:219`), `orbit_list_len` returns `size_t` (`:519-521`) - and R6's
+  int convention (a 64-bit slot, which `load_const`, `add` and the `list_get`
+  element decode already assume). No spec line applies; the invariant is that a
+  slot has one width.
+- Regression: fixture `35-list-len-bound` (a list-length-bounded indexed loop in
+  a **non-main** function, with no builtin call and no string `add`) is exit 42
+  on both sides; it also pins D-M1-24.
+- Effect: `for_index_labels` matches the oracle (exit 0). Nothing else moves: the
+  fix only stops discarding the high half of a correct 64-bit load, so it cannot
+  turn a refusal into a build nor change a value that was already right.
+- Status: **applied**.
