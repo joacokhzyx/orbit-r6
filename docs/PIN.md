@@ -43,3 +43,28 @@ canonical is unchanged and a full corpus regeneration still gives
 `filesSha256 0106d531…`; the runtime archive was rebuilt and its 324-symbol set
 is identical, and the dirty working tree observed while taking the pin is
 recorded there and is **not** part of it.
+
+**Observation 2026-10-18 (no pin change).** While measuring the round-4 result
+the live checkout `C:\Users\Usuario\Downloads\orbit-lang` had **advanced past
+the pin** (HEAD `adb8b96`, `ce87d508` still an ancestor) and was dirty
+(`M compiler/ir/builder.orb`, `M compiler/selfhost/stage3.exe.c`,
+`M docs/IR_SPEC.md`, `M scripts/emit_ir_corpus.py`, `M scripts/verify_seed.py`,
+`?? tests/suite/union_bare_variant_pattern.orb`); its `emit_ir_corpus.py` now
+lists 96 documents, so `run_corpus.py --orbit-root <that tree>` reports corpus
+drift. The fixed-point binary at `C:\Temp\orbit-fp-26cfb87400.exe` was
+**rebuilt in place** by the concurrent session (the name is
+`sha256(checkout path)`, so it is reused): it is now 2551296 bytes, SHA-256
+`09526eff.`, recording checkout `adb8b96`, where the pin recorded 2537984 bytes
+and `10a16956.`. Neither change moves the pin. Reproduced from the pinned
+commit alone: `git -C <checkout> archive ce87d508` extracted into a scratch
+tree, then `emit_ir_corpus.py --compiler <fp> --out <dir>` over that tree
+yields exactly 94 documents and `filesSha256 0106d531.` with the current
+binary - so the emitted bytes are still a function of the pinned sources, and
+the corpus measurement must pass `--orbit-root` a tree materialized at
+`ce87d508` (not the advancing working tree). The pin rests on the commit.
+
+The fixed point the 2026-10-18 gates were actually measured with is the
+pinned-era build `C:\Temp\orbit-fp-8b0bb38a82.exe` (2537984 bytes, SHA-256
+`3a000d74.`), passed to `--compiler`; the pinned sources it was built from were
+materialized read-only at `C:\Temp\orbit-pin-ce87d508` and passed to
+`--orbit-root`. Both are `C:\Temp` artifacts of the pin, not new pins.

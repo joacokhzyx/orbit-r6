@@ -266,3 +266,49 @@ que el documento no declara (`orbit_string_len` 5, `orbit_string_slice`,
 `orbit_db_query_all`, `orbit_object_*`: el frente de builtins de la spec §3.1
 pasos 4-6, que sigue fail-closed a la espera de la tabla del lenguaje). El
 `unknown` estructural no se movió: sigue en 87/94 documentos.
+
+## Ronda 2026-10-18 (D-M1-23, `add` de string: spread y concat, y el arena fuera de `main`)
+
+El frente de *string spreading* que D-M1-21 dejó abierto cerró con D-M1-23: `add`
+con un `string` en un solo lado dispersa el escalar por los conversores del
+runtime (`orbit_int_to_string_selfhost` para `int`, `orbit_float_to_string` para
+`float`, `orbit_bool_to_string` para `bool`) y concatena con
+`orbit_string_concat`; y `add` de dos strings se baja en **cualquier** función
+(el arena se lee del parámetro `_init_arena` en `main` y del global `r6_arena`
+fuera de él). La medición de la ronda destapó además dos defectos preexistentes
+del lowering, corregidos en la misma ronda (D-M1-24: el id de etiqueta de las
+lecturas de lista perdía el ordinal de función; D-M1-25: la longitud de
+`list_len` se escribía a 32 bits en un slot `int` que sus consumidores leen a 64).
+
+| Métrica | D-M1-22 (23/93) | D-M1-23/24/25 |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531.` | **`0106d531.`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 23/93 | **27/93** |
+| R6 coincide (exit + stdout) | 23/93 | **27/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+| opcodes que nunca aparecen en un programa que coincide | 15/41 | **11/41** |
+
+Los cuatro programas nuevos (`interpolation`, `integer_literals` y
+`function_pointers` por D-M1-23; `for_index_labels` por D-M1-24/D-M1-25) pasan de
+rechazo a coincidencia byte a byte con el oráculo, sin retrocesos. Primer rechazo
+por opcode tras la ronda:
+
+| Primer rechazo | D-M1-22 | D-M1-23/24/25 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 35 | **37** |
+| `call` | 11 | 11 |
+| `decl_var` | 6 | 6 |
+| `list_create` | 4 | 4 |
+| `ret`, `list_len` | 2 cada uno | 2 cada uno |
+| `arg`, `gt`, `ne` | 1 cada uno | 1 cada uno |
+| `eq` | 0 | **1** (expuesto al liberarse su programa) |
+| `add` | 7 | **0** |
+
+El `add` deja de ser un muro (7 -> 0) y el frente dominante vuelve a ser el nivel
+de módulo, que absorbe los cuatro programas liberados. Los dos defectos de
+lowering quedan pineados por el fixture `35-list-len-bound` (bucle indexado sobre
+una lista en una función distinta de `main`), y el `add` de string por el fixture
+`34-string-spreading-add` y los controles `x-add-spread-*`/`x-add-string-dest` de
+`tests/reject/`.

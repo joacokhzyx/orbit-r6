@@ -780,6 +780,45 @@ def build_reject():
         "D-M1-22", "CGEN",
         "loading a parameter into a differently typed register is refused")
 
+    # ---- D-M1-23: a string `add` concatenates and spreads -------------------
+    # The pinned backend turns `add` into orbit_string_concat whenever either
+    # operand is a string operand (c_backend.orb:2662-2668) and stringifies each
+    # side on its own (:4341-4378, :3881-3908). The spread side must therefore
+    # be a scalar a converter covers, the result is always a string, and the
+    # Float literal of D-M1-21 is still not something the builder emits into an
+    # operand. Each delta below breaks exactly one of those.
+    add("x-add-spread-dest",
+        jd(DOC([MAIN([I("load_const", 0, Str("n=")),
+                      I("load_const", 1, Int(7)),
+                      I("add", 2, Reg(0), Reg(1)),
+                      I("load_const", 3, Int(0)),
+                      I("ret", -1, Reg(3))],
+                     ["string", "int", "int", "int"])])),
+        "D-M1-23", "CGEN",
+        "spreading a scalar into a string add requires a string destination")
+    add("x-add-spread-pointer",
+        jd(DOC([MAIN([I("load_const", 0, Str("v=")),
+                      I("add", 1, Reg(0), Reg(2)),
+                      I("ret", -1, Int(0))],
+                     ["string", "unknown", "void*"])])),
+        "D-M1-23", "CGEN",
+        "a pointer operand has no measured converter and is never spread")
+    add("x-add-spread-float-literal",
+        jd(DOC([MAIN([I("load_const", 0, Str("f=")),
+                      I("add", 1, Reg(0), Flt(1.5)),
+                      I("ret", -1, Int(0))], ["string", "unknown"])])),
+        "D-M1-23", "CGEN",
+        "a float literal spread operand stays outside the measured builder output")
+    add("x-add-string-dest",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")),
+                      I("load_const", 1, Str("b")),
+                      I("add", 2, Reg(0), Reg(1)),
+                      I("load_const", 3, Int(0)),
+                      I("ret", -1, Reg(3))],
+                     ["string", "string", "int", "int"])])),
+        "D-M1-23", "CGEN",
+        "a string add must produce a string")
+
     return cases
 
 
@@ -942,6 +981,36 @@ def build_accept_files():
                   jd(DOC([sum2, MAIN([I("arg", -1, Int(20)), I("arg", -1, Int(22)),
                                       I("call", 0, Sym("sum2"), Int(2)),
                                       I("ret", -1, Reg(0))], ["int"])]))))
+    # D-M1-23: a string `add` concatenates, spreading a scalar side through the
+    # runtime converters; outside main the arena is r6_arena. Both a non-main
+    # int spread (rcx carries the value) and a non-main bool spread (rcx is the
+    # arena, rdx the value) must build and run.
+    ints = FN("ints",
+              [I("arg", 0, Int(0)), I("load_var", 1, Sym("n")),
+               I("add", 2, Str("n="), Reg(1)), I("ret", -1, Reg(2))],
+              ["int", "int", "unknown"], rtype="string",
+              params=["n"], ptypes=["int"])
+    bools = FN("bools",
+               [I("arg", 0, Int(0)), I("load_var", 1, Sym("b")),
+                I("add", 2, Str("b="), Reg(1)), I("ret", -1, Reg(2))],
+               ["bool", "bool", "unknown"], rtype="string",
+               params=["b"], ptypes=["bool"])
+    files.append(("ok-add-string-spread",
+                  jd(DOC([ints, bools,
+                          MAIN([I("arg", -1, Int(40)),
+                                I("call", 0, Sym("ints"), Int(1)),
+                                I("eq", 1, Reg(0), Str("n=40")),
+                                I("jump_if_false", -1, Reg(1), Lab(1)),
+                                I("arg", -1, Bool(True)),
+                                I("call", 2, Sym("bools"), Int(1)),
+                                I("eq", 3, Reg(2), Str("b=true")),
+                                I("jump_if_false", -1, Reg(3), Lab(1)),
+                                I("load_const", 4, Int(42)),
+                                I("ret", -1, Reg(4)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 4, Int(0)),
+                                I("ret", -1, Reg(4))],
+                               ["string", "bool", "string", "bool", "int"])]))))
     return files
 
 
@@ -1015,6 +1084,11 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/33-parameter-by-name.json",
              "run_exit": 42, "run_stdout": "", "rule": "D-M1-22",
              "note": "the emitter stream reading int/string/bool/float parameters by name matches the oracle"},
+            {"file": "cases/ok-add-string-spread.json", "run_exit": 42, "rule": "D-M1-23",
+             "note": "a non-main int spread and a non-main bool spread concat and run"},
+            {"file": "../../docs/proposed-ir/m1/34-string-spreading-add.json",
+             "run_exit": 42, "run_stdout": "[spread]\r\n", "rule": "D-M1-23",
+             "note": "the emitter stream spreading int/float/bool in main and in a callee matches the oracle"},
             {"file": "../../docs/proposed-ir/m1/35-list-len-bound.json",
              "run_exit": 42, "run_stdout": "", "rule": "D-M1-25",
              "note": "a list-length-bounded indexed loop in a non-main function matches the oracle"},

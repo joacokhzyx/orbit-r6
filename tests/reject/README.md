@@ -69,6 +69,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-20 | `x-infer-arith-unknown-operand`, `x-infer-unresolved-call`, `x-infer-unknown-load-var`, `x-infer-result-unwrap`; aceptación: `ok-infer-eq-bool`, `ok-infer-load-var`, `ok-infer-neg-chain`, `ok-infer-call-return`, `ok-infer-arg-param`, `ok-infer-list-create`, `ok-infer-union-tag` (+ los fixtures 30/31) |
 | D-M1-21 | `x-lit-float-operand`, `x-lit-and-op-operand`, `x-lit-type-mismatch`; aceptación: `ok-lit-operands` (+ el fixture 32) |
 | D-M1-22 | `x-load-var-foreign-param`, `x-load-var-param-mismatch`; aceptación: `ok-load-var-param` (+ el fixture 33) |
+| D-M1-23 | `x-add-spread-dest`, `x-add-spread-pointer`, `x-add-spread-float-literal`, `x-add-string-dest`; aceptación: `ok-add-string-spread` (+ el fixture 34) |
 | D-M1-25 | aceptación: `35-list-len-bound` (el fixture del bucle con bound de `list_len` en una función no-`main`) |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
@@ -79,8 +80,8 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-18: **147/147** (118 rechazos + 29 controles); gate diferencial
-34/34 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
+Estado 2026-10-18: **153/153** (122 rechazos + 31 controles); gate diferencial
+35/35 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
 `ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de
@@ -90,9 +91,17 @@ del destino debe ser `paramTypes[p]`) y los controles `ok-load-var-param` y
 `33-parameter-by-name`; `x-infer-unknown-load-var` sigue cubriendo el nombre
 sin declarar.
 
+El borde de D-M1-23 (`add` con un `string` en un solo lado) queda pineado por
+`x-add-spread-dest` (destino que no es `string`), `x-add-spread-pointer` (el lado
+escalar es un puntero, sin conversor medido), `x-add-spread-float-literal` (el
+literal `Float` de D-M1-21 no se dispersa) y `x-add-string-dest` (un `add` de
+strings debe producir un `string`), con el control de aceptación
+`ok-add-string-spread` y el fixture `34-string-spreading-add`.
+
 D-M1-24 y D-M1-25 no añaden rechazos: son dos defectos preexistentes del
-lowering que la ronda del corpus destapó, y no cambian ninguna regla de
-validación. Su pin es el control de aceptación `35-list-len-bound` (bucle
-indexado sobre una lista en una función distinta de `main`: la etiqueta de la
-lectura de lista lleva el ordinal de función y la longitud de `list_len` ocupa el
-slot `int` completo). Medido: el resto del corpus no se mueve (23 -> 23).
+lowering que la ronda destapó, y no cambian ninguna regla de validación. Su pin
+es el control de aceptación `35-list-len-bound` (bucle indexado sobre una lista en
+una función distinta de `main`: la etiqueta de la lectura de lista lleva el
+ordinal de función y la longitud de `list_len` ocupa el slot `int` completo). Por
+sí solos no mueven el corpus (23 -> 23, medido); la ronda sube a 27/93 con
+D-M1-23.

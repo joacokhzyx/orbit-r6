@@ -534,3 +534,56 @@ Mensajes completos de la corrida:
   ahora admite. El código (`CGEN`) y el contrato fail-closed no cambian; el
   mensaje histórico citado en las mediciones de D-M1-20/21 se deja como registro
   de aquellas corridas.
+
+## Actualización de M1 - `add` de string: spread, concat y el arena fuera de `main` (2026-10-18)
+
+- Decisión: D-M1-23. `add` con un `string` en **un solo** lado dispersa el otro
+  operando (un escalar `int`/`float`/`bool`) con el conversor del runtime y
+  concatena; y `add` de dos strings se baja en **cualquier** función, no solo en
+  `main`. La propia medición de la ronda destapó y corrigió dos defectos
+  preexistentes del lowering: D-M1-24 (los ids de etiqueta de las lecturas de
+  lista perdían el ordinal de función porque `string_id` se asignaba a locales de
+  32 bits, y dos funciones podían acuñar la misma etiqueta `.LCr6_f0_*`) y
+  D-M1-25 (la longitud de `list_len` se guardaba a 32 bits en un slot `int` que
+  sus consumidores leen a 64).
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`): `c_backend.orb:2662-2668`
+  (el brazo `IROpcode.add`: si cualquiera de los operandos es string, los dos pasan
+  por `stringifyConcatOperand` y el resultado es `orbit_string_concat(arena, s1,
+  s2)`), `:4341-4378` (`stringifyConcatOperand`), `:3881-3908` (`isStringOperand`,
+  el mismo dato que el `type_at` de R6 ya tiene), `:387` (`extern OrbitArena*
+  arena;`, un global de archivo), `:193`/`:2219`/`:2242`
+  (`orbit_main(OrbitArena* _init_arena, ...)` y `arena = _init_arena;`), y el
+  runtime `selfhost.c:170` (`orbit_int_to_string_selfhost`, sin arena),
+  `collections.c:716`/`:730`/`:815`/`:831` (int/float/bool -> string y
+  `orbit_string_concat`), `orbit_api.h:388-391` (las declaraciones). D-M1-25
+  descansa en que `OrbitList.len` es un `size_t` (`orbit_api.h:219`) y
+  `orbit_list_len` devuelve `size_t` (`:519-521`).
+- Mecanismo: dos slots de 8 bytes por debajo de los inmediatos de D-M1-21
+  (`spread_scratch_offset`), elegidos para que **ningún offset existente se
+  mueva**; el arena se lee del parámetro `_init_arena` en `main` y del global
+  `r6_arena` fuera de él, y `module_needs_arena_global` pasa a activarse también
+  por un `add` cuyo destino es `string`. Los dos defectos son de ancho: los
+  parámetros de `emit_list_read` y sus dos llamadas pasan a `unsigned long long`
+  (D-M1-24) y `R6_OP_LIST_LEN` escribe el slot con `movq` (D-M1-25).
+- Evidencia del corpus (pin `0106d531`): el primer rechazo con opcode `add` cae
+  **7 -> 0**, `r6BuildOk` y `match` suben **23 -> 27** (`interpolation`,
+  `integer_literals` y `function_pointers` por D-M1-23; `for_index_labels` por
+  D-M1-24/D-M1-25), **sin retrocesos**. Los cuatro programas liberados empujan el
+  nivel de módulo 35 -> 37: las paredes siguen siendo conjuntivas.
+- Puertas: diferencial **33/33 -> 35/35** (fixture 34, el stream del emisor
+  dispersando int/float/bool en `main` y en un callee, exit 42 y stdout
+  `[spread]` + CRLF; fixture 35, un bucle indexado sobre una lista en una función
+  no-`main`, exit 42 y stdout vacío); loader **146/146 -> 153/153** (122 rechazos
+  + 31 controles); `make_cases.py --check` sin drift (143 archivos de caso +
+  manifest); `migrate-m1-fixtures.py --check` 20/20; trinquete re-tomado
+  (`r6BuildOk 27`, `match 27`). Controles negativos `x-add-spread-dest`,
+  `x-add-spread-pointer`, `x-add-spread-float-literal`, `x-add-string-dest`;
+  control positivo `ok-add-string-spread` (exit 42).
+- Observación: D-M1-24 y D-M1-25 no cambian ninguna regla de validación - eran
+  código mal emitido en módulos que R6 ya aceptaba, y ninguno de los dos aparecía
+  en el corpus porque ningún programa anterior leía una lista en una función
+  distinta de `main`.
+- Mensaje: `add` gana dos diagnósticos (`add spread requires a string destination
+  and an int, float, or bool scalar operand` y `string add requires a string
+  destination`); el `add` de int/float conserva el suyo. El código (`CGEN`) y el
+  contrato fail-closed no cambian.

@@ -934,11 +934,31 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_ADD:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
+            if (is_string(a) != is_string(b)) {
+                /* D-M1-23: one side is a string and the other is spread
+                   through the runtime converters, so the result is a string
+                   and the spread side must be a scalar a converter covers.
+                   A pointer, list or model operand has no measured converter
+                   and stays fail closed. */
+                const char *spread = is_string(a) ? b : a;
+                if (!is_string(type_at(f, i->dest)) ||
+                    !(is_int(spread) || is_float(spread) || is_bool(spread)))
+                    return fail(d, i, "CGEN",
+                                "add spread requires a string destination and an int, float, or bool scalar operand");
+                break;
+            }
+            if (is_string(a)) {
+                /* D-M1-23: string concatenation. The pinned backend keeps the
+                   arena in a file-scope global for every function; R6 reads it
+                   from main's parameter slot or from r6_arena. */
+                if (!is_string(type_at(f, i->dest)))
+                    return fail(d, i, "CGEN",
+                                "string add requires a string destination");
+                break;
+            }
             if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
-                !(is_int(a) || is_float(a) || is_string(a)))
-                return fail(d, i, "CGEN", "add supports matching int, float, or string registers only");
-            if (is_string(a) && strcmp(f->name, "main") != 0)
-                return fail(d, i, "CGEN", "string add outside main requires the Orbit arena parameter contract");
+                !(is_int(a) || is_float(a)))
+                return fail(d, i, "CGEN", "add supports matching int or float operands");
             break;
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
@@ -1408,6 +1428,29 @@ static unsigned literal_scratch_offset(const R6Function *f, bool is_main, unsign
     return (unsigned)(slots * 8 + result_area_bytes(f) + 8u * (n + 1));
 }
 
+/* D-M1-23: two 8-byte slots for the string a scalar operand of a string `add`
+ * spreads into. They sit below the D-M1-21 immediate slots, so no existing
+ * offset moves and no register, local or scratch block is overlapped. */
+static bool uses_spread_scratch(const R6Function *f) {
+    size_t pc;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        if (i->opcode != R6_OP_ADD) continue;
+        if (is_string(operand_type_of(f, i, 0)) !=
+            is_string(operand_type_of(f, i, 1))) return true;
+    }
+    return false;
+}
+
+static unsigned spread_scratch_offset(const R6Function *f, bool is_main,
+                                      unsigned n) {
+    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+                   f->param_count + local_count(f);
+    unsigned used = (unsigned)(slots * 8 + result_area_bytes(f));
+    if (uses_literal_scratch(f)) used += 16;
+    return used + 8u * (n + 1);
+}
+
 /* The distance from %rbp to the word holding operand `n` of a D-M1-21
  * operation: the register's own slot, or the scratch slot its literal was
  * materialized into. */
@@ -1439,12 +1482,50 @@ static void materialize_literals(FILE *o, const R6Function *f,
     }
 }
 
+/* D-M1-23: the executable arena. `main` receives it as its first ABI parameter
+ * (the pinned backend's `_init_arena`) and every other function reads the
+ * file-scope global R6 mirrors in r6_arena. */
+static void emit_load_arena(FILE *o, const R6Function *f, bool is_main,
+                            const char *reg) {
+    if (is_main)
+        fprintf(o, "\tmovq -%u(%%rbp), %s\n",
+                (unsigned)(f->register_count + 1) * 8, reg);
+    else
+        fprintf(o, "\tleaq r6_arena(%%rip), %%rax\n\tmovq 0(%%rax), %s\n", reg);
+}
+
+/* D-M1-23: spreads one scalar operand of a string `add` into a string with the
+ * converter the pinned backend's stringifyConcatOperand emits
+ * (c_backend.orb:4341-4378): int -> orbit_int_to_string_selfhost (arena-free,
+ * it allocates in the runtime's global arena), bool -> orbit_bool_to_string(
+ * arena, v), float -> orbit_float_to_string(arena, v). The result lands in
+ * `slot` so the concat reads it from memory and the source word stays live in
+ * its own slot. */
+static unsigned emit_spread(FILE *o, const R6Function *f, bool is_main,
+                            const char *type, unsigned from, unsigned slot) {
+    if (is_int(type)) {
+        fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n"
+                   "\tcall orbit_int_to_string_selfhost\n", from);
+    } else if (is_float(type)) {
+        emit_load_arena(o, f, is_main, "%rcx");
+        fprintf(o, "\tmovsd -%u(%%rbp), %%xmm1\n"
+                   "\tcall orbit_float_to_string\n", from);
+    } else {
+        emit_load_arena(o, f, is_main, "%rcx");
+        fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n"
+                   "\tcall orbit_bool_to_string\n", from);
+    }
+    fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", slot);
+    return slot;
+}
+
 /* The pinned C backend assigns the executable arena to a file-scope global
  * (`OrbitArena* arena = NULL;` + `arena = _init_arena;` in orbit_main) and
  * every non-main function that creates a list or allocates a model instance
  * reads it from there. R6 mirrors that contract with the private r6_arena
  * slot in .data, so the global is only emitted when some non-main function
- * needs it. */
+ * needs it. D-M1-23 adds the string `add`: its concatenation and its spread
+ * converters take the same arena. */
 static bool module_needs_arena_global(const R6Module *m) {
     size_t n;
     for (n = 0; n < m->function_count; ++n) {
@@ -1454,6 +1535,7 @@ static bool module_needs_arena_global(const R6Module *m) {
         for (pc = 0; pc < f->instruction_count; ++pc) {
             const R6Instruction *i = &f->instructions[pc];
             if (i->opcode == R6_OP_LIST_CREATE) return true;
+            if (i->opcode == R6_OP_ADD && is_string(type_at(f, i->dest))) return true;
             if (i->opcode == R6_OP_CALL && i->operands[0].kind == R6_VAL_STRING &&
                 (find_model(m, i->operands[0].as.string) ||
                  find_union_variant(m, i->operands[0].as.string, NULL))) return true;
@@ -1559,6 +1641,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     size_t used = slots * 8;
     used += result_area_bytes(f);
     if (uses_literal_scratch(f)) used += 16; /* two immediate slots, D-M1-21 */
+    if (uses_spread_scratch(f)) used += 16;  /* two spread slots, D-M1-23 */
     size_t frame = (used + 32 + (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
@@ -1807,15 +1890,28 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         case R6_OP_ADD: {
             /* D-M1-21: an operand may be an inline literal; it is written to
-               its scratch slot first, so the op reads slots either way. */
+               its scratch slot first, so the op reads slots either way.
+               D-M1-23: with a string on exactly one side, the scalar side is
+               spread through the runtime converters; with strings on both
+               sides the operation is a concatenation. */
             unsigned aoff = operand_slot(f, is_main, i, 0);
             unsigned boff = operand_slot(f, is_main, i, 1);
             materialize_literals(o, f, i, is_main, &string_id);
             t = type_at(f, i->dest);
             if (is_string(t)) {
-                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tmovq -%u(%%rbp), %%r8\n\tcall orbit_string_concat\n\tmovq %%rax, -%u(%%rbp)\n",
-                        (unsigned)(f->register_count + 1) * 8,
-                        aoff, boff, off);
+                const char *t0 = operand_type_of(f, i, 0);
+                const char *t1 = operand_type_of(f, i, 1);
+                unsigned s1 = aoff, s2 = boff;
+                if (!is_string(t0))
+                    s1 = emit_spread(o, f, is_main, t0, aoff,
+                                     spread_scratch_offset(f, is_main, 0));
+                if (!is_string(t1))
+                    s2 = emit_spread(o, f, is_main, t1, boff,
+                                     spread_scratch_offset(f, is_main, 1));
+                emit_load_arena(o, f, is_main, "%rcx");
+                fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n\tmovq -%u(%%rbp), %%r8\n"
+                           "\tcall orbit_string_concat\n\tmovq %%rax, -%u(%%rbp)\n",
+                        s1, s2, off);
                 break;
             }
             if (is_float(t)) {

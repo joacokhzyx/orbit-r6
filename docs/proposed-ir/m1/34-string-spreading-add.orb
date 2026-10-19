@@ -1,0 +1,59 @@
+// expect-exit 42
+// `add` is overloaded: the pinned backend turns it into a string concatenation
+// whenever either operand is a string operand (c_backend.orb:2662-2668) and
+// spreads each side through stringifyConcatOperand (c_backend.orb:4341-4378):
+// bool -> orbit_bool_to_string(arena, v), float -> orbit_float_to_string(arena,
+// v), int -> orbit_int_to_string_selfhost(v), string -> raw. isStringOperand
+// (:3881-3908) decides per operand, so the string may sit on either side, and
+// the arena is the file-scope global the backend keeps for every function
+// (`arena` at :387, set once in orbit_main at :2173-2242). The emitted corpus
+// asks for this in 7 programs -- 4 in main, 3 inside a non-main function -- and
+// R6 refused all of them: the string arm required two string operands and,
+// outside main, refused a second time for lack of the arena parameter. Every
+// guard below asserts the value the oracle produces, so a wrong converter, a
+// wrong operand slot or a missing r6_arena shows up as a different exit code.
+extern fn orbit_print(s: string) -> void
+
+fn tag(n: int) -> string {
+    return "n=" + n
+}
+
+fn ratio(x: float) -> string {
+    return "f=" + x
+}
+
+fn flag(b: bool) -> string {
+    return "b=" + b
+}
+
+fn wrap(s: string) -> string {
+    return "[" + s + "]"
+}
+
+fn main() -> int {
+    // Spread in main: the arena is main's own first parameter.
+    val a = "n=" + 42
+    if a != "n=42" { return 1 }
+    val n = 7
+    val b = "n=" + n
+    if b != "n=7" { return 2 }
+    val f = 1.5
+    val c = "f=" + f
+    if c != "f=1.5" { return 3 }
+    val t = true
+    val d = "b=" + t
+    if d != "b=true" { return 4 }
+
+    // Spread in a non-main function: the arena is r6_arena.
+    if tag(42) != "n=42" { return 5 }
+    if ratio(1.5) != "f=1.5" { return 6 }
+    if flag(false) != "b=false" { return 7 }
+
+    // String + string in a non-main function, and two literals in main.
+    if wrap("ok") != "[ok]" { return 8 }
+    val e = "a" + "b"
+    if e != "ab" { return 9 }
+
+    orbit_print(wrap("spread"))
+    return 42
+}

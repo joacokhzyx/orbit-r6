@@ -1311,6 +1311,68 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   left as that run's record.
 - Status: **accepted**.
 
+## D-M1-23 - The string `add`: spread on one side, concat on both, and the non-main arena
+
+- Date: 2026-10-18. Round 4 of the corpus backlog (`p4`). Chosen by the
+  measurement, not by taste: after D-M1-22 the largest *actionable* first
+  refusal was the `add` of `String` + `Int` (`peephole_folds`'s rule) plus the
+  `string add outside main` refusal that capped `interpolation`,
+  `integer_literals` and `function_pointers` (7 of 7 `add` refusals).
+- Admission: `add` with a `string` on **exactly one** side now spreads the
+  other operand (an `int`, `float` or `bool` scalar) through the runtime
+  converter and concatenates; and `add` of two strings is now lowered in
+  **every** function, not only in `main`.
+- Reference (pinned `ce87d508`, read with `git cat-file blob`, never from the
+  working tree):
+  - `compiler/emit/c_backend.orb:2662-2668` - the `IROpcode.add` arm: if either
+    operand is a string operand, both sides go through
+    `stringifyConcatOperand` and the result is
+    `orbit_string_concat(arena, s1, s2)`.
+  - `:4341-4378` - `stringifyConcatOperand`: a string operand is used raw, any
+    other operand is spread by its inferred type.
+  - `:3881-3908` - `isStringOperand` decides "is a string" from
+    `registerTypes`/`strRegs`/`strVars`, which is the type R6's own `type_at`
+    already carries.
+  - `:387` - the generated header declares `extern OrbitArena* arena;` (a
+    file-scope global); `:193` and `:2219` give the prototype/definition of
+    `orbit_main(OrbitArena* _init_arena, ...)` and `:2242` writes
+    `arena = _init_arena;` in the prologue. So `main` receives the arena as its
+    first ABI parameter and every other function reads the global; R6 mirrors
+    the global in `r6_arena` (the D-F0-12 runtime archive) and reads `main`'s
+    parameter slot.
+  - `runtime/selfhost.c:170` - `orbit_int_to_string_selfhost(orbit_int)` is
+    arena-free (it uses `orbit_arena_get_global()`); `runtime/collections.c:716`
+    `orbit_int_to_string(arena, v)`, `:730` `orbit_float_to_string(arena, v)`,
+    `:815` `orbit_bool_to_string(arena, v)`, `:831`
+    `orbit_string_concat(arena, a, b)`; declarations in
+    `runtime/orbit_api.h:388-391`.
+- Semantics admitted: the spread is emitted with the converter the pinned
+  backend's `stringifyConcatOperand` picks for the operand's inferred type -
+  `int` -> `orbit_int_to_string_selfhost` (value in RCX), `bool` ->
+  `orbit_bool_to_string` (arena RCX, value RDX), `float` ->
+  `orbit_float_to_string` (arena RCX, value XMM1) - matching the ABI the earlier
+  rounds already pinned. The spread result lands in one of two 8-byte slots
+  placed below the D-M1-21 immediate slots, so no existing offset moves and no
+  register, local or scratch block is overlapped.
+- Fail closed: refused with `CGEN`
+  - `add spread requires a string destination and an int, float, or bool scalar operand`
+    - a spread whose scalar side is a pointer, list or model (no measured
+      converter) and a non-string destination;
+  - `string add requires a string destination`;
+  - matching int/float operands keep their previous rule; an inline `Float`
+    literal on a spread side stays refused (the builder never emits one there).
+- Negative controls (`tests/reject/`): rejects `x-add-spread-dest`,
+  `x-add-spread-pointer`, `x-add-spread-float-literal`, `x-add-string-dest`;
+  acceptance `ok-add-string-spread` (a non-main int spread and a non-main bool
+  spread, exit 42); fixture `34-string-spreading-add` (`.orb`/`.json`, emitted
+  with the pinned emitter, exit 42 / `[spread]\r\n`).
+- Effect: 23/93 -> 27/93, `r6BuildOk` 23 -> 27 and `match` 23 -> 27 (the string
+  fix plus D-M1-24/D-M1-25). Four programs cross to a byte-identical match:
+  `interpolation`, `integer_literals` and `function_pointers` through this
+  admission, and `for_index_labels` through D-M1-24/D-M1-25 (it still needs this
+  admission to build). The `add` first-refusal wall falls 7 -> 0.
+- Status: **applied**.
+
 ## D-M1-24 - list read labels: the id carries the function ordinal
 
 - Date: 2026-10-18. Found while measuring the round-4 result (D-M1-23), and

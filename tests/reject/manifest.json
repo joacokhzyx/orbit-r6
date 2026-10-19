@@ -825,6 +825,34 @@
       "code": "CGEN",
       "rule": "D-M1-22",
       "note": "loading a parameter into a differently typed register is refused"
+    },
+    {
+      "file": "cases/x-add-spread-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-23",
+      "note": "spreading a scalar into a string add requires a string destination"
+    },
+    {
+      "file": "cases/x-add-spread-pointer.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-23",
+      "note": "a pointer operand has no measured converter and is never spread"
+    },
+    {
+      "file": "cases/x-add-spread-float-literal.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-23",
+      "note": "a float literal spread operand stays outside the measured builder output"
+    },
+    {
+      "file": "cases/x-add-string-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-23",
+      "note": "a string add must produce a string"
     }
   ],
   "accept": [
@@ -1003,6 +1031,19 @@
       "run_stdout": "",
       "rule": "D-M1-22",
       "note": "the emitter stream reading int/string/bool/float parameters by name matches the oracle"
+    },
+    {
+      "file": "cases/ok-add-string-spread.json",
+      "run_exit": 42,
+      "rule": "D-M1-23",
+      "note": "a non-main int spread and a non-main bool spread concat and run"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/34-string-spreading-add.json",
+      "run_exit": 42,
+      "run_stdout": "[spread]\r\n",
+      "rule": "D-M1-23",
+      "note": "the emitter stream spreading int/float/bool in main and in a callee matches the oracle"
     },
     {
       "file": "../../docs/proposed-ir/m1/35-list-len-bound.json",
