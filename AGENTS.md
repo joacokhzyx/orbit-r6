@@ -38,11 +38,12 @@ python tests/diff/run_diff.py `
 - `--case 19-int-list-get` runs one fixture (repeatable). Default = every
   `.json` with a matching `.orb` in `docs/proposed-ir/m1/`.
 - `--orbit-root` is a checkout **at the pinned commit**: the sibling `orbit-lang`
-  tree can be ahead of the pin (on 2026-10-18 it is `adb8b96`, and the `C:\Temp`
+  tree can be ahead of the pin and keeps advancing (on 2026-10-18 it was
+  `adb8b96` when the round was measured and `82cde1a5` hours later; the `C:\Temp`
   binary named `orbit-fp-26cfb87400.exe` - `sha256(checkout path)` - was rebuilt
-  in place to that revision, so it fails the whole corpus). The pinned fixed
-  point is `C:\Temp\orbit-fp-8b0bb38a82.exe` (sha256 in `docs/PIN.md`); `make fp`
-  in a pinned checkout rebuilds it. Read pinned bytes with
+  in place to that newer revision, so it fails the whole corpus). The pinned
+  fixed point is `C:\Temp\orbit-fp-8b0bb38a82.exe` (sha256 in `docs/PIN.md`);
+  `make fp` in a pinned checkout rebuilds it. Read pinned bytes with
   `git cat-file blob ce87d508:<path>`, never from the working tree.
 - Verdict = identical process exit + stdout bytes vs the gcc/Orbit oracle; a
   build failure counts as a failure. `R6_CC` only affects the driver build —

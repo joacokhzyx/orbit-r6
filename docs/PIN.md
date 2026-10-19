@@ -68,3 +68,11 @@ pinned-era build `C:\Temp\orbit-fp-8b0bb38a82.exe` (2537984 bytes, SHA-256
 `3a000d74.`), passed to `--compiler`; the pinned sources it was built from were
 materialized read-only at `C:\Temp\orbit-pin-ce87d508` and passed to
 `--orbit-root`. Both are `C:\Temp` artifacts of the pin, not new pins.
+
+**Observation 2026-10-18, later (no pin change).** The concurrent session
+committed its work and the live checkout's working tree went **clean** at
+`82cde1a5`, 28 commits past the pin (`ce87d508` still an ancestor). That is the
+same lesson seen from its other side: the sibling tree is neither the pin nor a
+stable reference, so pinned bytes come from `git cat-file blob ce87d508:<path>`
+and corpus inputs from a tree materialized at the pin, whatever state the live
+checkout is in.
