@@ -800,9 +800,9 @@ def build_reject():
         jd(DOC([MAIN([I("load_const", 0, Str("v=")),
                       I("add", 1, Reg(0), Reg(2)),
                       I("ret", -1, Int(0))],
-                     ["string", "unknown", "void*"])])),
+                     ["string", "string", "void*"])])),
         "D-M1-23", "CGEN",
-        "a pointer operand has no measured converter and is never spread")
+        "a pointer operand has no measured converter and is never spread: the destination is a string, so the scalar guard is the only clause that can refuse")
     add("x-add-spread-float-literal",
         jd(DOC([MAIN([I("load_const", 0, Str("f=")),
                       I("add", 1, Reg(0), Flt(1.5)),

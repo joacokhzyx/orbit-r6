@@ -838,7 +838,7 @@
       "exit": 1,
       "code": "CGEN",
       "rule": "D-M1-23",
-      "note": "a pointer operand has no measured converter and is never spread"
+      "note": "a pointer operand has no measured converter and is never spread: the destination is a string, so the scalar guard is the only clause that can refuse"
     },
     {
       "file": "cases/x-add-spread-float-literal.json",

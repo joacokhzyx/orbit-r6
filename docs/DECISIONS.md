@@ -1365,7 +1365,14 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `x-add-spread-pointer`, `x-add-spread-float-literal`, `x-add-string-dest`;
   acceptance `ok-add-string-spread` (a non-main int spread and a non-main bool
   spread, exit 42); fixture `34-string-spreading-add` (`.orb`/`.json`, emitted
-  with the pinned emitter, exit 42 / `[spread]\r\n`).
+  with the pinned emitter, exit 42 / `[spread]\r\n`). The single message above
+  covers both clauses, so each control is built to trip exactly one:
+  `x-add-spread-dest` keeps a valid int scalar and declares no string
+  destination, and `x-add-spread-pointer` declares a **string** destination
+  (`["string", "string", "void*"]`), so the first clause is provably satisfied
+  there and the scalar guard is the only clause that can refuse it - while
+  `ok-add-string-spread` shows the same string destination accepting an int and
+  a bool spread.
 - Effect: 23/93 -> 27/93, `r6BuildOk` 23 -> 27 and `match` 23 -> 27 (the string
   fix plus D-M1-24/D-M1-25). Four programs cross to a byte-identical match:
   `interpolation`, `integer_literals` and `function_pointers` through this
