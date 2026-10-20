@@ -47,6 +47,46 @@ static bool same_type(const char *a, const char *b) {
     return a && b && strcmp(a, b) == 0;
 }
 
+static const R6Function *find_function(const R6Module *m, const char *name);
+
+/* D-M1-27: the runtime functions whose C signature carries the arena as an
+ * implicit first parameter (c_backend.orb:4410-4431, `functionNeedsArena`).
+ * The IR declaration the builder emits does not repeat it, so a call to one of
+ * these externs must prepend the executable arena or it lands on the wrong
+ * ABI. The set is copied verbatim; every other name is called as declared. */
+static bool extern_needs_arena(const char *name) {
+    static const char *const names[] = {
+        "orbit_file_read", "orbit_file_list_dir", "orbit_response_header_line",
+        "orbit_list_create", "orbit_map_create", "orbit_object_create",
+        "orbit_object_to_json", "orbit_response_create", "orbit_response_json",
+        "orbit_response_error", "orbit_response_html", "orbit_string_slice",
+        "orbit_string_split", "orbit_string_replace", "orbit_string_concat",
+        "orbit_os_exec", "orbit_os_env", "orbit_os_argv", "orbit_random_bytes",
+        "orbit_json_parse", "orbit_int_to_string", "orbit_float_to_string",
+        "orbit_http_query_get", "orbit_http_query_get_all",
+        "orbit_http_header_get", "orbit_http_param_get", "orbit_http_body_get",
+        "orbit_db_get", "orbit_db_all", "orbit_db_where", "orbit_db_first",
+        "orbit_auth_bearer_token", "orbit_auth_role", "orbit_auth_current_role",
+        "orbit_auth_has_role", "orbit_db_query_all", "orbit_db_query_where",
+        "orbit_db_query_where_p", "orbit_db_query_where_v", "orbit_db_query_get",
+        "orbit_db_query_first", "orbit_db_query_order", "orbit_db_query_order_desc",
+        "orbit_db_count_all", "orbit_db_count_v", "orbit_http_client_fetch",
+        "orbit_cache_get", "orbit_file_upload_save", "orbit_base64url_encode_str",
+        "orbit_sha256_hex", "orbit_hmac_sha256_base64url"
+    };
+    size_t n;
+    for (n = 0; n < sizeof names / sizeof names[0]; ++n)
+        if (strcmp(name, names[n]) == 0) return true;
+    return false;
+}
+
+/* A call whose declared target takes the arena: only the IR's own declaration
+ * makes it one, and the arena is prepended only for that enumerated set. */
+static bool call_needs_arena(const R6Module *m, const char *name) {
+    const R6Function *fn = find_function(m, name);
+    return fn && fn->is_extern && extern_needs_arena(name);
+}
+
 /* ORBIT_ELEM_* codes carried in elemKind for the list opcodes. Kinds 0
  * (opaque) and 5 (ref) are outside the M1 native surface and stay
  * fail-closed; 1..4 map 1:1 to the register type of a slot value. */
@@ -1087,6 +1127,43 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 arg_count -= arity;
                 break;
             }
+            /* D-M1-26: the builtin `print` is intercepted by NAME before any
+               declaration is resolved, exactly as the pinned lowering does
+               (c_backend.orb:2971-2999): a module may declare `extern fn
+               print(...)` (3 corpus programs do) and the call still lowers to
+               the printf forms, never to the declared symbol. feBuildTimeCallType
+               types it void (:3911). The destination, when the builder
+               allocated one, is never stored -- the builder types it int from
+               the extern's return and no corpus program reads it -- so any
+               valid destination register is accepted here. */
+            if (i->operands[0].kind == R6_VAL_STRING &&
+                strcmp(i->operands[0].as.string, "print") == 0) {
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                    return fail(d, i, "CGEN", "call arity must be a non-negative Int");
+                arity = (size_t)i->operands[1].as.i32;
+                if (arity > arg_count)
+                    return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
+                if (i->has_dest && !valid_dest(f, i, true, d)) return false;
+                if (arity == 1) {
+                    /* The single argument selects the reduction, so its type
+                       must be one the lowering measures: a string through
+                       "%s", a float through the runtime formatter, and
+                       int/bool through "%lld". An untyped register or any
+                       other class fails here rather than reaching the
+                       emitter. */
+                    const char *at = NULL;
+                    if (!value_type(f, &arg_values[arg_count - 1]->operands[0], &at) ||
+                        !(is_int(at) || is_bool(at) || is_string(at) || is_float(at)))
+                        return fail(d, i, "CGEN",
+                                    "print argument has no measured printable type");
+                    arg_count -= 1;
+                } else {
+                    /* c_backend.orb:2993-2998: any other arity pops every
+                       pending argument and emits the no-op. */
+                    arg_count = 0;
+                }
+                break;
+            }
             /* Direct named call: the callee name arrives as a String (the form
                the pinned builder emits for plain functions, externs and
                builtins alike, spec 3.1 step 2) or as a Symbol. Model
@@ -1321,7 +1398,7 @@ static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
     }
 }
 
-static size_t max_outgoing_args(const R6Function *f) {
+static size_t max_outgoing_args(const R6Module *m, const R6Function *f) {
     size_t pc, pending = 0, maximum = 0;
     for (pc = 0; pc < f->instruction_count; ++pc) {
         const R6Instruction *i = &f->instructions[pc];
@@ -1329,7 +1406,14 @@ static size_t max_outgoing_args(const R6Function *f) {
         else if (i->opcode == R6_OP_CALL) {
             size_t arity = i->operands[1].kind == R6_VAL_INT && i->operands[1].as.i32 >= 0
                                ? (size_t)i->operands[1].as.i32 : pending;
-            if (arity > maximum) maximum = arity;
+            /* D-M1-27: an arena-taking extern carries the arena first, so its
+               outgoing tail is one slot longer than the IR arity. The IR arity
+               is still what is consumed from the pending list. */
+            size_t slots = arity;
+            if ((i->operands[0].kind == R6_VAL_STRING || i->operands[0].kind == R6_VAL_SYMBOL) &&
+                i->operands[0].as.string && call_needs_arena(m, i->operands[0].as.string))
+                ++slots;
+            if (slots > maximum) maximum = slots;
             pending = arity <= pending ? pending - arity : 0;
         } else if (i->opcode == R6_OP_LIST_CREATE && maximum < 5) {
             /* OrbitResult sret pointer plus four list_create_typed arguments. */
@@ -1539,6 +1623,21 @@ static bool module_needs_arena_global(const R6Module *m) {
             if (i->opcode == R6_OP_CALL && i->operands[0].kind == R6_VAL_STRING &&
                 (find_model(m, i->operands[0].as.string) ||
                  find_union_variant(m, i->operands[0].as.string, NULL))) return true;
+            /* D-M1-26: the builtin `print` reads the arena for its single
+             * float argument (orbit_float_to_string(arena, v)). The name is
+             * intercepted before any declaration (a declared extern `print`
+             * is still the builtin), so no function lookup here; conservative
+             * for the string and int forms, which do not touch the arena but
+             * cost nothing. */
+            if (i->opcode == R6_OP_CALL && i->operands[0].kind == R6_VAL_STRING &&
+                strcmp(i->operands[0].as.string, "print") == 0 &&
+                !find_model(m, i->operands[0].as.string) &&
+                !find_union_variant(m, i->operands[0].as.string, NULL)) return true;
+            /* D-M1-27: an arena-taking extern reads the arena in every
+             * function, including main, so the file-scope mirror must exist. */
+            if (i->opcode == R6_OP_CALL &&
+                (i->operands[0].kind == R6_VAL_STRING || i->operands[0].kind == R6_VAL_SYMBOL) &&
+                i->operands[0].as.string && call_needs_arena(m, i->operands[0].as.string)) return true;
         }
     }
     return false;
@@ -1635,7 +1734,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     unsigned long long string_id = ((unsigned long long)fn_index) << 32;
     bool is_main = strcmp(f->name, "main") == 0;
     const char *native_name = is_main ? "orbit_main" : f->name;
-    size_t outgoing = max_outgoing_args(f);
+    size_t outgoing = max_outgoing_args(m, f);
     size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
                    f->param_count + local_count(f);
     size_t used = slots * 8;
@@ -2181,6 +2280,50 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 pending = base;
                 break;
             }
+            if (i->operands[0].kind == R6_VAL_STRING &&
+                strcmp(i->operands[0].as.string, "print") == 0 &&
+                !find_union_variant(m, i->operands[0].as.string, NULL)) {
+                /* D-M1-26: the builtin `print` (c_backend.orb:2971-2999).
+                 * Exactly one argument prints one line: a string via the C
+                 * "%s" form, a float via the runtime's own formatter, and any
+                 * other scalar (int/bool) via "%lld". 0 or >1 arguments emit
+                 * no code at all, exactly like the pinned no-op comment
+                 * (c_backend.orb:2997). The void destination is never stored.
+                 * The calls reach the msvcrt printf with the variable-argument
+                 * ABI: every argument rides the integer registers (RCX/%rdx)
+                 * and AL is set to 0 (no vector registers) for the varargs
+                 * call. */
+                if (arity == 1) {
+                    const R6Value *av = &args[base]->operands[0];
+                    const char *at = NULL;
+                    unsigned long long fmt;
+                    value_type(f, av, &at);
+                    if (is_string(at)) {
+                        fmt = string_id++;
+                        emit_string(o, "%s\n", fmt);
+                        emit_load_arg(o, f, av, "string", 1, arg_string_ids[base]);
+                    } else if (is_float(at)) {
+                        /* printf("%s\n", orbit_float_to_string(arena, v)) */
+                        emit_load_arena(o, f, is_main, "%rcx");
+                        emit_load_arg(o, f, av, "float", 1, 0);
+                        fputs("\tcall orbit_float_to_string\n\tmovq %rax, %rdx\n", o);
+                        fmt = string_id++;
+                        emit_string(o, "%s\n", fmt);
+                    } else {
+                        /* printf("%lld\n", (long long)v) */
+                        fmt = string_id++;
+                        emit_string(o, "%lld\n", fmt);
+                        emit_load_arg(o, f, av, at, 1, 0);
+                    }
+                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tmovl $0, %%eax\n\tcall printf\n",
+                            fmt);
+                }
+                /* The pinned lowering pops one argument for the printing form
+                   and every pending argument for the no-op (c_backend.orb:
+                   2993-2998); validation books the same counts. */
+                pending = arity == 1 ? base : 0;
+                break;
+            }
             if (i->operands[0].kind == R6_VAL_SYMBOL || i->operands[0].kind == R6_VAL_STRING) {
                 /* Direct named call (spec 3.1 step 2): the target String names
                    a declared function. Model construction is handled above and
@@ -2188,11 +2331,20 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                    established which of the three the name is. */
                 const R6Function *named = find_function(m, i->operands[0].as.string);
                 if (named) {
+                    /* D-M1-27: an enumerated runtime extern takes the arena as
+                       its first C parameter although the IR declaration does
+                       not repeat it (c_backend.orb:3091-3098 prepends it from
+                       functionNeedsArena). Load it into %rcx and shift every
+                       IR argument one slot; the float arguments keep the xmm
+                       sequence because the arena is an integer argument. */
+                    bool arena_first = named->is_extern &&
+                                       extern_needs_arena(named->name);
+                    if (arena_first) emit_load_arena(o, f, is_main, "%rcx");
                     for (k = 0; k < arity; ++k) {
                         const R6Value *av = &args[base + k]->operands[0];
                         const char *at;
                         value_type(f, av, &at);
-                        emit_load_arg(o, f, av, at, k,
+                        emit_load_arg(o, f, av, at, arena_first ? k + 1 : k,
                                       arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }
                     fprintf(o, "\tcall %s\n", strcmp(named->name, "main") == 0 ? "orbit_main" : named->name);
@@ -2557,10 +2709,15 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         const R6Function *callee;
         const R6Model *model;
         if (!name) return NULL;    /* indirect: no spelling to read */
-        if ((callee = find_function(m, name)) != NULL) return callee->return_type;
         if ((model = find_model(m, name)) != NULL) return model->name;
         /* A variant constructor lands in the union cell D-M1-12 defines. */
         if (find_union_variant(m, name, NULL) != NULL) return "void*";
+        /* D-M1-26: the builtin `print` returns void (feBuildTimeCallType,
+         * c_backend.orb:3911) and is intercepted by name before any declared
+         * function of the same name, exactly like the pinned lowering
+         * (:2971-2999). */
+        if (o1->kind == R6_VAL_STRING && strcmp(name, "print") == 0) return "void";
+        if ((callee = find_function(m, name)) != NULL) return callee->return_type;
         return NULL;               /* builtin or alias: fail closed */
     }
     case R6_OP_LOAD_FIELD: {

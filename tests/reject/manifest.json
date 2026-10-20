@@ -853,6 +853,27 @@
       "code": "CGEN",
       "rule": "D-M1-23",
       "note": "a string add must produce a string"
+    },
+    {
+      "file": "cases/x-builtin-name-outside-print.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-26",
+      "note": "admitting `print` by name admits no other undeclared builtin"
+    },
+    {
+      "file": "cases/x-print-symbol-target.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-26",
+      "note": "only the String call target the builder emits is the builtin"
+    },
+    {
+      "file": "cases/x-arena-extern-undeclared.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-27",
+      "note": "the arena is injected only into a declared extern, not into a bare name"
     }
   ],
   "accept": [
@@ -1051,6 +1072,55 @@
       "run_stdout": "",
       "rule": "D-M1-25",
       "note": "a list-length-bounded indexed loop in a non-main function matches the oracle"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/36-print-builtin.json",
+      "run_exit": 0,
+      "run_stdout": "hello\r\n42\r\n1.5\r\n",
+      "rule": "D-M1-26",
+      "note": "the builtin print lowers string, int and float in main"
+    },
+    {
+      "file": "cases/ok-print-noop.json",
+      "run_exit": 7,
+      "run_stdout": "",
+      "rule": "D-M1-26",
+      "note": "an arity other than one is the pinned no-op and prints nothing"
+    },
+    {
+      "file": "cases/ok-print-inline-literals.json",
+      "run_exit": 0,
+      "run_stdout": "hi\r\n3\r\n",
+      "rule": "D-M1-26",
+      "note": "inline String and Int arguments print through %s and %lld"
+    },
+    {
+      "file": "cases/ok-print-nonmain-float.json",
+      "run_exit": 0,
+      "run_stdout": "2.5\r\n",
+      "rule": "D-M1-26",
+      "note": "a float printed outside main reaches the arena and the runtime formatter"
+    },
+    {
+      "file": "cases/ok-print-shadowed-extern.json",
+      "run_exit": 0,
+      "run_stdout": "x\r\n",
+      "rule": "D-M1-26",
+      "note": "a declared extern named print is the builtin: the int dest is never stored"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/37-arena-extern-call.json",
+      "run_exit": 0,
+      "run_stdout": "42\r\n-7\r\n",
+      "rule": "D-M1-27",
+      "note": "an arena-taking extern is called with the arena prepended and matches the oracle"
+    },
+    {
+      "file": "cases/ok-arena-extern-float.json",
+      "run_exit": 0,
+      "run_stdout": "2.5\r\n",
+      "rule": "D-M1-27",
+      "note": "the arena shift is positional for the xmm file too (orbit_float_to_string)"
     }
   ]
 }

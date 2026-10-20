@@ -819,6 +819,43 @@ def build_reject():
         "D-M1-23", "CGEN",
         "a string add must produce a string")
 
+    # ---- D-M1-26: the builtin `print` ---------------------------------------
+    # feBuildTimeCallType types `print` void (c_backend.orb:3911) and its
+    # lowering (c_backend.orb:2971-2999) intercepts the NAME before any
+    # declaration, then dispatches on the one argument it consumes. The
+    # destination is never stored, so it is admitted as any valid register.
+    # The arity rules are the loader's (V-13/E-05) and already have their own
+    # cases; what these two pin is that the admission is exactly one name in
+    # exactly the String form the builder emits.
+    add("x-builtin-name-outside-print",
+        jd(DOC([MAIN([I("arg", -1, Int(1)),
+                      I("call", -1, Str("println"), Int(1)),
+                      I("load_const", 0, Int(0)),
+                      I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-26", "CGEN",
+        "admitting `print` by name admits no other undeclared builtin")
+    add("x-print-symbol-target",
+        jd(DOC([MAIN([I("arg", -1, Int(1)),
+                      I("call", -1, Sym("print"), Int(1)),
+                      I("load_const", 0, Int(0)),
+                      I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-26", "CGEN",
+        "only the String call target the builder emits is the builtin")
+
+    # ---- D-M1-27: an enumerated runtime extern takes the arena first --------
+    # The IR declaration repeats only the program-visible parameters; the
+    # arena is injected for a name that is both declared and extern, never for
+    # a spelling alone. An undeclared name is still an unknown target.
+    add("x-arena-extern-undeclared",
+        jd(DOC([MAIN([I("arg", -1, Int(1)),
+                      I("call", 0, Str("orbit_int_to_string"), Int(1)),
+                      I("arg", -1, Reg(0)),
+                      I("call", -1, Str("print"), Int(1)),
+                      I("load_const", 1, Int(0)),
+                      I("ret", -1, Reg(1))], ["string", "int"])])),
+        "D-M1-27", "CGEN",
+        "the arena is injected only into a declared extern, not into a bare name")
+
     return cases
 
 
@@ -1011,6 +1048,61 @@ def build_accept_files():
                                 I("load_const", 4, Int(0)),
                                 I("ret", -1, Reg(4))],
                                ["string", "bool", "string", "bool", "int"])]))))
+    # D-M1-26: the three measured reductions of the builtin `print`, the
+    # pinned no-op for any other arity, and the interception by name that
+    # shadows a declared extern of the same name (the corpus form: dest typed
+    # from the extern's int return and never stored).
+    files.append(("ok-print-noop",
+                  jd(DOC([MAIN([I("call", -1, Str("print"), Int(0)),
+                                I("arg", -1, Int(1)),
+                                I("arg", -1, Int(2)),
+                                I("call", -1, Str("print"), Int(2)),
+                                I("load_const", 0, Int(7)),
+                                I("ret", -1, Reg(0))], ["int"])]))))
+    files.append(("ok-print-inline-literals",
+                  jd(DOC([MAIN([I("arg", -1, Str("hi")),
+                                I("call", -1, Str("print"), Int(1)),
+                                I("arg", -1, Int(3)),
+                                I("call", -1, Str("print"), Int(1)),
+                                I("load_const", 0, Int(0)),
+                                I("ret", -1, Reg(0))], ["int"])]))))
+    show = FN("show", [I("arg", 0, Int(0)),
+                       I("load_var", 1, Sym("x")),
+                       I("arg", -1, Reg(1)),
+                       I("call", -1, Str("print"), Int(1)),
+                       I("ret")],
+              ["float", "float"], rtype="void", params=["x"], ptypes=["float"])
+    files.append(("ok-print-nonmain-float",
+                  jd(DOC([show,
+                          MAIN([I("load_const", 0, Flt(2.5)),
+                                I("arg", -1, Reg(0)),
+                                I("call", -1, Str("show"), Int(1)),
+                                I("load_const", 1, Int(0)),
+                                I("ret", -1, Reg(1))], ["float", "int"])]))))
+    declare = FN("print", [], ["int"], rtype="int", extern=True,
+                 params=["s"], ptypes=["string"])
+    files.append(("ok-print-shadowed-extern",
+                  jd(DOC([declare,
+                          MAIN([I("arg", -1, Str("x")),
+                                I("call", 0, Str("print"), Int(1)),
+                                I("load_const", 1, Int(0)),
+                                I("ret", -1, Reg(1))], ["int", "int"])]))))
+    # D-M1-27: the arena is prepended to a declared extern in the enumerated
+    # family. The float member proves the argument shift is positional for both
+    # register files. A local function carrying an arena-family name cannot be
+    # a control: the runtime already defines that symbol, so the link fails
+    # before any injection could be observed.
+    fl = FN("orbit_float_to_string", [], ["string"], rtype="string", extern=True,
+            params=["v"], ptypes=["float"])
+    files.append(("ok-arena-extern-float",
+                  jd(DOC([fl,
+                          MAIN([I("load_const", 0, Flt(2.5)),
+                                I("arg", -1, Reg(0)),
+                                I("call", 1, Str("orbit_float_to_string"), Int(1)),
+                                I("arg", -1, Reg(1)),
+                                I("call", -1, Str("print"), Int(1)),
+                                I("load_const", 2, Int(0)),
+                                I("ret", -1, Reg(2))], ["float", "string", "int"])]))))
     return files
 
 
@@ -1092,6 +1184,27 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/35-list-len-bound.json",
              "run_exit": 42, "run_stdout": "", "rule": "D-M1-25",
              "note": "a list-length-bounded indexed loop in a non-main function matches the oracle"},
+            {"file": "../../docs/proposed-ir/m1/36-print-builtin.json",
+             "run_exit": 0, "run_stdout": "hello\r\n42\r\n1.5\r\n", "rule": "D-M1-26",
+             "note": "the builtin print lowers string, int and float in main"},
+            {"file": "cases/ok-print-noop.json", "run_exit": 7, "run_stdout": "",
+             "rule": "D-M1-26",
+             "note": "an arity other than one is the pinned no-op and prints nothing"},
+            {"file": "cases/ok-print-inline-literals.json", "run_exit": 0,
+             "run_stdout": "hi\r\n3\r\n", "rule": "D-M1-26",
+             "note": "inline String and Int arguments print through %s and %lld"},
+            {"file": "cases/ok-print-nonmain-float.json", "run_exit": 0,
+             "run_stdout": "2.5\r\n", "rule": "D-M1-26",
+             "note": "a float printed outside main reaches the arena and the runtime formatter"},
+            {"file": "cases/ok-print-shadowed-extern.json", "run_exit": 0,
+             "run_stdout": "x\r\n", "rule": "D-M1-26",
+             "note": "a declared extern named print is the builtin: the int dest is never stored"},
+            {"file": "../../docs/proposed-ir/m1/37-arena-extern-call.json",
+             "run_exit": 0, "run_stdout": "42\r\n-7\r\n", "rule": "D-M1-27",
+             "note": "an arena-taking extern is called with the arena prepended and matches the oracle"},
+            {"file": "cases/ok-arena-extern-float.json", "run_exit": 0,
+             "run_stdout": "2.5\r\n", "rule": "D-M1-27",
+             "note": "the arena shift is positional for the xmm file too (orbit_float_to_string)"},
         ],
     }
 

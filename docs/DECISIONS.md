@@ -1452,3 +1452,99 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   fix only stops discarding the high half of a correct 64-bit load, so it cannot
   turn a refusal into a build nor change a value that was already right.
 - Status: **applied**.
+
+## D-M1-26 - The builtin `print`: one line per call, destination never stored
+
+- Date: 2026-10-19. Round 5 (`p5`) of the corpus backlog. Chosen by the
+  measurement, not by taste: `print` is the most frequent call target in the
+  corpus (134 call sites across 32/93 programs) and the first refusal of the
+  nine programs whose remaining wall was a call to it.
+- Admission: a `call` whose target is the **String** `print` is the builtin, not
+  a declared function. The destination is never stored; exactly one pending
+  argument prints one line, selected by the argument's class; any other arity is
+  the pinned no-op and consumes every pending argument.
+- Reference (pinned `ce87d508`, read with `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:3911` - `feBuildTimeCallType` types `print`
+    `void`.
+  - `:2971-2999` - the lowering dispatches on `calleeName == "print"` **before**
+    resolving any declaration: one argument is a string through
+    `print("%s", arg)`, a float goes through
+    `orbit_float_to_string(arena, v)` and `printf("%s\n", ...)`, and any other
+    argument is `printf("%lld\n", (long long)(arg))`.
+  - `:2993-2998` - any other arity pops **every** pending argument and emits
+    only an empty statement.
+  - `:3881-3908` and `isFloatArgReg` - the class that selects the reduction is
+    the register type the builder already recorded, not the spelling of the
+    operand.
+  - `runtime/orbit_api.h:293` - `print(...)` is a macro over `printf` plus a
+    newline and an `fflush`; no `print` symbol exists, so a call emitted to that
+    name is the LINK failure the earlier measurement recorded.
+- Semantics admitted: `int`/`bool` -> `%lld`, `string` -> `%s`, `float` ->
+  `orbit_float_to_string` (arena in RCX, value in XMM1) then `%s`. Inline
+  literals are admitted in the classes the builder emits in this position (Int,
+  String, Float, Bool); `arg_string_ids` already carries the label of an inline
+  String. The destination register is admitted but never written: the builder
+  types it `int` from a declared `extern fn print(...)` in three corpus programs
+  (8 call sites) and `unknown` elsewhere, and no corpus program reads it after
+  the call (audited).
+- The interception is by name, before the declared-function lookup, exactly like
+  the pinned lowering. `extern fn print(string) -> int` therefore does not
+  shadow the builtin, which is what those three corpus programs rely on.
+- Fail closed: the admission is one name in one form.
+  - `x-builtin-name-outside-print`: `println` is still an unknown target.
+  - `x-print-symbol-target`: a `Sym("print")` target is not the builtin (the
+    builder emits String targets), so it stays a declared-function lookup.
+  - The structural arity checks are the loader's (V-13/E-05); the `v13-arity-*`
+    cases already pin them.
+- Controls: fixture `36-print-builtin` (string/int/float in main, exit 0,
+  `hello\r\n42\r\n1.5\r\n`), `ok-print-noop` (arity 0 and arity 2 with two
+  pending arguments, exit 7, no output), `ok-print-inline-literals`,
+  `ok-print-nonmain-float` (the arena outside `main`) and
+  `ok-print-shadowed-extern` (an `extern fn print` returning `int`, destination
+  never stored).
+- Effect: with this admission the eight programs in the round-5 report cleared
+  the unknown-register wall. Three of them (`test_assert`, `test_convert`,
+  `test_hash`) then built but did not match, which is how D-M1-27 was found.
+- Status: **applied**.
+
+## D-M1-27 - Arena-injected runtime externs: the arena is the first C argument
+
+- Date: 2026-10-19. Round 5 (`p5`), found by D-M1-26's own measurement:
+  `test_assert`, `test_convert` and `test_hash` built for the first time and
+  then faulted (`0xC0000005`) or printed `assert: zero -- got "", want "0"`,
+  because R6 called `orbit_int_to_string` with the IR arity while its C
+  signature takes the arena first.
+- Symptom: `orbit_int_to_string(0)` returns `""`; `orbit_sha256_hex` and
+  `orbit_hmac_sha256_base64url` fault. The IR declares `extern fn
+  orbit_int_to_string(v: int) -> string` (one parameter); the runtime declares
+  `orbit_string orbit_int_to_string(OrbitArena* arena, orbit_int value)`
+  (`runtime/orbit_api.h:388`).
+- Root cause: the pinned C backend prepends `arena` to every call whose name
+  `functionNeedsArena` lists (`c_backend.orb:3091-3098`; predicate at
+  `:4410-4431`). R6 emitted the IR arguments from slot 0, so the callee read the
+  integer as the arena pointer and the next register as the value.
+- Admission: a call to a **declared extern** whose name is in that enumerated
+  family loads the executable arena into RCX and shifts every IR argument one
+  position. The shift is positional for both register files: Win64 assigns
+  argument *i* to the *i*-th integer and *i*-th SSE register, which
+  `orbit_float_to_string(arena, v)` pins (the value rides XMM1).
+- Reference: `c_backend.orb:4410-4431` (`functionNeedsArena`, copied verbatim),
+  `:3091-3098` (the prepend); `runtime/orbit_api.h:388-389` (the two
+  conversions) and `runtime/collections.c:716`/`:730` (their definitions take
+  the arena). The arena global is the one D-M1-23 already mirrors
+  (`c_backend.orb:387`), so a call outside `main` also sets
+  `module_needs_arena_global`.
+- Fail closed: the injection requires the name **and** a declared extern. A bare
+  String target with that spelling stays an unknown target
+  (`x-arena-extern-undeclared`). A local function cannot carry an arena-family
+  name as a control: the runtime already defines the symbol, so the link
+  rejects the module before any injection could be observed - recorded here
+  rather than pretended as a case.
+- Controls: fixture `37-arena-extern-call` (`orbit_int_to_string(42)` and
+  `(-7)` printed, exit 0, `42\r\n-7\r\n`) and `ok-arena-extern-float`
+  (`orbit_float_to_string(2.5)`, pinning the XMM1 positional shift).
+- Effect: the three programs D-M1-26 exposed now build **and** match the oracle.
+  Round 5 closes at **35/93 match, 35/93 build** (from 27/27), with no program
+  building-but-differing and no `LINK` refusal left in the corpus; the
+  `r6BuildOk`/`match` ratchet is re-taken at 35.
+- Status: **applied**.

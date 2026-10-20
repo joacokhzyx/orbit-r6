@@ -1,0 +1,13 @@
+// D-M1-27: an extern whose C signature carries the arena as its first
+// parameter (c_backend.orb:4410-4431, functionNeedsArena). The IR declaration
+// repeats only the parameters the program passes; R6 must prepend the arena.
+//
+// `orbit_int_to_string(OrbitArena*, orbit_int)` is the smallest measured
+// member of the family and the one the corpus calls most (71 call sites).
+extern fn orbit_int_to_string(v: int) -> string
+
+fn main() -> int {
+    print(orbit_int_to_string(42))
+    print(orbit_int_to_string(-7))
+    return 0
+}

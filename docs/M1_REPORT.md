@@ -587,3 +587,63 @@ Mensajes completos de la corrida:
   and an int, float, or bool scalar operand` y `string add requires a string
   destination`); el `add` de int/float conserva el suyo. El código (`CGEN`) y el
   contrato fail-closed no cambian.
+
+## Actualización de M1 - `print` y el arena de los extern del runtime (2026-10-19)
+
+- Decisiones: D-M1-26 (`print`) y D-M1-27 (extern del runtime con el arena como
+  primer parámetro C). D-M1-27 la destapó la medición de la propia ronda: tras
+  D-M1-26 tres programas compilaron por primera vez y fallaron en ejecución.
+- D-M1-26: `print` es el target de llamada más frecuente del corpus (134 sitios
+  en 32/93 programas). El lowering del pin lo intercepta **por nombre** antes de
+  resolver ninguna declaración (`c_backend.orb:2971-2999`), lo tipa `void`
+  (`:3911`) y el macro `runtime/orbit_api.h:293` demuestra que no existe símbolo
+  `print` (era el único `LINK` del corpus). R6 replica: un argumento imprime una
+  línea según su clase (`int`/`bool` -> `%lld`, `string` -> `%s`, `float` ->
+  `orbit_float_to_string(arena, v)` y `%s`), cualquier otra aridad es el no-op que
+  consume **todos** los pendientes (`:2993-2998`), y el destino se acepta pero
+  **nunca se escribe** (el builder lo tipa `int` desde un `extern fn print(...)`
+  en tres programas, 8 sitios, y ningún programa del corpus lo lee después).
+- D-M1-27: el backend C antepone `arena` a los nombres de `functionNeedsArena`
+  (`c_backend.orb:4410-4431`; el prepend en `:3091-3098`) porque el runtime
+  declara `orbit_string orbit_int_to_string(OrbitArena*, orbit_int)`
+  (`runtime/orbit_api.h:388-389`, definiciones en `runtime/collections.c:716`/
+  `:730`). La declaración IR no repite el arena. R6 emite el arena en RCX y
+  desplaza cada argumento una posición, que es posicional también para XMM
+  (`orbit_float_to_string` deja el valor en XMM1).
+- Mecanismo: `extern_needs_arena` copia literal la lista del pin; la inyección
+  exige nombre **y** `isExtern` declarado; `max_outgoing_args` suma un slot al
+  outgoing (el arity del IR sigue siendo lo que consume la pila de pendientes) y
+  `module_needs_arena_global` se activa también por una llamada de la familia
+  para que `r6_arena` exista fuera de `main`.
+- Evidencia del corpus (pin `filesSha256 0106d531`, 93+1): `r6BuildOk` y `match`
+  suben **27 -> 35**, `byVerdict` queda `match 35`, `r6-build-fail 58`,
+  `support 1` - **ningún** `r6-differs` - y por código `CGEN 64 -> 57`, `LINK
+  1 -> 0`, `E_OPCODE 1 -> 1`. Los ocho programas liberados son `test_assert`,
+  `test_convert`, `test_hash`, `test_log`, `test_time`, `float_literals`,
+  `if_expression_return` y `scope_shadow_clobbers_outer`; los tres primeros solo
+  pasaron a *match* con D-M1-27. El primer rechazo de nivel de módulo cae
+  **37 -> 28** y `list_create` sube **4 -> 5** (un programa llega ahora a esa
+  pared), sin retrocesos.
+- Puertas: diferencial **35/35 -> 37/37** (fixture 36, `print` string/int/float
+  en `main`, exit 0 y `hello`/`42`/`1.5` con CRLF; fixture 37,
+  `orbit_int_to_string(42)` y `(-7)`, exit 0 y `42`/`-7`); loader **153/153 ->
+  163/163** (125 rechazos + 38 controles); `make_cases.py --check` sin drift
+  (151 archivos de caso + manifest); `migrate-m1-fixtures.py --check` 20/20;
+  trinquete re-tomado en `r6BuildOk 35`, `match 35`.
+- Controles: `x-builtin-name-outside-print` (`println` sigue siendo target
+  desconocido), `x-print-symbol-target` (un `Sym("print")` no es el builtin),
+  `x-arena-extern-undeclared` (el arena solo se inyecta a un extern declarado);
+  positivos `ok-print-noop` (aridades 0 y 2, exit 7 sin salida),
+  `ok-print-inline-literals`, `ok-print-nonmain-float` (el arena fuera de
+  `main`), `ok-print-shadowed-extern` (`extern fn print` con destino `int` que
+  nunca se escribe) y `ok-arena-extern-float` (el desplazamiento posicional de
+  XMM1).
+- Observación: D-M1-27 no es un cambio de validación sino de ABI emitida: los
+  tres programas ya se aceptaban y se estaban **mal compilando** (crash o
+  `assert: zero -- got "", want "0"`). La medición los convirtió en evidencia.
+  Un `print` con destino no-void ya no se rechaza porque el lowering del pin
+  tampoco lo mira; lo que acota la admisión es el nombre, la forma `String` del
+  target y las clases medidas del argumento.
+- Mensaje: aparece `print argument has no measured printable type` (defensa en
+  profundidad: el `arg` ya restringe los escalares a int/float/string/bool); el
+  código sigue siendo `CGEN` y el contrato fail-closed no cambia.

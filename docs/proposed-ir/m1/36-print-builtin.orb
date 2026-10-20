@@ -1,0 +1,13 @@
+// D-M1-26: the builtin `print`, in its three measured reductions.
+//
+// One string argument prints through the C "%s" form, an int (here a register
+// computed by `6 * 7`) through "%lld", and a float through the runtime's own
+// formatter. 0 or >1 arguments are the pinned no-op and cannot be produced by
+// the language's sema (it rejects them), so they are pinned in tests/reject/
+// as acceptance controls instead.
+fn main() -> int {
+    print("hello")
+    print(6 * 7)
+    print(1.5)
+    return 0
+}
