@@ -776,3 +776,49 @@ Mensajes completos de la corrida:
 - Mensaje: desaparece `list_create requires ... a kind in 1..4 ...`; el nuevo
   texto es `list_create requires an 8-byte slot size, a kind in 0..4, a list
   destination, and an int capacity` y el código sigue siendo `CGEN`.
+
+## Actualización de M1 - las comparaciones siguen los brazos del pin (2026-10-20)
+
+- Decisión: D-M1-31. Primer rechazo: `ne requires matching int/float/string
+  operands; relational ops require int/float and bool destination` en tres
+  programas: `if_expression_value` en `c > 4` (bool contra int),
+  `list_element_type` en `flags.get(0) != true` (bool contra bool) y
+  `peephole_folds` en `n == "5"` (int contra string).
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`): `eq` y `ne`
+  (`c_backend.orb:2745-2757` y `:2759-2771`) comparan dos strings con `strcmp`,
+  promueven a `orbit_float` cuando un lado es float y comparan `uintptr_t` en
+  el resto; un bool cae en ese resto. `lt`/`le`/`gt`/`ge`
+  (`c_backend.orb:2781-2811`) no tienen brazo de string: double si hay un
+  float e `intptr_t` si no, con la razón del signo en `:2773-2780`.
+- Admisión: `eq`, `ne` y las cuatro relaciones aceptan operandos `bool`. Un
+  string sólo es operando de `strcmp` contra otro string; en `eq`/`ne` un
+  string contra un int es la vía de palabras. El destino sigue siendo `bool`.
+- Lowering: un slot `bool` guarda el valor en el byte bajo y sus productores
+  escriben 32 bits (`load_const` con `movl`, los resultados de comparación con
+  `movl %eax`), así que la mitad alta puede quedar sucia. La comparación
+  normaliza el lado bool con `movzbl`, que es el valor de la C del pin
+  `(uintptr_t)(bool)`, y deja el lado int en el destino del `cmp` para que
+  `setl`/`setg` conserven la dirección.
+- Fail closed: un float junto a un int sigue rechazado
+  (`x-compare-float-int`: el brazo del pin escribe `(orbit_float)(v)` y R6 no
+  tiene conversión int-a-double); un string en una relación sigue rechazado
+  (`x-relational-string`: el pin no tiene ese brazo); un bool contra un string
+  queda fuera porque ningún programa del corpus los compara.
+- Controles: fixture `41-bool-and-word-comparisons` (`gt` bool/int, `ne`/`eq`
+  bool/bool, `eq`/`ne` int/string, `ne` string/string y `ne` float/float; exit
+  0), `ok-compare-bool-word` (`true > 0`, exit 41) y `ok-compare-string-word`
+  (`5 == "5"` es falso, exit 41).
+- Evidencia del corpus (pin `filesSha256 0106d531`): **41 -> 43/93** match y
+  build. `if_expression_value` y `peephole_folds` pasan a coincidir;
+  `list_element_type` avanza del `ne` a `register type unknown` sin
+  retrocesos. Los primeros rechazos `gt`, `ne` y `eq` caen a 0 y
+  `(module-level)` sube de 36 a 37. Trinquete re-tomado en 43.
+- Puertas: diferencial **40/40 -> 41/41** (fixture 41, exit 0); loader
+  **176/176 -> 181/181** (134 rechazos + 47 controles); `make_cases.py --check`
+  sin drift (165 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  20/20.
+- Mensaje: desaparece `ne requires matching int/float/string operands...`; los
+  nuevos textos son `eq and ne require int, float, bool, or string operands and
+  a bool destination; a string is compared with strcmp only against another
+  string` y `relational ops require int, float, or bool operands and a bool
+  destination; ne also takes strings`, ambos con código `CGEN`.

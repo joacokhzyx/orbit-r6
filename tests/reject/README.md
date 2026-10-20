@@ -76,6 +76,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-28 | `x-ret-type-mismatch`; aceptación: `ok-void-ret-value` (+ el fixture 38) |
 | D-M1-29 | `x-intrinsic-symbol-target`, `x-intrinsic-arity`, `x-list-len-bool`; aceptación: `ok-list-len-string` (+ el fixture 39) |
 | D-M1-30 | `x-list-create-kind-ref`, `x-list-get-kind-opaque`, `x-list-set-kind-opaque`, `x-list-push-kind-opaque`; aceptación: `ok-list-create-opaque` (+ el fixture 40) |
+| D-M1-31 | `x-compare-float-int`, `x-relational-string`; aceptación: `ok-compare-bool-word`, `ok-compare-string-word` (+ el fixture 41) |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`) y E-06 (`print` con 2
 argumentos pendientes) siguen cerrados como rechazos con evidencia en D-M1-16
@@ -89,8 +90,8 @@ el kind (`:102-116`), así que el rechazo se re-pinea en el kind 5 del `create`
 (`x-list-create-kind-ref`) y el **acceso** opaco (`list_get`/`list_set` con
 `elemKind 0`) sigue fuera.
 
-Estado 2026-10-19: **176/176** (132 rechazos + 44 controles); gate diferencial
-40/40 en el mismo árbol. D-M1-26/D-M1-27 quedan pineados por
+Estado 2026-10-20: **181/181** (134 rechazos + 47 controles); gate diferencial
+41/41 en el mismo árbol. D-M1-26/D-M1-27 quedan pineados por
 `x-builtin-name-outside-print`, `x-print-symbol-target` y
 `x-arena-extern-undeclared` (rechazos), más los controles `ok-print-*`,
 `ok-arena-*`, `36-print-builtin` y `37-arena-extern-call`; D-M1-28 por
@@ -98,7 +99,10 @@ Estado 2026-10-19: **176/176** (132 rechazos + 44 controles); gate diferencial
 `x-intrinsic-symbol-target`, `x-intrinsic-arity`, `x-list-len-bool`,
 `ok-list-len-string` y `39-string-intrinsics`; D-M1-30 por
 `x-list-create-kind-ref`, `x-list-get-kind-opaque`, `x-list-set-kind-opaque`,
-`x-list-push-kind-opaque`, `ok-list-create-opaque` y `40-list-create-opaque`. El borde de D-M1-21 (operando literal inline en las
+`x-list-push-kind-opaque`, `ok-list-create-opaque` y `40-list-create-opaque`;
+D-M1-31 por `x-compare-float-int`, `x-relational-string`,
+`ok-compare-bool-word`, `ok-compare-string-word` y
+`41-bool-and-word-comparisons`. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
 `ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de

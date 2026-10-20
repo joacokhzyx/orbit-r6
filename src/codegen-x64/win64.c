@@ -47,6 +47,24 @@ static bool same_type(const char *a, const char *b) {
     return a && b && strcmp(a, b) == 0;
 }
 
+/* D-M1-31: the pinned comparison arms (c_backend.orb:2745-2810) pick three
+ * lowerings. Two strings compare with strcmp; either side float promotes the
+ * pair to double; anything else compares the two 64-bit slots as words. The
+ * relational ops have no string arm. A string against a number is the pin's
+ * word fallthrough (`n == "5"` is false in tests/suite/peephole_folds.orb).
+ * Requirement: float still needs both sides typed float, because the emitter
+ * has no int-to-double conversion. */
+static bool comparison_types_ok(const char *a, const char *b, bool allow_string) {
+    bool a_num = is_int(a) || is_bool(a);
+    bool b_num = is_int(b) || is_bool(b);
+    if (is_string(a) || is_string(b))
+        return allow_string &&
+               ((is_string(a) && is_string(b)) ||
+                (is_string(a) && is_int(b)) || (is_string(b) && is_int(a)));
+    if (is_float(a) || is_float(b)) return is_float(a) && is_float(b);
+    return a_num && b_num;
+}
+
 static const R6Function *find_function(const R6Module *m, const char *name);
 
 /* D-M1-27: the runtime functions whose C signature carries the arena as an
@@ -1058,17 +1076,16 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_EQ:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
-            if (!same_type(a, b) || !is_bool(type_at(f, i->dest)) ||
-                !(is_int(a) || is_float(a) || is_bool(a) || is_string(a)))
-                return fail(d, i, "CGEN", "eq supports matching int, float, bool, or string registers and bool destination only");
+            if (!is_bool(type_at(f, i->dest)) ||
+                !comparison_types_ok(a, b, true))
+                return fail(d, i, "CGEN", "eq and ne require int, float, bool, or string operands and a bool destination; a string is compared with strcmp only against another string");
             break;
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
-            if (!(is_int(a) || is_float(a) ||
-                  (i->opcode == R6_OP_NE && is_string(a))) || !same_type(a, b) ||
-                !is_bool(type_at(f, i->dest)))
-                return fail(d, i, "CGEN", "ne requires matching int/float/string operands; relational ops require int/float and bool destination");
+            if (!is_bool(type_at(f, i->dest)) ||
+                !comparison_types_ok(a, b, i->opcode == R6_OP_NE))
+                return fail(d, i, "CGEN", "relational ops require int, float, or bool operands and a bool destination; ne also takes strings");
             break;
         case R6_OP_AND_OP: case R6_OP_OR_OP:
             if (!valid_dest(f, i, true, d) || !operand_reg(f, i, 0, &a, d) ||
@@ -2118,18 +2135,34 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_EQ: {
             unsigned aoff = operand_slot(f, is_main, i, 0);
             unsigned boff = operand_slot(f, is_main, i, 1);
+            const char *t1;
             materialize_literals(o, f, i, is_main, &string_id);
             t = operand_type_of(f, i, 0);
-            if (is_string(t)) {
+            t1 = operand_type_of(f, i, 1);
+            if (is_string(t) && is_string(t1)) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         aoff, boff, off, off, off);
-            } else if (is_float(t)) {
+            } else if (is_float(t) || is_float(t1)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\tsete %%al\n\tsetnp %%dl\n\tandb %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         aoff, boff, off);
-            } else if (is_int(t)) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+            } else if (is_bool(t) || is_bool(t1)) {
+                /* D-M1-31: a bool slot holds its value in the low byte; the
+                   upper half can be stale because the producers store with
+                   32-bit writes. The pinned arm compares the C value, so the
+                   bool side is normalized to a zero-extended 0/1 before the
+                   compare instead of reading the whole slot. */
+                if (is_bool(t) && is_bool(t1))
+                    fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tmovzbl -%u(%%rbp), %%edx\n\tcmpq %%rdx, %%rax\n",
+                            aoff, boff);
+                else if (is_bool(t))
+                    fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tcmpq -%u(%%rbp), %%rax\n",
+                            aoff, boff);
+                else
+                    fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tmovq -%u(%%rbp), %%rdx\n\tcmpq %%rax, %%rdx\n",
+                            boff, aoff);
+                fprintf(o, "\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", off);
+            } else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                            aoff, boff, off);
-            else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcmpl -%u(%%rbp), %%eax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                         aoff, boff, off);
             break;
         }
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE: {
@@ -2137,11 +2170,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned aoff = operand_slot(f, is_main, i, 0);
             unsigned boff = operand_slot(f, is_main, i, 1);
             const char *t0 = operand_type_of(f, i, 0);
+            const char *t1 = operand_type_of(f, i, 1);
             materialize_literals(o, f, i, is_main, &string_id);
-            if (i->opcode == R6_OP_NE && is_string(t0)) {
+            if (i->opcode == R6_OP_NE && is_string(t0) && is_string(t1)) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         aoff, boff, off, off, off);
-            } else if (is_float(t0)) {
+            } else if (is_float(t0) || is_float(t1)) {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setb" :
                         i->opcode == R6_OP_LE ? "setbe" :
@@ -2153,6 +2187,25 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 else if (i->opcode == R6_OP_LT || i->opcode == R6_OP_LE)
                     fprintf(o, "\tsetnp %%dl\n\tandb %%dl, %%al\n");
                 fprintf(o, "\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", off);
+            } else if (is_bool(t0) || is_bool(t1)) {
+                /* D-M1-31: the same low-byte normalization as eq. The int
+                   side stays in the compare's destination so `setl`/`setg`
+                   keep their direction. */
+                setcc = i->opcode == R6_OP_NE ? "setne" :
+                        i->opcode == R6_OP_LT ? "setl" :
+                        i->opcode == R6_OP_LE ? "setle" :
+                        i->opcode == R6_OP_GT ? "setg" : "setge";
+                if (is_bool(t0) && is_bool(t1))
+                    fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tmovzbl -%u(%%rbp), %%edx\n\tcmpq %%rdx, %%rax\n",
+                            aoff, boff);
+                else if (is_bool(t0))
+                    fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tcmpq -%u(%%rbp), %%rax\n",
+                            aoff, boff);
+                else
+                    fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tmovq -%u(%%rbp), %%rdx\n\tcmpq %%rax, %%rdx\n",
+                            boff, aoff);
+                fprintf(o, "\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                        setcc, off);
             } else {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setl" :

@@ -396,3 +396,41 @@ dentro de otra lista. Ninguno retrocede.
 El mensaje `register type unknown is unsupported in M1` pasa de 6 a 8 porque los
 dos programas liberados llegan a él. El trinquete se re-tomó en 41.
 
+## Ronda 2026-10-20 (D-M1-31: las comparaciones siguen los brazos del pin)
+
+`eq`, `ne` y las relaciones exigen operandos del mismo tipo en R6. El pin no:
+`eq`/`ne` comparan dos strings con `strcmp`, promueven a double si un lado es
+float y comparan las palabras en el resto (`c_backend.orb:2745-2771`); las
+relaciones hacen lo mismo sin brazo de string (`:2781-2811`). Un bool es una
+palabra, y `n == "5"` compara el 5 con la dirección del literal, que es falso.
+D-M1-31 admite bool en las seis operaciones y el int contra string en `eq`/`ne`,
+y deja fuera el float junto a un int y el string en una relación.
+
+| Métrica | D-M1-30 (41/93) | D-M1-31 (43/93) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531.` | **`0106d531.`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 41/93 | **43/93** |
+| R6 coincide (exit + stdout) | 41/93 | **43/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+| código `CGEN` | 51 | **49** |
+
+`if_expression_value` (`c > 4`, bool contra int) y `peephole_folds`
+(`n == "5"`, int contra string) pasan a coincidir. `list_element_type` avanza
+del `ne` bool/bool a `register type unknown`, así que no se pierde: se mueve al
+siguiente muro. Ningún programa retrocede.
+
+| Primer rechazo | D-M1-30 | D-M1-31 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 36 | **37** |
+| `decl_var` | 6 | 6 |
+| `call` | 3 | 3 |
+| `ret` | 2 | 2 |
+| `list_push` | 1 | 1 |
+| `arg` | 1 | 1 |
+| `gt`, `ne`, `eq` | 1 cada uno | **0** |
+
+El mensaje `register type unknown is unsupported in M1` pasa de 8 a 9 porque el
+programa que avanzó llega a él. El trinquete se re-tomó en 43.
+

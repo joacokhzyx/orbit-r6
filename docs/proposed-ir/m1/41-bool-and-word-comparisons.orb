@@ -1,0 +1,30 @@
+// D-M1-31: the pinned comparison arms (c_backend.orb:2745-2810). Two strings
+// compare with strcmp, either side float promotes the pair to double, and
+// anything else compares the two 64-bit slots as words. The relational ops
+// have no string arm. A bool is a number to those arms, so `c > 4` compares
+// 1 against 4, and a string against a number is the pin's word fallthrough:
+// `n == "5"` is false in tests/suite/peephole_folds.orb.
+//
+// Every check is `if wrong { return N }` with a distinct N, so a regression
+// names itself in the exit code.
+
+fn main() -> int {
+    val c = 3 > 2
+    if c > 4 { return 1 }
+    if c < 0 { return 2 }
+
+    val flags = [true, false]
+    if flags.get(0) != true { return 3 }
+    if flags.get(1) == true { return 4 }
+
+    val n = 5
+    if n == "5" { return 5 }
+    val d = n != "5"
+    if d == false { return 6 }
+
+    if "ab" != "ab" { return 7 }
+
+    val f = 2.5
+    if f != 2.5 { return 8 }
+    return 0
+}

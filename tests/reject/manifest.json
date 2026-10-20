@@ -799,6 +799,20 @@
       "note": "elemKind 0 is admitted at list_create only; a push has no slot decoder"
     },
     {
+      "file": "cases/x-compare-float-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-31",
+      "note": "a float compared with an int stays out: the emitter has no conversion"
+    },
+    {
+      "file": "cases/x-relational-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-31",
+      "note": "the relational ops have no string arm; only eq/ne compare words"
+    },
+    {
       "file": "cases/x-list-get-kind-ref.json",
       "exit": 1,
       "code": "CGEN",
@@ -1212,6 +1226,27 @@
       "run_stdout": "",
       "rule": "D-M1-30",
       "note": "empty literal created opaque, first push adopts"
+    },
+    {
+      "file": "cases/ok-compare-bool-word.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-31",
+      "note": "a bool is a number to the comparison arms"
+    },
+    {
+      "file": "cases/ok-compare-string-word.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-31",
+      "note": "a string against a number compares as words and is false"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/41-bool-and-word-comparisons.json",
+      "run_exit": 0,
+      "run_stdout": "",
+      "rule": "D-M1-31",
+      "note": "bool relops, bool eq, and the int/string word compare"
     }
   ]
 }

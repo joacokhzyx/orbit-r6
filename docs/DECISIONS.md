@@ -1697,3 +1697,50 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   with no regression: two reach `register type unknown` and one reaches a
   `list_push` with `elemKind 0`), and the ratchet is re-taken at 41.
 - Status: **applied**.
+
+## D-M1-31 - Comparisons follow the pinned arms (bool operands, word eq/ne)
+
+- Date: 2026-10-20. First refusal: `ne requires matching int/float/string
+  operands; relational ops require int/float and bool destination` in three
+  programs - `if_expression_value` at `c > 4` (bool against int),
+  `list_element_type` at `flags.get(0) != true` (bool against bool) and
+  `peephole_folds` at `n == "5"` (int against string).
+- Reference (pinned `ce87d508`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:2745-2757` (`eq`) and `:2759-2771` (`ne`):
+    two strings compare with `strcmp`; either side float promotes both
+    operands to `orbit_float`; otherwise the two values compare as
+    `uintptr_t`. A bool has no arm of its own - it is one of the words - and
+    `n == "5"` reaches the `uintptr_t` arm, which compares 5 with the
+    literal's address and answers false.
+  - `compiler/emit/c_backend.orb:2781-2811` (`lt`, `le`, `gt`, `ge`): no
+    string arm; a float pair compares in double; otherwise `intptr_t`. The
+    comment at `:2773-2780` states why the relational ops are signed.
+- Admission: `eq`, `ne`, `lt`, `le`, `gt` and `ge` accept `bool` operands. A
+  string is a `strcmp` operand only against another string; in `eq`/`ne` a
+  string against an int is the `uintptr_t` word compare. The destination
+  stays a bool.
+- Lowering: a bool slot holds its value in the low byte and its producers
+  write 32 bits (`load_const` `movl`, comparison results `movl %eax`), so the
+  upper half can be stale. The comparison normalizes a bool side with
+  `movzbl` before the compare, which is the pinned C value `(uintptr_t)(bool)`.
+  An int side stays in the compare's destination so `setl`/`setg` keep their
+  direction.
+- Fail closed, measured as negative controls:
+  - a float next to an int stays refused (`x-compare-float-int`): the pinned
+    arm writes `(orbit_float)(v)` and R6 has no int-to-double conversion, so
+    admitting the pair would compare an integer bit pattern with a double.
+  - a string in a relational op stays refused (`x-relational-string`): the pin
+    has no string arm there, and `intptr_t` on two addresses is not a
+    comparison the corpus measures.
+  - a bool against a string stays refused: the pin would cast the pointer to
+    the word, but no corpus program compares them and the byte normalization
+    above has no meaning for a pointer.
+- Controls: fixture `41-bool-and-word-comparisons` (bool `gt` against an int,
+  bool `ne`/`eq`, int/string `eq`/`ne`, string `ne`, float `ne`; exit 0),
+  `ok-compare-bool-word` (`true > 0`, exit 41) and `ok-compare-string-word`
+  (`5 == "5"` is false, exit 41).
+- Effect: corpus **41 -> 43/93** (`if_expression_value` and `peephole_folds`
+  match the oracle; `list_element_type` advances from the `ne` to
+  `register type unknown` with no regression), and the ratchet is re-taken at
+  43. The first refusals `gt`, `ne` and `eq` drop to zero.
+- Status: **applied**.

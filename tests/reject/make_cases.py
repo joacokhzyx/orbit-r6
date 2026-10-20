@@ -739,6 +739,26 @@ def build_reject():
                      ["list", "int", "void"])])),
         "D-M1-30", "CGEN",
         "elemKind 0 is admitted at list_create only; a push has no slot decoder")
+    # D-M1-31 pins the comparison arms (c_backend.orb:2745-2810): a string
+    # against a number is the pin's word fallthrough, a bool is a number, but
+    # a float still needs both sides typed float and a string has no
+    # relational arm. These two cases are the boundaries, not the rule.
+    add("x-compare-float-int",
+        jd(DOC([MAIN([I("load_const", 0, Flt(1.5)),
+                      I("load_const", 1, Int(2)),
+                      I("eq", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))],
+                     ["float", "int", "bool"])])),
+        "D-M1-31", "CGEN",
+        "a float compared with an int stays out: the emitter has no conversion")
+    add("x-relational-string",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")),
+                      I("load_const", 1, Str("b")),
+                      I("lt", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))],
+                     ["string", "string", "bool"])])),
+        "D-M1-31", "CGEN",
+        "the relational ops have no string arm; only eq/ne compare words")
     add("x-list-get-kind-ref",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=1),
                       I("load_const", 1, Int(0)),
@@ -1214,6 +1234,31 @@ def build_accept_files():
                                 I("list_get", 4, Reg(0), Reg(3), ek=2),
                                 I("ret", -1, Reg(4))],
                                ["list", "int", "void", "int", "int"])]))))
+    # D-M1-31: a bool is a number to the pinned comparison arms, and a string
+    # against a number is the word fallthrough. Both results are used, so the
+    # control asserts the value and not only that the pair builds.
+    files.append(("ok-compare-bool-word",
+                  jd(DOC([MAIN([I("load_const", 0, Sym("true")),
+                                I("load_const", 1, Int(0)),
+                                I("gt", 2, Reg(0), Reg(1)),
+                                I("jump_if_false", -1, Reg(2), Lab(1)),
+                                I("load_const", 3, Int(41)),
+                                I("ret", -1, Reg(3)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 3, Int(0)),
+                                I("ret", -1, Reg(3))],
+                               ["bool", "int", "bool", "int"])]))))
+    files.append(("ok-compare-string-word",
+                  jd(DOC([MAIN([I("load_const", 0, Int(5)),
+                                I("load_const", 1, Str("5")),
+                                I("eq", 2, Reg(0), Reg(1)),
+                                I("jump_if_false", -1, Reg(2), Lab(1)),
+                                I("load_const", 3, Int(0)),
+                                I("ret", -1, Reg(3)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 3, Int(41)),
+                                I("ret", -1, Reg(3))],
+                               ["int", "string", "bool", "int"])]))))
     return files
 
 
@@ -1334,6 +1379,15 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/40-list-create-opaque.json",
              "run_exit": 0, "run_stdout": "", "rule": "D-M1-30",
              "note": "empty literal created opaque, first push adopts"},
+            {"file": "cases/ok-compare-bool-word.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-31",
+             "note": "a bool is a number to the comparison arms"},
+            {"file": "cases/ok-compare-string-word.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-31",
+             "note": "a string against a number compares as words and is false"},
+            {"file": "../../docs/proposed-ir/m1/41-bool-and-word-comparisons.json",
+             "run_exit": 0, "run_stdout": "", "rule": "D-M1-31",
+             "note": "bool relops, bool eq, and the int/string word compare"},
         ],
     }
 
