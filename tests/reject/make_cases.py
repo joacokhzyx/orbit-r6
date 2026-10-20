@@ -830,6 +830,20 @@ def build_reject():
         "D-M1-22", "CGEN",
         "loading a parameter into a differently typed register is refused")
 
+    # ---- D-M1-32: a list spelling is the list pointer ----------------------
+    # Every list spelling maps to one C type (c_backend.orb:469-495), so a
+    # parameter may say `list<int>`. The rule is about the base: `map<...>` is a
+    # different base and a different C type, and R6 has none.
+    add("x-param-map-spelling",
+        jd(DOC([FN("count", [I("arg", 0, Int(0)),
+                             I("load_const", 1, Int(0)),
+                             I("ret", -1, Reg(1))],
+                   ["list", "int"], params=["m"], ptypes=["map<string, int>"]),
+                MAIN([I("load_const", 0, Int(0)), I("ret", -1, Reg(0))],
+                     ["int"])])),
+        "D-M1-32", "CGEN",
+        "only a list spelling is the list type; a map parameter stays unsupported")
+
     # ---- D-M1-23: a string `add` concatenates and spreads -------------------
     # The pinned backend turns `add` into orbit_string_concat whenever either
     # operand is a string operand (c_backend.orb:2662-2668) and stringifies each
@@ -1273,6 +1287,36 @@ def build_accept_files():
                                 I("load_const", 3, Int(0)),
                                 I("ret", -1, Reg(3))],
                                ["int", "bool", "bool", "int"])]))))
+    # D-M1-32: a list spelling is one pointer. The parameter binds, reads by
+    # name, is passed, and its element comes back: 41 travels into `first` and
+    # out through the return value.
+    files.append(("ok-param-list-spelling",
+                  jd(DOC([FN("first", [I("arg", 0, Int(0)),
+                                       I("load_var", 1, Sym("xs")),
+                                       I("load_const", 2, Int(0)),
+                                       I("list_get", 3, Reg(1), Reg(2), ek=2),
+                                       I("ret", -1, Reg(3))],
+                                  ["list", "list", "int", "int"], params=["xs"],
+                                  ptypes=["list<int>"]),
+                           MAIN([I("list_create", 0, Int(8), Int(2)),
+                                 I("load_const", 1, Int(41)),
+                                 I("list_push", 2, Reg(0), Reg(1), ek=2),
+                                 I("arg", -1, Reg(0)),
+                                 I("call", 3, Sym("first"), Int(1)),
+                                 I("ret", -1, Reg(3))],
+                                ["list", "int", "void", "int"])]))))
+    # D-M1-32: the C type map answers the list pointer for `List` as well
+    # (c_backend.orb:475), and the builder serializes that spelling into
+    # registerTypes when the source names the type that way.
+    files.append(("ok-list-capital-spelling",
+                  jd(DOC([MAIN([I("list_create", 0, Int(8), Int(2)),
+                                I("load_const", 1, Int(41)),
+                                I("list_push", 2, Reg(0), Reg(1), ek=2),
+                                I("list_len", 3, Reg(0)),
+                                I("load_const", 4, Int(40)),
+                                I("add", 5, Reg(3), Reg(4)),
+                                I("ret", -1, Reg(5))],
+                               ["List", "int", "void", "int", "int", "int"])]))))
     return files
 
 
@@ -1405,6 +1449,15 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/41-bool-and-word-comparisons.json",
              "run_exit": 0, "run_stdout": "", "rule": "D-M1-31",
              "note": "bool relops, bool eq, and the int/string word compare"},
+            {"file": "cases/ok-param-list-spelling.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-32",
+             "note": "a list<int> parameter binds, reads, passes, and returns its element"},
+            {"file": "cases/ok-list-capital-spelling.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-32",
+             "note": "`List` is the list pointer in a register too"},
+            {"file": "../../docs/proposed-ir/m1/42-list-parameter-spellings.json",
+             "run_exit": 0, "run_stdout": "", "rule": "D-M1-32",
+             "note": "list<int>/list<string> parameters and a list<int> return match the oracle"},
         ],
     }
 

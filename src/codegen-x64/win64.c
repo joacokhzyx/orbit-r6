@@ -47,7 +47,47 @@ static bool same_type(const char *a, const char *b) {
     return a && b && strcmp(a, b) == 0;
 }
 
-/* D-M1-31: the pinned comparison arms (c_backend.orb:2745-2810) pick three
+/* D-M1-32: the pinned C type map (c_backend.orb:476-497) answers the same
+ * pointer for every list spelling - `list`, `List`, and any `list<...>` at any
+ * depth - because the arguments name what is IN the list, not what the pointer
+ * is. R6's list register type is that pointer, so the three ABI positions
+ * (parameter types, return type, register types) are rewritten to "list"
+ * before any check reads them. A `map<...>` keeps its spelling: R6 has no map
+ * type and refuses it. The replaced string is freed here because the module
+ * owns it and r6_module_free frees whatever it holds. */
+static char *canonical_list_spelling(char *t) {
+    const char *base = NULL;
+    size_t n;
+    char *out;
+    if (!t) return t;
+    if (strcmp(t, "List") == 0) base = "list";
+    else if (strncmp(t, "list<", 5) == 0 || strncmp(t, "List<", 5) == 0) {
+        n = strlen(t);
+        if (n > 5 && t[n - 1] == '>') base = "list";
+    }
+    if (!base) return t;
+    out = malloc(strlen(base) + 1);
+    if (!out) return t; /* keep the spelling: the register gate fails closed */
+    strcpy(out, base);
+    free(t);
+    return out;
+}
+
+static void canonicalize_list_types(R6Module *m) {
+    size_t k, j;
+    for (k = 0; k < m->function_count; ++k) {
+        R6Function *f = &m->functions[k];
+        if (f->param_types)
+            for (j = 0; j < f->param_count; ++j)
+                f->param_types[j] = canonical_list_spelling(f->param_types[j]);
+        f->return_type = canonical_list_spelling(f->return_type);
+        if (f->register_types)
+            for (j = 0; j < f->register_type_count; ++j)
+                f->register_types[j] = canonical_list_spelling(f->register_types[j]);
+    }
+}
+
+/* D-M1-31: the pinned comparison arms (c_backend.orb:2745-2812) pick three
  * lowerings. Two strings compare with strcmp; either side float promotes the
  * pair to double; anything else compares the two 64-bit slots as words. The
  * relational ops have no string arm. A string against a number is the pin's
@@ -833,7 +873,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         (f->param_count != 0 || !is_int(f->return_type)))
         return fail(d, NULL, "CGEN", "main must have no parameters and return int in M1");
     for (pc = 0; pc < f->param_count; ++pc)
-        if (!is_scalar(f->param_types[pc]))
+        if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc])))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     if (is_model_type(m, f->return_type) || is_void_ptr(f->return_type))
         return fail(d, NULL, "CGEN", "returning model or void* values is not supported in M1");
@@ -1139,7 +1179,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 const char *t;
                 if (arg_count == sizeof arg_values / sizeof arg_values[0])
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
-                if (!value_type(f, &i->operands[0], &t) || !is_scalar(t))
+                if (!value_type(f, &i->operands[0], &t) || !(is_scalar(t) || is_list(t)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
                     return fail(d, i, "CGEN", "arg register is out of range");
@@ -2923,6 +2963,7 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     bool main_found = false;
     if (diag) memset(diag, 0, sizeof *diag);
     if (!out || !module) return fail(diag, NULL, "CGEN", "null output or module");
+    canonicalize_list_types(module);
     if (module->function_count && !module->functions)
         return fail(diag, NULL, "CGEN", "module has missing function storage");
     if (module->global_count && !module->globals)

@@ -1745,3 +1745,68 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `register type unknown` with no regression), and the ratchet is re-taken at
   43. The first refusals `gt`, `ne` and `eq` drop to zero.
 - Status: **applied**.
+
+## D-M1-32 - A list spelling is the list pointer (parameters, returns, registers)
+
+- Date: 2026-10-20. First refusal: `parameter type list<int> is unsupported in
+  M1` in `list_param_element_types`, `parameter_type_fallback` and
+  `test_time_ns`; `parameter type list<string> is unsupported in M1` in
+  `std_lists_generic`, `test_collections` and `test_collections_boxed`; and
+  `parameter type list is unsupported in M1` in `call_arg_types` (seven
+  programs). `generic_functions` stopped on the neighbouring
+  `arg value type is unsupported in M1`, a list passed as a call argument.
+- Reference (pinned `ce87d508`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:476` answers `OrbitList*` for `list`, `List`
+    and `OrbitList*`.
+  - `compiler/emit/c_backend.orb:477-480` says why: "A list described together
+    with its element type is still a list. The suffix names what is IN it,
+    which is a property of the values, not of the pointer, so the C type does
+    not change."
+  - `compiler/emit/c_backend.orb:481-497` applies that rule to any
+    parameterised spelling at any depth, and takes the base to decide:
+    `list`/`List` -> `OrbitList*`, `map`/`Map` -> `OrbitMap*`. The comment names
+    `map<string, list<int>>` itself.
+  - `compiler/emit/c_backend.orb:604-609` reads each element kind through its
+    own runtime call (`orbit_list_read_int`, `orbit_list_read_string`, ...),
+    so the element type travels with the operation and not with the pointer.
+- Admission: a parameter type, a return type and a register type may spell a
+  list as `list`, `List`, or `list<...>`/`List<...>` at any depth. `r6_codegen_win64`
+  rewrites those spellings to `list` in the three ABI positions before any
+  check reads them, freeing the string the module owns. A pending `arg` may
+  carry a list, and a call passes it as one pointer word. Nothing else is
+  rewritten: a model, a union, a result, a function type and a `map` keep their
+  spelling.
+- Lowering: a list parameter arrives as the first pointer-sized word in its GP
+  register; `list_get`, `list_set`, `list_push` and `list_len` dispatch on the
+  instruction's `elemKind` exactly as before. The prologue moves a list like
+  any non-float word.
+- Fail closed, measured as negative controls:
+  - a `map<string, int>` parameter stays refused (`x-param-map-spelling`): the
+    same parameterised syntax with a different base, and the pin answers
+    `OrbitMap*` for it, a type R6 does not lower.
+  - an extern parameter stays scalar: no corpus extern takes a list, and the
+    `extern parameter type is unsupported in M1` refusal is unchanged.
+  - a function-value spelling `fn(list)->int` stays refused
+    (`x-fn-type-nonscalar`, D-M1-14): the canonicalizer rewrites a whole type
+    spelling, never a token inside `fn(...)`.
+- Controls: fixture `42-list-parameter-spellings` (`list<int>` parameter,
+  `list<string>` parameter, `list<int>` return, a call result typed
+  `list<int>`; exit 0), `ok-param-list-spelling` (41 travels in through a
+  `list<int>` parameter and back out as the element; exit 41) and
+  `ok-list-capital-spelling` (a `List`-typed register created, pushed, and
+  measured; exit 41).
+- Effect: corpus **43 -> 44/93** match and **43 -> 45/93** build.
+  `list_param_element_types` matches the oracle. `test_time_ns` builds and now
+  differs at its own assert 16: `2147483647 + 1` wraps to int32 in the pin and
+  stays 64-bit in R6 (`sinceNsBetween(0, pastCap)` answers 2147483648 instead
+  of -1). That is the first `r6-differs` in the corpus, and it is the int-width
+  wall, not this admission. `generic_functions` leaves the `arg` wall for
+  `register type unknown`; `std_lists_generic` and `test_collections` pass the
+  parameter gate and stop at `register type unknown`; `test_collections_boxed`
+  stops at `list_push` kind 0; `call_arg_types` and `parameter_type_fallback`
+  stop at their model parameters (`Box`, `Point`). First refusals: module-level
+  37 -> 35, `list_push` 1 -> 2.
+- The `List` register position has no corpus program behind it:
+  `type_spellings` stops at an earlier `decl_var` (line 1, column 381 in both
+  measurements), so `ok-list-capital-spelling` is that position's only evidence.
+- Status: **applied**.

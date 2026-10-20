@@ -53,9 +53,10 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `39-string-intrinsics` | `.len()`, `.at()` y `.slice()` sin declaración en el módulo: firmas de la cabecera del runtime y el arena de D-M1-27 en el slice | 0 | `5\n90\nbc\n` |
 | `40-list-create-opaque` | lista vacía creada con `elemKind 0` (opaca): el primer push tipado adopta el kind y las dos lecturas llevan `elemKind 2` | 0 | (sin salida) |
 | `41-bool-and-word-comparisons` | `bool` en `gt`/`ne`/`eq`, `int` contra `string` por la vía de palabras y `float` contra `float` en `ne` | 0 | (sin salida) |
+| `42-list-parameter-spellings` | parámetro `list<int>`, parámetro `list<string>`, retorno `list<int>` y un resultado de `call` con tipo `list<int>`: el deletreo nombra el contenido y el puntero es uno | 0 | (sin salida) |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06-41 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06-42 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
@@ -66,11 +67,12 @@ pares 28–29 desde D-M1-19 (2026-10-16), los pares 30–31 desde D-M1-20
 D-M1-24/D-M1-25 (2026-10-18), el par 36 desde D-M1-26 (2026-10-19), el par
 37 desde D-M1-27 (2026-10-19), el par 38 desde D-M1-28 (2026-10-19), el par
 39 desde D-M1-29 (2026-10-19), el par 40 desde D-M1-30 (2026-10-19) y el par
-41 desde D-M1-31 (2026-10-19) (ver
+41 desde D-M1-31 (2026-10-19) y el par
+42 desde D-M1-32 (2026-10-20) (ver
 `../../DECISIONS.md`
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
 D-M1-19/D-M1-20/D-M1-21/D-M1-22/D-M1-23/D-M1-24/D-M1-25/D-M1-26/
-D-M1-27/D-M1-28/D-M1-29/D-M1-30/D-M1-31 y `../../M1_REPORT.md`).
+D-M1-27/D-M1-28/D-M1-29/D-M1-30/D-M1-31/D-M1-32 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec

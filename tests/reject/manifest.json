@@ -862,6 +862,13 @@
       "note": "loading a parameter into a differently typed register is refused"
     },
     {
+      "file": "cases/x-param-map-spelling.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-32",
+      "note": "only a list spelling is the list type; a map parameter stays unsupported"
+    },
+    {
       "file": "cases/x-add-spread-dest.json",
       "exit": 1,
       "code": "CGEN",
@@ -1254,6 +1261,27 @@
       "run_stdout": "",
       "rule": "D-M1-31",
       "note": "bool relops, bool eq, and the int/string word compare"
+    },
+    {
+      "file": "cases/ok-param-list-spelling.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-32",
+      "note": "a list<int> parameter binds, reads, passes, and returns its element"
+    },
+    {
+      "file": "cases/ok-list-capital-spelling.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-32",
+      "note": "`List` is the list pointer in a register too"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/42-list-parameter-spellings.json",
+      "run_exit": 0,
+      "run_stdout": "",
+      "rule": "D-M1-32",
+      "note": "list<int>/list<string> parameters and a list<int> return match the oracle"
     }
   ]
 }

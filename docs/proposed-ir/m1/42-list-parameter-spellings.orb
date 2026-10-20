@@ -1,0 +1,45 @@
+// D-M1-32: a list spelling names what is IN the list, not what the pointer
+// is. The pinned C type map answers `OrbitList*` for `list`, `List` and any
+// `list<...>` at any depth (c_backend.orb:469-495), so a parameter, a return
+// type and a register are the same pointer whatever the argument says. This
+// fixture carries both parameterised spellings and a parameterised return
+// through calls, and every check is `if wrong { return N }` with a distinct N.
+
+fn sum(xs: list<int>) -> int {
+    var total = 0
+    var i = 0
+    while i < xs.len() {
+        total = total + xs.get(i)
+        i = i + 1
+    }
+    return total
+}
+
+fn firstOf(xs: list<string>, fallback: string) -> string {
+    if xs.len() == 0 { return fallback }
+    return xs.get(0)
+}
+
+fn pair() -> list<int> {
+    val out = []
+    out.push(4)
+    out.push(5)
+    return out
+}
+
+fn main() -> int {
+    val xs = [1, 2, 3]
+    if sum(xs) != 6 { return 1 }
+
+    val ys = pair()
+    if ys.len() != 2 { return 2 }
+    if ys.get(1) != 5 { return 3 }
+    if sum(ys) != 9 { return 4 }
+
+    val empty = []
+    if firstOf(empty, "none") != "none" { return 5 }
+
+    val words = ["ab", "cd"]
+    if firstOf(words, "none") != "ab" { return 6 }
+    return 0
+}

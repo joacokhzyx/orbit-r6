@@ -434,3 +434,50 @@ siguiente muro. Ningún programa retrocede.
 El mensaje `register type unknown is unsupported in M1` pasa de 8 a 9 porque el
 programa que avanzó llega a él. El trinquete se re-tomó en 43.
 
+## Ronda 2026-10-20 (D-M1-32: un deletreo de lista es el puntero de lista)
+
+El muro era el tipo del parámetro. R6 exigía escalares, y el pin no: su mapa de
+tipos responde `OrbitList*` para `list`, `List` y cualquier `list<...>` a
+cualquier profundidad, porque los argumentos dicen qué hay DENTRO de la lista y
+no qué es el puntero (`c_backend.orb:476-497`). El tipo del elemento viaja en
+el `elemKind` de cada operación (`:604-609`), no en la firma. D-M1-32 reescribe
+esos deletreos a `list` en las tres posiciones ABI antes de cualquier
+comprobación; un `map<...>` conserva su deletreo y sigue rechazado.
+
+| Métrica | D-M1-31 (43/93) | D-M1-32 (44/93) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531.` | **`0106d531.`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 43/93 | **45/93** |
+| R6 coincide (exit + stdout) | 43/93 | **44/93** |
+| R6 difiere (compila y no coincide) | 0 | **1** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+| código `CGEN` | 49 | **47** |
+
+`list_param_element_types` pasa a coincidir. `test_time_ns` compila y ahora
+**difiere** en su propio assert 16: `2147483647 + 1` envuelve a int32 en el pin
+y sigue en 64 bits en R6, así que `sinceNsBetween(0, pastCap)` responde
+2147483648 en vez de -1. Es el primer `r6-differs` del corpus y nombra la pared
+del ancho de int. `generic_functions` deja la pared del `arg` y para en
+`register type unknown`; `std_lists_generic` y `test_collections` pasan la
+puerta de parámetros y paran en `register type unknown`;
+`test_collections_boxed` para en `list_push` kind 0. `call_arg_types` y
+`parameter_type_fallback` paran ahora en sus parámetros de modelo (`Box`,
+`Point`). Ningún programa retrocede.
+
+| Primer rechazo | D-M1-31 | D-M1-32 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 37 | **35** |
+| `decl_var` | 6 | 6 |
+| `call` | 3 | 3 |
+| `ret` | 2 | 2 |
+| `list_push` | 1 | **2** |
+| `arg` | 1 | **0** |
+
+El mensaje `register type unknown is unsupported in M1` pasa de 9 a 12 porque
+tres de los programas liberados llegan a él, y desaparecen los tres
+`parameter type list... is unsupported in M1`. El trinquete se re-tomó en 45/44.
+El puesto del registro `List` no tiene testigo en el corpus (`type_spellings`
+para antes, en un `decl_var` de la línea 1, columna 381, en las dos
+mediciones): su única evidencia es `ok-list-capital-spelling`.

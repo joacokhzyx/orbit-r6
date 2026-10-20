@@ -823,3 +823,66 @@ Mensajes completos de la corrida:
   a bool destination; a string is compared with strcmp only against another
   string` y `relational ops require int, float, or bool operands and a bool
   destination; ne also takes strings`, ambos con código `CGEN`.
+
+## Actualización de M1 - un deletreo de lista es el puntero de lista (2026-10-20)
+
+- Decisión: D-M1-32. Primer rechazo: `parameter type list<int> is unsupported
+  in M1` en `list_param_element_types`, `parameter_type_fallback` y
+  `test_time_ns`; `parameter type list<string> is unsupported in M1` en
+  `std_lists_generic`, `test_collections` y `test_collections_boxed`; y
+  `parameter type list is unsupported in M1` en `call_arg_types`.
+  `generic_functions` paraba en la pared vecina, `arg value type is unsupported
+  in M1`, una lista pasada como argumento de llamada.
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
+  `c_backend.orb:476` responde `OrbitList*` para `list`, `List` y `OrbitList*`.
+  El comentario de `:477-480` lo explica: el sufijo dice qué hay DENTRO de la
+  lista, una propiedad de los valores y no del puntero, así que el tipo C no
+  cambia. Las líneas `:481-497` aplican la regla a cualquier deletreo
+  parametrizado a cualquier profundidad y deciden por la base: `list`/`List`
+  dan `OrbitList*`, `map`/`Map` dan `OrbitMap*`. Las lecturas de `:604-609`
+  eligen la función de runtime por `elemKind`, así que el tipo del elemento
+  viaja con la operación y no con el puntero.
+- Admisión: un tipo de parámetro, un tipo de retorno y un tipo de registro
+  pueden deletrear una lista como `list`, `List`, `list<...>` o `List<...>` a
+  cualquier profundidad. `r6_codegen_win64` los reescribe a `list` en esas tres
+  posiciones ABI antes de que las lea cualquier comprobación, y libera el
+  string que posee el módulo. Nada más se reescribe: modelo, unión, result,
+  tipo de función y `map` conservan su deletreo.
+- Lowering: un parámetro lista llega como la palabra puntero en su registro GP
+  y el prólogo lo mueve como cualquier palabra no float. `list_get`,
+  `list_set`, `list_push` y `list_len` siguen despachando por el `elemKind` de
+  la instrucción.
+- Fail closed: un parámetro `map<string, int>` sigue rechazado
+  (`x-param-map-spelling`: misma sintaxis parametrizada con otra base, y el pin
+  responde `OrbitMap*`, un tipo que R6 no baja); un parámetro de extern sigue
+  siendo escalar (ningún extern del corpus toma una lista); un deletreo de
+  valor de función `fn(list)->int` sigue rechazado (`x-fn-type-nonscalar`,
+  D-M1-14) porque el canonicalizador reescribe el deletreo entero y nunca un
+  token dentro de `fn(...)`.
+- Controles: fixture `42-list-parameter-spellings` (parámetro `list<int>`,
+  parámetro `list<string>`, retorno `list<int>` y un resultado de `call` con
+  tipo `list<int>`; exit 0), `ok-param-list-spelling` (41 entra por el
+  parámetro `list<int>` y sale como elemento; exit 41) y
+  `ok-list-capital-spelling` (un registro `List` creado, con push, y medido;
+  exit 41).
+- Evidencia del corpus (pin `filesSha256 0106d531`): **43 -> 44/93** match y
+  **43 -> 45/93** build. `list_param_element_types` pasa a coincidir.
+  `test_time_ns` compila y ahora difiere en su propio assert 16:
+  `2147483647 + 1` envuelve a int32 en el pin y sigue en 64 bits en R6, así que
+  `sinceNsBetween(0, pastCap)` responde 2147483648 en vez de -1. Es el primer
+  `r6-differs` del corpus y es la pared del ancho de int, no esta admisión.
+  `generic_functions` deja la pared del `arg` y para en `register type
+  unknown`; `std_lists_generic` y `test_collections` pasan la puerta de
+  parámetros y paran en `register type unknown`; `test_collections_boxed` para
+  en `list_push` kind 0; `call_arg_types` y `parameter_type_fallback` paran en
+  sus parámetros de modelo (`Box`, `Point`). Los
+  primeros rechazos `(module-level)` bajan de 37 a 35 y `list_push` sube de 1 a
+  2. Trinquete re-tomado en 45/44.
+- Puertas: diferencial **41/41 -> 42/42** (fixture 42, exit 0); loader
+  **182/182 -> 186/186** (135 rechazos + 51 controles); `make_cases.py --check`
+  sin drift (169 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  20/20.
+- Mensaje: desaparece `parameter type list... is unsupported in M1`; quedan
+  `parameter type Box is unsupported in M1` (`call_arg_types`) y
+  `parameter type Point is unsupported in M1` (`parameter_type_fallback`), los
+  parámetros de modelo, todavía con código `CGEN`.
