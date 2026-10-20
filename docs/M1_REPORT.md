@@ -725,3 +725,50 @@ Mensajes completos de la corrida:
   function...` y `list_len requires a list register...`; el nuevo texto es
   `list_len requires a list or string register and an int destination` y el
   código sigue siendo `CGEN`.
+
+## Actualización de M1 - la lista vacía se crea opaca (2026-10-19)
+
+- Decisión: D-M1-30. Primer rechazo: `list_create requires an 8-byte slot size,
+  a kind in 1..4, a list destination, and an int capacity` en cinco programas
+  (`list_push`, `list_index_out_of_range`, `list_element_type_annotation`,
+  `test_process`, `test_process_exit`). Los cinco crean con `elemKind 0` y
+  destino `list`: es el literal de lista vacía (`val xs = []`), cuyo tipo de
+  elemento lo decide el primer push, no el literal.
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`): el brazo
+  `list_create` del backend C pasa `instr.elemKind` tal cual a
+  `orbit_list_create_typed(arena, sizeof(void*), capacity, kind)`
+  (`c_backend.orb:3580-3585`); `orbit_list_create` es
+  `orbit_list_create_typed(..., ORBIT_ELEM_OPAQUE)` (`collections.c:170`), el
+  primer push/set tipado adopta el kind (`collections.c:102-116`) y una lectura
+  acepta una lista opaca porque el tipo estático del llamante es la única
+  cuenta de su contenido (`collections.c:118-128`).
+- Admisión: `list_create` acepta `elemKind 0` además de 1..4; la llamada ya
+  reenvía el kind, así que no cambia el lowering. El destino sigue teniendo que
+  ser lista, el slot de 8 bytes y la capacidad un registro o literal `int`.
+- Fail closed: el kind 5 (ref) sigue rechazado en el `create` (no hay decodificador
+  nativo de slot) y el **acceso** opaco sigue fuera: `list_get`/`list_set`/
+  `list_push` exigen kind 1..4, así que el `list_get` con `elemKind 0` y destino
+  `unknown` (la forma de E-03) sigue siendo un rechazo `CGEN`, igual que la
+  puerta `register type unknown`.
+- Sustituye D-M1-16/E-04 **sólo para el create**: la tabla del borrador de la
+  spec leía "accesor sin tipo + destino void*" como una sola forma, y el corpus
+  muestra que el builder separa las dos mitades. `x-list-create-kind-opaque`
+  pasa a ser el control de aceptación `ok-list-create-opaque` y el rechazo se
+  re-pinea en el kind 5 como `x-list-create-kind-ref`; E-03
+  (`x-list-get-kind-ref`) y E-06 (`x-print-two-args`) no cambian.
+- Controles: fixture `40-list-create-opaque` (la forma `filled` de
+  `tests/suite/list_push.orb`: create 0, push 41/7 con kind 2, dos lecturas
+  tipadas; exit 0), `ok-list-create-opaque` (el mismo ida y vuelta a mano, exit
+  41) y `x-list-create-kind-ref` (kind 5 sigue `CGEN`).
+- Evidencia del corpus (pin `filesSha256 0106d531`): **39 -> 41/93** match y
+  build (`list_index_out_of_range` y `test_process_exit` pasan a coincidir; los
+  otros tres avanzan al siguiente muro - `list_get` con `elemKind 0` y destino
+  `unknown` - sin retrocesos). El primer rechazo `list_create` cae de 5 a 0 y
+  el de `call` queda en 3. Trinquete re-tomado en 41.
+- Puertas: diferencial **39/39 -> 40/40** (fixture 40, exit 0); loader
+  **171/171 -> 173/173** (129 rechazos + 44 controles); `make_cases.py --check`
+  sin drift (158 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  20/20.
+- Mensaje: desaparece `list_create requires ... a kind in 1..4 ...`; el nuevo
+  texto es `list_create requires an 8-byte slot size, a kind in 0..4, a list
+  destination, and an int capacity` y el código sigue siendo `CGEN`.

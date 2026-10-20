@@ -1,0 +1,25 @@
+// D-M1-30: an empty list literal is created with elemKind 0 (ORBIT_ELEM_OPAQUE)
+// and the first typed push adopts the element kind. The pinned lowering passes
+// the kind straight to orbit_list_create_typed (c_backend.orb:3580-3585), the
+// runtime starts every list OPAQUE (collections.c:170) and
+// orbit_list_adopt_kind establishes the kind on the first write
+// (collections.c:102-116); a read of an opaque list is accepted because the
+// caller's static type is the only account of its contents (collections.c:118-128).
+//
+// The `filled` shape of tests/suite/list_push.orb is the one whose reads carry
+// elemKind 2: from the checker's side the length of an empty literal is not
+// known, so the list is opaque until the pushes, and every read is typed.
+
+fn filled() -> int {
+    val xs = []
+    xs.push(41)
+    xs.push(7)
+    if xs.len() != 2 { return 1 }
+    if xs.get(0) != 41 { return 2 }
+    if xs.get(1) != 7 { return 3 }
+    return 0
+}
+
+fn main() -> int {
+    return filled()
+}

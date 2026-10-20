@@ -771,11 +771,11 @@
       "note": "a global with an ir_register value has no producer; literals only"
     },
     {
-      "file": "cases/x-list-create-kind-opaque.json",
+      "file": "cases/x-list-create-kind-ref.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-16",
-      "note": "E-04: elemKind 0 (opaque) has no element type; untyped lists stay out"
+      "rule": "D-M1-30",
+      "note": "elemKind 5 (ref) still has no native slot decoder for a created list"
     },
     {
       "file": "cases/x-list-get-kind-ref.json",
@@ -1177,6 +1177,20 @@
       "run_stdout": "",
       "rule": "D-M1-29",
       "note": "list_len on a string receiver is orbit_string_len"
+    },
+    {
+      "file": "cases/ok-list-create-opaque.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-30",
+      "note": "an opaque list adopts the kind of its first typed push"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/40-list-create-opaque.json",
+      "run_exit": 0,
+      "run_stdout": "",
+      "rule": "D-M1-30",
+      "note": "empty literal created opaque, first push adopts"
     }
   ]
 }

@@ -704,11 +704,16 @@ def build_reject():
     # ---- D-M1-16: spec edge cases E-03/E-04/E-06 stay fail-closed ------------
     # The spec edge table says "accept" for all three; R6 keeps its native
     # subset and pins the rejections (see DECISIONS.md D-M1-16 and D-M1-09).
-    add("x-list-create-kind-opaque",
-        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
+    # D-M1-30 supersedes D-M1-16/E-04 for the create: elemKind 0 is the
+    # runtime's own OPAQUE state (collections.c:170), the first typed write
+    # adopts the kind (:102-116) and a read accepts an opaque list (:118-128).
+    # What stays out is kind 5 (ref), which has no native slot decoder, and the
+    # opaque accessor (E-03, x-list-get-kind-ref).
+    add("x-list-create-kind-ref",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=5),
                       I("ret", -1, Int(0))], ["list"])])),
-        "D-M1-16", "CGEN",
-        "E-04: elemKind 0 (opaque) has no element type; untyped lists stay out")
+        "D-M1-30", "CGEN",
+        "elemKind 5 (ref) still has no native slot decoder for a created list")
     add("x-list-get-kind-ref",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=1),
                       I("load_const", 1, Int(0)),
@@ -1173,6 +1178,17 @@ def build_accept_files():
                                 I("list_len", 1, Reg(0)),
                                 I("ret", -1, Reg(1))],
                                ["string", "int"])]))))
+    # D-M1-30: the builder emits list_create with elemKind 0 when the first
+    # push decides the element type; the runtime starts OPAQUE and adopts it
+    # (collections.c:170, :102-116).
+    files.append(("ok-list-create-opaque",
+                  jd(DOC([MAIN([I("list_create", 0, Int(8), Int(0)),
+                                I("load_const", 1, Int(41)),
+                                I("list_push", 2, Reg(0), Reg(1), ek=2),
+                                I("load_const", 3, Int(0)),
+                                I("list_get", 4, Reg(0), Reg(3), ek=2),
+                                I("ret", -1, Reg(4))],
+                               ["list", "int", "void", "int", "int"])]))))
     return files
 
 
@@ -1287,6 +1303,12 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-list-len-string.json", "run_exit": 3,
              "run_stdout": "", "rule": "D-M1-29",
              "note": "list_len on a string receiver is orbit_string_len"},
+            {"file": "cases/ok-list-create-opaque.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-30",
+             "note": "an opaque list adopts the kind of its first typed push"},
+            {"file": "../../docs/proposed-ir/m1/40-list-create-opaque.json",
+             "run_exit": 0, "run_stdout": "", "rule": "D-M1-30",
+             "note": "empty literal created opaque, first push adopts"},
         ],
     }
 

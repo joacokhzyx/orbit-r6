@@ -5,29 +5,29 @@
     "members": 94,
     "programs": 93,
     "oracleOk": 93,
-    "r6BuildOk": 39,
-    "match": 39,
+    "r6BuildOk": 41,
+    "match": 41,
     "unknownRegisterTypes": 87
   },
   "byCode": {
-    "CGEN": 53,
+    "CGEN": 51,
     "E_OPCODE": 1
   },
   "byFailingOpcode": {
-    "(module-level)": 34,
+    "(module-level)": 36,
     "decl_var": 6,
-    "list_create": 5,
     "call": 3,
     "ret": 2,
     "arg": 1,
     "gt": 1,
     "ne": 1,
+    "list_push": 1,
     "eq": 1
   },
   "byOpcode": {
     "add": {
       "cases": 63,
-      "match": 26
+      "match": 27
     },
     "and_op": {
       "cases": 10,
@@ -35,11 +35,11 @@
     },
     "arg": {
       "cases": 61,
-      "match": 17
+      "match": 19
     },
     "call": {
       "cases": 77,
-      "match": 24
+      "match": 26
     },
     "copy": {
       "cases": 7,
@@ -47,7 +47,7 @@
     },
     "decl_var": {
       "cases": 75,
-      "match": 24
+      "match": 26
     },
     "div": {
       "cases": 13,
@@ -55,7 +55,7 @@
     },
     "eq": {
       "cases": 44,
-      "match": 13
+      "match": 14
     },
     "ge": {
       "cases": 16,
@@ -67,15 +67,15 @@
     },
     "jump": {
       "cases": 54,
-      "match": 15
+      "match": 16
     },
     "jump_if_false": {
       "cases": 80,
-      "match": 28
+      "match": 29
     },
     "label": {
       "cases": 80,
-      "match": 28
+      "match": 29
     },
     "le": {
       "cases": 13,
@@ -83,15 +83,15 @@
     },
     "list_create": {
       "cases": 34,
-      "match": 2
+      "match": 4
     },
     "list_get": {
       "cases": 32,
-      "match": 2
+      "match": 3
     },
     "list_len": {
       "cases": 35,
-      "match": 4
+      "match": 5
     },
     "list_pop": {
       "cases": 2,
@@ -99,7 +99,7 @@
     },
     "list_push": {
       "cases": 34,
-      "match": 2
+      "match": 4
     },
     "list_set": {
       "cases": 2,
@@ -107,7 +107,7 @@
     },
     "load_const": {
       "cases": 72,
-      "match": 23
+      "match": 24
     },
     "load_field": {
       "cases": 20,
@@ -115,11 +115,11 @@
     },
     "load_var": {
       "cases": 82,
-      "match": 28
+      "match": 30
     },
     "lt": {
       "cases": 39,
-      "match": 11
+      "match": 12
     },
     "mod": {
       "cases": 7,
@@ -167,7 +167,7 @@
     },
     "ret": {
       "cases": 94,
-      "match": 39
+      "match": 41
     },
     "store_field": {
       "cases": 6,
@@ -175,7 +175,7 @@
     },
     "store_var": {
       "cases": 36,
-      "match": 9
+      "match": 10
     },
     "sub": {
       "cases": 23,

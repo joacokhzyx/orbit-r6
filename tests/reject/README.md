@@ -71,23 +71,33 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-22 | `x-load-var-foreign-param`, `x-load-var-param-mismatch`; aceptación: `ok-load-var-param` (+ el fixture 33) |
 | D-M1-23 | `x-add-spread-dest`, `x-add-spread-pointer`, `x-add-spread-float-literal`, `x-add-string-dest`; aceptación: `ok-add-string-spread` (+ el fixture 34) |
 | D-M1-25 | aceptación: `35-list-len-bound` (el fixture del bucle con bound de `list_len` en una función no-`main`) |
+| D-M1-26 | `x-builtin-name-outside-print`, `x-print-symbol-target`; aceptación: `ok-print-*` (+ el fixture 36) |
+| D-M1-27 | `x-arena-extern-undeclared`; aceptación: `ok-arena-*` (+ el fixture 37) |
+| D-M1-28 | `x-ret-type-mismatch`; aceptación: `ok-void-ret-value` (+ el fixture 38) |
+| D-M1-29 | `x-intrinsic-symbol-target`, `x-intrinsic-arity`, `x-list-len-bool`; aceptación: `ok-list-len-string` (+ el fixture 39) |
+| D-M1-30 | `x-list-create-kind-ref`; aceptación: `ok-list-create-opaque` (+ el fixture 40) |
 
-E-03 (`list_get` con `elemKind 5` y tipo `unknown`), E-04 (`elemKind 0` en
-`list_create`) y E-06 (`print` con 2 argumentos pendientes) quedan cerrados
-como rechazos con evidencia en D-M1-16 (casos `x-list-get-kind-ref`,
-`x-list-create-kind-opaque`, `x-print-two-args`): los kinds 0/5 no tienen tipo
-de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
-tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
-semántica (solo el comentario `/* print */`; U-17).
+E-03 (`list_get` con `elemKind 5` y tipo `unknown`) y E-06 (`print` con 2
+argumentos pendientes) siguen cerrados como rechazos con evidencia en D-M1-16
+(casos `x-list-get-kind-ref`, `x-print-two-args`): el kind 5 no tiene tipo de
+acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
+tiene productor -la sema del pin lo rechaza con E1003- ni lowering con
+semántica (solo el comentario `/* print */`; U-17). E-04 (`elemKind 0` en
+`list_create`) queda **reclasificado** por D-M1-30: el `create` opaco es el
+estado inicial del runtime (`collections.c:170`) y el primer push tipado adopta
+el kind (`:102-116`), así que el rechazo se re-pinea en el kind 5 del `create`
+(`x-list-create-kind-ref`) y el **acceso** opaco (`list_get`/`list_set` con
+`elemKind 0`) sigue fuera.
 
-Estado 2026-10-19: **171/171** (129 rechazos + 42 controles); gate diferencial
-39/39 en el mismo árbol. D-M1-26/D-M1-27 quedan pineados por
+Estado 2026-10-19: **173/173** (129 rechazos + 44 controles); gate diferencial
+40/40 en el mismo árbol. D-M1-26/D-M1-27 quedan pineados por
 `x-builtin-name-outside-print`, `x-print-symbol-target` y
 `x-arena-extern-undeclared` (rechazos), más los controles `ok-print-*`,
 `ok-arena-*`, `36-print-builtin` y `37-arena-extern-call`; D-M1-28 por
 `x-ret-type-mismatch`, `ok-void-ret-value` y `38-void-ret-value`; D-M1-29 por
 `x-intrinsic-symbol-target`, `x-intrinsic-arity`, `x-list-len-bool`,
-`ok-list-len-string` y `39-string-intrinsics`. El borde de D-M1-21 (operando literal inline en las
+`ok-list-len-string` y `39-string-intrinsics`; D-M1-30 por
+`x-list-create-kind-ref`, `ok-list-create-opaque` y `40-list-create-opaque`. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
 `ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de

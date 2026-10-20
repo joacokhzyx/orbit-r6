@@ -358,3 +358,41 @@ unknown` (6), los parámetros `list<int>`/`list<string>` (6), el tipo de registr
 (4). El `unknown` estructural no se movió (87/94 documentos): las rondas
 liberaron puertas anteriores, no esa.
 
+## Ronda 2026-10-19 (D-M1-30: la lista vacía se crea opaca)
+
+`val xs = []` emite `list_create` con `elemKind 0`, no con el kind del primer
+push. R6 lo rechazaba como "un tipo sin accesor". El pin lo acepta: pasa el kind
+tal cual a `orbit_list_create_typed` (`c_backend.orb:3580-3585`),
+`orbit_list_create` es él mismo `ORBIT_ELEM_OPAQUE` (`collections.c:170`), el
+primer push tipado adopta el kind (`:102-116`) y una lectura acepta una lista
+opaca (`:118-128`). D-M1-30 admite el kind 0 **en el create**; el acceso con
+kind 0 y destino `unknown` sigue fuera.
+
+| Métrica | D-M1-29 (39/93) | D-M1-30 (41/93) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531.` | **`0106d531.`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 39/93 | **41/93** |
+| R6 coincide (exit + stdout) | 39/93 | **41/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+
+Los dos que pasan son `list_index_out_of_range` y `test_process_exit`. Los otros
+tres que creaban con kind 0 (`list_push`, `list_element_type_annotation`,
+`test_process`) avanzan al muro siguiente: `register type unknown` en dos casos
+y un `list_push` con `elemKind 0` en el tercero, que es un push de una lista
+dentro de otra lista. Ninguno retrocede.
+
+| Primer rechazo | D-M1-29 | D-M1-30 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 34 | **36** |
+| `decl_var` | 6 | 6 |
+| `call` | 3 | 3 |
+| `ret` | 2 | 2 |
+| `list_create` | 5 | **0** |
+| `list_push` | 0 | **1** |
+| `arg`, `gt`, `ne`, `eq` | 1 cada uno | 1 cada uno |
+
+El mensaje `register type unknown is unsupported in M1` pasa de 6 a 8 porque los
+dos programas liberados llegan a él. El trinquete se re-tomó en 41.
+

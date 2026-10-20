@@ -892,11 +892,19 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         }
         case R6_OP_LIST_CREATE: {
             const char *capacity_type = NULL;
+            /* D-M1-30: elemKind 0 is ORBIT_ELEM_OPAQUE, the state the runtime
+               itself creates (`orbit_list_create` is
+               `orbit_list_create_typed(..., ORBIT_ELEM_OPAQUE)`,
+               collections.c:170). The first typed push or set adopts the kind
+               (collections.c:102-116) and a read accepts an opaque list
+               (:118-128), so the create only needs an 8-byte slot, a capacity
+               and a list destination. Kinds 1..4 keep their exact mapping and
+               kind 5 (ref) stays outside the native subset. */
             if (!valid_dest(f, i, true, d) || !is_list(type_at(f, i->dest)) ||
                 i->operands[0].kind != R6_VAL_INT || i->operands[0].as.i32 != 8 ||
-                !elem_kind_type(i->elem_kind) ||
+                !(i->elem_kind == 0 || elem_kind_type(i->elem_kind)) ||
                 !value_type(f, &i->operands[1], &capacity_type) || !is_int(capacity_type))
-                return fail(d, i, "CGEN", "list_create requires an 8-byte slot size, a kind in 1..4, a list destination, and an int capacity");
+                return fail(d, i, "CGEN", "list_create requires an 8-byte slot size, a kind in 0..4, a list destination, and an int capacity");
             break;
         }
         case R6_OP_LIST_PUSH: {

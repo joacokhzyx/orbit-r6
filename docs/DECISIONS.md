@@ -1641,3 +1641,54 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `strings_escape` for **39/93 match, 39/93 build**. The ratchet is re-taken
   at 39.
 - Status: **applied**.
+
+## D-M1-30 - An empty list literal is created opaque (`elemKind 0`)
+
+- Date: 2026-10-19. Round 8 (`p8`). First refusal: `list_create requires an
+  8-byte slot size, a kind in 1..4, a list destination, and an int capacity`
+  (5 programs: `list_push`, `list_index_out_of_range`,
+  `list_element_type_annotation`, `test_process`, `test_process_exit`). All
+  five create with `elemKind 0` and a destination typed `list`: that is the
+  builder's empty list literal (`val xs = []`), whose element type is decided
+  by the first push, not by the literal itself.
+- Reference (pinned `ce87d508`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:3580-3585` - the `list_create` arm forwards
+    `instr.elemKind` straight to
+    `orbit_list_create_typed(arena, sizeof(void*), capacity, kind)`; kind 0 is
+    a value it passes through, not a refusal.
+  - `runtime/collections.c:170` - `orbit_list_create` itself is
+    `orbit_list_create_typed(..., ORBIT_ELEM_OPAQUE)`: opaque is the runtime's
+    own starting state, not an invalid element type.
+  - `runtime/collections.c:102-116` (header `orbit_api.h:421-429`) -
+    `orbit_list_adopt_kind` makes the first typed push or set establish the
+    kind, and reports a conflict if a later one disagrees.
+  - `runtime/collections.c:118-128` (header `orbit_api.h:431-439`) -
+    `orbit_list_expect_kind` accepts an opaque list because "the caller's
+    static type is the only account of what is in there".
+- Admission: `list_create` accepts `elemKind 0` as well as 1..4. The emitted
+  call already forwards the kind, so no lowering changes; the destination must
+  still be a list, the slot size 8, and the capacity an int register or
+  literal.
+- Fail closed: kind 5 (ref) stays refused at the create - the native subset
+  has no slot decoder for it - and the opaque **accessor** stays refused:
+  `list_get`, `list_set` and `list_push` still require a concrete kind 1..4, so
+  a `list_get` with `elemKind 0` and an `unknown` destination (the E-03 case)
+  remains a `CGEN` refusal, as does the `register type unknown` gate behind it.
+- Supersedes D-M1-16 / E-04 for the create only. That decision read the draft
+  spec's edge table ("untyped accessor + void* destination") as one case; the
+  corpus shows the builder separates the two: the **create** is
+  what an empty literal emits and what the runtime adopts, while the
+  **accessor** is the half with no native type. `x-list-create-kind-opaque` is
+  therefore reclassified as the accept control `ok-list-create-opaque`, and the
+  rejection is re-pinned on kind 5 as `x-list-create-kind-ref`; E-03
+  (`x-list-get-kind-ref`) and E-06 (`x-print-two-args`) keep their rejections
+  unchanged. No control is deleted without being re-pinned.
+- Controls: fixture `40-list-create-opaque` (the `filled` function of
+  `tests/suite/list_push.orb`: create with kind 0, push 41 and 7 with kind 2,
+  two typed reads; exit 0), `ok-list-create-opaque` (same round trip hand-built,
+  exit 41) and `x-list-create-kind-ref` (kind 5 still `CGEN`).
+- Effect: corpus **39 -> 41/93** (`list_index_out_of_range` and
+  `test_process_exit` match the oracle; the other three create programs advance
+  to the next wall - a `list_get` with `elemKind 0` and an `unknown`
+  destination - with no regression), and the ratchet is re-taken at 41.
+- Status: **applied**.
