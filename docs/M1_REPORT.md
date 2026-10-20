@@ -748,8 +748,10 @@ Mensajes completos de la corrida:
 - Fail closed: el kind 5 (ref) sigue rechazado en el `create` (no hay decodificador
   nativo de slot) y el **acceso** opaco sigue fuera: `list_get`/`list_set`/
   `list_push` exigen kind 1..4, así que el `list_get` con `elemKind 0` y destino
-  `unknown` (la forma de E-03) sigue siendo un rechazo `CGEN`, igual que la
-  puerta `register type unknown`.
+  `unknown` (el caso E-03 es el kind 5; éste es el kind 0, pineado como
+  `x-list-get-kind-opaque`) sigue siendo un rechazo `CGEN`, igual que la
+  puerta `register type unknown`; `x-list-set-kind-opaque` y
+  `x-list-push-kind-opaque` cierran las otras dos puertas de escritura.
 - Sustituye D-M1-16/E-04 **sólo para el create**: la tabla del borrador de la
   spec leía "accesor sin tipo + destino void*" como una sola forma, y el corpus
   muestra que el builder separa las dos mitades. `x-list-create-kind-opaque`
@@ -759,15 +761,17 @@ Mensajes completos de la corrida:
 - Controles: fixture `40-list-create-opaque` (la forma `filled` de
   `tests/suite/list_push.orb`: create 0, push 41/7 con kind 2, dos lecturas
   tipadas; exit 0), `ok-list-create-opaque` (el mismo ida y vuelta a mano, exit
-  41) y `x-list-create-kind-ref` (kind 5 sigue `CGEN`).
+  41), `x-list-create-kind-ref` (kind 5 sigue `CGEN`) y
+  `x-list-get-kind-opaque`/`x-list-set-kind-opaque`/`x-list-push-kind-opaque`
+  para las tres puertas de acceso.
 - Evidencia del corpus (pin `filesSha256 0106d531`): **39 -> 41/93** match y
   build (`list_index_out_of_range` y `test_process_exit` pasan a coincidir; los
-  otros tres avanzan al siguiente muro - `list_get` con `elemKind 0` y destino
-  `unknown` - sin retrocesos). El primer rechazo `list_create` cae de 5 a 0 y
-  el de `call` queda en 3. Trinquete re-tomado en 41.
+  otros tres avanzan sin retrocesos: dos llegan a `register type unknown` y uno
+  a un `list_push` con `elemKind 0`). El primer rechazo `list_create` cae de 5 a
+  0 y el de `call` queda en 3. Trinquete re-tomado en 41.
 - Puertas: diferencial **39/39 -> 40/40** (fixture 40, exit 0); loader
-  **171/171 -> 173/173** (129 rechazos + 44 controles); `make_cases.py --check`
-  sin drift (158 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  **171/171 -> 176/176** (132 rechazos + 44 controles); `make_cases.py --check`
+  sin drift (161 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
   20/20.
 - Mensaje: desaparece `list_create requires ... a kind in 1..4 ...`; el nuevo
   texto es `list_create requires an 8-byte slot size, a kind in 0..4, a list

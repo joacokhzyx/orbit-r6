@@ -1659,10 +1659,10 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   - `runtime/collections.c:170` - `orbit_list_create` itself is
     `orbit_list_create_typed(..., ORBIT_ELEM_OPAQUE)`: opaque is the runtime's
     own starting state, not an invalid element type.
-  - `runtime/collections.c:102-116` (header `orbit_api.h:421-429`) -
+  - `runtime/collections.c:102-116` (header `orbit_api.h:415-423`) -
     `orbit_list_adopt_kind` makes the first typed push or set establish the
     kind, and reports a conflict if a later one disagrees.
-  - `runtime/collections.c:118-128` (header `orbit_api.h:431-439`) -
+  - `runtime/collections.c:118-128` (header `orbit_api.h:424-428`) -
     `orbit_list_expect_kind` accepts an opaque list because "the caller's
     static type is the only account of what is in there".
 - Admission: `list_create` accepts `elemKind 0` as well as 1..4. The emitted
@@ -1672,8 +1672,11 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Fail closed: kind 5 (ref) stays refused at the create - the native subset
   has no slot decoder for it - and the opaque **accessor** stays refused:
   `list_get`, `list_set` and `list_push` still require a concrete kind 1..4, so
-  a `list_get` with `elemKind 0` and an `unknown` destination (the E-03 case)
-  remains a `CGEN` refusal, as does the `register type unknown` gate behind it.
+  a `list_get` with `elemKind 0` and an `unknown` destination stays a `CGEN`
+  refusal, as does the `register type unknown` gate behind it. The three
+  boundaries are pinned as `x-list-get-kind-opaque`,
+  `x-list-set-kind-opaque` and `x-list-push-kind-opaque`; E-03 is the kind 5
+  read (`x-list-get-kind-ref`) and is a separate case.
 - Supersedes D-M1-16 / E-04 for the create only. That decision read the draft
   spec's edge table ("untyped accessor + void* destination") as one case; the
   corpus shows the builder separates the two: the **create** is
@@ -1686,9 +1689,11 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Controls: fixture `40-list-create-opaque` (the `filled` function of
   `tests/suite/list_push.orb`: create with kind 0, push 41 and 7 with kind 2,
   two typed reads; exit 0), `ok-list-create-opaque` (same round trip hand-built,
-  exit 41) and `x-list-create-kind-ref` (kind 5 still `CGEN`).
+  exit 41), `x-list-create-kind-ref` (kind 5 still `CGEN`), and
+  `x-list-get-kind-opaque`, `x-list-set-kind-opaque`,
+  `x-list-push-kind-opaque` for the accessor boundary.
 - Effect: corpus **39 -> 41/93** (`list_index_out_of_range` and
   `test_process_exit` match the oracle; the other three create programs advance
-  to the next wall - a `list_get` with `elemKind 0` and an `unknown`
-  destination - with no regression), and the ratchet is re-taken at 41.
+  with no regression: two reach `register type unknown` and one reaches a
+  `list_push` with `elemKind 0`), and the ratchet is re-taken at 41.
 - Status: **applied**.
