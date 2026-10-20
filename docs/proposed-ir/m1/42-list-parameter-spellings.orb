@@ -27,6 +27,13 @@ fn pair() -> list<int> {
     return out
 }
 
+// The rule is about the base at any depth (c_backend.orb:481-497). No value
+// reaches this parameter: building a list of lists needs an opaque push, which
+// stays outside M1 (D-M1-30). The spelling itself is what this checks.
+fn depth(xs: list<list<int>>) -> int {
+    return xs.len()
+}
+
 fn main() -> int {
     val xs = [1, 2, 3]
     if sum(xs) != 6 { return 1 }

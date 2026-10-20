@@ -869,6 +869,13 @@
       "note": "only a list spelling is the list type; a map parameter stays unsupported"
     },
     {
+      "file": "cases/x-extern-list-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-32",
+      "note": "an extern parameter stays scalar; a list is not lowered there"
+    },
+    {
       "file": "cases/x-add-spread-dest.json",
       "exit": 1,
       "code": "CGEN",

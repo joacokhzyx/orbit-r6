@@ -53,7 +53,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `39-string-intrinsics` | `.len()`, `.at()` y `.slice()` sin declaración en el módulo: firmas de la cabecera del runtime y el arena de D-M1-27 en el slice | 0 | `5\n90\nbc\n` |
 | `40-list-create-opaque` | lista vacía creada con `elemKind 0` (opaca): el primer push tipado adopta el kind y las dos lecturas llevan `elemKind 2` | 0 | (sin salida) |
 | `41-bool-and-word-comparisons` | `bool` en `gt`/`ne`/`eq`, `int` contra `string` por la vía de palabras y `float` contra `float` en `ne` | 0 | (sin salida) |
-| `42-list-parameter-spellings` | parámetro `list<int>`, parámetro `list<string>`, retorno `list<int>` y un resultado de `call` con tipo `list<int>`: el deletreo nombra el contenido y el puntero es uno | 0 | (sin salida) |
+| `42-list-parameter-spellings` | parámetro `list<int>`, parámetro `list<string>`, retorno `list<int>`, un resultado de `call` con tipo `list<int>` y un parámetro `list<list<int>>`: el deletreo nombra el contenido y el puntero es uno | 0 | (sin salida) |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-42 amplían la

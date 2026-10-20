@@ -843,6 +843,15 @@ def build_reject():
                      ["int"])])),
         "D-M1-32", "CGEN",
         "only a list spelling is the list type; a map parameter stays unsupported")
+    # An extern prototype is a C declaration: R6 types it from the scalar
+    # subset and does not lower a list there (no corpus extern takes one).
+    add("x-extern-list-param",
+        jd(DOC([FN("peek", [I("ret")], [], rtype="void", extern=True,
+                   params=["xs"], ptypes=["list<int>"]),
+                MAIN([I("load_const", 0, Int(0)), I("ret", -1, Reg(0))],
+                     ["int"])])),
+        "D-M1-32", "CGEN",
+        "an extern parameter stays scalar; a list is not lowered there")
 
     # ---- D-M1-23: a string `add` concatenates and spreads -------------------
     # The pinned backend turns `add` into orbit_string_concat whenever either

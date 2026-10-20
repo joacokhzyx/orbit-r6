@@ -2963,11 +2963,13 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     bool main_found = false;
     if (diag) memset(diag, 0, sizeof *diag);
     if (!out || !module) return fail(diag, NULL, "CGEN", "null output or module");
-    canonicalize_list_types(module);
     if (module->function_count && !module->functions)
         return fail(diag, NULL, "CGEN", "module has missing function storage");
     if (module->global_count && !module->globals)
         return fail(diag, NULL, "CGEN", "module has missing global storage");
+    /* D-M1-32: after the storage guards, so a module the loader cannot produce
+     * still fails closed instead of dereferencing an absent function array. */
+    canonicalize_list_types(module);
     for (n = 0; n < module->global_count; ++n) {
         size_t prior;
         int32_t ignored;

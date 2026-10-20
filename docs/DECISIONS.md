@@ -1772,7 +1772,9 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Admission: a parameter type, a return type and a register type may spell a
   list as `list`, `List`, or `list<...>`/`List<...>` at any depth. `r6_codegen_win64`
   rewrites those spellings to `list` in the three ABI positions before any
-  check reads them, freeing the string the module owns. A pending `arg` may
+  check reads them, freeing the string the module owns. The rewrite runs after
+  the module-storage guards, so a module the loader cannot produce still fails
+  closed instead of dereferencing an absent function array. A pending `arg` may
   carry a list, and a call passes it as one pointer word. Nothing else is
   rewritten: a model, a union, a result, a function type and a `map` keep their
   spelling.
@@ -1784,17 +1786,21 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   - a `map<string, int>` parameter stays refused (`x-param-map-spelling`): the
     same parameterised syntax with a different base, and the pin answers
     `OrbitMap*` for it, a type R6 does not lower.
-  - an extern parameter stays scalar: no corpus extern takes a list, and the
-    `extern parameter type is unsupported in M1` refusal is unchanged.
+  - an extern parameter stays scalar (`x-extern-list-param`): the pin types an
+    extern prototype from the same C map, but R6 lowers externs from the scalar
+    subset only, and no corpus extern takes a list. The refusal keeps its
+    message, `extern parameter type is unsupported in M1`.
   - a function-value spelling `fn(list)->int` stays refused
     (`x-fn-type-nonscalar`, D-M1-14): the canonicalizer rewrites a whole type
     spelling, never a token inside `fn(...)`.
 - Controls: fixture `42-list-parameter-spellings` (`list<int>` parameter,
   `list<string>` parameter, `list<int>` return, a call result typed
-  `list<int>`; exit 0), `ok-param-list-spelling` (41 travels in through a
+  `list<int>`, and a `list<list<int>>` parameter whose body measures its
+  length; exit 0), `ok-param-list-spelling` (41 travels in through a
   `list<int>` parameter and back out as the element; exit 41) and
   `ok-list-capital-spelling` (a `List`-typed register created, pushed, and
-  measured; exit 41).
+  measured; exit 41). `x-param-map-spelling` and `x-extern-list-param` are the
+  rejections.
 - Effect: corpus **43 -> 44/93** match and **43 -> 45/93** build.
   `list_param_element_types` matches the oracle. `test_time_ns` builds and now
   differs at its own assert 16: `2147483647 + 1` wraps to int32 in the pin and

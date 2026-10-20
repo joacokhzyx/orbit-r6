@@ -855,13 +855,15 @@ Mensajes completos de la corrida:
 - Fail closed: un parámetro `map<string, int>` sigue rechazado
   (`x-param-map-spelling`: misma sintaxis parametrizada con otra base, y el pin
   responde `OrbitMap*`, un tipo que R6 no baja); un parámetro de extern sigue
-  siendo escalar (ningún extern del corpus toma una lista); un deletreo de
+  siendo escalar (`x-extern-list-param`: R6 baja los extern sólo desde el
+  subconjunto escalar y ningún extern del corpus toma una lista); un deletreo de
   valor de función `fn(list)->int` sigue rechazado (`x-fn-type-nonscalar`,
   D-M1-14) porque el canonicalizador reescribe el deletreo entero y nunca un
   token dentro de `fn(...)`.
 - Controles: fixture `42-list-parameter-spellings` (parámetro `list<int>`,
-  parámetro `list<string>`, retorno `list<int>` y un resultado de `call` con
-  tipo `list<int>`; exit 0), `ok-param-list-spelling` (41 entra por el
+  parámetro `list<string>`, retorno `list<int>`, un resultado de `call` con
+  tipo `list<int>` y un parámetro `list<list<int>>` que mide su longitud con
+  `list_len`; exit 0), `ok-param-list-spelling` (41 entra por el
   parámetro `list<int>` y sale como elemento; exit 41) y
   `ok-list-capital-spelling` (un registro `List` creado, con push, y medido;
   exit 41).
@@ -879,8 +881,8 @@ Mensajes completos de la corrida:
   primeros rechazos `(module-level)` bajan de 37 a 35 y `list_push` sube de 1 a
   2. Trinquete re-tomado en 45/44.
 - Puertas: diferencial **41/41 -> 42/42** (fixture 42, exit 0); loader
-  **182/182 -> 186/186** (135 rechazos + 51 controles); `make_cases.py --check`
-  sin drift (169 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  **182/182 -> 187/187** (136 rechazos + 51 controles); `make_cases.py --check`
+  sin drift (170 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
   20/20.
 - Mensaje: desaparece `parameter type list... is unsupported in M1`; quedan
   `parameter type Box is unsupported in M1` (`call_arg_types`) y
