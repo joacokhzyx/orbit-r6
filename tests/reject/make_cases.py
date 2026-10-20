@@ -1259,6 +1259,20 @@ def build_accept_files():
                                 I("load_const", 3, Int(41)),
                                 I("ret", -1, Reg(3))],
                                ["int", "string", "bool", "int"])]))))
+    # D-M1-31: operand order matters for the relational lowering. With the int
+    # first, the int has to stay in the compare destination so `setg` reads
+    # int - bool; an inverted compare answers 0 here, not 41.
+    files.append(("ok-compare-int-bool",
+                  jd(DOC([MAIN([I("load_const", 0, Int(1)),
+                                I("load_const", 1, Sym("false")),
+                                I("gt", 2, Reg(0), Reg(1)),
+                                I("jump_if_false", -1, Reg(2), Lab(1)),
+                                I("load_const", 3, Int(41)),
+                                I("ret", -1, Reg(3)),
+                                I("label", -1, Lab(1)),
+                                I("load_const", 3, Int(0)),
+                                I("ret", -1, Reg(3))],
+                               ["int", "bool", "bool", "int"])]))))
     return files
 
 
@@ -1385,6 +1399,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-compare-string-word.json", "run_exit": 41,
              "run_stdout": "", "rule": "D-M1-31",
              "note": "a string against a number compares as words and is false"},
+            {"file": "cases/ok-compare-int-bool.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-31",
+             "note": "int first: the int stays in the compare destination"},
             {"file": "../../docs/proposed-ir/m1/41-bool-and-word-comparisons.json",
              "run_exit": 0, "run_stdout": "", "rule": "D-M1-31",
              "note": "bool relops, bool eq, and the int/string word compare"},

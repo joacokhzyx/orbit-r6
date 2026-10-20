@@ -1242,6 +1242,13 @@
       "note": "a string against a number compares as words and is false"
     },
     {
+      "file": "cases/ok-compare-int-bool.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-31",
+      "note": "int first: the int stays in the compare destination"
+    },
+    {
       "file": "../../docs/proposed-ir/m1/41-bool-and-word-comparisons.json",
       "run_exit": 0,
       "run_stdout": "",
