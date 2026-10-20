@@ -1833,22 +1833,27 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
     define, and that declaring a variable under it breaks the preprocessor.
   - The corpus writes `typeName: "unknown"` and the decimal text in `value` for
     all 21 globals.
-- Admission: a global whose `typeName` is `unknown` or absent and whose value is
+- Admission: a global whose `typeName` is `unknown` or empty and whose value is
   a `String` of an optional `-` and decimal digits inside int32 is an `int`
-  constant. A declared `int` or `bool` keeps its rule. `global_type` answers the
-  declared type, else `int` when `global_integer` holds, else NULL. `load_var`
-  of a global already emitted the value as an immediate, which is the same
-  substitution the `#define` performs.
+  constant. An absent `typeName` is not admitted here: the loader rejects it
+  with `E_SCHEMA` before codegen. A declared `int` or `bool` keeps its rule.
+  `global_type` answers the declared type, else `int` when `global_integer`
+  holds, else NULL. `load_var` of a global already emitted the value as an
+  immediate, which is the same substitution the `#define` performs.
 - Fail closed: a declared non-scalar type is refused whatever the text
   (`x-global-declared-string`); an `unknown` text that is not a decimal integer
-  is refused (`x-global-unknown-text`); a text outside int32 fails the same
-  parse. `0x20` is a C int literal the pin would accept and R6 refuses: a stated
-  gap, not a divergence.
+  is refused (`x-global-unknown-text`); a text outside int32 is refused on the
+  same parse (`x-global-int-overflow`, `x-global-int-underflow`). `long` is 32
+  bits on this target, so `strtol` saturates at `LONG_MAX`/`LONG_MIN` without
+  leaving int32: the parse is `strtoll` with `ERANGE`, and the boundary values
+  `2147483647` and `-2147483648` still build and match the oracle. `0x20` and
+  `+5` are C int literals the pin would accept and R6 refuses: stated gaps, not
+  divergences.
 - Controls: fixture `43-global-constant-type` (`val SPACE = 32`,
   `const LIMIT = 3`, `val NEG = -2`; printed, compared and added; stdout
   `32\r\n3\r\n-2\r\n`, exit 0) and `ok-global-unknown-type` (43 + -2 = 41 by
-  exit). `x-global-unknown-text` and `x-global-declared-string` are the
-  rejections.
+  exit). `x-global-unknown-text`, `x-global-declared-string`,
+  `x-global-int-overflow` and `x-global-int-underflow` are the rejections.
 - Evidence (pin `filesSha256 0106d531`): match **44 -> 45/93** and build
   **45 -> 46/93**. `global_const` now matches. `ast_function_body_is_a_block`
   advances to `union ASTNode variant Program payloads are outside the M1 native

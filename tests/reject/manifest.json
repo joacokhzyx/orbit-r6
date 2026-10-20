@@ -890,6 +890,20 @@
       "note": "a declared non-scalar global type is still refused, whatever the text"
     },
     {
+      "file": "cases/x-global-int-overflow.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-33",
+      "note": "a decimal text outside int32 is refused, never clamped"
+    },
+    {
+      "file": "cases/x-global-int-underflow.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-33",
+      "note": "a negative decimal text outside int32 is refused on the same parse"
+    },
+    {
       "file": "cases/x-add-spread-dest.json",
       "exit": 1,
       "code": "CGEN",

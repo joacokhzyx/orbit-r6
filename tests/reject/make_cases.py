@@ -873,6 +873,14 @@ def build_reject():
         jd(DOC([MAIN()], globals_=[G("GREETING", "string", Str("hi"))])),
         "D-M1-33", "CGEN",
         "a declared non-scalar global type is still refused, whatever the text")
+    add("x-global-int-overflow",
+        jd(DOC([MAIN()], globals_=[G("BIG", "unknown", Str("2147483648"))])),
+        "D-M1-33", "CGEN",
+        "a decimal text outside int32 is refused, never clamped")
+    add("x-global-int-underflow",
+        jd(DOC([MAIN()], globals_=[G("SMALL", "unknown", Str("-2147483649"))])),
+        "D-M1-33", "CGEN",
+        "a negative decimal text outside int32 is refused on the same parse")
 
     # ---- D-M1-23: a string `add` concatenates and spreads -------------------
     # The pinned backend turns `add` into orbit_string_concat whenever either

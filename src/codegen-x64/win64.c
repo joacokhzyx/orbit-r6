@@ -1,5 +1,6 @@
 #include "win64.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <math.h>
 #include <stdarg.h>
@@ -281,7 +282,7 @@ static bool global_declared_type(const char *t) {
 
 static bool global_integer(const R6Global *g, int32_t *value) {
     char *end;
-    long parsed;
+    long long parsed;
     const char *p;
     if (!g || !g->name || !valid_symbol(g->name) ||
         (global_declared_type(g->type_name) &&
@@ -293,8 +294,12 @@ static bool global_integer(const R6Global *g, int32_t *value) {
     if (*p == '-') ++p;
     if (!*p) return false;
     for (; *p; ++p) if (*p < '0' || *p > '9') return false;
-    parsed = strtol(g->value.as.string, &end, 10);
-    if (*end || end == g->value.as.string || parsed < INT32_MIN || parsed > INT32_MAX)
+    /* long is 32 bits on this target, so strtol saturates at LONG_MAX/LONG_MIN
+     * without leaving the int32 range: the parse has to be 64 bits wide. */
+    errno = 0;
+    parsed = strtoll(g->value.as.string, &end, 10);
+    if (errno == ERANGE || *end || end == g->value.as.string ||
+        parsed < INT32_MIN || parsed > INT32_MAX)
         return false;
     if (is_bool(g->type_name) && parsed != 0 && parsed != 1) return false;
     *value = (int32_t)parsed;

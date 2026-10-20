@@ -902,19 +902,25 @@ Mensajes completos de la corrida:
   `IRValue.String` para que un registro no acabe en un `#define`; `:2404-2413`
   confirma que un nombre de nivel superior ES ese define. Los 21 globales del
   corpus llegan con `typeName: "unknown"` y el texto decimal en `value`.
-- Admisión: un global con `typeName` `unknown` o ausente y valor `String` de un
-  `-` opcional y dígitos decimales, dentro de int32, es una constante `int`. Un
-  tipo declarado `int`/`bool` conserva su regla. `load_var` ya emitía el valor
-  como inmediato: la misma sustitución que hace el `#define`.
+- Admisión: un global con `typeName` `unknown` o vacío y valor `String` de un
+  `-` opcional y dígitos decimales, dentro de int32, es una constante `int`. La
+  clave ausente no llega aquí: el loader la rechaza con `E_SCHEMA`. Un tipo
+  declarado `int`/`bool` conserva su regla. `load_var` ya emitía el valor como
+  inmediato: la misma sustitución que hace el `#define`.
 - Fail closed: un tipo declarado no escalar sigue rechazado sea cual sea el
   texto (`x-global-declared-string`); un global `unknown` con texto no decimal
-  sigue rechazado (`x-global-unknown-text`); fuera de int32 cae en el mismo
-  parseo. `0x20` es un literal int de C que el pin aceptaría y R6 rechaza: un
-  hueco declarado, no una divergencia.
+  sigue rechazado (`x-global-unknown-text`); un texto fuera de int32 se rechaza
+  en el mismo parseo (`x-global-int-overflow`, `x-global-int-underflow`). `long`
+  mide 32 bits en este destino, así que `strtol` satura en `LONG_MAX`/`LONG_MIN`
+  sin salir de int32: el parseo es `strtoll` con `ERANGE`, y los bordes
+  `2147483647` y `-2147483648` siguen construyendo y coincidiendo con el
+  oráculo. `0x20` y `+5` son literales int de C que el pin aceptaría y R6
+  rechaza: huecos declarados, no divergencias.
 - Controles: fixture `43-global-constant-type` (`val SPACE = 32`,
   `const LIMIT = 3`, `val NEG = -2`; los imprime, los compara y los suma; salida
   `32\r\n3\r\n-2\r\n`, exit 0) y `ok-global-unknown-type` (43 + -2 = 41 por
-  exit).
+  exit). Los rechazos son `x-global-unknown-text`, `x-global-declared-string`,
+  `x-global-int-overflow` y `x-global-int-underflow`.
 - Evidencia del corpus (pin `filesSha256 0106d531`): **44 -> 45/93** match y
   **45 -> 46/93** build. `global_const` pasa a coincidir.
   `ast_function_body_is_a_block` avanza a `union ASTNode variant Program
@@ -924,8 +930,8 @@ Mensajes completos de la corrida:
   unknown` sube de 12 a 13, `extern return type` de 2 a 3 y desaparecen los
   cuatro mensajes `global ... is outside M1 literal int/bool support`.
 - Puertas: diferencial **42/42 -> 43/43** (fixture 43, exit 0); loader
-  **187/187 -> 191/191** (138 rechazos + 53 controles); `make_cases.py --check`
-  sin drift (173 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  **187/187 -> 193/193** (140 rechazos + 53 controles); `make_cases.py --check`
+  sin drift (175 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
   20/20. Trinquete re-tomado en 46/45.
 - Mensaje: desaparece `global ... is outside M1 literal int/bool support`; sigue
   `register type unknown is unsupported in M1` (13 programas, 11 de ellos en
