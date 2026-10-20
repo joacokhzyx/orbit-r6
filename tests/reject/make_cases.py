@@ -708,12 +708,37 @@ def build_reject():
     # runtime's own OPAQUE state (collections.c:170), the first typed write
     # adopts the kind (:102-116) and a read accepts an opaque list (:118-128).
     # What stays out is kind 5 (ref), which has no native slot decoder, and the
-    # opaque accessor (E-03, x-list-get-kind-ref).
+    # opaque accessor: kind 0 is admitted at the create only.
     add("x-list-create-kind-ref",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=5),
                       I("ret", -1, Int(0))], ["list"])])),
         "D-M1-30", "CGEN",
         "elemKind 5 (ref) still has no native slot decoder for a created list")
+    add("x-list-get-kind-opaque",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
+                      I("load_const", 1, Int(0)),
+                      I("list_get", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))],
+                     ["list", "int", "int"])])),
+        "D-M1-30", "CGEN",
+        "elemKind 0 is admitted at list_create only; a read has no slot decoder")
+    add("x-list-set-kind-opaque",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
+                      I("load_const", 1, Int(0)),
+                      I("load_const", 2, Int(7)),
+                      I("list_set", -1, Reg(0), Reg(1), Reg(2)),
+                      I("ret", -1, Int(0))],
+                     ["list", "int", "int"])])),
+        "D-M1-30", "CGEN",
+        "elemKind 0 is admitted at list_create only; a write has no slot decoder")
+    add("x-list-push-kind-opaque",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
+                      I("load_const", 1, Int(7)),
+                      I("list_push", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))],
+                     ["list", "int", "void"])])),
+        "D-M1-30", "CGEN",
+        "elemKind 0 is admitted at list_create only; a push has no slot decoder")
     add("x-list-get-kind-ref",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=1),
                       I("load_const", 1, Int(0)),

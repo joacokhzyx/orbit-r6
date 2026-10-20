@@ -778,6 +778,27 @@
       "note": "elemKind 5 (ref) still has no native slot decoder for a created list"
     },
     {
+      "file": "cases/x-list-get-kind-opaque.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-30",
+      "note": "elemKind 0 is admitted at list_create only; a read has no slot decoder"
+    },
+    {
+      "file": "cases/x-list-set-kind-opaque.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-30",
+      "note": "elemKind 0 is admitted at list_create only; a write has no slot decoder"
+    },
+    {
+      "file": "cases/x-list-push-kind-opaque.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-30",
+      "note": "elemKind 0 is admitted at list_create only; a push has no slot decoder"
+    },
+    {
       "file": "cases/x-list-get-kind-ref.json",
       "exit": 1,
       "code": "CGEN",
