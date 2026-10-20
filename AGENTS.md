@@ -12,6 +12,10 @@ be **dirty** (a concurrent session's harness work, class (ii) `scripts/**`);
 the pin rests on the commit, so read pinned bytes with `git show
 ce87d508:<path>`, never from the working tree. Do not write there.
 
+The `orbit-lang` writing and commit rules apply here, adapted to the pin and
+the corpus; they are in Writing, Commits, The read-only reviewer and When to
+stop below.
+
 ## Commands
 
 Driver build (GCC is used only here, never for R6 programs):
@@ -196,3 +200,157 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
    decision and differential count in `DECISIONS.md` / `M1_REPORT.md`.
 4. Commit style follows history: `feat: lower <thing> (N/N diff)`, `fix:`,
    `test:`, `docs:`.
+
+## Writing
+
+Write for the person who takes the pin tomorrow. They have the repository and
+the gates; they do not have this session.
+
+- Documentation is impersonal. The page says what was measured, not who measured
+  it. A commit body may say "I".
+- One idea per sentence. Average under 22 words, none over 40. A semicolon
+  usually means two sentences.
+- Every claim carries a command, a number or a line. "Faster", "cleaner" and
+  "more robust" carry nothing.
+- Name the thing: "the 39/93 corpus", not "the coverage"; "the first refusal at
+  `list_create`", not "the gap".
+- A table is for more than two columns. Two facts are a sentence.
+- No hedges. "Should", "likely" and "probably" become a measurement or a
+  question.
+- Do not explain the sentence you are about to write, or the one you just wrote.
+- Banned in new text: shape, surface, lane, load-bearing, battery, premise,
+  clause, witness, residual, honest, and their inflections. They are metaphors a
+  reader cannot look up.
+- Defined once, used freely: **pin** (the Orbit commit and the inputs listed in
+  PIN.md), **corpus** (the executable documents in `tests/corpus/`), **ratchet**
+  (the one-way baseline in `tests/corpus/baseline.json`), **decision** (a dated
+  entry in DECISIONS.md with an ID).
+- Contract prose is Spanish; match the file you edit. This file is English.
+
+## Commits
+
+One decision, one commit. A commit is how a change is found again, reviewed and
+undone.
+
+- Commit when the change is small, verified and complete. A correction that
+  changes behaviour or a document's claim gets its own commit, even if it is one
+  line.
+- Do not wait for the rest of the work. A verified fix left in the working tree
+  is a fix nobody can find in the history.
+- Do not mix. A code change and a documentation change are two commits, unless
+  the document is the reason the code changed. A decision that needs both
+  DECISIONS.md and code is one commit: the decision is the reason.
+- Do not commit a state you have not gated. The body names the gate and what it
+  printed.
+- A pin move is one commit: PIN.md, DECISIONS.md, the regenerated corpus
+  manifest and the re-taken baseline together. They describe one tree, and a
+  commit that splits them describes a tree that never existed.
+- A pushed commit is a record. Fix forward; do not rewrite history.
+
+Message:
+
+- Subject: `area: what changed`, imperative, under 60 characters, no period. Use
+  the prefixes the history uses: `feat`, `fix`, `test`, `docs`.
+- The body says why. The diff says what.
+- One claim per sentence. Every number is one the reader can reproduce.
+- End with an Evidence block: one line per command and what it printed. A
+  lowering change carries `run_diff.py` N/N, `run_reject.py` N/N, the corpus
+  count and the ratchet delta.
+- Never: "this commit", "as requested", a list of the files, a summary of the
+  diff, or a round/phase label (`p7`, `round 7`). `D-M1-xx` and fixture names are
+  stable identifiers: keep them.
+
+## C style
+
+- Four spaces, no tabs. Braces on the same line for functions and control flow,
+  as the tree writes them.
+- The driver builds with `-std=c11 -Wall -Wextra -Werror`; a warning there is a
+  failure.
+- Comments explain why the code is like this, not what it says. No new comment
+  unless it says something the code cannot.
+- Fail closed: an unsupported opcode, version, type or platform is a diagnostic
+  and a nonzero exit. No stubs, no invented semantics, no fallback.
+- Do not generalize semantics beyond what M1_REPORT.md states is measured.
+- Preserve existing conventions: naming, allocation ownership, diagnostic codes,
+  the one-line `r6: <file>:<line>:<col>: error[CODE]: <msg>` format.
+
+## Working with other agents
+
+- One writer of the pin at a time. PIN.md, DECISIONS.md,
+  `tests/corpus/manifest.json` and `tests/corpus/baseline.json` move together.
+  Before moving the pin, check who moved it last:
+
+  ```powershell
+  git log -1 --format='%h %ad %s' --date=short -- docs/PIN.md
+  ```
+
+  If that is within the hour, ask.
+- Parallel zones: `src/loader`, `src/codegen-x64` and `src/driver` are separate
+  files, but the codegen pipeline takes one writer and `win64.c` is one file.
+  `tests/reject/manifest.json` is the suite truth and `make_cases.py` renders
+  `cases/` from it; edit the manifest, never the cases, and one writer at a
+  time.
+- The Orbit checkout is read-only. Pinned bytes come from
+  `git cat-file blob <pin>:<path>`, never from the working tree, which advances
+  past the pin.
+- Do not compare two corpus measurements taken against different `--orbit-root`
+  trees. Materialize the pin and use it.
+
+## The read-only reviewer
+
+A reviewer edits nothing. It edits its answer, and the answer obliges the author
+to redo the work.
+
+- It reads the source diff, the fixture or corpus case the change adds, the
+  decision in DECISIONS.md, and the commit body with its Evidence block. If a
+  count in the body differs from what the gate prints, that is the finding.
+- It runs `tests/diff/run_diff.py` and `tests/reject/run_reject.py` with the
+  pinned inputs. It does not move the pin and does not `--write-baseline`: a
+  reviewer that re-takes the baseline has made the change and is no longer a
+  second pair of eyes.
+- Three questions:
+  1. Does the change do what the fixture claims? A new admission needs a
+     positive and a negative control in the same commit; one positive proves
+     only that it can build.
+  2. Is it silent on the control? A change that admits one more program must not
+     admit the one next to it.
+  3. Does it survive both gates and the corpus without a regression? The ratchet
+     only goes up.
+- A NO to any of the three means redo. If it finds a defect in another file, it
+  writes it up as separate work; it does not fix it. If it cannot run the gates,
+  it says so and does not sign.
+
+## When to stop and hand back
+
+Stop and ask rather than push on, when:
+
+- **A first refusal disappears without a change you made.** The corpus moved
+  under you, usually because the checkout advanced. Materialize the pin and
+  re-run before recording the count.
+- **A gate fails only on a case you did not touch.** PIN.md and the corpus
+  manifest are the authority; the advancing checkout is not.
+- **DECISIONS.md or PIN.md says something your change contradicts.** They are
+  the contract. Update them in the same commit, or ask first.
+- **A change needs a second first refusal to pass.** One decision is one commit.
+  When opening the second, stop.
+- **You are about to generalize beyond what M1_REPORT.md states is measured.**
+  That is a new decision with its own evidence, not a line in this one.
+
+## Open source
+
+- License: MIT, the same as `orbit-lang`. Add `LICENSE` before publishing; the
+  repository does not carry one today.
+- A public R6 cannot pin a commit no remote has. PIN.md records `ce87d508` as
+  local and not pushed. Before publishing, either push the pinned commit to a
+  public remote or commit a materialized pinned tree, and record which one in
+  PIN.md. The corpus must be reproducible from public bytes.
+- The runtime archive is not committed and is not byte-reproducible (PIN.md). A
+  fresh clone rebuilds it with the pinned recipe and checks the 324-symbol set.
+  Do not add the archive or any other binary to the repository.
+- There is no CI. The two gates are the contract until a workflow exists. A
+  public repository needs CI before it accepts pull requests; until then, the
+  contribution instructions say how to run the gates locally.
+- A contribution arrives with its fixture, its decision and its evidence. A pull
+  request that changes `src/` without a case and a decision is not reviewable.
+- Do not commit secrets or build artifacts. The absolute paths in PIN.md are
+  observations of one machine, not requirements.
