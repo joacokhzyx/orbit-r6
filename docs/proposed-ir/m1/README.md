@@ -67,7 +67,7 @@ pares 28–29 desde D-M1-19 (2026-10-16), los pares 30–31 desde D-M1-20
 D-M1-24/D-M1-25 (2026-10-18), el par 36 desde D-M1-26 (2026-10-19), el par
 37 desde D-M1-27 (2026-10-19), el par 38 desde D-M1-28 (2026-10-19), el par
 39 desde D-M1-29 (2026-10-19), el par 40 desde D-M1-30 (2026-10-19) y el par
-41 desde D-M1-31 (2026-10-19) y el par
+41 desde D-M1-31 (2026-10-20) y el par
 42 desde D-M1-32 (2026-10-20) (ver
 `../../DECISIONS.md`
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/

@@ -400,8 +400,8 @@ dos programas liberados llegan a él. El trinquete se re-tomó en 41.
 
 `eq`, `ne` y las relaciones exigen operandos del mismo tipo en R6. El pin no:
 `eq`/`ne` comparan dos strings con `strcmp`, promueven a double si un lado es
-float y comparan las palabras en el resto (`c_backend.orb:2745-2771`); las
-relaciones hacen lo mismo sin brazo de string (`:2781-2811`). Un bool es una
+float y comparan las palabras en el resto (`c_backend.orb:2745-2772`); las
+relaciones hacen lo mismo sin brazo de string (`:2781-2812`). Un bool es una
 palabra, y `n == "5"` compara el 5 con la dirección del literal, que es falso.
 D-M1-31 admite bool en las seis operaciones y el int contra string en `eq`/`ne`,
 y deja fuera el float junto a un int y el string en una relación.
