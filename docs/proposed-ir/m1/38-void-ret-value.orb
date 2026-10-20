@@ -1,0 +1,32 @@
+// D-M1-28: a void function returns without reading the value its ret carries.
+//
+// `return f()` where `f` returns void is a natural tail call, and the pinned
+// lowering emits a bare `return;` for it once the function type is void
+// (c_backend.orb:3429-3439 and the non-register arm at :3460-3465): the
+// register named by the call has no value to return, and reading it would emit
+// C that does not compile. tests/suite/void_return_void_call.orb pins the same
+// shape in the language corpus.
+extern fn print(s: string) -> int
+
+fn target() {
+    print("T")
+}
+
+fn tailCall() {
+    return target()
+}
+
+fn plainStatement() {
+    target()
+    return
+}
+
+fn chained() {
+    return tailCall()
+}
+
+fn main() -> int {
+    chained()
+    plainStatement()
+    return 42
+}

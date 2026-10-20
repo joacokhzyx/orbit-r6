@@ -312,3 +312,49 @@ lowering quedan pineados por el fixture `35-list-len-bound` (bucle indexado sobr
 una lista en una función distinta de `main`), y el `add` de string por el fixture
 `34-string-spreading-add` y los controles `x-add-spread-*`/`x-add-string-dest` de
 `tests/reject/`.
+
+## Ronda 2026-10-19 (D-M1-26..D-M1-29: `print`, arena en externos, `ret` void y los helpers de string)
+
+Cuatro decisiones en dos tandas, cada una medida antes de la siguiente. D-M1-26
+admitió el builtin `print` (interceptado por nombre, destino nunca almacenado,
+una línea por argumento según su clase) y D-M1-27 el arena como primer parámetro
+C de los externos de `functionNeedsArena`, que es lo que los tres programas
+recién liberados necesitaban para no diferir; juntas llevan el corpus **27 -> 35**.
+D-M1-28 dejó que una función `void` ignore el valor que lleva su `ret` (el pin
+emite `return;` sin leerlo), y `void_return_void_call` pasó a coincidir: **35 ->
+36**. D-M1-29 resolvió `orbit_string_len`/`orbit_string_at`/`orbit_string_slice`
+(llamadas sin declaración, firmas de la cabecera del runtime, con el arena de
+D-M1-27 en `slice`) y la rama string del opcode `list_len`: **36 -> 37 -> 39**,
+con `if_expression_else_if`, `strings_concat` y `strings_escape`.
+
+| Métrica | D-M1-25 (27/93) | D-M1-26/27 | D-M1-28 | D-M1-29 (39/93) |
+|---|---|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531.` | `0106d531.` (idéntico) | `0106d531.` | **`0106d531.`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 | 93/93 | 93/93 |
+| R6 compila | 27/93 | **35/93** | **36/93** | **39/93** |
+| R6 coincide (exit + stdout) | 27/93 | **35/93** | **36/93** | **39/93** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 | 87/94 | 87/94 |
+| opcodes que nunca aparecen en un programa que coincide | 11/41 | 11/41 | 11/41 | **10/41** |
+
+Ninguna ronda perdió un programa: cada una se midió con el binario congelado y
+con `--check`, y el trinquete se re-tomó al final (35, 36 y 39). Primer rechazo
+por opcode tras D-M1-29:
+
+| Primer rechazo | D-M1-23/24/25 | D-M1-26..29 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 37 | **34** |
+| `call` | 11 | **3** (`orbit_db_query_all` 2, `system_uptime` 1) |
+| `decl_var` | 6 | 6 |
+| `list_create` | 4 | **5** (un programa liberado avanzó hasta aquí) |
+| `ret` | 2 | 2 (los dos son retornos de `result`, por diseño) |
+| `list_len` | 2 | **0** |
+| `arg`, `gt`, `ne`, `eq` | 1 cada uno | 1 cada uno |
+| `add` | 0 | 0 |
+
+El frente dominante sigue siendo el nivel de módulo, ahora con `register type
+unknown` (6), los parámetros `list<int>`/`list<string>` (6), el tipo de registro
+`object` (3), las enumeraciones (2) y los globales `CHAR_SPACE`/`WALK_MAX_DEPTH`
+(4). El `unknown` estructural no se movió (87/94 documentos): las rondas
+liberaron puertas anteriores, no esa.
+

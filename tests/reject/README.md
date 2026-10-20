@@ -80,8 +80,14 @@ de acceso dentro del modelo de registros (D-M1-09) y el print multicarácter no
 tiene productor —la sema del pin lo rechaza con E1003— ni lowering con
 semántica (solo el comentario `/* print */`; U-17).
 
-Estado 2026-10-18: **153/153** (122 rechazos + 31 controles); gate diferencial
-35/35 en el mismo árbol. El borde de D-M1-21 (operando literal inline en las
+Estado 2026-10-19: **171/171** (129 rechazos + 42 controles); gate diferencial
+39/39 en el mismo árbol. D-M1-26/D-M1-27 quedan pineados por
+`x-builtin-name-outside-print`, `x-print-symbol-target` y
+`x-arena-extern-undeclared` (rechazos), más los controles `ok-print-*`,
+`ok-arena-*`, `36-print-builtin` y `37-arena-extern-call`; D-M1-28 por
+`x-ret-type-mismatch`, `ok-void-ret-value` y `38-void-ret-value`; D-M1-29 por
+`x-intrinsic-symbol-target`, `x-intrinsic-arity`, `x-list-len-bool`,
+`ok-list-len-string` y `39-string-intrinsics`. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
 `ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de

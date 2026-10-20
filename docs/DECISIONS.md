@@ -1548,3 +1548,96 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   building-but-differing and no `LINK` refusal left in the corpus; the
   `r6BuildOk`/`match` ratchet is re-taken at 35.
 - Status: **applied**.
+
+## D-M1-28 - A void function returns without reading the value its `ret` carries
+
+- Date: 2026-10-19. Round 6 (`p6`). `void_return_void_call` was the whole
+  `ret` wall that was not the by-design `result` return: the language spells a
+  tail call over a void callee as `return f()`, and the builder carries the
+  call's destination register in `operand1`.
+- Symptom: R6 refused it with `void ret must not carry a value`, so
+  `return target()` in a void function never built.
+- Reference (pinned `ce87d508`, read with `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:3429-3439` - the register form of `ret`: when
+    the current function's return type is `void` the lowering emits
+    `return;` and never reads the register. Its own comment records why: the
+    call was already emitted as a statement, so the register names no live
+    value and `return (void*)(r_0);` does not even compile.
+  - `:3460-3465` - the non-register form shares the same branch and the same
+    `return;`.
+  - `:3420`, `:3451` - `main` is decided before the declared type, but R6
+    already requires `main` to have zero parameters and an `int` return
+    (`win64.c:779-780`), so the `void` arm is unreachable for `main`.
+- Admission: a `ret` in a function typed `void` accepts any `operand1` and
+  ignores it: the emitter loads nothing and emits `leave; ret`. The value is
+  not type-checked and its register is not required to exist, because the pin
+  never reads either.
+- Fail closed: the non-void direction is untouched. A value of another type is
+  still `ret value does not match function return type` (`x-ret-type-mismatch`),
+  a register that does not exist is still `ret register is out of range`, and
+  returning a `result` is still refused. A `void main` was already refused, so
+  the admission cannot swallow the `isMainFuncName` branch of the pin.
+- Controls: fixture `38-void-ret-value` (a `return target()` tail call chained
+  through two void functions plus the statement form, exit 42, `T\r\nT\r\n`)
+  and `ok-void-ret-value` (hand-built: the `ret` carries the `int` destination
+  of the void `print` call, which would be a mismatch if it were read).
+- Effect: `void_return_void_call` matches the oracle; the `ret` first-refusal
+  drops **2 -> 1** (the remaining one is the by-design `result` return) and the
+  corpus ratchet is re-taken at 36/93.
+- Status: **applied**.
+
+## D-M1-29 - The runtime string helpers the builder calls without declaring
+
+- Date: 2026-10-19. Round 7 (`p7`). Two related first refusals, both about the
+  same three runtime helpers:
+  - `call target orbit_string_len is not a declared function, model, or union
+    variant` (5 programs), `... orbit_string_slice ...` (2), `...
+    orbit_string_at ...` (2). The builder emits these as `call` with a String
+    target and **no declaration** in the module, because the pinned C backend
+    sees the prototypes through the runtime headers it includes.
+  - `list_len requires a list register and an int destination` (2:
+    `strings_concat`, `strings_escape`): `.len()` on a string reaches the
+    `list_len` **opcode** when the builder did not know the receiver's type.
+- Reference (pinned `ce87d508`, read with `git cat-file blob`):
+  - `runtime/orbit_api.h:385` - `orbit_int orbit_string_at(orbit_string,
+    orbit_int)`.
+  - `:386` - `orbit_string orbit_string_slice(OrbitArena*, orbit_string,
+    orbit_int, orbit_int)`; `orbit_string_slice` is in `functionNeedsArena`
+    (`c_backend.orb:4410-4431`), so D-M1-27's table prepends the arena.
+  - `:411-413` - `ORBIT_INLINE orbit_int orbit_string_len(orbit_string s) {
+    return s ? (orbit_int)strlen(s) : 0; }`. It is a header inline, not an
+    exported symbol: `nm libruntime_net.a` lists `orbit_string_at` and
+    `orbit_string_slice` as `T` and has no `orbit_string_len` at all, so the
+    length cannot be a plain call.
+  - `c_backend.orb:3609-3615` - the `list_len` opcode arm asks
+    `isStringOperand` first and emits `orbit_string_len((orbit_string)(...))`,
+    falling back to `orbit_list_len` only otherwise. Same helper, second door.
+  - `:3187-3188` - the call form's argument cast for the same family.
+- Admission:
+  - A table of three signatures (name, parameters, return type) - `len(string)
+    -> int`, `at(string, int) -> int`, `slice(string, int, int) -> string` -
+    consulted **only** when the module does not declare the name and **only**
+    for the builder's String call target. A Symbol target stays a declaration
+    lookup, so the table cannot become an alias surface.
+  - The arena, where the C signature has one, comes from D-M1-27's existing
+    name table, so `slice` gets it in `%rcx` and every IR argument shifts.
+  - `orbit_string_len` is lowered inline to the header's own body
+    (`s ? (orbit_int)strlen(s) : 0`), in the call form and in the `list_len`
+    opcode form, because there is no symbol to call.
+- Fail closed: an undeclared String name outside the table is still `call
+  target ... is not a declared function`; a Symbol target never resolves here;
+  the header's arity is enforced; a `list_len` receiver that is neither a list
+  nor a string is still refused.
+- Controls: fixture `39-string-intrinsics` (`.len()`, `.at()` and `.slice()`
+  through parameters, exit 0, `5`/`90`/`bc`), `ok-list-len-string` (hand-built:
+  the opcode form on a string register, exit 3), `x-intrinsic-symbol-target`
+  (Symbol form stays undeclared), `x-intrinsic-arity` (arity 2 against a
+  one-parameter header) and `x-list-len-bool` (a bool receiver is still
+  refused).
+- Effect: measured in two steps because the second door surfaced only after
+  the first opened. The intrinsics alone moved the corpus **36 -> 37**
+  (`if_expression_else_if` matches; the nine first-walls are gone, no
+  regression), and the `list_len` string arm then flips `strings_concat` and
+  `strings_escape` for **39/93 match, 39/93 build**. The ratchet is re-taken
+  at 39.
+- Status: **applied**.

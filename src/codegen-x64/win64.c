@@ -80,10 +80,45 @@ static bool extern_needs_arena(const char *name) {
     return false;
 }
 
+/* D-M1-29: the runtime string helpers the language emits as calls without
+ * declaring them. The pinned C backend includes the runtime headers, so these
+ * names always resolve to the C prototypes; the IR carries only the
+ * program-visible parameters (the arena is not repeated) and no declaration.
+ * Signatures copied from runtime/orbit_api.h: len :411-413, at :385,
+ * slice :386. `orbit_string_len` is ORBIT_INLINE in that header and has no
+ * exported symbol, so it is lowered inline in emit_function instead of called.
+ * A name the module does declare is resolved from the declaration, never
+ * here. */
+static char *intrinsic_string[] = { (char *)"string" };
+static char *intrinsic_string_int[] = { (char *)"string", (char *)"int" };
+static char *intrinsic_string_int_int[] = { (char *)"string", (char *)"int",
+                                            (char *)"int" };
+
+static R6Function r6_intrinsics[] = {
+    { .name = (char *)"orbit_string_len", .param_count = 1,
+      .param_types = intrinsic_string, .return_type = (char *)"int",
+      .is_extern = true },
+    { .name = (char *)"orbit_string_at", .param_count = 2,
+      .param_types = intrinsic_string_int, .return_type = (char *)"int",
+      .is_extern = true },
+    { .name = (char *)"orbit_string_slice", .param_count = 3,
+      .param_types = intrinsic_string_int_int, .return_type = (char *)"string",
+      .is_extern = true },
+};
+
+static const R6Function *find_intrinsic(const char *name) {
+    size_t n;
+    for (n = 0; n < sizeof r6_intrinsics / sizeof r6_intrinsics[0]; ++n)
+        if (strcmp(r6_intrinsics[n].name, name) == 0) return &r6_intrinsics[n];
+    return NULL;
+}
+
 /* A call whose declared target takes the arena: only the IR's own declaration
- * makes it one, and the arena is prepended only for that enumerated set. */
+ * (or, for an undeclared intrinsic, the table above) makes it one, and the
+ * arena is prepended only for that enumerated set. */
 static bool call_needs_arena(const R6Module *m, const char *name) {
     const R6Function *fn = find_function(m, name);
+    if (!fn) fn = find_intrinsic(name);
     return fn && fn->is_extern && extern_needs_arena(name);
 }
 
@@ -874,10 +909,15 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         }
         case R6_OP_LIST_LEN:
+            /* D-M1-29: `.len()` on a string reaches this opcode too, and the
+               pinned arm asks isStringOperand first and lowers it to
+               orbit_string_len (c_backend.orb:3609-3615). Both receivers keep
+               an int destination. */
             if (!valid_dest(f, i, true, d) || !is_int(type_at(f, i->dest)) ||
                 i->operands[0].kind != R6_VAL_REG ||
-                !is_list(type_at(f, i->operands[0].as.i32)))
-                return fail(d, i, "CGEN", "list_len requires a list register and an int destination");
+                (!is_list(type_at(f, i->operands[0].as.i32)) &&
+                 !is_string(type_at(f, i->operands[0].as.i32))))
+                return fail(d, i, "CGEN", "list_len requires a list or string register and an int destination");
             break;
         case R6_OP_LIST_GET:
             if (!valid_dest(f, i, true, d) ||
@@ -1172,6 +1212,12 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             callee = (i->operands[0].kind == R6_VAL_SYMBOL || i->operands[0].kind == R6_VAL_STRING) &&
                              valid_symbol(i->operands[0].as.string)
                          ? find_function(m, i->operands[0].as.string) : NULL;
+            /* D-M1-29: a String target the module does not declare but the
+               runtime headers do (the builder omits those declarations). The
+               Symbol form stays a declaration lookup: the builder emits the
+               intrinsic calls as String targets only. */
+            if (!callee && i->operands[0].kind == R6_VAL_STRING)
+                callee = find_intrinsic(i->operands[0].as.string);
             if (callee) {
                 if (strcmp(callee->name, "main") == 0)
                     return fail(d, i, "CGEN", "main is an entry point and cannot be called from IR");
@@ -1282,10 +1328,11 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             return fail(d, i, "CGEN", "call requires a direct native symbol or a declared model constructor");
         }
         case R6_OP_RET:
-            if (strcmp(f->return_type, "void") == 0) {
-                if (i->operands[0].kind != R6_VAL_NONE)
-                    return fail(d, i, "CGEN", "void ret must not carry a value");
-            } else {
+            /* D-M1-28: a void function returns without reading its operand.
+               The pinned lowering emits a bare `return;` for both ret forms
+               once the return type is void (c_backend.orb:3429-3439 and
+               :3460-3465), so a carried value is admitted and ignored. */
+            if (strcmp(f->return_type, "void") != 0) {
                 if (!i->operands[0].kind || i->operands[0].kind == R6_VAL_NONE ||
                     !value_type(f, &i->operands[0], &a) || !same_type(a, f->return_type))
                     return fail(d, i, "CGEN", "ret value does not match function return type");
@@ -1913,6 +1960,23 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned list_off = (unsigned)(i->operands[0].as.i32 + 1) * 8;
             unsigned null_id = (unsigned)pc * 2;
             unsigned done_id = null_id + 1;
+            /* D-M1-29: a string receiver is the same opcode in the pin, and
+               its arm lowers it to orbit_string_len (c_backend.orb:3609-3615),
+               which the header defines inline as `s ? strlen(s) : 0`
+               (orbit_api.h:411-413). Emit that body; the archive has no
+               orbit_string_len symbol to call. */
+            if (is_string(type_at(f, i->operands[0].as.i32))) {
+                fprintf(o,
+                        "\tmovq -%u(%%rbp), %%rcx\n"
+                        "\tmovl $0, %%eax\n"
+                        "\ttestq %%rcx, %%rcx\n"
+                        "\tje .Lr6_f%zu_list_len_string_null_%u\n"
+                        "\tcall strlen\n"
+                        ".Lr6_f%zu_list_len_string_null_%u:\n"
+                        "\tmovq %%rax, -%u(%%rbp)\n",
+                        list_off, fn_index, null_id, fn_index, null_id, off);
+                break;
+            }
             /* The length is an `int` register: `OrbitList.len` is a size_t
                (orbit_api.h:219) and every consumer of an int slot reads all
                eight bytes (`lt`/`le`/`gt`/`ge` compare with `cmpq`, D-M1-25),
@@ -2330,7 +2394,31 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                    union-variant construction below; validate() has already
                    established which of the three the name is. */
                 const R6Function *named = find_function(m, i->operands[0].as.string);
+                if (!named && i->operands[0].kind == R6_VAL_STRING)
+                    named = find_intrinsic(i->operands[0].as.string);
                 if (named) {
+                    /* D-M1-29: orbit_string_len is ORBIT_INLINE in the runtime
+                       header (orbit_api.h:411-413), so the archive never had a
+                       symbol for the C backend to call. Lower it here as
+                       `s ? (orbit_int)strlen(s) : 0`, which is the header's
+                       own body. */
+                    if (strcmp(named->name, "orbit_string_len") == 0) {
+                        unsigned null_id = (unsigned)pc * 2 + 1;
+                        const R6Value *av = &args[base]->operands[0];
+                        emit_load_arg(o, f, av, "string", 0,
+                                      arg_string_ids[base] == ULLONG_MAX ? 0 : arg_string_ids[base]);
+                        fprintf(o,
+                                "\tmovl $0, %%eax\n"
+                                "\ttestq %%rcx, %%rcx\n"
+                                "\tje .Lr6_f%zu_strlen_null_%u\n"
+                                "\tcall strlen\n"
+                                ".Lr6_f%zu_strlen_null_%u:\n",
+                                fn_index, null_id, fn_index, null_id);
+                        if (i->has_dest && !is_void(type_at(f, i->dest)))
+                            fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+                        pending = base;
+                        break;
+                    }
                     /* D-M1-27: an enumerated runtime extern takes the arena as
                        its first C parameter although the IR declaration does
                        not repeat it (c_backend.orb:3091-3098 prepends it from
@@ -2461,7 +2549,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             return fail(d, i, "CGEN", "call requires a direct native symbol or a declared model constructor");
         }
         case R6_OP_RET:
-            if (v->kind != R6_VAL_NONE) {
+            /* D-M1-28: a void function returns without reading the operand,
+               exactly like the pinned lowering. */
+            if (strcmp(f->return_type, "void") != 0 && v->kind != R6_VAL_NONE) {
                 value_type(f, v, &t);
                 if (v->kind == R6_VAL_REG && is_float(t)) fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n", (unsigned)(v->as.i32 + 1) * 8);
                 else if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
@@ -2718,6 +2808,8 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
          * (:2971-2999). */
         if (o1->kind == R6_VAL_STRING && strcmp(name, "print") == 0) return "void";
         if ((callee = find_function(m, name)) != NULL) return callee->return_type;
+        if (o1->kind == R6_VAL_STRING &&
+            (callee = find_intrinsic(name)) != NULL) return callee->return_type;
         return NULL;               /* builtin or alias: fail closed */
     }
     case R6_OP_LOAD_FIELD: {

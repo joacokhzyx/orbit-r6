@@ -1,0 +1,25 @@
+// D-M1-29: the runtime string helpers the builder calls without declaring.
+//
+// `s.len()` and `s.at(i)` are emitted as calls to orbit_string_len and
+// orbit_string_at, and `s.slice(a, b)` to orbit_string_slice, with no extern
+// declaration in the module: the pinned C backend sees the prototypes through
+// the runtime headers (runtime/orbit_api.h:385-386, :411-413). Only
+// orbit_string_slice takes the arena, which the D-M1-27 table injects.
+fn lenOf(s: string) -> int {
+    return s.len()
+}
+
+fn atOf(s: string, i: int) -> int {
+    return s.at(i)
+}
+
+fn cut(s: string) -> string {
+    return s.slice(1, 3)
+}
+
+fn main() -> int {
+    print(lenOf("hello"))
+    print(atOf("AZ", 1))
+    print(cut("abcd"))
+    return 0
+}

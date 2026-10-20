@@ -856,6 +856,54 @@ def build_reject():
         "D-M1-27", "CGEN",
         "the arena is injected only into a declared extern, not into a bare name")
 
+    # ---- D-M1-28: a void function returns without reading its operand -------
+    # Both pinned ret arms emit a bare `return;` once the return type is void
+    # (c_backend.orb:3429-3439, :3460-3465), so a carried value is admitted and
+    # ignored. The non-void direction is unchanged: the value must still match
+    # the declared return type, and its register must still exist.
+    add("x-ret-type-mismatch",
+        jd(DOC([MAIN(),
+                FN("f", [I("load_const", 0, Str("s")),
+                         I("ret", -1, Reg(0))],
+                   ["string", "int"], rtype="int")])),
+        "D-M1-28", "CGEN",
+        "a non-void ret still requires a value of the declared return type")
+
+    # ---- D-M1-29: the undeclared runtime string intrinsics ------------------
+    # len/at/slice are calls the builder emits as String targets without a
+    # declaration; the pinned C backend resolves them through the runtime
+    # headers (orbit_api.h:385-386, :411-413). The admission is that table in
+    # that form, with the header's arity: a Symbol target stays a declaration
+    # lookup and a wrong arity is still refused.
+    add("x-intrinsic-symbol-target",
+        jd(DOC([MAIN([I("load_const", 0, Str("abcdef")),
+                      I("arg", -1, Reg(0)),
+                      I("call", 1, Sym("orbit_string_len"), Int(1)),
+                      I("load_const", 2, Int(0)),
+                      I("ret", -1, Reg(2))],
+                     ["string", "int", "int"])])),
+        "D-M1-29", "CGEN",
+        "the intrinsic table is the builder's String form, not a Symbol alias")
+    add("x-intrinsic-arity",
+        jd(DOC([MAIN([I("load_const", 0, Str("abc")),
+                      I("load_const", 1, Int(1)),
+                      I("arg", -1, Reg(0)),
+                      I("arg", -1, Reg(1)),
+                      I("call", 2, Str("orbit_string_len"), Int(2)),
+                      I("load_const", 3, Int(0)),
+                      I("ret", -1, Reg(3))],
+                     ["string", "int", "int", "int"])])),
+        "D-M1-29", "CGEN",
+        "an intrinsic call is checked against the runtime header's arity")
+    add("x-list-len-bool",
+        jd(DOC([MAIN([I("load_const", 0, Bool(True)),
+                      I("list_len", 1, Reg(0)),
+                      I("load_const", 2, Int(0)),
+                      I("ret", -1, Reg(2))],
+                     ["bool", "int", "int"])])),
+        "D-M1-29", "CGEN",
+        "list_len still refuses a receiver that is neither a list nor a string")
+
     return cases
 
 
@@ -1103,6 +1151,28 @@ def build_accept_files():
                                 I("call", -1, Str("print"), Int(1)),
                                 I("load_const", 2, Int(0)),
                                 I("ret", -1, Reg(2))], ["float", "string", "int"])]))))
+    # D-M1-28: a void function returns without reading the value its ret
+    # carries; both pinned arms emit a bare `return;` (c_backend.orb:3429-3439,
+    # :3460-3465). The register here is an int, which would be a mismatch if it
+    # were read - the corpus shape is the destination of the void call.
+    tailfn = FN("tail",
+                [I("arg", -1, Str("plain")),
+                 I("call", 0, Str("print"), Int(1)),
+                 I("ret", -1, Reg(0))],
+                ["int"], rtype="void")
+    files.append(("ok-void-ret-value",
+                  jd(DOC([tailfn,
+                          MAIN([I("call", -1, Str("tail"), Int(0)),
+                                I("load_const", 0, Int(0)),
+                                I("ret", -1, Reg(0))], ["int"])]))))
+    # D-M1-29: `.len()` on a string is the same list_len opcode when the
+    # builder did not know the receiver's type; the pinned arm lowers it to
+    # orbit_string_len (c_backend.orb:3609-3615).
+    files.append(("ok-list-len-string",
+                  jd(DOC([MAIN([I("load_const", 0, Str("abc")),
+                                I("list_len", 1, Reg(0)),
+                                I("ret", -1, Reg(1))],
+                               ["string", "int"])]))))
     return files
 
 
@@ -1205,6 +1275,18 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-arena-extern-float.json", "run_exit": 0,
              "run_stdout": "2.5\r\n", "rule": "D-M1-27",
              "note": "the arena shift is positional for the xmm file too (orbit_float_to_string)"},
+            {"file": "../../docs/proposed-ir/m1/38-void-ret-value.json",
+             "run_exit": 42, "run_stdout": "T\r\nT\r\n", "rule": "D-M1-28",
+             "note": "a void function returns without reading the value its ret carries"},
+            {"file": "cases/ok-void-ret-value.json", "run_exit": 0,
+             "run_stdout": "plain\r\n", "rule": "D-M1-28",
+             "note": "both ret forms with a carried value match the oracle"},
+            {"file": "../../docs/proposed-ir/m1/39-string-intrinsics.json",
+             "run_exit": 0, "run_stdout": "5\r\n90\r\nbc\r\n", "rule": "D-M1-29",
+             "note": "len/at/slice resolve through the runtime header signatures"},
+            {"file": "cases/ok-list-len-string.json", "run_exit": 3,
+             "run_stdout": "", "rule": "D-M1-29",
+             "note": "list_len on a string receiver is orbit_string_len"},
         ],
     }
 

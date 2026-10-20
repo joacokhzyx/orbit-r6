@@ -647,3 +647,81 @@ Mensajes completos de la corrida:
 - Mensaje: aparece `print argument has no measured printable type` (defensa en
   profundidad: el `arg` ya restringe los escalares a int/float/string/bool); el
   código sigue siendo `CGEN` y el contrato fail-closed no cambia.
+
+## Actualización de M1 - `ret` de una función `void` (2026-10-19)
+
+- Decisión: D-M1-28. `return f()` sobre un callee `void` es la forma natural de
+  una tail call; el builder guarda en `operand1` el registro destino de la
+  llamada, y R6 lo rechazaba con `void ret must not carry a value`.
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
+  `c_backend.orb:3429-3439` (la forma registro emite `return;` y no lee el
+  registro; el comentario del pin explica que la llamada ya se emitió como
+  sentencia y que leerlo produce C que no compila) y `:3460-3465` (la forma no
+  registro comparte la rama). `main` se decide antes del tipo declarado
+  (`:3420`, `:3451`), pero R6 ya exige `main` sin parámetros y con retorno
+  `int` (`win64.c:779-780`), así que esa rama no es alcanzable.
+- Admisión: en una función `void`, `ret` acepta cualquier `operand1` y lo
+  ignora; el emisor no carga nada y emite `leave; ret`. En una función no
+  `void` no cambia nada: el valor debe coincidir con el tipo declarado, el
+  registro debe existir y un `result` sigue rechazado.
+- Evidencia del corpus (pin `filesSha256 0106d531`): `void_return_void_call`
+  pasa a *match*; `r6BuildOk`/`match` suben **35 -> 36**, el primer rechazo
+  `ret` cae **2 -> 1** (queda el retorno de `result`, por diseño), sin
+  retrocesos.
+- Puertas: diferencial **37/37 -> 38/38** (fixture 38, tail call encadenada y
+  forma sentencia, exit 42 y `T`/`T`); loader **163/163 -> 166/166** (126
+  rechazos + 40 controles); `make_cases.py --check` sin drift (153 archivos de
+  caso + manifest); `migrate-m1-fixtures.py --check` 20/20 (los pares nuevos se
+  omiten por ser posteriores a la base); trinquete re-tomado en `r6BuildOk 36`,
+  `match 36`.
+- Controles: `x-ret-type-mismatch` (una función `int` que devuelve un string
+  sigue rechazada) y `ok-void-ret-value` (el `ret` lleva el destino `int` de la
+  llamada `void` a `print`, que no se lee).
+- Mensaje: desaparece `void ret must not carry a value`; el resto de los
+  diagnósticos de `ret` no cambia y el código sigue siendo `CGEN`.
+
+## Actualización de M1 - los helpers de string sin declaración (2026-10-19)
+
+- Decisión: D-M1-29. Dos primeros rechazos de la misma familia: el builder
+  emite `call` con destino String a `orbit_string_len` / `orbit_string_at` /
+  `orbit_string_slice` **sin declaración** en el módulo (el backend C ve los
+  prototipos por las cabeceras del runtime), y `.len()` sobre un string llega
+  al **opcode** `list_len` cuando el builder no conocía el tipo del receptor.
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
+  `runtime/orbit_api.h:385` (`orbit_string_at`), `:386`
+  (`orbit_string_slice`, que está en `functionNeedsArena`,
+  `c_backend.orb:4410-4431`, por lo que D-M1-27 le antepone el arena) y
+  `:411-413` (`orbit_string_len`, `ORBIT_INLINE`, `s ? strlen(s) : 0`: no hay
+  símbolo en `libruntime_net.a`, `nm` lista `at`/`slice` como `T` y no lista
+  `len`). El opcode `list_len` consulta `isStringOperand` y emite
+  `orbit_string_len` (`c_backend.orb:3609-3615`).
+- Admisión: una tabla de tres firmas consultada sólo cuando el módulo no
+  declara el nombre y sólo para el destino String que emite el builder; el
+  arena de `slice` sale de la tabla de D-M1-27; `len` se baja inline (misma
+  secuencia `strlen` con guarda de nulo) tanto en la forma `call` como en el
+  opcode `list_len` con receptor string, porque no existe símbolo al que
+  llamar.
+- Fail closed: un nombre String fuera de la tabla sigue siendo `call target
+  ... is not a declared function`; la forma Symbol nunca resuelve por la tabla;
+  se exige la aridad de la cabecera; `list_len` con un receptor que no es lista
+  ni string sigue rechazado.
+- Evidencia del corpus (pin `filesSha256 0106d531`), medida en dos pasos porque
+  la segunda puerta sólo apareció al abrir la primera: los intrínsecos solos
+  llevan el corpus **36 -> 37** (`if_expression_else_if` pasa a *match*, las
+  nueve primeras puertas desaparecen, sin retrocesos); la rama string de
+  `list_len` suma `strings_concat` y `strings_escape` y cierra en **39/93
+  match, 39/93 build**. El primer rechazo `call` cae de 11 a 3 y el de
+  `list_len` desaparece. Trinquete re-tomado en 39.
+- Puertas: diferencial **38/38 -> 39/39** (fixture 39: `.len()`, `.at()` y
+  `.slice()` a través de parámetros, exit 0 y `5`/`90`/`bc`); loader
+  **166/166 -> 171/171** (129 rechazos + 42 controles); `make_cases.py
+  --check` sin drift (157 archivos de caso + manifest);
+  `migrate-m1-fixtures.py --check` 20/20.
+- Controles: `ok-list-len-string` (la forma opcode sobre un registro string,
+  exit 3), `x-intrinsic-symbol-target` (el destino Symbol sigue sin declarar),
+  `x-intrinsic-arity` (aridad 2 contra una firma de 1) y `x-list-len-bool` (un
+  receptor bool sigue rechazado).
+- Mensaje: desaparecen `call target orbit_string_len/at/slice is not a declared
+  function...` y `list_len requires a list register...`; el nuevo texto es
+  `list_len requires a list or string register and an int destination` y el
+  código sigue siendo `CGEN`.

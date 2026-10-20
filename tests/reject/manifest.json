@@ -874,6 +874,34 @@
       "code": "CGEN",
       "rule": "D-M1-27",
       "note": "the arena is injected only into a declared extern, not into a bare name"
+    },
+    {
+      "file": "cases/x-ret-type-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-28",
+      "note": "a non-void ret still requires a value of the declared return type"
+    },
+    {
+      "file": "cases/x-intrinsic-symbol-target.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-29",
+      "note": "the intrinsic table is the builder's String form, not a Symbol alias"
+    },
+    {
+      "file": "cases/x-intrinsic-arity.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-29",
+      "note": "an intrinsic call is checked against the runtime header's arity"
+    },
+    {
+      "file": "cases/x-list-len-bool.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-29",
+      "note": "list_len still refuses a receiver that is neither a list nor a string"
     }
   ],
   "accept": [
@@ -1121,6 +1149,34 @@
       "run_stdout": "2.5\r\n",
       "rule": "D-M1-27",
       "note": "the arena shift is positional for the xmm file too (orbit_float_to_string)"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/38-void-ret-value.json",
+      "run_exit": 42,
+      "run_stdout": "T\r\nT\r\n",
+      "rule": "D-M1-28",
+      "note": "a void function returns without reading the value its ret carries"
+    },
+    {
+      "file": "cases/ok-void-ret-value.json",
+      "run_exit": 0,
+      "run_stdout": "plain\r\n",
+      "rule": "D-M1-28",
+      "note": "both ret forms with a carried value match the oracle"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/39-string-intrinsics.json",
+      "run_exit": 0,
+      "run_stdout": "5\r\n90\r\nbc\r\n",
+      "rule": "D-M1-29",
+      "note": "len/at/slice resolve through the runtime header signatures"
+    },
+    {
+      "file": "cases/ok-list-len-string.json",
+      "run_exit": 3,
+      "run_stdout": "",
+      "rule": "D-M1-29",
+      "note": "list_len on a string receiver is orbit_string_len"
     }
   ]
 }

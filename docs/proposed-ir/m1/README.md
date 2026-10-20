@@ -49,9 +49,11 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `35-list-len-bound` | bucle indexado sobre una lista en una función distinta de `main`: la longitud de 64 bits y la etiqueta por función | 42 | vacío |
 | `36-print-builtin` | el builtin `print` con un argumento (string/int/float) y destino `void`: las tres reducciones medidas del lowering | 0 | `hello\n42\n1.5\n` |
 | `37-arena-extern-call` | extern del runtime con el arena como primer parámetro C (`orbit_int_to_string`): el arena se antepone y los argumentos se desplazan | 0 | `42\n-7\n` |
+| `38-void-ret-value` | `return f()` de un callee `void`: el `ret` lleva el registro destino de la llamada y no se lee (tail call encadenada y forma sentencia) | 42 | `T\nT\n` |
+| `39-string-intrinsics` | `.len()`, `.at()` y `.slice()` sin declaración en el módulo: firmas de la cabecera del runtime y el arena de D-M1-27 en el slice | 0 | `5\n90\nbc\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06–37 amplían la
+fueron aceptados por el usuario para IRv1; los casos 06-39 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
@@ -59,12 +61,13 @@ la línea base previa a la migración, el par 27 desde D-M1-18 (2026-10-16), los
 pares 28–29 desde D-M1-19 (2026-10-16), los pares 30–31 desde D-M1-20
 (2026-10-16), el par 32 desde D-M1-21 (2026-10-17), el par 33 desde D-M1-22
 (2026-10-17), el par 34 desde D-M1-23 (2026-10-18) y el par 35 desde
-D-M1-24/D-M1-25 (2026-10-18) y el par 36 desde D-M1-26 (2026-10-19) y el
-par 37 desde D-M1-27 (2026-10-19) (ver
+D-M1-24/D-M1-25 (2026-10-18), el par 36 desde D-M1-26 (2026-10-19), el par
+37 desde D-M1-27 (2026-10-19), el par 38 desde D-M1-28 (2026-10-19) y el par
+39 desde D-M1-29 (2026-10-19) (ver
 `../../DECISIONS.md`
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
 D-M1-19/D-M1-20/D-M1-21/D-M1-22/D-M1-23/D-M1-24/D-M1-25/D-M1-26/
-D-M1-27 y `../../M1_REPORT.md`).
+D-M1-27/D-M1-28/D-M1-29 y `../../M1_REPORT.md`).
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
