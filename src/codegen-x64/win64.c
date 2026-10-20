@@ -275,12 +275,17 @@ static const R6Global *find_global(const R6Module *m, const char *name) {
 
 /* In the pinned builder, top-level int/bool literals are serialized as
  * IRValue.String decimal text and c_backend.orb turns them into #defines. */
+static bool global_declared_type(const char *t) {
+    return t && t[0] && strcmp(t, "unknown") != 0;
+}
+
 static bool global_integer(const R6Global *g, int32_t *value) {
     char *end;
     long parsed;
     const char *p;
-    if (!g || !g->name || !valid_symbol(g->name) || !g->type_name ||
-        (!is_int(g->type_name) && !is_bool(g->type_name)) ||
+    if (!g || !g->name || !valid_symbol(g->name) ||
+        (global_declared_type(g->type_name) &&
+         !is_int(g->type_name) && !is_bool(g->type_name)) ||
         g->value.kind != R6_VAL_STRING || !g->value.as.string ||
         !g->value.string_len || strlen(g->value.as.string) != g->value.string_len)
         return false;
@@ -294,6 +299,19 @@ static bool global_integer(const R6Global *g, int32_t *value) {
     if (is_bool(g->type_name) && parsed != 0 && parsed != 1) return false;
     *value = (int32_t)parsed;
     return true;
+}
+
+/* D-M1-33: a top-level constant carries no type of its own. c_backend.orb:396-399
+ * writes `#define NAME <text>` for every global and :1647-1651 renders the
+ * value's String payload verbatim, so the text is the type: a decimal integer
+ * text is an int. The builder's "unknown" (what it writes when it cannot tell,
+ * the same convention as a register type) defers to the text. A declared type
+ * wins, and a text that is not a decimal integer stays untyped. */
+static const char *global_type(const R6Global *g) {
+    int32_t ignored;
+    if (!g) return NULL;
+    if (global_declared_type(g->type_name)) return g->type_name;
+    return global_integer(g, &ignored) ? "int" : NULL;
 }
 
 static size_t local_count(const R6Function *f) {
@@ -944,7 +962,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                           !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt) ||
                             is_fn_type(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
-                       !same_type(global->type_name, type_at(f, i->dest))))
+                       !same_type(global_type(global), type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or union tag constant");
             break;
         }
@@ -2870,7 +2888,7 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         if (!name) return NULL;
         if (param_info(f, name, NULL, &type)) return type;
         if (local_info(m, f, name, NULL, &type, buf, cap)) return type;
-        if ((g = find_global(m, name)) != NULL) return g->type_name;
+        if ((g = find_global(m, name)) != NULL) return global_type(g);
         /* `<union>_TAG_<variant>` is the ordinal constant D-M1-12 loads as an
          * int; an enum tag constant has no native type and stays unknown. */
         if (union_tag_constant(m, name, &ordinal)) return "int";

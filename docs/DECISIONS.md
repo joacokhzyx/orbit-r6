@@ -1816,3 +1816,45 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `type_spellings` stops at an earlier `decl_var` (line 1, column 381 in both
   measurements), so `ok-list-capital-spelling` is that position's only evidence.
 - Status: **applied**.
+
+## D-M1-33 - A top-level constant is a #define whose text is the type
+
+- Date: 2026-10-20. First refusal: `global CHAR_SPACE is outside M1 literal
+  int/bool support` in `global_const` and `ast_function_body_is_a_block`, and
+  `global WALK_MAX_DEPTH is outside M1 literal int/bool support` in `test_fs`
+  and `test_imports`.
+- Reference (pinned `ce87d508`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:396-399` and `:1633` write
+    `#define <name> <text>` into the preamble for every module global.
+  - `compiler/emit/c_backend.orb:1647-1651` (`cDefineLiteral`) returns the
+    value's `String` payload unchanged. `:1639-1646` says the builder stores the
+    literal in an `IRValue.String` so a register cannot land in a define.
+  - `compiler/emit/c_backend.orb:2404-2413` says a top-level name is that
+    define, and that declaring a variable under it breaks the preprocessor.
+  - The corpus writes `typeName: "unknown"` and the decimal text in `value` for
+    all 21 globals.
+- Admission: a global whose `typeName` is `unknown` or absent and whose value is
+  a `String` of an optional `-` and decimal digits inside int32 is an `int`
+  constant. A declared `int` or `bool` keeps its rule. `global_type` answers the
+  declared type, else `int` when `global_integer` holds, else NULL. `load_var`
+  of a global already emitted the value as an immediate, which is the same
+  substitution the `#define` performs.
+- Fail closed: a declared non-scalar type is refused whatever the text
+  (`x-global-declared-string`); an `unknown` text that is not a decimal integer
+  is refused (`x-global-unknown-text`); a text outside int32 fails the same
+  parse. `0x20` is a C int literal the pin would accept and R6 refuses: a stated
+  gap, not a divergence.
+- Controls: fixture `43-global-constant-type` (`val SPACE = 32`,
+  `const LIMIT = 3`, `val NEG = -2`; printed, compared and added; stdout
+  `32\r\n3\r\n-2\r\n`, exit 0) and `ok-global-unknown-type` (43 + -2 = 41 by
+  exit). `x-global-unknown-text` and `x-global-declared-string` are the
+  rejections.
+- Evidence (pin `filesSha256 0106d531`): match **44 -> 45/93** and build
+  **45 -> 46/93**. `global_const` now matches. `ast_function_body_is_a_block`
+  advances to `union ASTNode variant Program payloads are outside the M1 native
+  subset`, `test_fs` to `extern return type is unsupported in M1` and
+  `test_imports` to `register type unknown is unsupported in M1`. First
+  refusals: module-level 35 -> 34; `register type unknown` 12 -> 13; `extern
+  return type` 2 -> 3; the four `global ... is outside M1 literal int/bool
+  support` messages disappear. Ratchet re-taken at 46/45.
+- Status: **applied**.

@@ -86,8 +86,15 @@ def MOD(fns):
     return {"functions": fns, "globals": [], "models": [], "types": [], "migrations": []}
 
 
-def DOC(fns=None):
-    return {"irVersion": "1", "module": MOD(fns if fns is not None else [MAIN()])}
+def G(name, type_name, value):
+    return {"name": name, "typeName": type_name, "value": value}
+
+
+def DOC(fns=None, globals_=None):
+    doc = {"irVersion": "1", "module": MOD(fns if fns is not None else [MAIN()])}
+    if globals_ is not None:
+        doc["module"]["globals"] = globals_
+    return doc
 
 
 def ZERO():
@@ -853,6 +860,20 @@ def build_reject():
         "D-M1-32", "CGEN",
         "an extern parameter stays scalar; a list is not lowered there")
 
+    # ---- D-M1-33: a top-level constant is a #define ------------------------
+    # c_backend.orb:396-399 writes `#define NAME <text>` for every global and
+    # :1647-1651 renders the value's String payload verbatim, so the text is the
+    # type. The builder writes "unknown" for a type it cannot tell; a decimal
+    # integer text is an int. Any other text stays outside the subset.
+    add("x-global-unknown-text",
+        jd(DOC([MAIN()], globals_=[G("TEXT", "unknown", Str("hide"))])),
+        "D-M1-33", "CGEN",
+        "an unknown-typed global is an int only when its text is a decimal integer")
+    add("x-global-declared-string",
+        jd(DOC([MAIN()], globals_=[G("GREETING", "string", Str("hi"))])),
+        "D-M1-33", "CGEN",
+        "a declared non-scalar global type is still refused, whatever the text")
+
     # ---- D-M1-23: a string `add` concatenates and spreads -------------------
     # The pinned backend turns `add` into orbit_string_concat whenever either
     # operand is a string operand (c_backend.orb:2662-2668) and stringifies each
@@ -1326,6 +1347,15 @@ def build_accept_files():
                                 I("add", 5, Reg(3), Reg(4)),
                                 I("ret", -1, Reg(5))],
                                ["List", "int", "void", "int", "int", "int"])]))))
+    # D-M1-33: the text is the type. Two unknown-typed constants add to 41.
+    files.append(("ok-global-unknown-type",
+                  jd(DOC([MAIN([I("load_var", 0, Sym("LIMIT")),
+                                I("load_var", 1, Sym("NEG")),
+                                I("add", 2, Reg(0), Reg(1)),
+                                I("ret", -1, Reg(2))],
+                               ["int", "int", "int"])],
+                          globals_=[G("LIMIT", "unknown", Str("43")),
+                                    G("NEG", "unknown", Str("-2"))]))))
     return files
 
 
@@ -1467,6 +1497,12 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/42-list-parameter-spellings.json",
              "run_exit": 0, "run_stdout": "", "rule": "D-M1-32",
              "note": "list<int>/list<string> parameters and a list<int> return match the oracle"},
+            {"file": "cases/ok-global-unknown-type.json", "run_exit": 41,
+             "run_stdout": "", "rule": "D-M1-33",
+             "note": "an unknown-typed decimal global is an int constant"},
+            {"file": "../../docs/proposed-ir/m1/43-global-constant-type.json",
+             "run_exit": 0, "run_stdout": "32\r\n3\r\n-2\r\n", "rule": "D-M1-33",
+             "note": "three corpus-shaped globals print and compare as ints"},
         ],
     }
 

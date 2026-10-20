@@ -876,6 +876,20 @@
       "note": "an extern parameter stays scalar; a list is not lowered there"
     },
     {
+      "file": "cases/x-global-unknown-text.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-33",
+      "note": "an unknown-typed global is an int only when its text is a decimal integer"
+    },
+    {
+      "file": "cases/x-global-declared-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-33",
+      "note": "a declared non-scalar global type is still refused, whatever the text"
+    },
+    {
       "file": "cases/x-add-spread-dest.json",
       "exit": 1,
       "code": "CGEN",
@@ -1289,6 +1303,20 @@
       "run_stdout": "",
       "rule": "D-M1-32",
       "note": "list<int>/list<string> parameters and a list<int> return match the oracle"
+    },
+    {
+      "file": "cases/ok-global-unknown-type.json",
+      "run_exit": 41,
+      "run_stdout": "",
+      "rule": "D-M1-33",
+      "note": "an unknown-typed decimal global is an int constant"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/43-global-constant-type.json",
+      "run_exit": 0,
+      "run_stdout": "32\r\n3\r\n-2\r\n",
+      "rule": "D-M1-33",
+      "note": "three corpus-shaped globals print and compare as ints"
     }
   ]
 }

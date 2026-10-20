@@ -888,3 +888,45 @@ Mensajes completos de la corrida:
   `parameter type Box is unsupported in M1` (`call_arg_types`) y
   `parameter type Point is unsupported in M1` (`parameter_type_fallback`), los
   parámetros de modelo, todavía con código `CGEN`.
+
+## Actualización de M1 - una constante de módulo es un #define (2026-10-20)
+
+- Decisión: D-M1-33. Primer rechazo: `global CHAR_SPACE is outside M1 literal
+  int/bool support` en `global_const` y `ast_function_body_is_a_block`;
+  `global WALK_MAX_DEPTH is outside M1 literal int/bool support` en `test_fs` y
+  `test_imports`.
+- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
+  `c_backend.orb:396-399` y `:1633` escriben `#define <nombre> <texto>` en el
+  preámbulo por cada global; `:1647-1651` (`cDefineLiteral`) devuelve el payload
+  `String` tal cual, y `:1639-1646` dice que el builder guarda el literal en un
+  `IRValue.String` para que un registro no acabe en un `#define`; `:2404-2413`
+  confirma que un nombre de nivel superior ES ese define. Los 21 globales del
+  corpus llegan con `typeName: "unknown"` y el texto decimal en `value`.
+- Admisión: un global con `typeName` `unknown` o ausente y valor `String` de un
+  `-` opcional y dígitos decimales, dentro de int32, es una constante `int`. Un
+  tipo declarado `int`/`bool` conserva su regla. `load_var` ya emitía el valor
+  como inmediato: la misma sustitución que hace el `#define`.
+- Fail closed: un tipo declarado no escalar sigue rechazado sea cual sea el
+  texto (`x-global-declared-string`); un global `unknown` con texto no decimal
+  sigue rechazado (`x-global-unknown-text`); fuera de int32 cae en el mismo
+  parseo. `0x20` es un literal int de C que el pin aceptaría y R6 rechaza: un
+  hueco declarado, no una divergencia.
+- Controles: fixture `43-global-constant-type` (`val SPACE = 32`,
+  `const LIMIT = 3`, `val NEG = -2`; los imprime, los compara y los suma; salida
+  `32\r\n3\r\n-2\r\n`, exit 0) y `ok-global-unknown-type` (43 + -2 = 41 por
+  exit).
+- Evidencia del corpus (pin `filesSha256 0106d531`): **44 -> 45/93** match y
+  **45 -> 46/93** build. `global_const` pasa a coincidir.
+  `ast_function_body_is_a_block` avanza a `union ASTNode variant Program
+  payloads are outside the M1 native subset`, `test_fs` a `extern return type is
+  unsupported in M1` y `test_imports` a `register type unknown is unsupported in
+  M1`. Los primeros rechazos `(module-level)` bajan de 35 a 34; `register type
+  unknown` sube de 12 a 13, `extern return type` de 2 a 3 y desaparecen los
+  cuatro mensajes `global ... is outside M1 literal int/bool support`.
+- Puertas: diferencial **42/42 -> 43/43** (fixture 43, exit 0); loader
+  **187/187 -> 191/191** (138 rechazos + 53 controles); `make_cases.py --check`
+  sin drift (173 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
+  20/20. Trinquete re-tomado en 46/45.
+- Mensaje: desaparece `global ... is outside M1 literal int/bool support`; sigue
+  `register type unknown is unsupported in M1` (13 programas, 11 de ellos en
+  `list_get` con `elemKind 0`).

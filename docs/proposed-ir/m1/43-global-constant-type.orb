@@ -1,0 +1,21 @@
+// D-M1-33: a top-level constant carries no type of its own. The pinned
+// backend writes `#define NAME <text>` for every global (c_backend.orb:396-399)
+// and renders the value's String payload verbatim (:1647-1651), so the text is
+// the type: a decimal integer text is an int. The builder serializes the type
+// it cannot tell as "unknown", the same word it uses for a register. These
+// three constants arrive that way and are read back as ints.
+
+val SPACE = 32
+const LIMIT = 3
+val NEG = -2
+
+fn main() -> int {
+    print(SPACE)
+    print(LIMIT)
+    print(NEG)
+    if SPACE != 32 { return 1 }
+    if LIMIT != 3 { return 2 }
+    if NEG != 0 - 2 { return 3 }
+    if SPACE + LIMIT != 35 { return 4 }
+    return 0
+}

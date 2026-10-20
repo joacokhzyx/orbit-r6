@@ -481,3 +481,44 @@ tres de los programas liberados llegan a él, y desaparecen los tres
 El puesto del registro `List` no tiene testigo en el corpus (`type_spellings`
 para antes, en un `decl_var` de la línea 1, columna 381, en las dos
 mediciones): su única evidencia es `ok-list-capital-spelling`.
+
+## Ronda 2026-10-20 (D-M1-33: una constante de módulo es un #define)
+
+El muro era el tipo del global. Los cuatro programas paraban en `global ...
+is outside M1 literal int/bool support` porque R6 exigía un tipo declarado, y el
+pin no declara ninguno: escribe `#define NOMBRE <texto>` en el preámbulo
+(`c_backend.orb:396-399`, `:1633`) y `cDefineLiteral` (`:1647-1651`) devuelve el
+payload `String` tal cual. Los 21 globales del corpus llegan con
+`typeName: "unknown"` y el texto decimal en `value`; el texto es el tipo.
+D-M1-33 lo admite como `int` cuando el texto es un entero decimal dentro de
+int32, y mantiene el rechazo para un tipo declarado no escalar y para un texto
+que no es un entero.
+
+| Métrica | D-M1-32 (44/93) | D-M1-33 (45/93) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 94 / 93 |
+| `filesSha256` | `0106d531.` | **`0106d531.`** (idéntico) |
+| oráculo compila y corre | 93/93 | 93/93 |
+| R6 compila | 45/93 | **46/93** |
+| R6 coincide (exit + stdout) | 44/93 | **45/93** |
+| R6 difiere (compila y no coincide) | 1 | 1 |
+| documentos con `unknown` en `registerTypes` | 87/94 | 87/94 |
+| código `CGEN` | 47 | **46** |
+
+`global_const` pasa a coincidir. `ast_function_body_is_a_block` avanza a
+`union ASTNode variant Program payloads are outside the M1 native subset`,
+`test_fs` a `extern return type is unsupported in M1` y `test_imports` a
+`register type unknown is unsupported in M1`. Ningún programa retrocede.
+
+| Primer rechazo | D-M1-32 | D-M1-33 |
+|---|---:|---:|
+| (nivel de módulo: `registerTypes`, globales, modelos, uniones) | 35 | **34** |
+| `decl_var` | 6 | 6 |
+| `call` | 3 | 3 |
+| `ret` | 2 | 2 |
+| `list_push` | 2 | 2 |
+
+El mensaje `register type unknown is unsupported in M1` sube de 12 a 13
+(`test_imports` llega a él), `extern return type is unsupported in M1` de 2 a 3
+(`test_fs`) y desaparecen los cuatro `global ... is outside M1 literal int/bool
+support`. El trinquete se re-tomó en 46/45.

@@ -5,16 +5,16 @@
     "members": 94,
     "programs": 93,
     "oracleOk": 93,
-    "r6BuildOk": 45,
-    "match": 44,
+    "r6BuildOk": 46,
+    "match": 45,
     "unknownRegisterTypes": 87
   },
   "byCode": {
-    "CGEN": 47,
+    "CGEN": 46,
     "E_OPCODE": 1
   },
   "byFailingOpcode": {
-    "(module-level)": 35,
+    "(module-level)": 34,
     "decl_var": 6,
     "call": 3,
     "ret": 2,
@@ -31,11 +31,11 @@
     },
     "arg": {
       "cases": 61,
-      "match": 21
+      "match": 22
     },
     "call": {
       "cases": 77,
-      "match": 28
+      "match": 29
     },
     "copy": {
       "cases": 7,
@@ -51,7 +51,7 @@
     },
     "eq": {
       "cases": 44,
-      "match": 16
+      "match": 17
     },
     "ge": {
       "cases": 16,
@@ -63,15 +63,15 @@
     },
     "jump": {
       "cases": 54,
-      "match": 18
+      "match": 19
     },
     "jump_if_false": {
       "cases": 80,
-      "match": 32
+      "match": 33
     },
     "label": {
       "cases": 80,
-      "match": 32
+      "match": 33
     },
     "le": {
       "cases": 13,
@@ -111,7 +111,7 @@
     },
     "load_var": {
       "cases": 82,
-      "match": 33
+      "match": 34
     },
     "lt": {
       "cases": 39,
@@ -163,7 +163,7 @@
     },
     "ret": {
       "cases": 94,
-      "match": 44
+      "match": 45
     },
     "store_field": {
       "cases": 6,
