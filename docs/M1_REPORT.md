@@ -785,17 +785,17 @@ Mensajes completos de la corrida:
   `list_element_type` en `flags.get(0) != true` (bool contra bool) y
   `peephole_folds` en `n == "5"` (int contra string).
 - Referencia (pin `ce87d508`, leído con `git cat-file blob`): `eq` y `ne`
-  (`c_backend.orb:2745-2757` y `:2759-2771`) comparan dos strings con `strcmp`,
+  (`c_backend.orb:2745-2758` y `:2759-2772`) comparan dos strings con `strcmp`,
   promueven a `orbit_float` cuando un lado es float y comparan `uintptr_t` en
   el resto; un bool cae en ese resto. `lt`/`le`/`gt`/`ge`
-  (`c_backend.orb:2781-2811`) no tienen brazo de string: double si hay un
+  (`c_backend.orb:2781-2812`) no tienen brazo de string: double si hay un
   float e `intptr_t` si no, con la razón del signo en `:2773-2780`.
 - Admisión: `eq`, `ne` y las cuatro relaciones aceptan operandos `bool`. Un
   string sólo es operando de `strcmp` contra otro string; en `eq`/`ne` un
   string contra un int es la vía de palabras. El destino sigue siendo `bool`.
-- Lowering: un slot `bool` guarda el valor en el byte bajo y sus productores
-  escriben 32 bits (`load_const` con `movl`, los resultados de comparación con
-  `movl %eax`), así que la mitad alta puede quedar sucia. La comparación
+- Lowering: un slot `bool` guarda el valor en el byte bajo. `load_const` y
+  los resultados de comparación lo escriben con 32 bits (`movl`), así que la
+  mitad alta puede quedar sucia; una lectura de lista bool escribe 64. La comparación
   normaliza el lado bool con `movzbl`, que es el valor de la C del pin
   `(uintptr_t)(bool)`, y deja el lado int en el destino del `cmp` para que
   `setl`/`setg` conserven la dirección.
@@ -806,15 +806,16 @@ Mensajes completos de la corrida:
   queda fuera porque ningún programa del corpus los compara.
 - Controles: fixture `41-bool-and-word-comparisons` (`gt` bool/int, `ne`/`eq`
   bool/bool, `eq`/`ne` int/string, `ne` string/string y `ne` float/float; exit
-  0), `ok-compare-bool-word` (`true > 0`, exit 41) y `ok-compare-string-word`
-  (`5 == "5"` es falso, exit 41).
+  0), `ok-compare-bool-word` (`true > 0`, exit 41), `ok-compare-string-word`
+  (`5 == "5"` es falso, exit 41) y `ok-compare-int-bool` (`1 > false`,
+  exit 41).
 - Evidencia del corpus (pin `filesSha256 0106d531`): **41 -> 43/93** match y
   build. `if_expression_value` y `peephole_folds` pasan a coincidir;
   `list_element_type` avanza del `ne` a `register type unknown` sin
   retrocesos. Los primeros rechazos `gt`, `ne` y `eq` caen a 0 y
   `(module-level)` sube de 36 a 37. Trinquete re-tomado en 43.
 - Puertas: diferencial **40/40 -> 41/41** (fixture 41, exit 0); loader
-  **176/176 -> 181/181** (134 rechazos + 47 controles); `make_cases.py --check`
+  **176/176 -> 182/182** (134 rechazos + 48 controles); `make_cases.py --check`
   sin drift (165 archivos de caso + manifest); `migrate-m1-fixtures.py --check`
   20/20.
 - Mensaje: desaparece `ne requires matching int/float/string operands...`; los

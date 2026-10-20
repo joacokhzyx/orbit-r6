@@ -1706,25 +1706,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `list_element_type` at `flags.get(0) != true` (bool against bool) and
   `peephole_folds` at `n == "5"` (int against string).
 - Reference (pinned `ce87d508`, `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:2745-2757` (`eq`) and `:2759-2771` (`ne`):
+  - `compiler/emit/c_backend.orb:2745-2758` (`eq`) and `:2759-2772` (`ne`):
     two strings compare with `strcmp`; either side float promotes both
     operands to `orbit_float`; otherwise the two values compare as
     `uintptr_t`. A bool has no arm of its own - it is one of the words - and
     `n == "5"` reaches the `uintptr_t` arm, which compares 5 with the
     literal's address and answers false.
-  - `compiler/emit/c_backend.orb:2781-2811` (`lt`, `le`, `gt`, `ge`): no
+  - `compiler/emit/c_backend.orb:2781-2812` (`lt`, `le`, `gt`, `ge`): no
     string arm; a float pair compares in double; otherwise `intptr_t`. The
     comment at `:2773-2780` states why the relational ops are signed.
 - Admission: `eq`, `ne`, `lt`, `le`, `gt` and `ge` accept `bool` operands. A
   string is a `strcmp` operand only against another string; in `eq`/`ne` a
   string against an int is the `uintptr_t` word compare. The destination
   stays a bool.
-- Lowering: a bool slot holds its value in the low byte and its producers
-  write 32 bits (`load_const` `movl`, comparison results `movl %eax`), so the
-  upper half can be stale. The comparison normalizes a bool side with
-  `movzbl` before the compare, which is the pinned C value `(uintptr_t)(bool)`.
-  An int side stays in the compare's destination so `setl`/`setg` keep their
-  direction.
+- Lowering: a bool slot holds its value in the low byte. `load_const` and the
+  comparison results store it with 32-bit writes (`movl`), so the upper half
+  can be stale; a bool list read writes all 64 bits. The comparison normalizes
+  a bool side with `movzbl` before the compare, which is the pinned C value
+  `(uintptr_t)(bool)`. An int side stays in the compare's destination so
+  `setl`/`setg` keep their direction.
 - Fail closed, measured as negative controls:
   - a float next to an int stays refused (`x-compare-float-int`): the pinned
     arm writes `(orbit_float)(v)` and R6 has no int-to-double conversion, so
@@ -1737,8 +1737,9 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
     above has no meaning for a pointer.
 - Controls: fixture `41-bool-and-word-comparisons` (bool `gt` against an int,
   bool `ne`/`eq`, int/string `eq`/`ne`, string `ne`, float `ne`; exit 0),
-  `ok-compare-bool-word` (`true > 0`, exit 41) and `ok-compare-string-word`
-  (`5 == "5"` is false, exit 41).
+  `ok-compare-bool-word` (`true > 0`, exit 41), `ok-compare-string-word`
+  (`5 == "5"` is false, exit 41) and `ok-compare-int-bool` (`1 > false`,
+  exit 41).
 - Effect: corpus **41 -> 43/93** (`if_expression_value` and `peephole_folds`
   match the oracle; `list_element_type` advances from the `ne` to
   `register type unknown` with no regression), and the ratchet is re-taken at
