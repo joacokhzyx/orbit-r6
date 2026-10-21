@@ -936,3 +936,36 @@ Mensajes completos de la corrida:
 - Mensaje: desaparece `global ... is outside M1 literal int/bool support`; sigue
   `register type unknown is unsupported in M1` (13 programas, 11 de ellos en
   `list_get` con `elemKind 0`).
+
+## Re-pin D-F0-13: `17ed624`, corpus 97+1 y canónico `6C26A19E`
+
+Fecha: 2026-10-21. Setenta commits después de `ce87d508` (D-F0-12). El pin se
+movió porque el usuario mergeó en `main` la recuperación de OOM por petición
+del runtime y el tramo de `compiler/` que regenera el canónico.
+
+| Métrica | `ce87d508` (D-F0-12) | `17ed624` (D-F0-13) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 98 / 97 |
+| bytes | 5419454 | 5932267 |
+| `filesSha256` | `0106d531…` | **`e8586b9a…`** |
+| oráculo compila y corre | 93/93 | 97/97 |
+| R6 compila | 46/93 | **47/97** |
+| R6 coincide (exit + stdout) | 45/93 | **46/97** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 91/98 |
+
+El canónico pasó de `9906A6F7…` a `6C26A19E…` y el archivo del runtime de 324
+a 337 símbolos definidos. El mismo `filesSha256` salió de una extracción `git
+archive` y de un `git clone` en el commit, así que los bytes son función del
+commit.
+
+El diferencial perdió un caso: el pin rechaza usar un extern como valor
+(`Cannot use extern function 'orbit_string_at' as a value`), así que
+`26-fn-values.orb` ya no construye con el oráculo. La pareja se renombró a
+`.skip` y su IR sigue medido por `ok-fn-extern` (D-M1-14, exit 98). Las puertas
+quedan en **diferencial 42/42**, **loader 193/193** y **corpus 47 build / 46
+match**, con el trinquete re-tomado en 47/46.
+
+Queda deuda declarada: las citas de línea de D-M1-19 a D-M1-33 apuntan a
+`c_backend.orb` en el blob `2d64c8de`, que ya no es el del pin. El re-anclaje
+contra `0c9dd786` es trabajo de documentación aparte: 130 citas, 65
+desplazadas, 5 reescritas y 1 desaparecida.

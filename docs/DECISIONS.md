@@ -1863,3 +1863,51 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   return type` 2 -> 3; the four `global ... is outside M1 literal int/bool
   support` messages disappear. Ratchet re-taken at 46/45.
 - Status: **applied**.
+
+## D-F0-13 - Re-pin to 17ed624: corpus 97+1, canonical 6C26A19E
+
+- Date: 2026-10-21. Pin: `17ed6243844eb043f08cf9163cb60ea9cb8c6a63` (`main`,
+  **not pushed**), 70 commits after `ce87d508` (D-F0-12).
+- What moved: `compiler/emit/c_backend.orb` (`2d64c8de` -> `0c9dd786`),
+  `compiler/tir/lower.orb`, `compiler/tools/doctor.orb`, the regenerated
+  `compiler/selfhost/stage3.exe.c` (`5852fe69`), `runtime/arena.c`
+  (`59f12e24`, request-boundary OOM recovery), `runtime/orbit_api.h`
+  (`523f2913`, six new request-OOM symbols), `runtime/file.c`,
+  `runtime/http.c`, `runtime/kynx.c` and `scripts/emit_ir_corpus.py`
+  (`057887fd` -> `d3da729c`, 74 suite + 23 std). `compiler/emit/ir_emit.orb`
+  is unchanged (`54f0601b`), so the serializer did not move.
+- Canonical: `python scripts/dev.py fp` in a tree materialized at the commit
+  converges and reports "matches canonical".
+  `PUBLISHED_C = 6C26A19ED12A5D6ABAD240B922FA9C3E1D939DE16D998363CA7CF816FB0FF6DE`
+  (was `9906A6F7...`), equal to `sha256(compiler/selfhost/stage3.exe.c)` at
+  the commit. The fixed point is `C:\Temp\orbit-fp-08a471904d.exe`, 2573312
+  bytes, sha256 `7e1f9c307f96415fb6ee9198b241eb0b5bcccabc6634fbe9571cf9bd39dcc896`,
+  `orbit 0.1.0-rc.2`.
+- Corpus: **97 executable + 1 support = 98 documents**, 5932267 bytes,
+  `filesSha256 e8586b9af976d18c3fdb1d4071a5431dc60da49223a6a09e9e38a02a9b96db0e`
+  (was `0106d531...`), `languageCommit 17ed624`. Emission from a `git archive`
+  extraction and from a `git clone` at the same commit produced the same
+  `filesSha256`, so the bytes are a function of the commit, not of the tree.
+- Measurement: **47 build / 46 match over 97 programs** (was 46/45 over 93);
+  91/98 documents carry an `unknown` register type (was 87/94). Ratchet
+  re-taken at `r6BuildOk 47`, `match 46`.
+- Runtime archive rebuilt from the commit with an absolute `--out`:
+  `nm --defined-only` reports **337 defined symbols** (324 at `ce87d508`);
+  observation sha256 `58ff94a2381b33cb2dc2e8aa5deb0889b301b611bd742f12efc49f5152bbf97e`,
+  140814 bytes. A relative `--out` resolves against the pinned tree and fails
+  at `ar`; the recipe `86858c14` is unchanged.
+- Fixture retired: the pin rejects using an extern function as a value
+  (`Semantic error: Cannot use extern function 'orbit_string_at' as a value
+  ... [in extern_value]`), so `26-fn-values.orb` no longer builds with the
+  oracle and cannot sit in a differential. The pair is renamed to
+  `26-fn-values.{orb,json}.skip`; the IR keeps its pinned acceptance control
+  `ok-fn-extern` (D-M1-14, exit 98). Differential 43 -> 42 cases.
+- Gates: differential **42/42**; loader **193/193** (140 rejections + 53
+  controls); `tests/reject/make_cases.py --check` 175 files without drift;
+  `scripts/migrate-m1-fixtures.py --check` 20/20; corpus `--check` holds the
+  ratchet at 47/46.
+- Citation debt: D-M1-19 to D-M1-33 cite `c_backend.orb` by line against blob
+  `2d64c8de`. Re-anchoring against `0c9dd786` is separate documentation work:
+  130 citations measured, 65 shifted, 5 rewritten, 1 gone (the global
+  `extern OrbitArena* arena;` was removed).
+- Status: **applied**.

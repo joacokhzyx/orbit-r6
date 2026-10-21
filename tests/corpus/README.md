@@ -1,25 +1,26 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16. Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 93+1
-documentos IRv1 que el lenguaje emite sobre `tests/suite` (71 programas +
-`imports.support.orb`) y `tests/std` (22 programas) - el corpus designado por
-`orbit-lang/docs/IR_SPEC.md` §5.5 y reconciliado con el árbol en D-F0-10 (sin
-cambio en D-F0-11) - pineados por hash en `manifest.json`.
+Fecha: 2026-10-16; re-pin 2026-10-21 (D-F0-13). Decisión:
+`docs/DECISIONS.md` D-M1-17. Corpus: los 97+1 documentos IRv1 que el lenguaje
+emite sobre `tests/suite` (74 programas + `imports.support.orb`) y `tests/std`
+(23 programas) - el corpus designado por `orbit-lang/docs/IR_SPEC.md` §5.5 y
+reconciliado con el árbol en D-F0-10; regenerado sin cambio en D-F0-11 y
+movido en D-F0-13 - pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-26cfb87400.exe `
+  --compiler C:\Temp\orbit-fp-08a471904d.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Users\Usuario\Downloads\orbit-lang `
+  --orbit-root C:\Temp\orbit-pin-17ed624-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- `manifest.json` - el pin: 94 entradas (`path`, `kind`, `ir`, `bytes`,
+- `manifest.json` - el pin: 98 entradas (`path`, `kind`, `ir`, `bytes`,
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `862f257`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `17ed624`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
@@ -89,6 +90,33 @@ el bloque `emitter` (ruta, sha256 del binario, `languageCommit`); `baseline.json
 no cambia ninguna métrica. La identidad reproducible del emisor es el commit y el
 canónico `9906A6F7…`: el sha256 del binario depende del directorio de build
 (embebe su ruta absoluta; ver `docs/PIN.md`).
+
+## Re-pin 2026-10-21 (D-F0-13, emisor `17ed624`, corpus `e8586b9a`)
+
+Setenta commits después de `ce87d508` (D-F0-12). El corpus creció de 93+1 a
+97+1 documentos (suite 71 -> 74, std 22 -> 23) y el canónico pasó de
+`9906A6F7…` a `6C26A19E…`.
+
+| Métrica | `ce87d508` (D-F0-12) | `17ed624` (D-F0-13) |
+|---|---|---|
+| miembros / programas | 94 / 93 | 98 / 97 |
+| bytes | 5419454 | 5932267 |
+| `filesSha256` | `0106d531…` | **`e8586b9a…`** |
+| oráculo compila y corre | 93/93 | 97/97 |
+| R6 compila | 46/93 | **47/97** |
+| R6 coincide (exit + stdout) | 45/93 | **46/97** |
+| documentos con `unknown` en `registerTypes` | 87/94 | 91/98 |
+
+El mismo `filesSha256` salió de dos árboles materializados de forma
+independiente (una extracción `git archive` y un `git clone`, ambos en el
+commit): los bytes son función del commit, no del árbol. El trinquete queda en
+`r6BuildOk 47`, `match 46`.
+
+El par 26 se retiró del diferencial: el pin rechaza usar un extern como valor
+(`Cannot use extern function 'orbit_string_at' as a value`), así que el `.orb`
+ya no construye con el oráculo. La pareja pasa a `.skip` y el IR sigue medido
+por `ok-fn-extern` (D-M1-14, exit 98).
+
 | Métrica | Valor |
 |---|---|
 | miembros / programas | 90 / 89 (+1 módulo de soporte) |

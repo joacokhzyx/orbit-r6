@@ -37,7 +37,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `23-list-set-pop` | `list_set`/`list_pop` y kinds string/int/float/bool fuera de `main` (arena global) | 135 | vacío |
 | `24-model-fields` | constructor de modelo y `load_field`/`store_field` int/float/bool/string (refs `Vec.*`) | 42 | `seed\nmut\nf-ok\n` |
 | `25-union-tag-data` | ctor de unión unit/single/multi (pack), `union_get_tag`/`union_get_data` y cuatro matches exhaustivos | 85 | `u-ok\n` |
-| `26-fn-values` | valores de función sin captura, llamada indirecta, rebinding `var` y binding externo | 42 | `fn-ok\n` |
+| `26-fn-values` | valores de función sin captura, llamada indirecta, rebinding `var` y binding externo. **Retirado del diferencial en D-F0-13**: el pin `17ed624` rechaza un extern como valor, así que el `.orb` ya no construye con el oráculo; el IR sigue medido por `ok-fn-extern` (exit 98) | 42 | `fn-ok\n` |
 | `27-call-string-target` | target de llamada `String` (el formulario del builder) con destino `void` y con destino `int` | 42 | `string-target\n` |
 | `28-sym-literals` | literales bool/float como texto `Sym` en `load_const`, con el `decl_var` del builder | 42 | vacío |
 | `29-decl-var-literals` | inicializadores literales inline en `decl_var` (int/string/bool) leídos por `load_var` | 42 | `ok\n` |
@@ -74,7 +74,8 @@ D-M1-24/D-M1-25 (2026-10-18), el par 36 desde D-M1-26 (2026-10-19), el par
 D-F0-06/D-F0-07/D-M1-07/D-M1-08/D-M1-09/D-M1-11/D-M1-12/D-M1-14/D-M1-18/
 D-M1-19/D-M1-20/D-M1-21/D-M1-22/D-M1-23/D-M1-24/D-M1-25/D-M1-26/
 D-M1-27/D-M1-28/D-M1-29/D-M1-30/D-M1-31/D-M1-32/D-M1-33 y
-`../../M1_REPORT.md`).
+`../../M1_REPORT.md`). El par 26 se retiró del diferencial en D-F0-13 (el pin
+`17ed624` rechaza un extern como valor); el resto de los pares sigue medido.
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec

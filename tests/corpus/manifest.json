@@ -1,19 +1,19 @@
 {
   "schema": "r6-ir-corpus/1",
   "emitter": {
-    "path": "C:\\Temp\\orbit-fp-26cfb87400.exe",
-    "sha256": "10a16956709c68c13e949015187634fa48dec2f60b6fdbc4cf73738be43e5379",
-    "bytes": 2537984,
+    "path": "C:\\Temp\\orbit-fp-08a471904d.exe",
+    "sha256": "7e1f9c307f96415fb6ee9198b241eb0b5bcccabc6634fbe9571cf9bd39dcc896",
+    "bytes": 2573312,
     "version": "orbit 0.1.0-rc.2",
-    "languageCommit": "862f257352f5bb7f5ce57c12d387a3ff8bc65f40"
+    "languageCommit": "17ed6243844eb043f08cf9163cb60ea9cb8c6a63"
   },
   "counts": {
-    "executable": 93,
+    "executable": 97,
     "support": 1,
-    "total": 94
+    "total": 98
   },
-  "totalBytes": 5419454,
-  "filesSha256": "0106d531cc10f2edb02097db2babdef4291f845a03be85dcfee47c3d91b5bfb9",
+  "totalBytes": 5932267,
+  "filesSha256": "e8586b9af976d18c3fdb1d4071a5431dc60da49223a6a09e9e38a02a9b96db0e",
   "files": [
     {
       "path": "tests/suite/arena_sink_scope.orb",
@@ -28,6 +28,13 @@
       "ir": "tests/suite/arith.ir",
       "bytes": 934,
       "sha256": "7cb01809bc6a1490e4f5c9489a0e05b272a6db21f8f60179a662090408977de0"
+    },
+    {
+      "path": "tests/suite/assignment_var_store.orb",
+      "kind": "executable",
+      "ir": "tests/suite/assignment_var_store.ir",
+      "bytes": 10853,
+      "sha256": "d7103184163d45c7c0bb3991508ec38cd3310b0f64e06b54f89f7d752c75396c"
     },
     {
       "path": "tests/suite/ast_function_body_is_a_block.orb",
@@ -268,6 +275,13 @@
       "sha256": "1b66ee25a9f9c7ab35350e685a6b81cd9b1c3ca63a91fe6829d277331d8604c7"
     },
     {
+      "path": "tests/suite/member_and_index_store.orb",
+      "kind": "executable",
+      "ir": "tests/suite/member_and_index_store.ir",
+      "bytes": 7068,
+      "sha256": "a25ea19824a558129eed9067828c4dbc99559f631b83e0a26a2215770060dd6a"
+    },
+    {
       "path": "tests/suite/member_resolution.orb",
       "kind": "executable",
       "ir": "tests/suite/member_resolution.ir",
@@ -485,6 +499,13 @@
       "sha256": "0d5eedc332996e3c4dc75d4144e977423dde6364b148a410a1c0f157b249920f"
     },
     {
+      "path": "tests/suite/union_bare_variant_pattern.orb",
+      "kind": "executable",
+      "ir": "tests/suite/union_bare_variant_pattern.ir",
+      "bytes": 19898,
+      "sha256": "7c5b73522a3b306a1f92bdb98aabfc2b04501d26322ef6284f06bcc0b633ecb0"
+    },
+    {
       "path": "tests/suite/union_match_exhaustive.orb",
       "kind": "executable",
       "ir": "tests/suite/union_match_exhaustive.ir",
@@ -523,8 +544,8 @@
       "path": "tests/std/color_smoke.orb",
       "kind": "executable",
       "ir": "tests/std/color_smoke.ir",
-      "bytes": 21391,
-      "sha256": "df79a2e291adcd5cfb184adcb83563100433eb935096fc36d8487d580dcd0952"
+      "bytes": 21359,
+      "sha256": "45f4097c9c41d3a749bbd475bccb9bae3f2568ff927157bca215653f423cbad0"
     },
     {
       "path": "tests/std/test_assert.orb",
@@ -532,6 +553,13 @@
       "ir": "tests/std/test_assert.ir",
       "bytes": 39343,
       "sha256": "8b93c556cf828a19b22429b9765ce1e6b7aa36da0f5b95cebda00c115609e126"
+    },
+    {
+      "path": "tests/std/test_bitwise.orb",
+      "kind": "executable",
+      "ir": "tests/std/test_bitwise.ir",
+      "bytes": 39774,
+      "sha256": "a9d59cb3f930461e655fa1b34e9505a8b6dd6bc8b626f33d66d1122ba005756f"
     },
     {
       "path": "tests/std/test_bytes.orb",
@@ -600,15 +628,15 @@
       "path": "tests/std/test_imports.orb",
       "kind": "executable",
       "ir": "tests/std/test_imports.ir",
-      "bytes": 492918,
-      "sha256": "df0a35b9a665ddec2b572cacd8e1fb68db460aa30a4ca314c35046cf87088174"
+      "bytes": 840207,
+      "sha256": "8fe4954170ea250208a1ca008dc5232758c628654d6e3f3be5a6e44fd03096d3"
     },
     {
       "path": "tests/std/test_io.orb",
       "kind": "executable",
       "ir": "tests/std/test_io.ir",
-      "bytes": 191247,
-      "sha256": "9636cb143344ebcdef7fe26d7d61ea0af3ed153989ba7e551067230f12d6cc64"
+      "bytes": 279210,
+      "sha256": "42795451340bcb0bc704a22698ce4baada379f3bb1ab2d143723a4b8055dbeb1"
     },
     {
       "path": "tests/std/test_json.orb",
