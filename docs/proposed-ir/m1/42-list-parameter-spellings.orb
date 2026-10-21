@@ -1,6 +1,6 @@
 // D-M1-32: a list spelling names what is IN the list, not what the pointer
 // is. The pinned C type map answers `OrbitList*` for `list`, `List` and any
-// `list<...>` at any depth (c_backend.orb:469-495), so a parameter, a return
+// `list<...>` at any depth (c_backend.orb:471-497), so a parameter, a return
 // type and a register are the same pointer whatever the argument says. This
 // fixture carries both parameterised spellings and a parameterised return
 // through calls, and every check is `if wrong { return N }` with a distinct N.
@@ -27,7 +27,7 @@ fn pair() -> list<int> {
     return out
 }
 
-// The rule is about the base at any depth (c_backend.orb:481-497). No value
+// The rule is about the base at any depth (c_backend.orb:483-499). No value
 // reaches this parameter: building a list of lists needs an opaque push, which
 // stays outside M1 (D-M1-30). The spelling itself is what this checks.
 fn depth(xs: list<list<int>>) -> int {

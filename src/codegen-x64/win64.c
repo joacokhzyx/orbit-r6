@@ -48,7 +48,7 @@ static bool same_type(const char *a, const char *b) {
     return a && b && strcmp(a, b) == 0;
 }
 
-/* D-M1-32: the pinned C type map (c_backend.orb:476-497) answers the same
+/* D-M1-32: the pinned C type map (c_backend.orb:478-499) answers the same
  * pointer for every list spelling - `list`, `List`, and any `list<...>` at any
  * depth - because the arguments name what is IN the list, not what the pointer
  * is. R6's list register type is that pointer, so the three ABI positions
@@ -88,7 +88,7 @@ static void canonicalize_list_types(R6Module *m) {
     }
 }
 
-/* D-M1-31: the pinned comparison arms (c_backend.orb:2745-2812) pick three
+/* D-M1-31: the pinned comparison arms (c_backend.orb:2747-2814) pick three
  * lowerings. Two strings compare with strcmp; either side float promotes the
  * pair to double; anything else compares the two 64-bit slots as words. The
  * relational ops have no string arm. A string against a number is the pin's
@@ -109,7 +109,7 @@ static bool comparison_types_ok(const char *a, const char *b, bool allow_string)
 static const R6Function *find_function(const R6Module *m, const char *name);
 
 /* D-M1-27: the runtime functions whose C signature carries the arena as an
- * implicit first parameter (c_backend.orb:4410-4431, `functionNeedsArena`).
+ * implicit first parameter (c_backend.orb:4416-4437, `functionNeedsArena`).
  * The IR declaration the builder emits does not repeat it, so a call to one of
  * these externs must prepend the executable arena or it lands on the wrong
  * ABI. The set is copied verbatim; every other name is called as declared. */
@@ -306,7 +306,7 @@ static bool global_integer(const R6Global *g, int32_t *value) {
     return true;
 }
 
-/* D-M1-33: a top-level constant carries no type of its own. c_backend.orb:396-399
+/* D-M1-33: a top-level constant carries no type of its own. c_backend.orb:398-401
  * writes `#define NAME <text>` for every global and :1647-1651 renders the
  * value's String payload verbatim, so the text is the type: a decimal integer
  * text is an int. The builder's "unknown" (what it writes when it cannot tell,
@@ -509,7 +509,7 @@ static int sym_literal_kind(const R6Value *v, R6Value *out) {
 /* A parameter is loadable by name. The pinned builder emits `arg` to bind each
  * parameter and reads it in the body with `load_var <name>`; the C backend
  * types that read from `paramTypes` after matching `func.params`
- * (c_backend.orb:775-800) and the `arg` binding emits the parameter itself
+ * (c_backend.orb:777-802) and the `arg` binding emits the parameter itself
  * (:2860-2873), so a `load_var` of a parameter is that same value. Parameters
  * resolve before locals, in the backend's order (D-M1-22). */
 static bool param_info(const R6Function *f, const char *name, size_t *index,
@@ -956,7 +956,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             const R6Global *global = name ? find_global(m, name) : NULL;
             int32_t ignored, tag_value = 0;
             /* A parameter resolves first, in the backend's order
-               (c_backend.orb:786-792), and carries paramTypes[p] (D-M1-22). */
+               (c_backend.orb:788-794), and carries paramTypes[p] (D-M1-22). */
             bool param = param_info(f, name, NULL, &lt);
             bool local = !param && name &&
                          local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf);
@@ -1000,7 +1000,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_LIST_LEN:
             /* D-M1-29: `.len()` on a string reaches this opcode too, and the
                pinned arm asks isStringOperand first and lowers it to
-               orbit_string_len (c_backend.orb:3609-3615). Both receivers keep
+               orbit_string_len (c_backend.orb:3615-3621). Both receivers keep
                an int destination. */
             if (!valid_dest(f, i, true, d) || !is_int(type_at(f, i->dest)) ||
                 i->operands[0].kind != R6_VAL_REG ||
@@ -1257,7 +1257,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             }
             /* D-M1-26: the builtin `print` is intercepted by NAME before any
                declaration is resolved, exactly as the pinned lowering does
-               (c_backend.orb:2971-2999): a module may declare `extern fn
+               (c_backend.orb:2977-3005): a module may declare `extern fn
                print(...)` (3 corpus programs do) and the call still lowers to
                the printf forms, never to the declared symbol. feBuildTimeCallType
                types it void (:3911). The destination, when the builder
@@ -1286,7 +1286,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                                     "print argument has no measured printable type");
                     arg_count -= 1;
                 } else {
-                    /* c_backend.orb:2993-2998: any other arity pops every
+                    /* c_backend.orb:2999-3004: any other arity pops every
                        pending argument and emits the no-op. */
                     arg_count = 0;
                 }
@@ -1418,8 +1418,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_RET:
             /* D-M1-28: a void function returns without reading its operand.
                The pinned lowering emits a bare `return;` for both ret forms
-               once the return type is void (c_backend.orb:3429-3439 and
-               :3460-3465), so a carried value is admitted and ignored. */
+               once the return type is void (c_backend.orb:3435-3445 and
+               :3466-3471), so a carried value is admitted and ignored. */
             if (strcmp(f->return_type, "void") != 0) {
                 if (!i->operands[0].kind || i->operands[0].kind == R6_VAL_NONE ||
                     !value_type(f, &i->operands[0], &a) || !same_type(a, f->return_type))
@@ -1480,7 +1480,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_BEGIN_BLOCK:
         case R6_OP_END_BLOCK:
             /* No observable effect at the pin: nop appends nothing and the
-               blocks render as C braces (c_backend.orb:2423, 2634-2641). */
+               blocks render as C braces (c_backend.orb:2592, 2835-2842). */
             break;
         default:
             return fail(d, i, "CGEN", "unsupported opcode %s at instruction %zu",
@@ -1715,7 +1715,7 @@ static void emit_load_arena(FILE *o, const R6Function *f, bool is_main,
 
 /* D-M1-23: spreads one scalar operand of a string `add` into a string with the
  * converter the pinned backend's stringifyConcatOperand emits
- * (c_backend.orb:4341-4378): int -> orbit_int_to_string_selfhost (arena-free,
+ * (c_backend.orb:4347-4384): int -> orbit_int_to_string_selfhost (arena-free,
  * it allocates in the runtime's global arena), bool -> orbit_bool_to_string(
  * arena, v), float -> orbit_float_to_string(arena, v). The result lands in
  * `slot` so the concat reads it from memory and the source word stays live in
@@ -2049,7 +2049,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned null_id = (unsigned)pc * 2;
             unsigned done_id = null_id + 1;
             /* D-M1-29: a string receiver is the same opcode in the pin, and
-               its arm lowers it to orbit_string_len (c_backend.orb:3609-3615),
+               its arm lowers it to orbit_string_len (c_backend.orb:3615-3621),
                which the header defines inline as `s ? strlen(s) : 0`
                (orbit_api.h:411-413). Emit that body; the archive has no
                orbit_string_len symbol to call. */
@@ -2471,12 +2471,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (i->operands[0].kind == R6_VAL_STRING &&
                 strcmp(i->operands[0].as.string, "print") == 0 &&
                 !find_union_variant(m, i->operands[0].as.string, NULL)) {
-                /* D-M1-26: the builtin `print` (c_backend.orb:2971-2999).
+                /* D-M1-26: the builtin `print` (c_backend.orb:2977-3005).
                  * Exactly one argument prints one line: a string via the C
                  * "%s" form, a float via the runtime's own formatter, and any
                  * other scalar (int/bool) via "%lld". 0 or >1 arguments emit
                  * no code at all, exactly like the pinned no-op comment
-                 * (c_backend.orb:2997). The void destination is never stored.
+                 * (c_backend.orb:3003). The void destination is never stored.
                  * The calls reach the msvcrt printf with the variable-argument
                  * ABI: every argument rides the integer registers (RCX/%rdx)
                  * and AL is set to 0 (no vector registers) for the varargs
@@ -2508,7 +2508,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 }
                 /* The pinned lowering pops one argument for the printing form
                    and every pending argument for the no-op (c_backend.orb:
-                   2993-2998); validation books the same counts. */
+                   2999-3004); validation books the same counts. */
                 pending = arity == 1 ? base : 0;
                 break;
             }
@@ -2545,10 +2545,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     }
                     /* D-M1-27: an enumerated runtime extern takes the arena as
                        its first C parameter although the IR declaration does
-                       not repeat it (c_backend.orb:3091-3098 prepends it from
-                       functionNeedsArena). Load it into %rcx and shift every
-                       IR argument one slot; the float arguments keep the xmm
-                       sequence because the arena is an integer argument. */
+                       not repeat it (c_backend.orb:3097-3104 prepends it
+                       when the callee takes one; the extern family is
+                       `functionNeedsArena` at :4416-4437). Load it into %rcx
+                       and shift every IR argument one slot; the float
+                       arguments keep the xmm sequence because the arena is an
+                       integer argument. */
                     bool arena_first = named->is_extern &&
                                        extern_needs_arena(named->name);
                     if (arena_first) emit_load_arena(o, f, is_main, "%rcx");
@@ -2800,7 +2802,7 @@ static void emit_entry_wrapper(FILE *o) {
 /* ---- D-M1-20: recovering a register type the builder left `unknown` ------
  *
  * The pinned builder serializes the module before the C backend's
- * inferRegisterTypes runs (c_backend.orb:562), so a register it could not
+ * inferRegisterTypes runs (c_backend.orb:674), so a register it could not
  * type is written as the literal text `unknown` and the module check below
  * refuses it. That is the widest wall the emitted corpus hits: 84 of the 90
  * documents carry `unknown`, 6735 slots in all, and 47 documents stop exactly
@@ -2927,9 +2929,9 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         /* A variant constructor lands in the union cell D-M1-12 defines. */
         if (find_union_variant(m, name, NULL) != NULL) return "void*";
         /* D-M1-26: the builtin `print` returns void (feBuildTimeCallType,
-         * c_backend.orb:3911) and is intercepted by name before any declared
+         * c_backend.orb:3917) and is intercepted by name before any declared
          * function of the same name, exactly like the pinned lowering
-         * (:2971-2999). */
+         * (:2977-3005). */
         if (o1->kind == R6_VAL_STRING && strcmp(name, "print") == 0) return "void";
         if ((callee = find_function(m, name)) != NULL) return callee->return_type;
         if (o1->kind == R6_VAL_STRING &&

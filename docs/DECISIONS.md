@@ -187,7 +187,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Decision: the loader admits `nop`, `begin_block` and `end_block`; codegen
   lowers all three to no machine code. Ground at the pin:
   `c_backend.orb:2592` appends an empty string for `nop`;
-  `c_backend.orb:2636-2643` renders the blocks as the C braces `{`/`}` (pure C
+  `c_backend.orb:2835-2842` renders the blocks as the C braces `{`/`}` (pure C
   scoping decoration: no observable runtime effect for the IR the pin can
   compile; R6 registers are function-wide stack slots and it emits nothing);
   `cteval.orb:953,998` produces `nop` with `dest -1` while folding dead

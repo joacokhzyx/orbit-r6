@@ -1,6 +1,6 @@
 // D-M1-30: an empty list literal is created with elemKind 0 (ORBIT_ELEM_OPAQUE)
 // and the first typed push adopts the element kind. The pinned lowering passes
-// the kind straight to orbit_list_create_typed (c_backend.orb:3580-3585), the
+// the kind straight to orbit_list_create_typed (c_backend.orb:3586-3591), the
 // runtime starts every list OPAQUE (collections.c:170) and
 // orbit_list_adopt_kind establishes the kind on the first write
 // (collections.c:102-116); a read of an opaque list is accepted because the

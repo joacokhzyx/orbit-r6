@@ -1,7 +1,7 @@
 // expect-exit 42
 // `add` is overloaded: the pinned backend turns it into a string concatenation
-// whenever either operand is a string operand (c_backend.orb:2662-2668) and
-// spreads each side through stringifyConcatOperand (c_backend.orb:4341-4378):
+// whenever either operand is a string operand (c_backend.orb:2664-2670) and
+// spreads each side through stringifyConcatOperand (c_backend.orb:4347-4384):
 // bool -> orbit_bool_to_string(arena, v), float -> orbit_float_to_string(arena,
 // v), int -> orbit_int_to_string_selfhost(v), string -> raw. isStringOperand
 // (:3881-3908) decides per operand, so the string may sit on either side, and

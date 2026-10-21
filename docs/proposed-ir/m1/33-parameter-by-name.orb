@@ -1,7 +1,7 @@
 // expect-exit 42
 // Reading a parameter by name. The pinned builder emits `arg` to bind each
 // parameter and reads it in the body with `load_var <name>`: the C backend
-// types that read from `paramTypes` (c_backend.orb:775-800) and the bind emits
+// types that read from `paramTypes` (c_backend.orb:777-802) and the bind emits
 // the parameter itself (:2860-2873), so a `load_var` of a parameter is the same
 // value as its `arg` binding. The emitted corpus reaches this form in 23
 // programs -- the whole `load_var` wall -- with int, string, bool and float

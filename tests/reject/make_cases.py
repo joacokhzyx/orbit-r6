@@ -746,7 +746,7 @@ def build_reject():
                      ["list", "int", "void"])])),
         "D-M1-30", "CGEN",
         "elemKind 0 is admitted at list_create only; a push has no slot decoder")
-    # D-M1-31 pins the comparison arms (c_backend.orb:2745-2810): a string
+    # D-M1-31 pins the comparison arms (c_backend.orb:2747-2812): a string
     # against a number is the pin's word fallthrough, a bool is a number, but
     # a float still needs both sides typed float and a string has no
     # relational arm. These two cases are the boundaries, not the rule.
@@ -813,7 +813,7 @@ def build_reject():
     # ---- D-M1-22: a parameter read by name is function-scoped ---------------
     # The pinned builder binds every parameter with `arg` and reads it in the
     # body with `load_var <name>`: the backend types that read from paramTypes
-    # (c_backend.orb:775-800) and its `arg` emits the parameter itself
+    # (c_backend.orb:777-802) and its `arg` emits the parameter itself
     # (:2860-2873). Admitting the read makes no name global, guesses no type,
     # and rescues no undeclared name.
     add("x-load-var-foreign-param",
@@ -838,7 +838,7 @@ def build_reject():
         "loading a parameter into a differently typed register is refused")
 
     # ---- D-M1-32: a list spelling is the list pointer ----------------------
-    # Every list spelling maps to one C type (c_backend.orb:469-495), so a
+    # Every list spelling maps to one C type (c_backend.orb:471-497), so a
     # parameter may say `list<int>`. The rule is about the base: `map<...>` is a
     # different base and a different C type, and R6 has none.
     add("x-param-map-spelling",
@@ -861,7 +861,7 @@ def build_reject():
         "an extern parameter stays scalar; a list is not lowered there")
 
     # ---- D-M1-33: a top-level constant is a #define ------------------------
-    # c_backend.orb:396-399 writes `#define NAME <text>` for every global and
+    # c_backend.orb:398-401 writes `#define NAME <text>` for every global and
     # :1647-1651 renders the value's String payload verbatim, so the text is the
     # type. The builder writes "unknown" for a type it cannot tell; a decimal
     # integer text is an int. Any other text stays outside the subset.
@@ -884,7 +884,7 @@ def build_reject():
 
     # ---- D-M1-23: a string `add` concatenates and spreads -------------------
     # The pinned backend turns `add` into orbit_string_concat whenever either
-    # operand is a string operand (c_backend.orb:2662-2668) and stringifies each
+    # operand is a string operand (c_backend.orb:2664-2670) and stringifies each
     # side on its own (:4341-4378, :3881-3908). The spread side must therefore
     # be a scalar a converter covers, the result is always a string, and the
     # Float literal of D-M1-21 is still not something the builder emits into an
@@ -922,8 +922,8 @@ def build_reject():
         "a string add must produce a string")
 
     # ---- D-M1-26: the builtin `print` ---------------------------------------
-    # feBuildTimeCallType types `print` void (c_backend.orb:3911) and its
-    # lowering (c_backend.orb:2971-2999) intercepts the NAME before any
+    # feBuildTimeCallType types `print` void (c_backend.orb:3917) and its
+    # lowering (c_backend.orb:2977-3005) intercepts the NAME before any
     # declaration, then dispatches on the one argument it consumes. The
     # destination is never stored, so it is admitted as any valid register.
     # The arity rules are the loader's (V-13/E-05) and already have their own
@@ -960,7 +960,7 @@ def build_reject():
 
     # ---- D-M1-28: a void function returns without reading its operand -------
     # Both pinned ret arms emit a bare `return;` once the return type is void
-    # (c_backend.orb:3429-3439, :3460-3465), so a carried value is admitted and
+    # (c_backend.orb:3435-3445, :3466-3471), so a carried value is admitted and
     # ignored. The non-void direction is unchanged: the value must still match
     # the declared return type, and its register must still exist.
     add("x-ret-type-mismatch",
@@ -1254,8 +1254,8 @@ def build_accept_files():
                                 I("load_const", 2, Int(0)),
                                 I("ret", -1, Reg(2))], ["float", "string", "int"])]))))
     # D-M1-28: a void function returns without reading the value its ret
-    # carries; both pinned arms emit a bare `return;` (c_backend.orb:3429-3439,
-    # :3460-3465). The register here is an int, which would be a mismatch if it
+    # carries; both pinned arms emit a bare `return;` (c_backend.orb:3435-3445,
+    # :3466-3471). The register here is an int, which would be a mismatch if it
     # were read - the corpus shape is the destination of the void call.
     tailfn = FN("tail",
                 [I("arg", -1, Str("plain")),
@@ -1269,7 +1269,7 @@ def build_accept_files():
                                 I("ret", -1, Reg(0))], ["int"])]))))
     # D-M1-29: `.len()` on a string is the same list_len opcode when the
     # builder did not know the receiver's type; the pinned arm lowers it to
-    # orbit_string_len (c_backend.orb:3609-3615).
+    # orbit_string_len (c_backend.orb:3615-3621).
     files.append(("ok-list-len-string",
                   jd(DOC([MAIN([I("load_const", 0, Str("abc")),
                                 I("list_len", 1, Reg(0)),
@@ -1344,7 +1344,7 @@ def build_accept_files():
                                  I("ret", -1, Reg(3))],
                                 ["list", "int", "void", "int"])]))))
     # D-M1-32: the C type map answers the list pointer for `List` as well
-    # (c_backend.orb:475), and the builder serializes that spelling into
+    # (c_backend.orb:477), and the builder serializes that spelling into
     # registerTypes when the source names the type that way.
     files.append(("ok-list-capital-spelling",
                   jd(DOC([MAIN([I("list_create", 0, Int(8), Int(2)),

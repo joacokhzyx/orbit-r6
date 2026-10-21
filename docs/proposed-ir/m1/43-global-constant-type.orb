@@ -1,5 +1,5 @@
 // D-M1-33: a top-level constant carries no type of its own. The pinned
-// backend writes `#define NAME <text>` for every global (c_backend.orb:396-399)
+// backend writes `#define NAME <text>` for every global (c_backend.orb:398-401)
 // and renders the value's String payload verbatim (:1647-1651), so the text is
 // the type: a decimal integer text is an int. The builder serializes the type
 // it cannot tell as "unknown", the same word it uses for a register. These

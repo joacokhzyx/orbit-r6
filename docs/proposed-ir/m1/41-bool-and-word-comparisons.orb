@@ -1,4 +1,4 @@
-// D-M1-31: the pinned comparison arms (c_backend.orb:2745-2810). Two strings
+// D-M1-31: the pinned comparison arms (c_backend.orb:2747-2812). Two strings
 // compare with strcmp, either side float promotes the pair to double, and
 // anything else compares the two 64-bit slots as words. The relational ops
 // have no string arm. A bool is a number to those arms, so `c > 4` compares
