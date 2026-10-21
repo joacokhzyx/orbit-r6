@@ -1326,6 +1326,20 @@
       "note": "an unknown-typed decimal global is an int constant"
     },
     {
+      "file": "cases/ok-global-int32-max.json",
+      "run_exit": 2147483647,
+      "run_stdout": "",
+      "rule": "D-M1-33",
+      "note": "the largest int32 text builds and is the whole exit code"
+    },
+    {
+      "file": "cases/ok-global-int32-min.json",
+      "run_exit": 2147483648,
+      "run_stdout": "",
+      "rule": "D-M1-33",
+      "note": "the smallest int32 text builds; the exit code is its 32-bit pattern"
+    },
+    {
       "file": "../../docs/proposed-ir/m1/43-global-constant-type.json",
       "run_exit": 0,
       "run_stdout": "32\r\n3\r\n-2\r\n",

@@ -914,7 +914,8 @@ Mensajes completos de la corrida:
   mide 32 bits en este destino, así que `strtol` satura en `LONG_MAX`/`LONG_MIN`
   sin salir de int32: el parseo es `strtoll` con `ERANGE`, y los bordes
   `2147483647` y `-2147483648` siguen construyendo y coincidiendo con el
-  oráculo. `0x20` y `+5` son literales int de C que el pin aceptaría y R6
+  oráculo (`ok-global-int32-max`, exit 2147483647; `ok-global-int32-min`, exit
+  0x80000000). `0x20` y `+5` son literales int de C que el pin aceptaría y R6
   rechaza: huecos declarados, no divergencias.
 - Controles: fixture `43-global-constant-type` (`val SPACE = 32`,
   `const LIMIT = 3`, `val NEG = -2`; los imprime, los compara y los suma; salida

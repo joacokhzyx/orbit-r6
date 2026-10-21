@@ -1364,6 +1364,17 @@ def build_accept_files():
                                ["int", "int", "int"])],
                           globals_=[G("LIMIT", "unknown", Str("43")),
                                     G("NEG", "unknown", Str("-2"))]))))
+    # D-M1-33 boundary: the parse admits the whole int32 range and stops there.
+    # `2147483647` and `-2147483648` are the last texts inside it;
+    # `x-global-int-overflow` and `x-global-int-underflow` are the first outside.
+    files.append(("ok-global-int32-max",
+                  jd(DOC([MAIN([I("load_var", 0, Sym("MAXI")),
+                                I("ret", -1, Reg(0))], ["int"])],
+                          globals_=[G("MAXI", "unknown", Str("2147483647"))]))))
+    files.append(("ok-global-int32-min",
+                  jd(DOC([MAIN([I("load_var", 0, Sym("MINI")),
+                                I("ret", -1, Reg(0))], ["int"])],
+                          globals_=[G("MINI", "unknown", Str("-2147483648"))]))))
     return files
 
 
@@ -1508,6 +1519,12 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-global-unknown-type.json", "run_exit": 41,
              "run_stdout": "", "rule": "D-M1-33",
              "note": "an unknown-typed decimal global is an int constant"},
+            {"file": "cases/ok-global-int32-max.json", "run_exit": 2147483647,
+             "run_stdout": "", "rule": "D-M1-33",
+             "note": "the largest int32 text builds and is the whole exit code"},
+            {"file": "cases/ok-global-int32-min.json", "run_exit": 2147483648,
+             "run_stdout": "", "rule": "D-M1-33",
+             "note": "the smallest int32 text builds; the exit code is its 32-bit pattern"},
             {"file": "../../docs/proposed-ir/m1/43-global-constant-type.json",
              "run_exit": 0, "run_stdout": "32\r\n3\r\n-2\r\n", "rule": "D-M1-33",
              "note": "three corpus-shaped globals print and compare as ints"},

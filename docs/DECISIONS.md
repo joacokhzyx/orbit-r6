@@ -1854,6 +1854,9 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `32\r\n3\r\n-2\r\n`, exit 0) and `ok-global-unknown-type` (43 + -2 = 41 by
   exit). `x-global-unknown-text`, `x-global-declared-string`,
   `x-global-int-overflow` and `x-global-int-underflow` are the rejections.
+  The two edges inside int32 are pinned too: `ok-global-int32-max`
+  (`2147483647` reaches exit 2147483647) and `ok-global-int32-min`
+  (`-2147483648` reaches exit `0x80000000`).
 - Evidence (pin `filesSha256 0106d531`): match **44 -> 45/93** and build
   **45 -> 46/93**. `global_const` now matches. `ast_function_body_is_a_block`
   advances to `union ASTNode variant Program payloads are outside the M1 native
