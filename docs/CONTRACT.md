@@ -45,7 +45,7 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   `r6_codegen_win64` (firma `R6Module *`; reescribe `register_types` in situ,
   el loader sigue siendo el dueño de la memoria) recupera esos registros desde
   su instrucción definidora, espejando las reglas de `inferRegisterTypes`
-  (`c_backend.orb:562`) para los opcodes del subconjunto, en tres pasadas.
+  (`c_backend.orb:674`) para los opcodes del subconjunto, en tres pasadas.
   Solo sustituye `unknown`, nunca un tipo declarado, y un registro que ninguna
   regla explica sigue rechazado con el mismo `CGEN`. Decisión D-M1-20.
 - Evidencia semántica entera: `runtime/orbit_api.h:114` declara
@@ -61,7 +61,7 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   pin; `ne` combina `setne` con parity (`setp`), `lt/le` enmascaran el flag
   unordered de `ucomisd`. `eq` y `ne` aceptan también strings y llaman al
   `strcmp` del CRT; el pin emite `strcmp(a,b)==0/!=0` para strings
-  (`c_backend.orb:2550-2564`). Strings relacionales siguen rechazados.
+  (`c_backend.orb:2552-2566`). Strings relacionales siguen rechazados.
 - `neg` acepta int (negación modular en el slot nativo) y float (voltea el bit
   de signo con XOR, preservando el payload); `11-neg` compara valores finitos
   con GCC. Overflow de int no queda cubierto por ese fixture.
@@ -74,7 +74,7 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   un `Symbol` inicializador liga un valor de función (D-M1-14).
   `load_var` también lee globals
   `int`/`bool` literales: el pin serializa esos `IRGlobal.value` como String
-  decimal (`builder.orb:2288-2304,2333-2338`; `c_backend.orb:1479-1503`). Otros
+  decimal (`builder.orb:2288-2304,2333-2338`; `c_backend.orb:1481-1505`). Otros
   globals, params por nombre y captures fallan explícitamente.
 - Listas: Win64 M1 soporta únicamente `list<int>` en `main`, usando
   `list_create` (8-byte slots y `elem_kind=2`), `list_push` int y `list_len`.

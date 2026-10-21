@@ -17,7 +17,7 @@ concretos representativos están en `builder.orb:1218-1231` (arg/call),
 `2606-2681` (saltos/labels/copy), `2906-2910` y `3910-3975` (colecciones),
 `3117-3192` (resultados) y `3285-3378` (uniones/campos). La representación
 interna está en `ir.orb:72-105`. El dispatch C está en
-`c_backend.orb:2422-3598`.
+`c_backend.orb:2424-3604`.
 
 ### Lista exacta (60)
 
@@ -104,7 +104,7 @@ fallar con diagnóstico identificando opcode/campo, no aproximarse.
 ## Semántica observable por opcode (solo el lowering observado)
 
 La siguiente tabla describe lo que el C backend consume/emite en
-`c_backend.orb:2422-3598`; **no** basta para definir casos no ejercitados por ese
+`c_backend.orb:2424-3604`; **no** basta para definir casos no ejercitados por ese
 lowering. Lo no fijado queda UNSPECIFIED en R6. `O1..O3` son los operandos
 etiquetados de `IRInstruction`; `D` es dest.
 
@@ -171,7 +171,7 @@ etiquetados de `IRInstruction`; `D` es dest.
 | `union_get_tag` | D, O1 unión. | Layout/tag mapping por fijar. |
 | `union_get_data` | D, O1 unión. | Payload/layout por fijar. |
 
-El backend C cae a un comentario `Unknown opcode` (`c_backend.orb:3596-3598`),
+El backend C cae a un comentario `Unknown opcode` (`c_backend.orb:3602-3604`),
 lo que no cumple la regla de R6. R6 debe diagnosticar y fallar ante todo opcode
 fuera de su rango/implementación. El auditor confirma además que el builder no
 tiene referencias directas observadas a `nop`, `begin_block`, `end_block`,

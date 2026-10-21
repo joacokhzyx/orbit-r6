@@ -210,7 +210,7 @@ textual GAS intermedia es privada al backend y el linker MinGW permanece.
   tienen tipo de acceso dentro del modelo de registros (`unknown`/`void*`) y
   el print multicarácter no tiene productor — la sema del pin lo rechaza con
   E1003 (`sema.orb:3577-3584`) — ni lowering con semántica (solo el
-  comentario `/* print */`, `c_backend.orb:2795-2800`; U-17).
+  comentario `/* print */`, `c_backend.orb:2797-2802`; U-17).
 - Pins nuevos en `tests/reject/`: `x-list-get-kind-ref`,
   `x-list-create-kind-opaque`, `x-print-two-args` (los tres `CGEN`).
 - Segunda puerta: **107/107** (99 rechazos + 8 controles); gate diferencial
@@ -395,13 +395,13 @@ Mensajes completos de la corrida:
 
 - Decisión: D-M1-20. Antes de validar el módulo, R6 recorre cada función y
   recupera el tipo de un registro declarado `unknown` a partir de su
-  instrucción definidora, espejando `inferRegisterTypes` (`c_backend.orb:562`)
+  instrucción definidora, espejando `inferRegisterTypes` (`c_backend.orb:674`)
   restringido a los opcodes del subconjunto nativo, en un punto fijo de tres
   pasadas. Solo se sustituye el texto exacto `unknown`; un tipo declarado no se
   toca y un registro que ninguna regla explica sigue rechazado con el mismo
   `CGEN`.
 - Por qué: el backend del lenguaje declara cada registro como palabra
-  `uintptr_t` sin tipo (`c_backend.orb:3735`) y castea en el punto de uso; R6
+  `uintptr_t` sin tipo (`c_backend.orb:3741`) y castea en el punto de uso; R6
   emite x64 tipado y debe elegir `addl`/`addsd`, así que necesita el tipo. Los
   dos estrechamientos frente al original -la aritmética con operandos que no
   coinciden, y todo lo que el original resuelve por sus pasadas de "spreading"
@@ -449,10 +449,10 @@ Mensajes completos de la corrida:
   instrucción escribe el inmediato con la misma materialización que
   `load_const`/`decl_var` y `operand_slot()` devuelve el slot del registro o el
   del literal, de modo que la operación sigue siendo una lectura de slot.
-- Referencia: `c_backend.orb:1174-1196` (`irVerifierOperandType` tipa el literal
-  inline igual que un registro), `:3881` (`isStringOperand` acepta un
-  `IRValue.String` inline), `:1321`/`:1354` (`verifyarithBinop`/`verifycmpBinop`)
-  y `:802`/`:1049` (inferencia y emisión de `add`).
+- Referencia: `c_backend.orb:1176-1198` (`irVerifierOperandType` tipa el literal
+  inline igual que un registro), `:3887` (`isStringOperand` acepta un
+  `IRValue.String` inline), `:1323`/`:1356` (`verifyarithBinop`/`verifycmpBinop`)
+  y `:804`/`:1051` (inferencia y emisión de `add`).
 - Evidencia del corpus (pin `0106d531`): los primeros rechazos cuyo opcode es uno
   de los once caen **24 -> 6**, y esos 6 no son el literal: cuatro son residuo de
   D-M1-20 (un registro operando o destino que sigue `unknown`), uno es el
@@ -497,12 +497,13 @@ Mensajes completos de la corrida:
   eso sigue rechazado, el parámetro de **otra** función sigue rechazado (el
   parámetro es de ámbito de función, no un nombre de módulo) y un destino con
   tipo distinto de `paramTypes[p]` sigue rechazado.
-- Referencia (blob pineado `compiler/emit/c_backend.orb 2d64c8de…`): la emisión
-  de `load_var` (`:2598-2651`) cae a `func.params` y toma `paramTypes[p]` cuando
-  el tipo propio de la variable es `unknown`/vacío (`:2623-2631`), el cast sale
-  de ese tipo (`:2633-2649`) y un `Sym` se rinde como el nombre tal cual
-  (`generateValue`); la inferencia (`:775-800`) consulta `func.params` **antes**
-  que los locales; el binding `arg` (`:2860-2873`) emite `reg[dest] =
+- Referencia (blob pineado `compiler/emit/c_backend.orb 0c9dd786…`, re-anclado
+  desde `2d64c8de…` por D-F0-13): la emisión
+  de `load_var` (`:2600-2653`) cae a `func.params` y toma `paramTypes[p]` cuando
+  el tipo propio de la variable es `unknown`/vacío (`:2625-2633`), el cast sale
+  de ese tipo (`:2635-2651`) y un `Sym` se rinde como el nombre tal cual
+  (`generateValue`); la inferencia (`:777-802`) consulta `func.params` **antes**
+  que los locales; el binding `arg` (`:2862-2875`) emite `reg[dest] =
   params[index]`, el mismo valor. La spec (`docs/IR_SPEC.md`, blob `371f873e…`)
   §1.2 dice lo mismo (`load_var` = `D <- variable named by O1`; `arg` con `D` =
   índice de parámetro, `D <- parameter name`), aunque sus citas internas de
@@ -546,13 +547,14 @@ Mensajes completos de la corrida:
   32 bits, y dos funciones podían acuñar la misma etiqueta `.LCr6_f0_*`) y
   D-M1-25 (la longitud de `list_len` se guardaba a 32 bits en un slot `int` que
   sus consumidores leen a 64).
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`): `c_backend.orb:2662-2668`
+- Referencia (pin `17ed624`, leído con `git cat-file blob`): `c_backend.orb:2664-2670`
   (el brazo `IROpcode.add`: si cualquiera de los operandos es string, los dos pasan
   por `stringifyConcatOperand` y el resultado es `orbit_string_concat(arena, s1,
-  s2)`), `:4341-4378` (`stringifyConcatOperand`), `:3881-3908` (`isStringOperand`,
-  el mismo dato que el `type_at` de R6 ya tiene), `:387` (`extern OrbitArena*
-  arena;`, un global de archivo), `:193`/`:2219`/`:2242`
-  (`orbit_main(OrbitArena* _init_arena, ...)` y `arena = _init_arena;`), y el
+  s2)`), `:4347-4384` (`stringifyConcatOperand`), `:3887-3914` (`isStringOperand`,
+  el mismo dato que el `type_at` de R6 ya tiene), `:193`/`:2227` (el prototipo y
+  la definición de `orbit_main`, cuyo primer parámetro es `OrbitArena* arena`;
+  en `ce87d508` eran `_init_arena` más el global `:387` y la asignación
+  `:2242`, líneas que `17ed624` borró), y el
   runtime `selfhost.c:170` (`orbit_int_to_string_selfhost`, sin arena),
   `collections.c:716`/`:730`/`:815`/`:831` (int/float/bool -> string y
   `orbit_string_concat`), `orbit_api.h:388-391` (las declaraciones). D-M1-25
@@ -595,16 +597,17 @@ Mensajes completos de la corrida:
   D-M1-26 tres programas compilaron por primera vez y fallaron en ejecución.
 - D-M1-26: `print` es el target de llamada más frecuente del corpus (134 sitios
   en 32/93 programas). El lowering del pin lo intercepta **por nombre** antes de
-  resolver ninguna declaración (`c_backend.orb:2971-2999`), lo tipa `void`
-  (`:3911`) y el macro `runtime/orbit_api.h:293` demuestra que no existe símbolo
+  resolver ninguna declaración (`c_backend.orb:2977-3005`), lo tipa `void`
+  (`:3917`) y el macro `runtime/orbit_api.h:293` demuestra que no existe símbolo
   `print` (era el único `LINK` del corpus). R6 replica: un argumento imprime una
   línea según su clase (`int`/`bool` -> `%lld`, `string` -> `%s`, `float` ->
   `orbit_float_to_string(arena, v)` y `%s`), cualquier otra aridad es el no-op que
-  consume **todos** los pendientes (`:2993-2998`), y el destino se acepta pero
+  consume **todos** los pendientes (`:2999-3004`), y el destino se acepta pero
   **nunca se escribe** (el builder lo tipa `int` desde un `extern fn print(...)`
   en tres programas, 8 sitios, y ningún programa del corpus lo lee después).
 - D-M1-27: el backend C antepone `arena` a los nombres de `functionNeedsArena`
-  (`c_backend.orb:4410-4431`; el prepend en `:3091-3098`) porque el runtime
+  (`c_backend.orb:4416-4437`; desde `17ed624` también a toda función no externa
+  del módulo, `:4447-4458`; el prepend en `:3097-3104`) porque el runtime
   declara `orbit_string orbit_int_to_string(OrbitArena*, orbit_int)`
   (`runtime/orbit_api.h:388-389`, definiciones en `runtime/collections.c:716`/
   `:730`). La declaración IR no repite el arena. R6 emite el arena en RCX y
@@ -653,12 +656,12 @@ Mensajes completos de la corrida:
 - Decisión: D-M1-28. `return f()` sobre un callee `void` es la forma natural de
   una tail call; el builder guarda en `operand1` el registro destino de la
   llamada, y R6 lo rechazaba con `void ret must not carry a value`.
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
-  `c_backend.orb:3429-3439` (la forma registro emite `return;` y no lee el
+- Referencia (pin `17ed624`, leído con `git cat-file blob`):
+  `c_backend.orb:3435-3445` (la forma registro emite `return;` y no lee el
   registro; el comentario del pin explica que la llamada ya se emitió como
-  sentencia y que leerlo produce C que no compila) y `:3460-3465` (la forma no
+  sentencia y que leerlo produce C que no compila) y `:3466-3471` (la forma no
   registro comparte la rama). `main` se decide antes del tipo declarado
-  (`:3420`, `:3451`), pero R6 ya exige `main` sin parámetros y con retorno
+  (`:3426`, `:3457`), pero R6 ya exige `main` sin parámetros y con retorno
   `int` (`win64.c:779-780`), así que esa rama no es alcanzable.
 - Admisión: en una función `void`, `ret` acepta cualquier `operand1` y lo
   ignora; el emisor no carga nada y emite `leave; ret`. En una función no
@@ -687,14 +690,14 @@ Mensajes completos de la corrida:
   `orbit_string_slice` **sin declaración** en el módulo (el backend C ve los
   prototipos por las cabeceras del runtime), y `.len()` sobre un string llega
   al **opcode** `list_len` cuando el builder no conocía el tipo del receptor.
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
+- Referencia (pin `17ed624`, leído con `git cat-file blob`):
   `runtime/orbit_api.h:385` (`orbit_string_at`), `:386`
   (`orbit_string_slice`, que está en `functionNeedsArena`,
-  `c_backend.orb:4410-4431`, por lo que D-M1-27 le antepone el arena) y
+  `c_backend.orb:4416-4437`, por lo que D-M1-27 le antepone el arena) y
   `:411-413` (`orbit_string_len`, `ORBIT_INLINE`, `s ? strlen(s) : 0`: no hay
   símbolo en `libruntime_net.a`, `nm` lista `at`/`slice` como `T` y no lista
   `len`). El opcode `list_len` consulta `isStringOperand` y emite
-  `orbit_string_len` (`c_backend.orb:3609-3615`).
+  `orbit_string_len` (`c_backend.orb:3615-3621`).
 - Admisión: una tabla de tres firmas consultada sólo cuando el módulo no
   declara el nombre y sólo para el destino String que emite el builder; el
   arena de `slice` sale de la tabla de D-M1-27; `len` se baja inline (misma
@@ -734,10 +737,10 @@ Mensajes completos de la corrida:
   `test_process`, `test_process_exit`). Los cinco crean con `elemKind 0` y
   destino `list`: es el literal de lista vacía (`val xs = []`), cuyo tipo de
   elemento lo decide el primer push, no el literal.
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`): el brazo
+- Referencia (pin `17ed624`, leído con `git cat-file blob`): el brazo
   `list_create` del backend C pasa `instr.elemKind` tal cual a
   `orbit_list_create_typed(arena, sizeof(void*), capacity, kind)`
-  (`c_backend.orb:3580-3585`); `orbit_list_create` es
+  (`c_backend.orb:3586-3591`); `orbit_list_create` es
   `orbit_list_create_typed(..., ORBIT_ELEM_OPAQUE)` (`collections.c:170`), el
   primer push/set tipado adopta el kind (`collections.c:102-116`) y una lectura
   acepta una lista opaca porque el tipo estático del llamante es la única
@@ -784,12 +787,12 @@ Mensajes completos de la corrida:
   programas: `if_expression_value` en `c > 4` (bool contra int),
   `list_element_type` en `flags.get(0) != true` (bool contra bool) y
   `peephole_folds` en `n == "5"` (int contra string).
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`): `eq` y `ne`
-  (`c_backend.orb:2745-2758` y `:2759-2772`) comparan dos strings con `strcmp`,
+- Referencia (pin `17ed624`, leído con `git cat-file blob`): `eq` y `ne`
+  (`c_backend.orb:2747-2760` y `:2761-2774`) comparan dos strings con `strcmp`,
   promueven a `orbit_float` cuando un lado es float y comparan `uintptr_t` en
   el resto; un bool cae en ese resto. `lt`/`le`/`gt`/`ge`
-  (`c_backend.orb:2781-2812`) no tienen brazo de string: double si hay un
-  float e `intptr_t` si no, con la razón del signo en `:2773-2780`.
+  (`c_backend.orb:2783-2814`) no tienen brazo de string: double si hay un
+  float e `intptr_t` si no, con la razón del signo en `:2775-2782`.
 - Admisión: `eq`, `ne` y las cuatro relaciones aceptan operandos `bool`. Un
   string sólo es operando de `strcmp` contra otro string; en `eq`/`ne` un
   string contra un int es la vía de palabras. El destino sigue siendo `bool`.
@@ -833,13 +836,13 @@ Mensajes completos de la corrida:
   `parameter type list is unsupported in M1` en `call_arg_types`.
   `generic_functions` paraba en la pared vecina, `arg value type is unsupported
   in M1`, una lista pasada como argumento de llamada.
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
-  `c_backend.orb:476` responde `OrbitList*` para `list`, `List` y `OrbitList*`.
-  El comentario de `:477-480` lo explica: el sufijo dice qué hay DENTRO de la
+- Referencia (pin `17ed624`, leído con `git cat-file blob`):
+  `c_backend.orb:478` responde `OrbitList*` para `list`, `List` y `OrbitList*`.
+  El comentario de `:479-482` lo explica: el sufijo dice qué hay DENTRO de la
   lista, una propiedad de los valores y no del puntero, así que el tipo C no
-  cambia. Las líneas `:481-497` aplican la regla a cualquier deletreo
+  cambia. Las líneas `:483-499` aplican la regla a cualquier deletreo
   parametrizado a cualquier profundidad y deciden por la base: `list`/`List`
-  dan `OrbitList*`, `map`/`Map` dan `OrbitMap*`. Las lecturas de `:604-609`
+  dan `OrbitList*`, `map`/`Map` dan `OrbitMap*`. Las lecturas de `:606-611`
   eligen la función de runtime por `elemKind`, así que el tipo del elemento
   viaja con la operación y no con el puntero.
 - Admisión: un tipo de parámetro, un tipo de retorno y un tipo de registro
@@ -895,11 +898,11 @@ Mensajes completos de la corrida:
   int/bool support` en `global_const` y `ast_function_body_is_a_block`;
   `global WALK_MAX_DEPTH is outside M1 literal int/bool support` en `test_fs` y
   `test_imports`.
-- Referencia (pin `ce87d508`, leído con `git cat-file blob`):
-  `c_backend.orb:396-399` y `:1633` escriben `#define <nombre> <texto>` en el
-  preámbulo por cada global; `:1647-1651` (`cDefineLiteral`) devuelve el payload
-  `String` tal cual, y `:1639-1646` dice que el builder guarda el literal en un
-  `IRValue.String` para que un registro no acabe en un `#define`; `:2404-2413`
+- Referencia (pin `17ed624`, leído con `git cat-file blob`):
+  `c_backend.orb:398-401` y `:1635` escriben `#define <nombre> <texto>` en el
+  preámbulo por cada global; `:1649-1653` (`cDefineLiteral`) devuelve el payload
+  `String` tal cual, y `:1641-1648` dice que el builder guarda el literal en un
+  `IRValue.String` para que un registro no acabe en un `#define`; `:2406-2415`
   confirma que un nombre de nivel superior ES ese define. Los 21 globales del
   corpus llegan con `typeName: "unknown"` y el texto decimal en `value`.
 - Admisión: un global con `typeName` `unknown` o vacío y valor `String` de un

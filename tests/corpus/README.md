@@ -390,7 +390,7 @@ liberaron puertas anteriores, no esa.
 
 `val xs = []` emite `list_create` con `elemKind 0`, no con el kind del primer
 push. R6 lo rechazaba como "un tipo sin accesor". El pin lo acepta: pasa el kind
-tal cual a `orbit_list_create_typed` (`c_backend.orb:3580-3585`),
+tal cual a `orbit_list_create_typed` (`c_backend.orb:3586-3591`),
 `orbit_list_create` es él mismo `ORBIT_ELEM_OPAQUE` (`collections.c:170`), el
 primer push tipado adopta el kind (`:102-116`) y una lectura acepta una lista
 opaca (`:118-128`). D-M1-30 admite el kind 0 **en el create**; el acceso con
@@ -428,8 +428,8 @@ dos programas liberados llegan a él. El trinquete se re-tomó en 41.
 
 `eq`, `ne` y las relaciones exigen operandos del mismo tipo en R6. El pin no:
 `eq`/`ne` comparan dos strings con `strcmp`, promueven a double si un lado es
-float y comparan las palabras en el resto (`c_backend.orb:2745-2772`); las
-relaciones hacen lo mismo sin brazo de string (`:2781-2812`). Un bool es una
+float y comparan las palabras en el resto (`c_backend.orb:2747-2774`); las
+relaciones hacen lo mismo sin brazo de string (`:2783-2814`). Un bool es una
 palabra, y `n == "5"` compara el 5 con la dirección del literal, que es falso.
 D-M1-31 admite bool en las seis operaciones y el int contra string en `eq`/`ne`,
 y deja fuera el float junto a un int y el string en una relación.
@@ -467,8 +467,8 @@ programa que avanzó llega a él. El trinquete se re-tomó en 43.
 El muro era el tipo del parámetro. R6 exigía escalares, y el pin no: su mapa de
 tipos responde `OrbitList*` para `list`, `List` y cualquier `list<...>` a
 cualquier profundidad, porque los argumentos dicen qué hay DENTRO de la lista y
-no qué es el puntero (`c_backend.orb:476-497`). El tipo del elemento viaja en
-el `elemKind` de cada operación (`:604-609`), no en la firma. D-M1-32 reescribe
+no qué es el puntero (`c_backend.orb:478-499`). El tipo del elemento viaja en
+el `elemKind` de cada operación (`:606-611`), no en la firma. D-M1-32 reescribe
 esos deletreos a `list` en las tres posiciones ABI antes de cualquier
 comprobación; un `map<...>` conserva su deletreo y sigue rechazado.
 
@@ -515,7 +515,7 @@ mediciones): su única evidencia es `ok-list-capital-spelling`.
 El muro era el tipo del global. Los cuatro programas paraban en `global ...
 is outside M1 literal int/bool support` porque R6 exigía un tipo declarado, y el
 pin no declara ninguno: escribe `#define NOMBRE <texto>` en el preámbulo
-(`c_backend.orb:396-399`, `:1633`) y `cDefineLiteral` (`:1647-1651`) devuelve el
+(`c_backend.orb:398-401`, `:1635`) y `cDefineLiteral` (`:1649-1653`) devuelve el
 payload `String` tal cual. Los 21 globales del corpus llegan con
 `typeName: "unknown"` y el texto decimal en `value`; el texto es el tipo.
 D-M1-33 lo admite como `int` cuando el texto es un entero decimal dentro de

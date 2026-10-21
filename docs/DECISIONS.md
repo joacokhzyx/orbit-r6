@@ -26,7 +26,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Date: 2026-10-14.
 - Decision: R6 does not claim DB coverage through M2. DB tests are explicitly excluded from R6's differential corpus until M3 unless Orbit publishes and pins a DB-capable runtime variant with matching ABI. Do not fabricate a local variant or shim. The exclusion manifest must enumerate affected tests and count them; that count is pending a reproducible IR corpus.
 - Alternatives: link `libruntime_net.a` and silently omit DB (rejected: header says net variant has no DB symbols); build or shim DB locally (rejected: violates runtime ownership).
-- Evidence: `runtime/orbit_api.h:106` rejects `ORBIT_WITH_DB` for the net-only library; C backend lowers `db_*` at `c_backend.orb:3533-3590`. The pinned candidate M2 corpus has 89 executable programs (67 suite, 22 std) plus one suite support helper; no source-detectable DB/auth cases were found. This does not replace post-IR differential accounting.
+- Evidence: `runtime/orbit_api.h:106` rejects `ORBIT_WITH_DB` for the net-only library; C backend lowers `db_*` at `c_backend.orb:3539-3596`. The pinned candidate M2 corpus has 89 executable programs (67 suite, 22 std) plus one suite support helper; no source-detectable DB/auth cases were found. This does not replace post-IR differential accounting.
 - Status: **accepted by user 2026-10-14**.
 
 ## D-F0-04 — Target matrix
@@ -42,7 +42,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Date: 2026-10-14.
 - Decision: every opcode/platform/version not explicitly supported must produce a diagnostic and nonzero exit; no stub, invented result, or fallback. Single-thread only through M2.
 - Alternatives: copy the C backend's default `Unknown opcode` comment (rejected: it silently continues).
-- Evidence: backend fallback at `compiler/c_backend.orb:3596-3598`; user accepted explicit error policy 2026-10-14.
+- Evidence: backend fallback at `compiler/c_backend.orb:3602-3604`; user accepted explicit error policy 2026-10-14.
 - Status: **accepted by user 2026-10-14**.
 
 ## D-M1-01 — Lower pinned literal globals as immediate loads
@@ -50,14 +50,14 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Date: 2026-10-14.
 - Decision: Win64 M1 accepts only globals with valid identifiers, type `int` or `bool`, and decimal `IRValue.String` values in int32 range (bool only 0/1). `load_var` resolves a local first, then a validated module global. Other global forms fail with a diagnostic.
 - Alternatives: emit mutable data sections for all globals (rejected: the pinned builder turns literal globals into C preprocessor defines); coerce unsupported values (rejected: semantic invention).
-- Evidence: pinned `builder.orb:2288-2304,2333-2372` and `c_backend.orb:1479-1503`; fixture `14-global-constants` differential pass, and full manual fixture set 14/14.
+- Evidence: pinned `builder.orb:2288-2304,2333-2372` and `c_backend.orb:1481-1505`; fixture `14-global-constants` differential pass, and full manual fixture set 14/14.
 
 ## D-M1-02 — Use the target CRT for string equality
 
 - Date: 2026-10-14.
 - Decision: lower string `eq`/`ne` to direct `strcmp` calls using Win64 C ABI. Keep ordered string comparisons unsupported.
 - Alternatives: compare pointers (rejected: Orbit compares string contents); copy a string-comparison routine into R6 (rejected: the target CRT already owns this primitive and libc behavior must not be forked).
-- Evidence: pinned `c_backend.orb:2550-2564` emits `strcmp(a,b)==0/!=0`; `tests/suite/strings_eq.orb`; R6 fixture `15-string-equality` and full 15/15 differential gate.
+- Evidence: pinned `c_backend.orb:2552-2566` emits `strcmp(a,b)==0/!=0`; `tests/suite/strings_eq.orb`; R6 fixture `15-string-equality` and full 15/15 differential gate.
 
 ## D-M1-03 — Lower Win64 arguments beyond positional registers to stack slots
 
@@ -71,14 +71,14 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Date: 2026-10-14.
 - Decision: implement only `list_create`/`list_push`/`list_len` for int lists in `main`. Use official `orbit_list_create_typed` and `orbit_list_push_int`; honor Win64 `OrbitResult` sret and its pinned header layout. Lower the header's inline `orbit_list_len` as a load of the declared `OrbitList.len` member.
 - Alternatives: reimplement list allocation/push/storage (rejected: duplicates runtime ownership); accept all element kinds (rejected: typed helpers and failure paths are not yet lowered); skip the `OrbitResult.ok` field (rejected: invents failure behavior).
-- Evidence: pinned builder `builder.orb:4731-4749`; C lowering `c_backend.orb:3381-3415`; ABI `runtime/orbit_api.h:179-184,217-224,361-376,517-519`; fixture `18-int-list-literal-len`; full manual differential gate 18/18.
+- Evidence: pinned builder `builder.orb:4731-4749`; C lowering `c_backend.orb:3387-3421`; ABI `runtime/orbit_api.h:179-184,217-224,361-376,517-519`; fixture `18-int-list-literal-len`; full manual differential gate 18/18.
 
 ## D-M1-05 — Lower checked int-list reads with official runtime errors
 
 - Date: 2026-10-14.
 - Decision: support `list_get` for int lists in `main` only. Check null list/data, unsigned bounds, and the pinned element-kind rule (int or opaque); call the official index/kind error routines on failure.
 - Alternatives: unchecked pointer arithmetic (rejected: changes runtime failure behavior); duplicate the collection runtime (rejected: runtime owns these semantics); support other kinds (rejected: their representation/lowering is not covered).
-- Evidence: pinned `c_backend.orb:493-500` maps int reads to `orbit_list_read_int`; `runtime/orbit_api.h:217-224,358-360,422-468,485-490`; `runtime/collections.c:78-100`; fixtures `19-int-list-get` and `20-int-list-get-oob`, full manual differential gate 20/20.
+- Evidence: pinned `c_backend.orb:495-502` maps int reads to `orbit_list_read_int`; `runtime/orbit_api.h:217-224,358-360,422-468,485-490`; `runtime/collections.c:78-100`; fixtures `19-int-list-get` and `20-int-list-get-oob`, full manual differential gate 20/20.
 
 ## D-F0-06 — Adopt the language-side IRv1 textual format
 
@@ -186,8 +186,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Date: 2026-10-15.
 - Decision: the loader admits `nop`, `begin_block` and `end_block`; codegen
   lowers all three to no machine code. Ground at the pin:
-  `c_backend.orb:2423` appends an empty string for `nop`;
-  `c_backend.orb:2634-2641` renders the blocks as the C braces `{`/`}` (pure C
+  `c_backend.orb:2592` appends an empty string for `nop`;
+  `c_backend.orb:2636-2643` renders the blocks as the C braces `{`/`}` (pure C
   scoping decoration: no observable runtime effect for the IR the pin can
   compile; R6 registers are function-wide stack slots and it emits nothing);
   `cteval.orb:953,998` produces `nop` with `dest -1` while folding dead
@@ -213,7 +213,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `value` +16 — the layout `runtime/orbit_api.h` declares; `sizeof` 24 and the
   offsets were verified against the pinned header), and the frame grows by
   `24 * registerCount` when any register is typed `result`.
-- Lowering (read from `c_backend.orb:3452-3505` and confirmed against the
+- Lowering (read from `c_backend.orb:3458-3511` and confirmed against the
   archive): `result_ok` calls `orbit_result_ok` with the `(void*)(uintptr_t)`
   word cast for int/bool/string payloads, or `orbit_result_ok_float` for float
   payloads; `result_err` calls `orbit_result_err(code, msg)`, with the
@@ -255,8 +255,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   string/int/float/bool element kinds and to an R6 register type of the same
   name; kind 0 (opaque) and kind 5 (ref) stay CGEN fail-closed, as does any
   list operand or destination whose register type does not match the kind.
-- Lowering, read from `c_backend.orb:3381-3427` and `listWriteCall`
-  (`c_backend.orb:518-548`): `list_set` is a direct
+- Lowering, read from `c_backend.orb:3387-3433` and `listWriteCall`
+  (`c_backend.orb:520-550`): `list_set` is a direct
   `orbit_list_set_{string,int,float,bool}` call (sret RCX, list RDX, index R8,
   value R9/XMM3) with no prologue checks — the runtime validates. `list_push`
   passes the value per kind (string/int as the register word, float in XMM,
@@ -272,7 +272,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Arena: the pin assigns the executable arena to a file-scope global
   (`OrbitArena* arena = NULL;` overwritten with the init arena inside
   `orbit_main`) and every non-main function that creates a list reads it
-  before `orbit_list_create_typed` (`c_backend.orb:3385`). R6 mirrors that
+  before `orbit_list_create_typed` (`c_backend.orb:3391`). R6 mirrors that
   contract with a private 8-byte slot `r6_arena` in `.data` (section flags
   `0xC0500040u`: read+write+align16+initialized, the `.rdata` flags plus the
   write bit), written from RCX by the `orbit_main` prologue and read from the
@@ -340,7 +340,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - The blocking dependency is the map value itself: the only working creation
   path at the pin is the `orbit_map_create` call, which works exclusively
   because the C backend prepends `arena` (`functionNeedsArena`,
-  `c_backend.orb:4214`). That list is gap **U-04** (spec §3.1.9/§6): its
+  `c_backend.orb:4220`). That list is gap **U-04** (spec §3.1.9/§6): its
   membership is UNSPECIFIED and "the loader rejects any document that depends
   on it". IRv1 carries no value that yields the arena, so R6 cannot lower the
   call faithfully either, and the extern surface does not open a way around
@@ -376,7 +376,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Producer shape: annotated receivers qualify references through
   `fieldOwnerForObject` (`builder.orb:1983`). The pinned C backend synthesizes
   the struct plus `orbit_model_M_create` (fields as positional parameters,
-  `arena` prepended by the backend, `c_backend.orb:1629-1633`) with
+  `arena` prepended by the backend, `c_backend.orb:1631-1635`) with
   `int`/`bool`/`float`/`string` members at 4/1/8/8 bytes; R6 reproduces that C
   layout (offsets in declaration order, size rounded to the widest member
   alignment).
@@ -389,7 +389,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   writes with the C width (`movl` truncates `int`, `setne`+`movb` normalizes
   `bool`). A bare reference resolves in the receiver's model; an `Owner.`
   prefix must name the receiver's model. The pin's fallback for a reference
-  with no owner (`findFieldOwner`, `c_backend.orb:4400-4409`, a last-wins scan
+  with no owner (`findFieldOwner`, `c_backend.orb:4406-4415`, a last-wins scan
   over a module-wide field-name table) is deliberately not reproduced: R6
   fails closed when the receiver's model lacks the field instead of guessing
   across models.
@@ -490,14 +490,14 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   with evidence instead of lowered, mirroring the producer-less opcodes
   already refused (`switch_op`/`type_info`/`union_create`, D-M1-12).
 - `free` (§1.2 row 107): the observed lowering is the comment
-  `/* free - arena managed */` and never frees (`c_backend.orb:3287-3290`);
+  `/* free - arena managed */` and never frees (`c_backend.orb:3293-3296`);
   the spec's audit note keeps its semantics `UNSPECIFIED` (U-09) and states
   the no-op is NOT semantics, so admitting it would invent behavior.
   `cteval.orb:49,86` only classifies it (impure / side-effecting); nothing
   emits it.
 - `alloc` (§1.2 row 106): the observed lowering is
   `D ← orbit_arena_alloc(arena, O1)`, with `sizeof(void*)` when O1 is absent
-  (`c_backend.orb:3274-3286`), but the destination is a raw pointer with no
+  (`c_backend.orb:3280-3292`), but the destination is a raw pointer with no
   consumer inside the measured subset: no admitted opcode reads through it
   (union cells and packs only come from the admitted constructors), `void*`
   values cannot cross a function boundary (D-M1-11/D-M1-12 fail closed on
@@ -606,7 +606,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   lowering emits `/* print */` and drops them"): no Orbit program can produce
   it — the pinned sema refuses `print(a, b)` with `E1003` ("print takes
   exactly 1 argument, got 2.", `sema.orb:3577-3584`) — and the reference
-  lowering pops the values into a comment (`c_backend.orb:2795-2800`; U-17
+  lowering pops the values into a comment (`c_backend.orb:2797-2802`; U-17
   records the multi-arg shape as "a comment"). The only behavior would be
   dropping values, so R6 keeps refusing (`call to orbit_print passes 2
   argument(s); declaration requires 1`).
@@ -878,13 +878,13 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Decision: before the module is validated, R6 walks every function and
   **recovers the type of a register declared `unknown` from its defining
   instruction**, mirroring the rules of `inferRegisterTypes`
-  (`c_backend.orb:562-1030`) restricted to the opcodes of the native subset, as
+  (`c_backend.orb:674-1148`) restricted to the opcodes of the native subset, as
   a three-pass fixed point like the original. Only the literal text `unknown`
   is replaced: a declared type is never touched, and a register no rule
   explains **stays `unknown` and stays refused** by the module check, with the
   same message and code (`CGEN`).
 - Why infer instead of tolerating `unknown`: the language backend declares
-  every register as an untyped `uintptr_t` word (`c_backend.orb:3735-3744`) and
+  every register as an untyped `uintptr_t` word (`c_backend.orb:3741-3750`) and
   only casts at the point of use, so it can emit with a `unknown` slot; R6
   emits **typed** x64 and must choose `addl`/`addsd`, so it needs the real
   type. Accepting `unknown` without one would invent semantics (forbidden);
@@ -1126,12 +1126,12 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   failing closed through `operand_reg`.
 - Reference (normative, the oracle's own rule): the pinned C backend types an
   inline literal exactly like a register. `irVerifierOperandType`
-  (`compiler/emit/c_backend.orb:1174-1196`) maps `IRValue.Int` -> `"int"`,
+  (`compiler/emit/c_backend.orb:1176-1198`) maps `IRValue.Int` -> `"int"`,
   `Float` -> `"float"`, `Bool` -> `"bool"`, `String` -> `"string"` (the mirror
   R6's `value_type` already implemented for D-M1-20); `isStringOperand`
-  (`:3881`) treats an inline `IRValue.String` as a string operand;
-  `verifyarithBinop` (`:1321`) and `verifycmpBinop` (`:1354`) type both operands
-  through it; `add`'s inference (`:802`) and its emit (`:1049`) test
+  (`:3887`) treats an inline `IRValue.String` as a string operand;
+  `verifyarithBinop` (`:1323`) and `verifycmpBinop` (`:1356`) type both operands
+  through it; `add`'s inference (`:804`) and its emit (`:1051`) test
   `isStringOperand` on both sides. R6 mirrors that rule; it invents nothing.
 - Mechanism: two 8-byte immediate slots below the result area. The bytes the
   list scratch and the result cells reserve are factored out of the frame
@@ -1251,17 +1251,18 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   scoped, they are not module names); and a destination whose type differs from
   `paramTypes[p]` keeps it.
 - Reference (normative, the oracle's own rule), all read from the pinned blob
-  `compiler/emit/c_backend.orb 2d64c8de…` at `ce87d508`:
-  - the emission of `load_var` (`:2598-2651`) takes the name text and, when the
+  `compiler/emit/c_backend.orb 0c9dd786…` at `17ed624` (re-anchored from
+  `2d64c8de…` at `ce87d508` by D-F0-13):
+  - the emission of `load_var` (`:2600-2653`) takes the name text and, when the
     variable's own type is unknown or empty, **falls back to `func.params` and
-    takes `paramTypes[p]`** (`:2623-2631`); the cast that follows is chosen from
-    that type (`:2633-2649`), and a `Sym` renders as the name verbatim
+    takes `paramTypes[p]`** (`:2625-2633`); the cast that follows is chosen from
+    that type (`:2635-2651`), and a `Sym` renders as the name verbatim
     (`generateValue`, `:IRValue.Sym -> v.value`). So a `load_var` of a parameter
     is its own C variable, cast by `paramTypes[p]`.
-  - the type inference (`:775-800`) consults `func.params` **before** the
+  - the type inference (`:777-802`) consults `func.params` **before** the
     locals and infers `params.get(p) == vn -> paramTypes.get(p)`; that is the
     pass that decides the register type, and the order R6 mirrors.
-  - the `arg` binding (`:2860-2873`) emits `reg[dest] = params[index]`, i.e. the
+  - the `arg` binding (`:2862-2875`) emits `reg[dest] = params[index]`, i.e. the
     same value, so the two instructions are the same source.
   - `docs/IR_SPEC.md` (blob `371f873e…`) §1.2 states the same rule: `load_var`
     is `D <- variable named by O1`, and `arg` with `D` is `Int O1 is a parameter
@@ -1322,24 +1323,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   other operand (an `int`, `float` or `bool` scalar) through the runtime
   converter and concatenates; and `add` of two strings is now lowered in
   **every** function, not only in `main`.
-- Reference (pinned `ce87d508`, read with `git cat-file blob`, never from the
+- Reference (pin `17ed624`, read with `git cat-file blob`, never from the
   working tree):
-  - `compiler/emit/c_backend.orb:2662-2668` - the `IROpcode.add` arm: if either
+  - `compiler/emit/c_backend.orb:2664-2670` - the `IROpcode.add` arm: if either
     operand is a string operand, both sides go through
     `stringifyConcatOperand` and the result is
     `orbit_string_concat(arena, s1, s2)`.
-  - `:4341-4378` - `stringifyConcatOperand`: a string operand is used raw, any
+  - `:4347-4384` - `stringifyConcatOperand`: a string operand is used raw, any
     other operand is spread by its inferred type.
-  - `:3881-3908` - `isStringOperand` decides "is a string" from
+  - `:3887-3914` - `isStringOperand` decides "is a string" from
     `registerTypes`/`strRegs`/`strVars`, which is the type R6's own `type_at`
     already carries.
-  - `:387` - the generated header declares `extern OrbitArena* arena;` (a
-    file-scope global); `:193` and `:2219` give the prototype/definition of
-    `orbit_main(OrbitArena* _init_arena, ...)` and `:2242` writes
-    `arena = _init_arena;` in the prologue. So `main` receives the arena as its
-    first ABI parameter and every other function reads the global; R6 mirrors
-    the global in `r6_arena` (the D-F0-12 runtime archive) and reads `main`'s
-    parameter slot.
+  - `:193` and `:2227` give the prototype and the definition of the emitted
+    `orbit_main`, whose first ABI parameter is `OrbitArena* arena`. At
+    `ce87d508` the header also declared a file-scope `extern OrbitArena*
+    arena;` (`:387`) and `orbit_main` wrote `arena = _init_arena;` (`:2242`);
+    `17ed624` deleted both lines and every emitted function takes
+    `OrbitArena* arena` as its first parameter. R6 keeps its arena in the
+    `r6_arena` slot and passes it explicitly, so its programs do not read a
+    global.
   - `runtime/selfhost.c:170` - `orbit_int_to_string_selfhost(orbit_int)` is
     arena-free (it uses `orbit_arena_get_global()`); `runtime/collections.c:716`
     `orbit_int_to_string(arena, v)`, `:730` `orbit_float_to_string(arena, v)`,
@@ -1463,17 +1465,17 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   a declared function. The destination is never stored; exactly one pending
   argument prints one line, selected by the argument's class; any other arity is
   the pinned no-op and consumes every pending argument.
-- Reference (pinned `ce87d508`, read with `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:3911` - `feBuildTimeCallType` types `print`
+- Reference (pin `17ed624`, read with `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:3917` - `feBuildTimeCallType` types `print`
     `void`.
-  - `:2971-2999` - the lowering dispatches on `calleeName == "print"` **before**
+  - `:2977-3005` - the lowering dispatches on `calleeName == "print"` **before**
     resolving any declaration: one argument is a string through
     `print("%s", arg)`, a float goes through
     `orbit_float_to_string(arena, v)` and `printf("%s\n", ...)`, and any other
     argument is `printf("%lld\n", (long long)(arg))`.
-  - `:2993-2998` - any other arity pops **every** pending argument and emits
+  - `:2999-3004` - any other arity pops **every** pending argument and emits
     only an empty statement.
-  - `:3881-3908` and `isFloatArgReg` - the class that selects the reduction is
+  - `:3887-3914` and `isFloatArgReg` - the class that selects the reduction is
     the register type the builder already recorded, not the spelling of the
     operand.
   - `runtime/orbit_api.h:293` - `print(...)` is a macro over `printf` plus a
@@ -1519,21 +1521,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   orbit_int_to_string(v: int) -> string` (one parameter); the runtime declares
   `orbit_string orbit_int_to_string(OrbitArena* arena, orbit_int value)`
   (`runtime/orbit_api.h:388`).
-- Root cause: the pinned C backend prepends `arena` to every call whose name
-  `functionNeedsArena` lists (`c_backend.orb:3091-3098`; predicate at
-  `:4410-4431`). R6 emitted the IR arguments from slot 0, so the callee read the
-  integer as the arena pointer and the next register as the value.
+- Root cause: the pinned C backend prepends `arena` when the callee takes one
+  (`c_backend.orb:3097-3104`). At `ce87d508`, where this decision measured it,
+  that was exactly the extern family `functionNeedsArena` enumerates
+  (`:4416-4437`); at `17ed624` `calleeTakesArena` also answers true for every
+  non-extern function the module emits (`:4447-4458`). R6 emitted the IR
+  arguments from slot 0, so the callee read the integer as the arena pointer and
+  the next register as the value.
 - Admission: a call to a **declared extern** whose name is in that enumerated
   family loads the executable arena into RCX and shifts every IR argument one
   position. The shift is positional for both register files: Win64 assigns
   argument *i* to the *i*-th integer and *i*-th SSE register, which
   `orbit_float_to_string(arena, v)` pins (the value rides XMM1).
-- Reference: `c_backend.orb:4410-4431` (`functionNeedsArena`, copied verbatim),
-  `:3091-3098` (the prepend); `runtime/orbit_api.h:388-389` (the two
+- Reference: `c_backend.orb:4416-4437` (`functionNeedsArena`, copied verbatim),
+  `:3097-3104` (the prepend); `runtime/orbit_api.h:388-389` (the two
   conversions) and `runtime/collections.c:716`/`:730` (their definitions take
-  the arena). The arena global is the one D-M1-23 already mirrors
-  (`c_backend.orb:387`), so a call outside `main` also sets
-  `module_needs_arena_global`.
+  the arena). At `ce87d508` the arena was also a file-scope global of the
+  generated header (`:387`), the one D-M1-23 mirrors; `17ed624` deleted that
+  line and every emitted function takes `OrbitArena* arena`, so a call outside
+  `main` passes the caller's arena instead of setting a module-wide flag.
 - Fail closed: the injection requires the name **and** a declared extern. A bare
   String target with that spelling stays an unknown target
   (`x-arena-extern-undeclared`). A local function cannot carry an arena-family
@@ -1557,15 +1563,15 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   call's destination register in `operand1`.
 - Symptom: R6 refused it with `void ret must not carry a value`, so
   `return target()` in a void function never built.
-- Reference (pinned `ce87d508`, read with `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:3429-3439` - the register form of `ret`: when
+- Reference (pin `17ed624`, read with `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:3435-3445` - the register form of `ret`: when
     the current function's return type is `void` the lowering emits
     `return;` and never reads the register. Its own comment records why: the
     call was already emitted as a statement, so the register names no live
     value and `return (void*)(r_0);` does not even compile.
-  - `:3460-3465` - the non-register form shares the same branch and the same
+  - `:3466-3471` - the non-register form shares the same branch and the same
     `return;`.
-  - `:3420`, `:3451` - `main` is decided before the declared type, but R6
+  - `:3426`, `:3457` - `main` is decided before the declared type, but R6
     already requires `main` to have zero parameters and an `int` return
     (`win64.c:779-780`), so the `void` arm is unreachable for `main`.
 - Admission: a `ret` in a function typed `void` accepts any `operand1` and
@@ -1598,21 +1604,21 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   - `list_len requires a list register and an int destination` (2:
     `strings_concat`, `strings_escape`): `.len()` on a string reaches the
     `list_len` **opcode** when the builder did not know the receiver's type.
-- Reference (pinned `ce87d508`, read with `git cat-file blob`):
+- Reference (pin `17ed624`, read with `git cat-file blob`):
   - `runtime/orbit_api.h:385` - `orbit_int orbit_string_at(orbit_string,
     orbit_int)`.
   - `:386` - `orbit_string orbit_string_slice(OrbitArena*, orbit_string,
     orbit_int, orbit_int)`; `orbit_string_slice` is in `functionNeedsArena`
-    (`c_backend.orb:4410-4431`), so D-M1-27's table prepends the arena.
+    (`c_backend.orb:4416-4437`), so D-M1-27's table prepends the arena.
   - `:411-413` - `ORBIT_INLINE orbit_int orbit_string_len(orbit_string s) {
     return s ? (orbit_int)strlen(s) : 0; }`. It is a header inline, not an
     exported symbol: `nm libruntime_net.a` lists `orbit_string_at` and
     `orbit_string_slice` as `T` and has no `orbit_string_len` at all, so the
     length cannot be a plain call.
-  - `c_backend.orb:3609-3615` - the `list_len` opcode arm asks
+  - `c_backend.orb:3615-3621` - the `list_len` opcode arm asks
     `isStringOperand` first and emits `orbit_string_len((orbit_string)(...))`,
     falling back to `orbit_list_len` only otherwise. Same helper, second door.
-  - `:3187-3188` - the call form's argument cast for the same family.
+  - `:3193-3194` - the call form's argument cast for the same family.
 - Admission:
   - A table of three signatures (name, parameters, return type) - `len(string)
     -> int`, `at(string, int) -> int`, `slice(string, int, int) -> string` -
@@ -1651,8 +1657,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   five create with `elemKind 0` and a destination typed `list`: that is the
   builder's empty list literal (`val xs = []`), whose element type is decided
   by the first push, not by the literal itself.
-- Reference (pinned `ce87d508`, `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:3580-3585` - the `list_create` arm forwards
+- Reference (pin `17ed624`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:3586-3591` - the `list_create` arm forwards
     `instr.elemKind` straight to
     `orbit_list_create_typed(arena, sizeof(void*), capacity, kind)`; kind 0 is
     a value it passes through, not a refusal.
@@ -1705,16 +1711,16 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   programs - `if_expression_value` at `c > 4` (bool against int),
   `list_element_type` at `flags.get(0) != true` (bool against bool) and
   `peephole_folds` at `n == "5"` (int against string).
-- Reference (pinned `ce87d508`, `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:2745-2758` (`eq`) and `:2759-2772` (`ne`):
+- Reference (pin `17ed624`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:2747-2760` (`eq`) and `:2761-2774` (`ne`):
     two strings compare with `strcmp`; either side float promotes both
     operands to `orbit_float`; otherwise the two values compare as
     `uintptr_t`. A bool has no arm of its own - it is one of the words - and
     `n == "5"` reaches the `uintptr_t` arm, which compares 5 with the
     literal's address and answers false.
-  - `compiler/emit/c_backend.orb:2781-2812` (`lt`, `le`, `gt`, `ge`): no
+  - `compiler/emit/c_backend.orb:2783-2814` (`lt`, `le`, `gt`, `ge`): no
     string arm; a float pair compares in double; otherwise `intptr_t`. The
-    comment at `:2773-2780` states why the relational ops are signed.
+    comment at `:2775-2782` states why the relational ops are signed.
 - Admission: `eq`, `ne`, `lt`, `le`, `gt` and `ge` accept `bool` operands. A
   string is a `strcmp` operand only against another string; in `eq`/`ne` a
   string against an int is the `uintptr_t` word compare. The destination
@@ -1755,18 +1761,18 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `parameter type list is unsupported in M1` in `call_arg_types` (seven
   programs). `generic_functions` stopped on the neighbouring
   `arg value type is unsupported in M1`, a list passed as a call argument.
-- Reference (pinned `ce87d508`, `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:476` answers `OrbitList*` for `list`, `List`
+- Reference (pin `17ed624`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:478` answers `OrbitList*` for `list`, `List`
     and `OrbitList*`.
-  - `compiler/emit/c_backend.orb:477-480` says why: "A list described together
+  - `compiler/emit/c_backend.orb:479-482` says why: "A list described together
     with its element type is still a list. The suffix names what is IN it,
     which is a property of the values, not of the pointer, so the C type does
     not change."
-  - `compiler/emit/c_backend.orb:481-497` applies that rule to any
+  - `compiler/emit/c_backend.orb:483-499` applies that rule to any
     parameterised spelling at any depth, and takes the base to decide:
     `list`/`List` -> `OrbitList*`, `map`/`Map` -> `OrbitMap*`. The comment names
     `map<string, list<int>>` itself.
-  - `compiler/emit/c_backend.orb:604-609` reads each element kind through its
+  - `compiler/emit/c_backend.orb:606-611` reads each element kind through its
     own runtime call (`orbit_list_read_int`, `orbit_list_read_string`, ...),
     so the element type travels with the operation and not with the pointer.
 - Admission: a parameter type, a return type and a register type may spell a
@@ -1823,13 +1829,13 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   int/bool support` in `global_const` and `ast_function_body_is_a_block`, and
   `global WALK_MAX_DEPTH is outside M1 literal int/bool support` in `test_fs`
   and `test_imports`.
-- Reference (pinned `ce87d508`, `git cat-file blob`):
-  - `compiler/emit/c_backend.orb:396-399` and `:1633` write
+- Reference (pin `17ed624`, `git cat-file blob`):
+  - `compiler/emit/c_backend.orb:398-401` and `:1635` write
     `#define <name> <text>` into the preamble for every module global.
-  - `compiler/emit/c_backend.orb:1647-1651` (`cDefineLiteral`) returns the
-    value's `String` payload unchanged. `:1639-1646` says the builder stores the
+  - `compiler/emit/c_backend.orb:1649-1653` (`cDefineLiteral`) returns the
+    value's `String` payload unchanged. `:1641-1648` says the builder stores the
     literal in an `IRValue.String` so a register cannot land in a define.
-  - `compiler/emit/c_backend.orb:2404-2413` says a top-level name is that
+  - `compiler/emit/c_backend.orb:2406-2415` says a top-level name is that
     define, and that declaring a variable under it breaks the preprocessor.
   - The corpus writes `typeName: "unknown"` and the decimal text in `value` for
     all 21 globals.
@@ -1909,8 +1915,14 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   controls); `tests/reject/make_cases.py --check` 175 files without drift;
   `scripts/migrate-m1-fixtures.py --check` 20/20; corpus `--check` holds the
   ratchet at 47/46.
-- Citation debt: D-M1-19 to D-M1-33 cite `c_backend.orb` by line against blob
-  `2d64c8de`. Re-anchoring against `0c9dd786` is separate documentation work:
-  130 citations measured, 65 shifted, 5 rewritten, 1 gone (the global
-  `extern OrbitArena* arena;` was removed).
+- Citations: D-M1-19 to D-M1-33 cite `c_backend.orb` by line. The 130
+  citations those entries, `CONTRACT.md`, `IR_SPEC_DRAFT.md` and the corpus
+  README carry are reprinted against `0c9dd786` while the entries keep their
+  original evidence pin: 113 shifted (+2 below old 2911, +6 above it), 10
+  rewritten in place, 5 pointing at constructs the new blob does not have, 2
+  unchanged. The gone ones are stated as history instead of renumbered: the
+  file-scope `extern OrbitArena* arena;` (`:387`) and `_init_arena` with
+  `arena = _init_arena;` (`:2242`). Two pre-existing mis-points now name the
+  construct they describe: `inferRegisterTypes` is `:674-1148` and the `nop`
+  arm is `:2592`.
 - Status: **applied**.
