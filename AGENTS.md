@@ -1,16 +1,17 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `ce87d508e8bdb7a1a0059726d3f45ecc73f8f5e3` (D-F0-12,
-a runtime + harness tramo that leaves `compiler/` untouched, so the oracle,
-the canonical and the emitted corpus are byte-identical to D-F0-11
-`862f257`; before that: the H-ARENA landing, the Arena Oracle removal, the
-loader `normalizePath` fix and the `compiler/` stage reorg). This is a
-separate repo from the language: `C:\Users\Usuario\Downloads\orbit-lang` is
-read-only to R6, and *its commit* is the pin — note the working tree there can
-be **dirty** (a concurrent session's harness work, class (ii) `scripts/**`);
-the pin rests on the commit, so read pinned bytes with `git show
-ce87d508:<path>`, never from the working tree. Do not write there.
+`orbit-lang` `main` commit `17ed6243844eb043f08cf9163cb60ea9cb8c6a63` (D-F0-13,
+70 commits past D-F0-12 `ce87d508`: the canonical moved to `6C26A19E`, the
+corpus to 97+1 documents, `runtime/` gained request-boundary OOM recovery and
+`compiler/` was regenerated; before that: the H-ARENA landing, the Arena Oracle
+removal, the loader `normalizePath` fix and the `compiler/` stage reorg). This
+is a separate repo from the language: `C:\Users\Usuario\Downloads\orbit-lang`
+is read-only to R6, and *its commit* is the pin — note the working tree there
+is **ahead** of the pin (it was `33abf7a`, the emitter fix, on 2026-10-22) and
+can be **dirty**; the pin rests on the commit, so read pinned bytes with
+`git cat-file blob 17ed624:<path>`, never from the working tree. Do not write
+there.
 
 The `orbit-lang` writing and commit rules apply here, adapted to the pin and
 the corpus; they are in Writing, Commits, The read-only reviewer and When to
@@ -27,13 +28,13 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 35/35 on 2026-10-18 with:
+Primary gate: differential — verified 42/42 on 2026-10-22 with:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-8b0bb38a82.exe `
+  --compiler C:\Temp\orbit-fp-08a471904d.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-ce87d508 `
+  --orbit-root C:\Temp\orbit-pin-17ed624-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -42,13 +43,12 @@ python tests/diff/run_diff.py `
 - `--case 19-int-list-get` runs one fixture (repeatable). Default = every
   `.json` with a matching `.orb` in `docs/proposed-ir/m1/`.
 - `--orbit-root` is a checkout **at the pinned commit**: the sibling `orbit-lang`
-  tree can be ahead of the pin and keeps advancing (on 2026-10-18 it was
-  `adb8b96` when the round was measured and `82cde1a5` hours later; the `C:\Temp`
-  binary named `orbit-fp-26cfb87400.exe` - `sha256(checkout path)` - was rebuilt
-  in place to that newer revision, so it fails the whole corpus). The pinned
-  fixed point is `C:\Temp\orbit-fp-8b0bb38a82.exe` (sha256 in `docs/PIN.md`);
-  `make fp` in a pinned checkout rebuilds it. Read pinned bytes with
-  `git cat-file blob ce87d508:<path>`, never from the working tree.
+  tree is ahead of the pin and keeps advancing (it was `33abf7a` on 2026-10-22),
+  and a `C:\Temp` fixed point named `orbit-fp-<sha256(checkout path)>.exe` is
+  rebuilt in place when that path moves, so it then fails the whole corpus. The
+  pinned fixed point is `C:\Temp\orbit-fp-08a471904d.exe` (sha256 in
+  `docs/PIN.md`); `make fp` in a pinned checkout rebuilds it. Read pinned bytes
+  with `git cat-file blob 17ed624:<path>`, never from the working tree.
 - Verdict = identical process exit + stdout bytes vs the gcc/Orbit oracle; a
   build failure counts as a failure. `R6_CC` only affects the driver build —
   the R6 program path must never invoke GCC.
@@ -61,12 +61,13 @@ alloc/free pins are D-M1-13, function-value pins are D-M1-14, the
 register-global pin is D-M1-15, edge-case pins are D-M1-16, call-target pins
 are D-M1-18, literal-form pins are D-M1-19, unknown-register-type pins are
 D-M1-20, inline-literal-operand pins are D-M1-21, parameter-by-name pins are
-D-M1-22, the corpus round-4 string-`add` pins are D-M1-23 and the
-list-length-slot fixture is D-M1-25) — verified 153/153 on
-2026-10-18:
+D-M1-22, the corpus round-4 string-`add` pins are D-M1-23, the
+list-length-slot fixture is D-M1-25, comparisons are D-M1-31, list spellings
+are D-M1-32 and global constants are D-M1-33) — verified 195/195 on
+2026-10-22:
 
 ```powershell
-python tests/reject/run_reject.py            # 122 rejections + 31 acceptance controls
+python tests/reject/run_reject.py            # 140 rejections + 55 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
@@ -82,29 +83,21 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **27/93** on 2026-10-18 at the
-D-M1-23/24/25 round (2/89 at the D-M1-17 pin; D-M1-18 lifted it to 3/89; D-M1-19
-kept 3/89 while removing `load_const` as a first refusal anywhere; D-M1-20 lifted
-it to 6/89 by recovering, by inference, the register types the builder serialized
-as `unknown`; the merge + re-pin lifted it to 7/93 on the grown corpus;
-**unchanged at the D-F0-11 re-pin** (`862f257`, same `filesSha256 0106d531…`);
-D-M1-21 lifted it to 21/93 by admitting the inline literal operand — the first
-wall of 24 documents; D-M1-22 to 23/93 by admitting `load_var` of a parameter, the
-whole `load_var` wall of 23 programs; and D-M1-23, with the two pre-existing
-lowering defects D-M1-24/D-M1-25 (found by this round’s own measurement), to
-**27/93** by admitting the string `add` — spread on one side, concat on both, in
-every function — all with zero regressions):
+D-M1-17) — a **measurement, not a gate**. Measured **47 build / 46 match over 97
+programs** on 2026-10-21 at the D-F0-13 re-pin: 98 documents, 5 932 267 bytes,
+`filesSha256 e8586b9a…`. The rounds that took the count from 2/89 at the
+D-M1-17 pin to there are in `docs/M1_REPORT.md`:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-8b0bb38a82.exe `
+  --compiler C:\Temp\orbit-fp-08a471904d.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-ce87d508 `
+  --orbit-root C:\Temp\orbit-pin-17ed624-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- Regenerates the 93+1 corpus with the pinned compiler (`--orbit-root` is the
+- Regenerates the 97+1 corpus with the pinned compiler (`--orbit-root` is the
   tree carrying the language's `scripts/emit_ir_corpus.py`; `--ir-dir` measures
   an already-emitted one), verifies every `sha256` against
   `tests/corpus/manifest.json`, then builds both sides per program and requires
@@ -358,12 +351,12 @@ Stop and ask rather than push on, when:
 
 - License: MIT, the same as `orbit-lang`. Add `LICENSE` before publishing; the
   repository does not carry one today.
-- A public R6 cannot pin a commit no remote has. PIN.md records `ce87d508` as
+- A public R6 cannot pin a commit no remote has. PIN.md records `17ed624` as
   local and not pushed. Before publishing, either push the pinned commit to a
   public remote or commit a materialized pinned tree, and record which one in
   PIN.md. The corpus must be reproducible from public bytes.
 - The runtime archive is not committed and is not byte-reproducible (PIN.md). A
-  fresh clone rebuilds it with the pinned recipe and checks the 324-symbol set.
+  fresh clone rebuilds it with the pinned recipe and checks the 337-symbol set.
   Do not add the archive or any other binary to the repository.
 - There is no CI. The two gates are the contract until a workflow exists. A
   public repository needs CI before it accepts pull requests; until then, the
