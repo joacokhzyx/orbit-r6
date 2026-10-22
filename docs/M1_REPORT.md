@@ -977,11 +977,11 @@ desplazadas, 5 reescritas y 1 desaparecida.
 ## Censo del IR del compilador (2026-10-22)
 
 Segundo objetivo medido (D-M1-34): los 26 módulos de `compiler/**/*.orb` del pin
-`17ed624`, emitidos con el punto fijo del pin y medidos con
+`33abf7a` (D-F0-14), emitidos con el punto fijo del pin y medidos con
 `tests/compiler-ir/run_census.py`.
 
     python tests/compiler-ir/run_census.py `
-      --compiler <punto fijo del pin> --tree <checkout en 17ed624> `
+      --compiler <punto fijo del pin> --tree <checkout en 33abf7a> `
       --write-baseline --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 | Primer rechazo | Módulos | Cuáles |
@@ -994,15 +994,19 @@ Segundo objetivo medido (D-M1-34): los 26 módulos de `compiler/**/*.orb` del pi
 | `model TirFunction field parameters has unsupported type list` | 1 | `tir/format` |
 | **construye** | **0** | |
 
-Los 26 documentos suman 97 638 934 B (`irFilesSha256 858dad12…`). El mayor es
-`host/main.orb`: 16 187 421 B, 1 012 funciones, 16 globales, 95 modelos y 4
+Los 26 documentos suman 97 699 992 B (`irFilesSha256 34e710ca…`) en `33abf7a`;
+97 638 934 B y `858dad12…` en `17ed624`, medidos antes de que el pin trajera el
+arreglo del emisor. El mayor es `host/main.orb`: 16 198 821 B en `33abf7a`
+(16 187 421 en `17ed624`), 1 012 funciones, 16 globales, 95 modelos y 4
 tipos, una enumeración `TokType` de 90 variantes y tres uniones (`ASTNode` 45,
 `IROpcode` 66, `IRValue` 8).
 
-Los documentos son los del pin: el *binario* emisor lleva el arreglo `33abf7a`,
-pero el árbol no puede llevarlo, porque `emit/ir_emit.orb` es uno de los 26
-módulos y las amalgamas lo incluyen. Un árbol parcheado emite su propio
-documento, no el del pin: 97 692 498 B en vez de 97 638 934, y otro hash.
+Los documentos son los del pin, emitidos desde un checkout limpio en el commit.
+En `17ed624` el arreglo vivía solo en el binario emisor, porque el árbol no
+podía llevarlo: `emit/ir_emit.orb` es uno de los 26 módulos y las amalgamas lo
+incluyen, así que un árbol parcheado emitía su propio documento (97 692 498 B
+en vez de 97 638 934). Desde D-F0-14 el pin ya trae el arreglo y el baseline se
+re-tomó sobre sus propios bytes.
 
 Las dos últimas filas no son paredes del subconjunto: `emit/route_runtime.orb` y
 `front/literal.orb` son módulos de biblioteca sin `main`, y construirían dentro
@@ -1019,7 +1023,7 @@ arreglo no termina por encima de 4,5 GB. Los bytes no cambian: el corpus sigue
 en `filesSha256 e8586b9a…`, documento por documento.
 
 El trinquete vive en `tests/compiler-ir/baseline.json`: `r6BuildOk 0` con
-`irFilesSha256 858dad12…`. Un commit del lenguaje que toque `compiler/` cambia
+`irFilesSha256 34e710ca…`. Un commit del lenguaje que toque `compiler/` cambia
 los documentos y el hash, así que un movimiento de pin re-toma este baseline en
 el mismo acto.
 

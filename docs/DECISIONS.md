@@ -1941,7 +1941,9 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   one-way ratchet over `r6BuildOk`, keyed by `irFilesSha256` and
   `languageCommit`. Nothing fails because R6 builds fewer modules than exist.
 - Measurement (pin `17ed624`): **26 modules, 97 638 934 bytes,
-  `irFilesSha256 858dad12…`, 0 build**. Six first refusals:
+  `irFilesSha256 858dad12…`, 0 build**. Re-taken at the pin `33abf7a` by
+  D-F0-14: **97 699 992 bytes, `irFilesSha256 34e710ca…`, 0 build**, the same
+  six first refusals. Six first refusals:
 
 | First refusal | Modules | Which |
 |---|---|---|
@@ -1968,11 +1970,65 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - The emission needed the language fix `33abf7a`, which appends the document
   into one `orbit_cbuf` instead of `out = out + piece`. Without it the 16.2 MB
   document of `host/main.orb` does not finish, past 4.5 GB. The fix is byte
-  neutral: the 98 corpus documents keep `filesSha256 e8586b9a…` file by file,
-  so the census measures the same documents with or without it.
+  neutral for the *corpus*: the 98 documents keep `filesSha256 e8586b9a…` file
+  by file, because `tests/suite` and `tests/std` do not include
+  `emit/ir_emit.orb`. It is not neutral for the *census*: that module is one of
+  the 26, so a tree carrying the fix emits its own document. The census
+  baseline is the pin's sources, never a patched tree.
 - A language commit that changes `compiler/` changes the documents and the
   hash, so a pin move re-takes this baseline in the same act, as the corpus
   baseline does.
 - Status: **applied**.
 
 
+
+## D-F0-14 - Re-pin to 33abf7a: the emitter appends instead of copying
+
+- Date: 2026-10-22. Pin: `33abf7ab762607c117d01d06bee8584a2e3781c1` (`main`,
+  **not pushed**), 2 commits after `17ed624` (D-F0-13).
+- What moved: `9268b8f` "doctor: report an annotated var nothing reassigns"
+  (`compiler/tools/doctor.orb`, `docs/DOCTOR.md`, the `d013` golden,
+  `compiler/emit/c_backend.orb` and the regenerated `compiler/selfhost/stage3.exe.c`)
+  and `33abf7a` "emit: append the IR document into a buffer instead of copying
+  it" (`compiler/emit/ir_emit.orb`, `compiler/selfhost/stage3.exe.c`,
+  `scripts/baselines/unknown_count.json`, `scripts/verify_seed.py`).
+  `runtime/` and `scripts/emit_ir_corpus.py` are untouched.
+- `c_backend.orb` moves `0c9dd786` -> `2eacd0c5`, four lines: `var errs: list`
+  and `var warns: list` become `val` in `verifyModuleTypes` (`:1391-1392`). The
+  hunk replaces two lines with two, so the 130 citations re-anchored at D-F0-13
+  keep their line numbers; the blob has to be cited as `2eacd0c5` from now on.
+- Why: `emitIRv1` accumulated the document with `out = out + piece`. The `+`
+  copies the prefix and the arena never frees, so emission was quadratic in the
+  document size. Measured on the pin's sources, one module at a time: lexer
+  679 MB -> 14 MB, parser 1 411 MB -> 140 MB, `host/main.orb` did not finish
+  past 4.5 GB and now emits in 2.62 s with a peak of 1 000 MB. The census
+  (D-M1-34) needs it: 8 of the 26 modules exceed the machine without it.
+- Canonical: `python scripts/dev.py fp` in a tree materialized at the commit
+  converges and reports "matches canonical".
+  `PUBLISHED_C = 138FBDF4DDE2D90C8C9E7543F9E1AF4662A60D52A4ED946E91A99E1DFCD06193`
+  (was `6C26A19E...`), equal to `sha256(compiler/selfhost/stage3.exe.c)` at the
+  commit. The fixed point is `C:\Temp\orbit-fp-8f487a3e9f.exe`, 2571776 bytes,
+  sha256 `82826f899541f8b81fc47ac395b08b02ec1137fa4aca012bd2ba851757a570a9`,
+  `orbit 0.1.0-rc.2`. `verify_seed.py` reports 4/4.
+- Corpus: **unchanged**: 97 executable + 1 support = 98 documents, 5932267
+  bytes, `filesSha256 e8586b9af976d18c3fdb1d4071a5431dc60da49223a6a09e9e38a02a9b96db0e`.
+  The fix is byte-neutral for the corpus because `tests/suite` and `tests/std`
+  do not include `emit/ir_emit.orb`, and the doctor commit only adds a
+  diagnostic; the re-emitted manifest differs only in its
+  `emitter` block (`C:\Temp\orbit-fp-8f487a3e9f.exe`, `languageCommit 33abf7a`).
+  The census is the opposite case: `emit/ir_emit.orb` is one of the 26 modules,
+  so the document of the module and of every amalgamation that includes it is
+  now the pin's own fixed source.
+- Census re-emitted at the commit: **26 modules, 97 699 992 bytes,
+  `irFilesSha256 34e710ca...`, 0 build**; the six first refusals keep their
+  sizes (9/8/4/2/2/1). `host/main.orb` is 16 198 821 bytes (was 16 187 421):
+  11 400 bytes more source in one function, and 1 012 functions, 16 globals,
+  95 models and 4 types unchanged. Ratchet re-taken.
+- Gates: differential **42/42**; loader **195/195** (140 rejections + 55
+  controls); `tests/reject/make_cases.py --check` 177 files without drift;
+  `migrate-m1-fixtures.py --check` 20/20; corpus **47 build / 46 match over 97
+  programs**, ratchet re-taken at `r6BuildOk 47`, `match 46`; census ratchet
+  holds.
+- A pin move is one commit: PIN.md, this entry, the regenerated corpus manifest
+  and both baselines describe one tree.
+- Status: **applied**.

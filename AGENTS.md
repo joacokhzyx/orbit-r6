@@ -1,16 +1,16 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `17ed6243844eb043f08cf9163cb60ea9cb8c6a63` (D-F0-13,
-70 commits past D-F0-12 `ce87d508`: the canonical moved to `6C26A19E`, the
-corpus to 97+1 documents, `runtime/` gained request-boundary OOM recovery and
-`compiler/` was regenerated; before that: the H-ARENA landing, the Arena Oracle
-removal, the loader `normalizePath` fix and the `compiler/` stage reorg). This
-is a separate repo from the language: `C:\Users\Usuario\Downloads\orbit-lang`
-is read-only to R6, and *its commit* is the pin — note the working tree there
-is **ahead** of the pin (it was `33abf7a`, the emitter fix, on 2026-10-22) and
-can be **dirty**; the pin rests on the commit, so read pinned bytes with
-`git cat-file blob 17ed624:<path>`, never from the working tree. Do not write
+`orbit-lang` `main` commit `33abf7ab762607c117d01d06bee8584a2e3781c1` (D-F0-14,
+two commits past D-F0-13 `17ed624`: the emitter appends the IR document into one
+buffer instead of copying the prefix, and the `d013` doctor diagnostic lands;
+before that, 70 commits from `ce87d508`: the canonical moved to `6C26A19E`,
+the corpus to 97+1 documents, `runtime/` gained request-boundary OOM recovery).
+This is a separate repo from the language:
+`C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
+the pin — note the working tree there can be **ahead** of the pin and
+**dirty**; the pin rests on the commit, so read pinned bytes with
+`git cat-file blob 33abf7a:<path>`, never from the working tree. Do not write
 there.
 
 The `orbit-lang` writing and commit rules apply here, adapted to the pin and
@@ -32,9 +32,9 @@ Primary gate: differential — verified 42/42 on 2026-10-22 with:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-08a471904d.exe `
+  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-17ed624-git `
+  --orbit-root C:\Temp\orbit-pin-33abf7a-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -43,12 +43,13 @@ python tests/diff/run_diff.py `
 - `--case 19-int-list-get` runs one fixture (repeatable). Default = every
   `.json` with a matching `.orb` in `docs/proposed-ir/m1/`.
 - `--orbit-root` is a checkout **at the pinned commit**: the sibling `orbit-lang`
-  tree is ahead of the pin and keeps advancing (it was `33abf7a` on 2026-10-22),
-  and a `C:\Temp` fixed point named `orbit-fp-<sha256(checkout path)>.exe` is
-  rebuilt in place when that path moves, so it then fails the whole corpus. The
-  pinned fixed point is `C:\Temp\orbit-fp-08a471904d.exe` (sha256 in
-  `docs/PIN.md`); `make fp` in a pinned checkout rebuilds it. Read pinned bytes
-  with `git cat-file blob 17ed624:<path>`, never from the working tree.
+  tree can be ahead of the pin and keeps advancing, and a `C:\Temp` fixed point
+  named `orbit-fp-<sha256(checkout path)>.exe` is rebuilt in place when that
+  path moves, so it then fails the whole corpus. The pinned fixed point is
+  `C:\Temp\orbit-fp-8f487a3e9f.exe` (sha256 in `docs/PIN.md`), built from
+  `C:\Temp\orbit-pin-33abf7a`; `make fp` in a pinned checkout rebuilds it. Read
+  pinned bytes with `git cat-file blob 33abf7a:<path>`, never from the working
+  tree.
 - Verdict = identical process exit + stdout bytes vs the gcc/Orbit oracle; a
   build failure counts as a failure. `R6_CC` only affects the driver build —
   the R6 program path must never invoke GCC.
@@ -84,15 +85,15 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
 D-M1-17) — a **measurement, not a gate**. Measured **47 build / 46 match over 97
-programs** on 2026-10-21 at the D-F0-13 re-pin: 98 documents, 5 932 267 bytes,
-`filesSha256 e8586b9a…`. The rounds that took the count from 2/89 at the
+programs** on 2026-10-22 at the D-F0-14 pin: 98 documents, 5 932 267 bytes,
+`filesSha256 e8586b9a…`, the same bytes as D-F0-13. The rounds that took the count from 2/89 at the
 D-M1-17 pin to there are in `docs/M1_REPORT.md`:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-08a471904d.exe `
+  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-17ed624-git `
+  --orbit-root C:\Temp\orbit-pin-33abf7a-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -351,7 +352,7 @@ Stop and ask rather than push on, when:
 
 - License: MIT, the same as `orbit-lang`. Add `LICENSE` before publishing; the
   repository does not carry one today.
-- A public R6 cannot pin a commit no remote has. PIN.md records `17ed624` as
+- A public R6 cannot pin a commit no remote has. PIN.md records `33abf7a` as
   local and not pushed. Before publishing, either push the pinned commit to a
   public remote or commit a materialized pinned tree, and record which one in
   PIN.md. The corpus must be reproducible from public bytes.

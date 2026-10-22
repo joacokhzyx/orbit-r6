@@ -1,17 +1,18 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16; re-pin 2026-10-21 (D-F0-13). Decisión:
+Fecha: 2026-10-16; re-pin 2026-10-21 (D-F0-13) y 2026-10-22 (D-F0-14, los
+mismos bytes). Decisión:
 `docs/DECISIONS.md` D-M1-17. Corpus: los 97+1 documentos IRv1 que el lenguaje
 emite sobre `tests/suite` (74 programas + `imports.support.orb`) y `tests/std`
 (23 programas) - el corpus designado por `orbit-lang/docs/IR_SPEC.md` §5.5 y
-reconciliado con el árbol en D-F0-10; regenerado sin cambio en D-F0-11 y
-movido en D-F0-13 - pineados por hash en `manifest.json`.
+reconciliado con el árbol en D-F0-10; regenerado sin cambio en D-F0-11, movido
+en D-F0-13 y sin cambio en D-F0-14 - pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-08a471904d.exe `
+  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-17ed624-git `
+  --orbit-root C:\Temp\orbit-pin-33abf7a-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -20,7 +21,7 @@ python tests/corpus/run_corpus.py `
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `17ed624`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `33abf7a`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
@@ -90,6 +91,21 @@ el bloque `emitter` (ruta, sha256 del binario, `languageCommit`); `baseline.json
 no cambia ninguna métrica. La identidad reproducible del emisor es el commit y el
 canónico `9906A6F7…`: el sha256 del binario depende del directorio de build
 (embebe su ruta absoluta; ver `docs/PIN.md`).
+
+## Re-pin 2026-10-22 (D-F0-14, emisor `33abf7a`, corpus `e8586b9a` sin cambio)
+
+Dos commits después de `17ed624`: `9268b8f` (el diagnóstico `d013` del doctor
+sobre una variable anotada que nada reasigna) y `33abf7a` (el emisor acumula el
+documento en un buffer en vez de copiar el prefijo en cada línea). El corpus no
+cambia: los 98 documentos conservan `filesSha256 e8586b9a…` fichero por fichero,
+porque `tests/suite` y `tests/std` no incluyen `emit/ir_emit.orb`. El manifiesto
+re-emitido solo difiere en su bloque `emitter` (binario
+`C:\Temp\orbit-fp-8f487a3e9f.exe`, `languageCommit 33abf7a`). La medición se
+re-toma: **47 build / 46 match sobre 97 programas**, el mismo trinquete.
+
+El censo del compilador sí cambia, porque ahí `emit/ir_emit.orb` es uno de los
+26 módulos: 97 699 992 B, `irFilesSha256 34e710ca…`, 0 build
+(`docs/DECISIONS.md` D-F0-14 y D-M1-34).
 
 ## Re-pin 2026-10-21 (D-F0-13, emisor `17ed624`, corpus `e8586b9a`)
 
