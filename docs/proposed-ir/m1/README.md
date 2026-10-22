@@ -55,6 +55,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `41-bool-and-word-comparisons` | `bool` en `gt`/`ne`/`eq`, `int` contra `string` por la vía de palabras y `float` contra `float` en `ne` | 0 | (sin salida) |
 | `42-list-parameter-spellings` | parámetro `list<int>`, parámetro `list<string>`, retorno `list<int>`, un resultado de `call` con tipo `list<int>` y un parámetro `list<list<int>>`: el deletreo nombra el contenido y el puntero es uno | 0 | (sin salida) |
 | `43-global-constant-type` | tres constantes de módulo con `typeName` `unknown` y texto decimal (`32`, `3`, `-2`): el texto es el tipo, se imprimen, se comparan y se suman | 0 | `32\r\n3\r\n-2\r\n` |
+| `44-enum-tag-constant` | una enumeración de tres variantes: constante `Color_TAG_*`, campo de modelo del tipo, parámetro, retorno y cuatro comparaciones | 0 | `blue\r\nred\r\n2\r\nred\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la
@@ -116,6 +117,13 @@ constructor, valores `void*` en fronteras de función, y colisiones o
 longitudes de `variants`/`richVariants` inconsistentes. El borde está pineado
 en `tests/reject/` (casos `x-union-*` regla D-M1-12 y el control
 `ok-union-ctor`).
+
+Desde D-M1-35 una `enumeration` también se admite. Sus variantes no llevan
+payload y su valor es el índice de declaración, así que el tipo se reescribe a
+`int` en todo uso y `Name_TAG_Variant` carga ese índice. El borde queda
+pineado por `x-enum-payload` (una variante con payload), `x-enum-undeclared-tag`
+(una constante que no nombra una variante), `x-union-kind-sum` (el gate de
+kind), el control `ok-enum-kind-unit` y el par 44.
 
 La familia `alloc`/`free` queda cerrada con evidencia y sin fixture propio
 (D-M1-13): ninguno tiene productor en el builder (spec §1.1), la spec deja
@@ -213,8 +221,10 @@ aritmética/`neg`/comparaciones y lógicos/`copy`/`arg`/`call`/`load_field`/
 sustituye el texto `unknown`, nunca un tipo declarado. Dos estrechamientos
 deliberados: la aritmética no adivina (infiere `float` si algún operando lo es,
 `int` si ambos lo son, y deja `unknown` si no coinciden) y lo que el backend
-nativo no representa deja el registro `unknown` (tags de **enum**,
+nativo no representa deja el registro `unknown` (tags de unión sin declarar,
 `result_unwrap`, `union_get_data`, `map`, targets de `call` no declarados).
+D-M1-35 saca de esa lista la constante `Name_TAG_Variant` de una enumeración:
+se infiere `int`, igual que la de una unión.
 Cierra el hueco 1 de D-M1-17 y está medido en detalle en D-M1-20 (6735
 registros en 84/90 documentos; 5941 recuperados, 40 documentos sin `unknown`).
 Los pares 30–31 son el stream del emisor **verbatim, con sus `unknown`**, y el

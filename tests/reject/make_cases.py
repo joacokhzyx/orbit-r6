@@ -435,11 +435,12 @@ def build_reject():
         "D-M1-12", "CGEN", "payload arity beyond the measured pack subset")
 
     mod = MOD([MAIN()])
-    mod["types"] = [{"name": "Color", "kind": "enumeration",
+    mod["types"] = [{"name": "Color", "kind": "sum",
                      "variants": ["Red", "Green"], "richVariants": ["", ""],
                      "methods": []}]
-    add("x-union-kind-enumeration", jd({"irVersion": "1", "module": mod}),
-        "D-M1-12", "CGEN", "only kind union_type is lowered")
+    add("x-union-kind-sum", jd({"irVersion": "1", "module": mod}),
+        "D-M1-35", "CGEN",
+        "kind sum is not lowered; enumeration and union_type are the named kinds")
 
     mod = MOD([MAIN([I("arg", -1, Int(1)),
                      I("call", 0, Str("Dot"), Int(1)),
@@ -1006,6 +1007,27 @@ def build_reject():
         "D-M1-29", "CGEN",
         "list_len still refuses a receiver that is neither a list nor a string")
 
+    # ---- D-M1-35: an enumeration is a tag type, not a payload type ----------
+    # The pinned backend emits `typedef enum { Name_TAG_Vi = i }` for an
+    # `enumeration` (c_backend.orb:1692-1706) and reads no richVariants entry,
+    # so a payload on an enum variant would be dropped in silence. The subset
+    # refuses it, and a tag constant that names no declared variant stays an
+    # undeclared symbol.
+    enum_payload = DOC([MAIN([I("load_var", 0, Str("Color_TAG_Red")),
+                              I("ret", -1, Reg(0))], ["int"])])
+    enum_payload["module"]["types"] = [
+        {"name": "Color", "kind": "enumeration",
+         "variants": ["Red"], "richVariants": ["int"], "methods": []}]
+    add("x-enum-payload", jd(enum_payload), "D-M1-35", "CGEN",
+        "an enumeration variant carries no payload in the pinned backend")
+    enum_undeclared = DOC([MAIN([I("load_var", 0, Str("Color_TAG_Purple")),
+                                 I("ret", -1, Reg(0))], ["int"])])
+    enum_undeclared["module"]["types"] = [
+        {"name": "Color", "kind": "enumeration",
+         "variants": ["Red"], "richVariants": [""], "methods": []}]
+    add("x-enum-undeclared-tag", jd(enum_undeclared), "D-M1-35", "CGEN",
+        "a tag constant that names no declared variant stays undeclared")
+
     return cases
 
 
@@ -1375,6 +1397,11 @@ def build_accept_files():
                   jd(DOC([MAIN([I("load_var", 0, Sym("MINI")),
                                 I("ret", -1, Reg(0))], ["int"])],
                           globals_=[G("MINI", "unknown", Str("-2147483648"))]))))
+    enum_mod = MOD([MAIN()])
+    enum_mod["types"] = [{"name": "Color", "kind": "enumeration",
+                          "variants": ["Red", "Green"], "richVariants": ["", ""],
+                          "methods": []}]
+    files.append(("ok-enum-kind-unit", jd({"irVersion": "1", "module": enum_mod})))
     return files
 
 
@@ -1528,6 +1555,12 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/43-global-constant-type.json",
              "run_exit": 0, "run_stdout": "32\r\n3\r\n-2\r\n", "rule": "D-M1-33",
              "note": "three corpus-shaped globals print and compare as ints"},
+            {"file": "../../docs/proposed-ir/m1/44-enum-tag-constant.json",
+             "run_exit": 0, "run_stdout": "blue\r\nred\r\n2\r\nred\r\n", "rule": "D-M1-35",
+             "note": "an enumeration constant, a model field, a parameter and a return type round-trip"},
+            {"file": "cases/ok-enum-kind-unit.json", "run_exit": 0,
+             "run_stdout": "", "rule": "D-M1-35",
+             "note": "an enumeration whose variants are all unit is an admitted type kind"},
         ],
     }
 

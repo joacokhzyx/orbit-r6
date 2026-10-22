@@ -59,7 +59,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | E-07 | aceptación: `ok-untargeted-label` |
 | D-M1-10 | `x-map-create`, `x-map-set`, `x-map-get`, `x-map-delete`, `x-map-has`, `x-map-keys` |
 | D-M1-11 | `x-load-field-nonmodel-base`, `x-field-missing-field`, `x-field-owner-mismatch`, `x-load-field-dest-mismatch`, `x-store-field-with-dest`, `x-ctor-arity-mismatch`, `x-model-field-unsupported-type`, `x-field-ref-kind`, `x-ctor-unknown-model`, `x-duplicate-model-name`, `x-model-function-collision`; aceptación: `ok-model-ctor` |
-| D-M1-12 | `x-union-create-opcode`, `x-union-switch-op`, `x-union-type-info`, `x-union-payload-float`, `x-union-payload-arity`, `x-union-kind-enumeration`, `x-union-get-tag-dest-bool`, `x-union-get-tag-src-int`, `x-union-tag-unknown`, `x-union-pack-missing-field`, `x-union-pack-single`, `x-union-ctor-arity`, `x-union-duplicate-variant`, `x-union-variant-two-types`, `x-union-tag-collision`, `x-union-rich-lengths`; aceptación: `ok-union-ctor` |
+| D-M1-12 | `x-union-create-opcode`, `x-union-switch-op`, `x-union-type-info`, `x-union-payload-float`, `x-union-payload-arity`, `x-union-get-tag-dest-bool`, `x-union-get-tag-src-int`, `x-union-tag-unknown`, `x-union-pack-missing-field`, `x-union-pack-single`, `x-union-ctor-arity`, `x-union-duplicate-variant`, `x-union-variant-two-types`, `x-union-tag-collision`, `x-union-rich-lengths`; aceptación: `ok-union-ctor` |
 | D-M1-13 | `x-alloc-opcode`, `x-free-opcode` |
 | D-M1-14 | `x-fn-value-unknown`, `x-fn-value-main`, `x-fn-value-void-signature`, `x-fn-value-dest-type`, `x-fn-callee-not-fn`, `x-fn-arity-signature`, `x-fn-arg-type`, `x-fn-dest-mismatch`, `x-fn-store-symbol`, `x-fn-return-boundary`, `x-fn-type-spelling`, `x-fn-type-nonscalar`; aceptación: `ok-fn-value`, `ok-fn-extern` |
 | D-M1-15 | `x-global-register` |
@@ -79,6 +79,7 @@ python tests/reject/make_cases.py --check    # drift de cases/ + manifest.json
 | D-M1-31 | `x-compare-float-int`, `x-relational-string`; aceptación: `ok-compare-bool-word`, `ok-compare-string-word`, `ok-compare-int-bool` (+ el fixture 41) |
 | D-M1-32 | `x-param-map-spelling`, `x-extern-list-param`; aceptación: `ok-param-list-spelling`, `ok-list-capital-spelling` (+ el fixture 42) |
 | D-M1-33 | `x-global-unknown-text`, `x-global-declared-string`, `x-global-int-overflow`, `x-global-int-underflow`; aceptación: `ok-global-unknown-type` (+ el fixture 43) |
+| D-M1-35 | `x-enum-payload`, `x-enum-undeclared-tag`, `x-union-kind-sum`; aceptación: `ok-enum-kind-unit` (+ el fixture 44) |
 
 E-03 (`list_get` con `elemKind 5` y tipo `unknown`) y E-06 (`print` con 2
 argumentos pendientes) siguen cerrados como rechazos con evidencia en D-M1-16
@@ -92,7 +93,7 @@ el kind (`:102-116`), así que el rechazo se re-pinea en el kind 5 del `create`
 (`x-list-create-kind-ref`) y el **acceso** opaco (`list_get`/`list_set` con
 `elemKind 0`) sigue fuera.
 
-Estado 2026-10-20: **193/193** (140 rechazos + 53 controles); gate diferencial
+Estado 2026-10-22: **199/199** (142 rechazos + 57 controles); gate diferencial
 43/43 en el mismo árbol. D-M1-26/D-M1-27 quedan pineados por
 `x-builtin-name-outside-print`, `x-print-symbol-target` y
 `x-arena-extern-undeclared` (rechazos), más los controles `ok-print-*`,
@@ -108,7 +109,9 @@ D-M1-31 por `x-compare-float-int`, `x-relational-string`,
 `x-extern-list-param`, `ok-param-list-spelling`, `ok-list-capital-spelling` y
 `42-list-parameter-spellings`; D-M1-33 por `x-global-unknown-text`,
 `x-global-declared-string`, `x-global-int-overflow`, `x-global-int-underflow`,
-`ok-global-unknown-type` y `43-global-constant-type`. El borde de D-M1-21 (operando literal inline en las
+`ok-global-unknown-type` y `43-global-constant-type`; D-M1-35 por
+`x-enum-payload`, `x-enum-undeclared-tag`, `x-union-kind-sum`,
+`ok-enum-kind-unit` y `44-enum-tag-constant`. El borde de D-M1-21 (operando literal inline en las
 operaciones) queda pineado por los rechazos `x-lit-float-operand`,
 `x-lit-and-op-operand`, `x-lit-type-mismatch` y los controles
 `ok-lit-operands` y `32-inline-literal-operands`. El de D-M1-22 (`load_var` de

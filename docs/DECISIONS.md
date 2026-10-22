@@ -477,6 +477,11 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   2026-10-15 (exit 85, stdout `u-ok\n`); loader suite **86/86** (80
   rejections + 6 acceptance controls); table updated in
   `docs/proposed-ir/m1/README.md`.
+- Note (D-M1-35, 2026-10-22): `enumeration` is lowered as an `int` too, so
+  "non-`union_type` kinds" in the boundary above now means every kind other
+  than `union_type` and `enumeration`. The control `x-union-kind-enumeration`
+  becomes the acceptance control `ok-enum-kind-unit`; `x-union-kind-sum` keeps
+  the kind gate pinned.
 - Status: **accepted**.
 
 ## D-M1-13 — `alloc`/`free` stay outside the native subset
@@ -2031,4 +2036,51 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   holds.
 - A pin move is one commit: PIN.md, this entry, the regenerated corpus manifest
   and both baselines describe one tree.
+- Status: **applied**.
+
+## D-M1-35 - An enumeration is an int whose tag constant is the variant index
+
+- Date: 2026-10-22. Pin: `33abf7a` (D-F0-14). The pinned C backend lowers an
+  `enumeration` to `typedef enum { Name_TAG_Variant = <index> }` in declaration
+  order plus `#define Name_COUNT n` (`c_backend.orb:1692-1706`), and its
+  verifier accepts a comparison between two enums or between an enum and an
+  `int`/`usize` without a warning (`:1362-1363`, `isEnumType` at `:442-460`
+  names the kind, `sum`, `union` and the fixed spellings `TokType`/`TokTypeTag`).
+  The type has no runtime representation of its own, so R6 lowers it as an
+  `int`. A field of an enum type is 4 bytes with alignment 4 in the C struct,
+  the same size and alignment `model_field_size` gives an `int`.
+- Shape at the pin: the type entry is `{"name","kind":"enumeration",
+  "variants":[names],"richVariants":["",...],"methods":[]}`, one empty rich
+  variant per name, and the builder writes the constant of a variant as a
+  `load_var` named `Name_TAG_Variant` whose register type is the enum's name
+  (`front/token.orb`, `tokTagName`). The loader already accepted that entry;
+  the refusal was codegen's kind gate.
+- R6: `canonicalize_enum_types` rewrites every use of an enumeration name to
+  `int` before any check reads it -- `paramTypes`, `returnType`,
+  `registerTypes`, model field types and global `typeName` -- the way
+  `canonicalize_list_types` already rewrites the list spellings (D-M1-32). The
+  type table keeps the name, because that name is the key that resolves
+  `Name_TAG_Variant` to its index; `tag_constant` (the former
+  `union_tag_constant`) accepts both `union_type` and `enumeration`.
+- Fail closed: the kind gate names `enumeration` and `union_type` and keeps
+  refusing every other kind (`x-union-kind-sum`). An enumeration variant that
+  carries a payload is refused (`x-enum-payload`): the C backend would drop it
+  in silence. A tag constant that names no declared variant stays an undeclared
+  symbol (`x-enum-undeclared-tag`). The D-M1-12 control
+  `x-union-kind-enumeration` becomes the acceptance control `ok-enum-kind-unit`
+  because that document now builds.
+- Fixture `44-enum-tag-constant`: the `.orb` and the IR the pin emits from it.
+  It reads a variant back through an enum constant, a model field, a parameter
+  and a return type, and compares four of them. Oracle and R6 both print
+  `blue\r\nred\r\n2\r\nred\r\n` and exit 0.
+- Measured: differential **42/42 -> 43/43**; loader **195/195 -> 199/199** (142
+  rejections + 57 controls; `make_cases.py --check` 180 files without drift);
+  corpus **47 build / 46 match over 97 programs**, ratchet holds at the same
+  numbers; census **0 -> 0 build**, and the `enumeration` group of 8 is gone:
+  `union ASTNode` 9 -> 14, `union IRValue` 4 -> 4, `extern return type` 2 -> 3,
+  `no non-extern main` 2 -> 2, `register type unknown` 0 -> 2 (`front/lexer`,
+  `front/token`: a register slot that no instruction writes and none reads),
+  `model field list` 1 -> 1. Both ratchets re-taken.
+- Not measured, not claimed: an enumeration as a list element kind, an enum
+  inside a union payload, the kind `sum`, and the `Name_COUNT` macro.
 - Status: **applied**.

@@ -1,0 +1,42 @@
+// D-M1-35: an enumeration is a 4-byte integer whose value is the declaration
+// index. The pinned backend emits `typedef enum { Color_TAG_Red = 0, ... }`
+// (c_backend.orb:1692-1706), compares the tag constants as integers
+// (:1364), and sizes a model field of an enum type like an int (4/4). This
+// pair reads a variant back through a model field, a parameter and a return
+// type, so the constant, the field layout and the call ABI are all observed.
+
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+model Paint {
+    color: Color
+    coats: int
+}
+
+fn nameOf(c: Color) -> string {
+    if c == Color.Red { return "red" }
+    if c == Color.Green { return "green" }
+    return "blue"
+}
+
+fn next(c: Color) -> Color {
+    if c == Color.Red { return Color.Green }
+    if c == Color.Green { return Color.Blue }
+    return Color.Red
+}
+
+fn main() -> int {
+    val paint = Paint(Color.Blue, 2)
+    print(nameOf(paint.color))
+    print(nameOf(next(paint.color)))
+    print(paint.coats)
+    if paint.color != Color.Blue { return 1 }
+    if next(Color.Red) != Color.Green { return 2 }
+    if next(Color.Green) != Color.Blue { return 3 }
+    if next(Color.Blue) != Color.Red { return 4 }
+    print(nameOf(Color.Red))
+    return 0
+}

@@ -28,7 +28,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 42/42 on 2026-10-22 with:
+Primary gate: differential — verified 43/43 on 2026-10-22 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -64,11 +64,11 @@ are D-M1-18, literal-form pins are D-M1-19, unknown-register-type pins are
 D-M1-20, inline-literal-operand pins are D-M1-21, parameter-by-name pins are
 D-M1-22, the corpus round-4 string-`add` pins are D-M1-23, the
 list-length-slot fixture is D-M1-25, comparisons are D-M1-31, list spellings
-are D-M1-32 and global constants are D-M1-33) — verified 195/195 on
-2026-10-22:
+are D-M1-32, global constants are D-M1-33 and enumerations are D-M1-35) —
+verified 199/199 on 2026-10-22:
 
 ```powershell
-python tests/reject/run_reject.py            # 140 rejections + 55 acceptance controls
+python tests/reject/run_reject.py            # 142 rejections + 57 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```

@@ -484,11 +484,11 @@
       "note": "payload arity beyond the measured pack subset"
     },
     {
-      "file": "cases/x-union-kind-enumeration.json",
+      "file": "cases/x-union-kind-sum.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-12",
-      "note": "only kind union_type is lowered"
+      "rule": "D-M1-35",
+      "note": "kind sum is not lowered; enumeration and union_type are the named kinds"
     },
     {
       "file": "cases/x-union-get-tag-dest-bool.json",
@@ -979,6 +979,20 @@
       "code": "CGEN",
       "rule": "D-M1-29",
       "note": "list_len still refuses a receiver that is neither a list nor a string"
+    },
+    {
+      "file": "cases/x-enum-payload.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-35",
+      "note": "an enumeration variant carries no payload in the pinned backend"
+    },
+    {
+      "file": "cases/x-enum-undeclared-tag.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-35",
+      "note": "a tag constant that names no declared variant stays undeclared"
     }
   ],
   "accept": [
@@ -1345,6 +1359,20 @@
       "run_stdout": "32\r\n3\r\n-2\r\n",
       "rule": "D-M1-33",
       "note": "three corpus-shaped globals print and compare as ints"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/44-enum-tag-constant.json",
+      "run_exit": 0,
+      "run_stdout": "blue\r\nred\r\n2\r\nred\r\n",
+      "rule": "D-M1-35",
+      "note": "an enumeration constant, a model field, a parameter and a return type round-trip"
+    },
+    {
+      "file": "cases/ok-enum-kind-unit.json",
+      "run_exit": 0,
+      "run_stdout": "",
+      "rule": "D-M1-35",
+      "note": "an enumeration whose variants are all unit is an admitted type kind"
     }
   ]
 }

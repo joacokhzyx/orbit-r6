@@ -8,11 +8,11 @@
     "r6BuildOk": 0
   },
   "refusals": {
-    "error[CGEN]: union ASTNode variant Program payloads are outside the M1 native subset": 9,
-    "error[CGEN]: M1 codegen does not support type kind enumeration": 8,
+    "error[CGEN]: union ASTNode variant Program payloads are outside the M1 native subset": 14,
     "error[CGEN]: union IRValue variant Int payloads are outside the M1 native subset": 4,
-    "error[CGEN]: extern return type is unsupported in M1": 2,
+    "error[CGEN]: extern return type is unsupported in M1": 3,
     "error[CGEN]: module must define one non-extern main": 2,
+    "error[CGEN]: register type unknown is unsupported in M1": 2,
     "error[CGEN]: model TirFunction field parameters has unsupported type list": 1
   }
 }

@@ -941,6 +941,47 @@ Mensajes completos de la corrida:
   `register type unknown is unsupported in M1` (13 programas, 11 de ellos en
   `list_get` con `elemKind 0`).
 
+## Actualización de M1 - una enumeración es un `int` (2026-10-22)
+
+D-M1-35. El backend del pin emite `typedef enum { Name_TAG_Variant = <índice> }`
+para un tipo `enumeration` (`c_backend.orb:1692-1706`), no emite aviso cuando
+la comparación es enum contra `int` o enum contra enum (`:1362-1363`), y deja
+que el compilador de C dé 4 bytes con alineación 4 a un campo de ese tipo,
+igual que a un `int`. La ronda admite el tipo con el lowering de un entero.
+
+- Forma en el pin: `{"name","kind":"enumeration","variants":[...],
+  "richVariants":["",...],"methods":[]}`, una variante rica vacía por nombre.
+  El builder escribe la constante de una variante como `load_var` de
+  `Name_TAG_Variant` con el nombre del enum en `registerTypes`.
+- Cambio: `canonicalize_enum_types` reescribe todo uso del nombre a `int`
+  antes de que lo lea cualquier comprobación: `paramTypes`, `returnType`,
+  `registerTypes`, campos de modelo y `typeName` de globales. Es el mismo paso
+  que `canonicalize_list_types` hace con los deletreos de lista (D-M1-32). La
+  tabla de tipos conserva el nombre, que es la clave de `Name_TAG_Variant`;
+  `tag_constant`, antes `union_tag_constant`, acepta `union_type` y
+  `enumeration`.
+- Fail-closed: el gate de kind nombra `enumeration` y `union_type` y rechaza el
+  resto (`x-union-kind-sum`); una variante de enumeración con payload se
+  rechaza (`x-enum-payload`) porque el backend de C la descartaría; una
+  constante que no nombra una variante declarada sigue siendo un símbolo
+  desconocido (`x-enum-undeclared-tag`). El control de D-M1-12
+  `x-union-kind-enumeration` pasa a control de aceptación `ok-enum-kind-unit`.
+- Controles: fixture `44-enum-tag-constant` (constante, campo de modelo,
+  parámetro, retorno y cuatro comparaciones; salida `blue\r\nred\r\n2\r\nred\r\n`,
+  exit 0). Los dos rechazos y la aceptación están en `tests/reject/`.
+- Puertas: diferencial **42/42 -> 43/43**; loader **195/195 -> 199/199** (142
+  rechazos + 57 controles; `make_cases.py --check` 180 archivos sin drift);
+  corpus **47 build / 46 match sobre 97 programas**, trinquete sin cambio.
+- Censo: **0 -> 0 build** y el grupo `enumeration` de 8 desaparece. `union
+  ASTNode` 9 -> 14, `union IRValue` 4 -> 4, `extern return type` 2 -> 3,
+  `module must define one non-extern main` 2 -> 2, `register type unknown`
+  0 -> 2 (`front/lexer`, `front/token`), `model field list` 1 -> 1. Trinquete
+  re-tomado.
+- Mensaje: el IR del compilador ya no se detiene en `M1 codegen does not
+  support type kind enumeration`. El siguiente borde es la unión `ASTNode`
+  (14 módulos) y, en los dos módulos del front, un slot de registro que
+  ninguna instrucción escribe ni lee.
+
 ## Re-pin D-F0-13: `17ed624`, corpus 97+1 y canónico `6C26A19E`
 
 Fecha: 2026-10-21. Setenta commits después de `ce87d508` (D-F0-12). El pin se
@@ -986,11 +1027,11 @@ Segundo objetivo medido (D-M1-34): los 26 módulos de `compiler/**/*.orb` del pi
 
 | Primer rechazo | Módulos | Cuáles |
 |---|---|---|
-| `union ASTNode variant Program payloads are outside the M1 native subset` | 9 | `emit/c_backend`, `front/ast`, `front/parser`, `front/resolver`, `front/sema`, `ir/builder`, `tir/entry`, `tir/lower`, `tools/doctor` |
-| `M1 codegen does not support type kind enumeration` | 8 | `front/lexer`, `front/token`, `host/cluster`, `host/main`, `host/pipeline`, `host/start`, `selfhost/lexer_trace`, `tools/fmt` |
+| `union ASTNode variant Program payloads are outside the M1 native subset` | 14 | `emit/c_backend`, `front/ast`, `front/parser`, `front/resolver`, `front/sema`, `host/cluster`, `host/main`, `host/pipeline`, `host/start`, `ir/builder`, `tir/entry`, `tir/lower`, `tools/doctor`, `tools/fmt` |
 | `union IRValue variant Int payloads are outside the M1 native subset` | 4 | `emit/ir_emit`, `ir/cteval`, `ir/ir`, `ir/optimizer` |
-| `extern return type is unsupported in M1` | 2 | `host/extern`, `tools/palette` |
+| `extern return type is unsupported in M1` | 3 | `host/extern`, `selfhost/lexer_trace`, `tools/palette` |
 | `module must define one non-extern main` | 2 | `emit/route_runtime`, `front/literal` |
+| `register type unknown is unsupported in M1` | 2 | `front/lexer`, `front/token` |
 | `model TirFunction field parameters has unsupported type list` | 1 | `tir/format` |
 | **construye** | **0** | |
 
@@ -1013,9 +1054,14 @@ Las dos últimas filas no son paredes del subconjunto: `emit/route_runtime.orb` 
 de una amalgama.
 
 El orden no lo da el tamaño del grupo. El punto de entrada del compilador,
-`host/main.orb`, cae en la enumeración, así que esa pared se encuentra primero:
-admitido `TokType`, `main` pasa al rechazo siguiente, que será la unión de su
-AST.
+`host/main.orb`, caía en la enumeración, así que esa pared se encontraba
+primero. D-M1-35 admite `enumeration` y la predicción se cumple: el grupo de 8
+desaparece y `host/main.orb` pasa a la unión de su AST, que ahora agrupa 14
+módulos. Dos de los ocho (`front/lexer.orb`, `front/token.orb`) paran antes, en
+`register type unknown is unsupported in M1`: el IR del pin deja un slot de
+registro que ninguna instrucción escribe ni lee, y el gate todavía le exige
+tipo. Ese es el siguiente borde medido, no una divergencia: los dos documentos
+compilan con el oráculo.
 
 El censo fue posible porque el emisor dejó de ser cuadrático (commit `33abf7a`
 de `orbit-lang`): `host/main.orb` emite en 2,62 s con 1 000 MB de pico, y sin el

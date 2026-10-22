@@ -88,6 +88,56 @@ static void canonicalize_list_types(R6Module *m) {
     }
 }
 
+/* D-M1-35: an enumeration is an int. The pinned backend emits
+ * `typedef enum { Name_TAG_Vi = i }` in declaration order plus `Name_COUNT`
+ * (c_backend.orb:1692-1706), and its verifier does not warn when a comparison
+ * mixes an enum with an `int` or another enum (:1362-1363). A field of an enum
+ * type is 4 bytes with alignment 4, the size `model_field_size` gives an int.
+ * R6 rewrites every *use* of an enumeration name to "int" before any check
+ * reads it, and keeps the type table entry, which is what resolves
+ * `Name_TAG_V` to its index. The type name itself is not rewritten: it is the
+ * key of that lookup. */
+static bool is_enum_type(const R6Module *m, const char *t) {
+    size_t n;
+    if (!m || !t) return false;
+    for (n = 0; n < m->type_count; ++n)
+        if (m->types[n].name && m->types[n].kind &&
+            strcmp(m->types[n].kind, "enumeration") == 0 &&
+            strcmp(m->types[n].name, t) == 0)
+            return true;
+    return false;
+}
+
+static char *canonical_enum_spelling(const R6Module *m, char *t) {
+    char *out;
+    if (!is_enum_type(m, t)) return t;
+    out = malloc(sizeof "int");
+    if (!out) return t; /* keep the spelling: the register gate fails closed */
+    strcpy(out, "int");
+    free(t);
+    return out;
+}
+
+static void canonicalize_enum_types(R6Module *m) {
+    size_t k, j;
+    for (k = 0; k < m->function_count; ++k) {
+        R6Function *f = &m->functions[k];
+        if (f->param_types)
+            for (j = 0; j < f->param_count; ++j)
+                f->param_types[j] = canonical_enum_spelling(m, f->param_types[j]);
+        f->return_type = canonical_enum_spelling(m, f->return_type);
+        if (f->register_types)
+            for (j = 0; j < f->register_type_count; ++j)
+                f->register_types[j] = canonical_enum_spelling(m, f->register_types[j]);
+    }
+    for (k = 0; k < m->model_count; ++k)
+        for (j = 0; j < m->models[k].field_count; ++j)
+            m->models[k].fields[j].type_name =
+                canonical_enum_spelling(m, m->models[k].fields[j].type_name);
+    for (k = 0; k < m->global_count; ++k)
+        m->globals[k].type_name = canonical_enum_spelling(m, m->globals[k].type_name);
+}
+
 /* D-M1-31: the pinned comparison arms (c_backend.orb:2747-2814) pick three
  * lowerings. Two strings compare with strcmp; either side float promotes the
  * pair to double; anything else compares the two 64-bit slots as words. The
@@ -627,9 +677,10 @@ static const R6Type *find_union_variant(const R6Module *m, const char *variant,
     return NULL;
 }
 
-/* `<union>_TAG_<variant>` is the bare ordinal constant the pinned builder
- * loads (load_var) for tag comparisons. */
-static bool union_tag_constant(const R6Module *m, const char *name, int32_t *value) {
+/* `<Type>_TAG_<variant>` is the bare ordinal constant the pinned builder
+ * loads (load_var) for tag comparisons. A union and an enumeration spell it
+ * the same way and both use the variant's declaration index as the value. */
+static bool tag_constant(const R6Module *m, const char *name, int32_t *value) {
     const char *mark, *variant;
     const R6Type *t = NULL;
     size_t n, v, owner_len;
@@ -645,7 +696,9 @@ static bool union_tag_constant(const R6Module *m, const char *name, int32_t *val
             break;
         }
     }
-    if (!t || !t->kind || strcmp(t->kind, "union_type") != 0) return false;
+    if (!t || !t->kind ||
+        (strcmp(t->kind, "union_type") != 0 && strcmp(t->kind, "enumeration") != 0))
+        return false;
     for (v = 0; v < t->variant_count; ++v)
         if (t->variants[v] && strcmp(t->variants[v], variant) == 0) {
             *value = (int32_t)v;
@@ -960,7 +1013,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             bool param = param_info(f, name, NULL, &lt);
             bool local = !param && name &&
                          local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf);
-            bool tag = !param && !local && !global && union_tag_constant(m, name, &tag_value);
+            bool tag = !param && !local && !global && tag_constant(m, name, &tag_value);
             if (!valid_dest(f, i, true, d) || !name ||
                 (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
                 ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
@@ -1978,7 +2031,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", value, off);
             } else {
                 int32_t tag_value = 0;
-                union_tag_constant(m, name, &tag_value);
+                tag_constant(m, name, &tag_value);
                 fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", tag_value, off);
             }
             break;
@@ -2896,9 +2949,9 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         if (param_info(f, name, NULL, &type)) return type;
         if (local_info(m, f, name, NULL, &type, buf, cap)) return type;
         if ((g = find_global(m, name)) != NULL) return global_type(g);
-        /* `<union>_TAG_<variant>` is the ordinal constant D-M1-12 loads as an
-         * int; an enum tag constant has no native type and stays unknown. */
-        if (union_tag_constant(m, name, &ordinal)) return "int";
+        /* `<Type>_TAG_<variant>` is the ordinal constant the builder loads as
+         * an int, for a union and for an enumeration alike (D-M1-35). */
+        if (tag_constant(m, name, &ordinal)) return "int";
         return NULL;
     }
     case R6_OP_ADD: {
@@ -2995,6 +3048,7 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     /* D-M1-32: after the storage guards, so a module the loader cannot produce
      * still fails closed instead of dereferencing an absent function array. */
     canonicalize_list_types(module);
+    canonicalize_enum_types(module);
     for (n = 0; n < module->global_count; ++n) {
         size_t prior;
         int32_t ignored;
@@ -3011,19 +3065,34 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
         return fail(diag, NULL, "CGEN", "module has missing type storage");
     for (n = 0; n < module->type_count; ++n) {
         const R6Type *type = &module->types[n];
+        /* D-M1-35: an enumeration carries no payloads. Its variants become
+         * `typedef enum` members, so a rich variant would be silently dropped
+         * by the C backend; the subset fails closed instead. */
+        bool is_enum = type->kind && strcmp(type->kind, "enumeration") == 0;
+        const char *what = is_enum ? "enumeration" : "union";
         size_t v;
         if (!type->name || !valid_symbol(type->name))
             return fail(diag, NULL, "CGEN", "type name is not a supported native symbol");
-        if (!type->kind || strcmp(type->kind, "union_type") != 0)
+        if (!type->kind ||
+            (strcmp(type->kind, "union_type") != 0 && strcmp(type->kind, "enumeration") != 0))
             return fail(diag, NULL, "CGEN", "M1 codegen does not support type kind %s",
                         type->kind && type->kind[0] ? type->kind : "<missing>");
         if (type->variant_count < 1 || type->variant_count != type->rich_variant_count ||
             (type->variant_count && (!type->variants || !type->rich_variants)))
-            return fail(diag, NULL, "CGEN", "union %s variant metadata is inconsistent", type->name);
+            return fail(diag, NULL, "CGEN", "%s %s variant metadata is inconsistent",
+                        what, type->name);
         for (v = 0; v < type->variant_count; ++v) {
             size_t parts = union_payload_count(type->rich_variants[v]), pi;
             if (!type->variants[v] || !type->variants[v][0] || !valid_symbol(type->variants[v]))
-                return fail(diag, NULL, "CGEN", "union %s has an invalid variant name", type->name);
+                return fail(diag, NULL, "CGEN", "%s %s has an invalid variant name",
+                            what, type->name);
+            if (is_enum) {
+                if (parts != 0)
+                    return fail(diag, NULL, "CGEN",
+                                "enumeration %s variant %s carries a payload, which the M1 native subset does not support",
+                                type->name, type->variants[v]);
+                continue;
+            }
             if (parts > 2)
                 return fail(diag, NULL, "CGEN", "union %s variant %s payload arity is outside the M1 native subset",
                             type->name, type->variants[v]);
