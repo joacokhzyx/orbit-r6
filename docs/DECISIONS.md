@@ -1926,3 +1926,53 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   construct they describe: `inferRegisterTypes` is `:674-1148` and the `nop`
   arm is `:2592`.
 - Status: **applied**.
+
+## D-M1-34 - The compiler's own IR is the second measured target
+
+- Date: 2026-10-22. First measurement. The corpus covers 97 programs and says
+  nothing about the program the backend exists for. Every module under
+  `compiler/**/*.orb` is emitted from the pin and R6's first refusal on each is
+  recorded, so a round can report its effect on both targets.
+- Instrument: `tests/compiler-ir/run_census.py` runs
+  `<compiler> build <module> --emit-ir <out>` with `ORBIT_SKIP_CC=1` from a
+  checkout at the pin, then runs R6 with the same `{ir}`/`{exe}` template the
+  corpus harness takes. It groups the cases by their first refusal, writes the
+  full report with `--json`, and holds `tests/compiler-ir/baseline.json` as a
+  one-way ratchet over `r6BuildOk`, keyed by `irFilesSha256` and
+  `languageCommit`. Nothing fails because R6 builds fewer modules than exist.
+- Measurement (pin `17ed624`): **26 modules, 97 638 934 bytes,
+  `irFilesSha256 858dad12…`, 0 build**. Six first refusals:
+
+| First refusal | Modules | Which |
+|---|---|---|
+| `union ASTNode variant Program payloads are outside the M1 native subset` | 9 | `emit/c_backend`, `front/ast`, `front/parser`, `front/resolver`, `front/sema`, `ir/builder`, `tir/entry`, `tir/lower`, `tools/doctor` |
+| `M1 codegen does not support type kind enumeration` | 8 | `front/lexer`, `front/token`, `host/cluster`, `host/main`, `host/pipeline`, `host/start`, `selfhost/lexer_trace`, `tools/fmt` |
+| `union IRValue variant Int payloads are outside the M1 native subset` | 4 | `emit/ir_emit`, `ir/cteval`, `ir/ir`, `ir/optimizer` |
+| `extern return type is unsupported in M1` | 2 | `host/extern`, `tools/palette` |
+| `module must define one non-extern main` | 2 | `emit/route_runtime`, `front/literal` |
+| `model TirFunction field parameters has unsupported type list` | 1 | `tir/format` |
+
+- The last two rows are not subset walls. `route_runtime.orb` and
+  `literal.orb` are library modules with no `main`, so they build only inside an
+  amalgamation.
+- The order is not the size of the group: `host/main.orb` is the entry point of
+  the compiler and sits in the enumeration group, so that wall is met first.
+  `main.ir` is 16 187 421 bytes, 1 012 functions, 16 globals, 95 models and 4
+  types: one enumeration (`TokType`, a flat `variants` list of 90 names) and
+  three unions (`ASTNode` 45, `IROpcode` 66, `IRValue` 8).
+- The documents are the pin's own sources. The emitter *binary* may carry the
+  fix `33abf7a`; the tree must not, because `emit/ir_emit.orb` is itself one of
+  the 26 modules and the amalgamations include it. A tree with the fix applied
+  emits its own document, not the pin's: 97 692 498 bytes instead of
+  97 638 934, and a different hash.
+- The emission needed the language fix `33abf7a`, which appends the document
+  into one `orbit_cbuf` instead of `out = out + piece`. Without it the 16.2 MB
+  document of `host/main.orb` does not finish, past 4.5 GB. The fix is byte
+  neutral: the 98 corpus documents keep `filesSha256 e8586b9a…` file by file,
+  so the census measures the same documents with or without it.
+- A language commit that changes `compiler/` changes the documents and the
+  hash, so a pin move re-takes this baseline in the same act, as the corpus
+  baseline does.
+- Status: **applied**.
+
+

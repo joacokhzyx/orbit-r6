@@ -122,6 +122,18 @@ python tests/corpus/run_corpus.py `
   `ERROR_INVALID_NAME`); `ORBIT_CCACHE=0`, the harness's own escape hatch,
   takes the wrapper out of one run and is what the D-M1-21 round used.
 
+Compiler-IR census (D-M1-34) — a measurement, not a gate. It emits every
+`compiler/**/*.orb` at the pin and records R6's first refusal on each; the
+ratchet in `tests/compiler-ir/baseline.json` only forbids `r6BuildOk` going
+down:
+
+```powershell
+python tests/compiler-ir/run_census.py `
+  --compiler <fixed point of the pin, docs/PIN.md> `
+  --tree <checkout at that commit> `
+  --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
+```
+
 Probe binaries (historical COFF/assembler probes, not part of the gate):
 
 ```powershell
@@ -169,6 +181,12 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   that produced `docs/COFF_OBJECTS.md`.
 - `tests/reject/` — loader contract suite: `run_reject.py` (second gate),
   `make_cases.py` (deterministic case builder), `cases/` + `manifest.json`.
+- `tests/corpus/` — the language-emitted corpus (`run_corpus.py`, the second
+  measurement and its ratchet; `manifest.json` is the pin).
+- `tests/compiler-ir/` — census of the compiler's own IR (D-M1-34):
+  `run_census.py` emits every `compiler/**/*.orb` at the pin and records R6's
+  first refusal on each; `baseline.json` is the one-way ratchet over
+  `r6BuildOk`.
 - `scripts/` — `build-r6.ps1` (driver build), `migrate-m1-fixtures.py`
   (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
   pre-migration revision, `06d7d2c^`, skipping fixtures newer than the base).
