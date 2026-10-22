@@ -99,7 +99,7 @@ static void canonicalize_list_types(R6Module *m) {
  * key of that lookup. */
 static bool is_enum_type(const R6Module *m, const char *t) {
     size_t n;
-    if (!m || !t) return false;
+    if (!m || !t || !m->types) return false;
     for (n = 0; n < m->type_count; ++n)
         if (m->types[n].name && m->types[n].kind &&
             strcmp(m->types[n].kind, "enumeration") == 0 &&
@@ -120,7 +120,9 @@ static char *canonical_enum_spelling(const R6Module *m, char *t) {
 
 static void canonicalize_enum_types(R6Module *m) {
     size_t k, j;
-    for (k = 0; k < m->function_count; ++k) {
+    /* A module the loader cannot produce still fails closed: the absent
+     * arrays are diagnosed later, and the rewrite skips them here. */
+    for (k = 0; m->functions && k < m->function_count; ++k) {
         R6Function *f = &m->functions[k];
         if (f->param_types)
             for (j = 0; j < f->param_count; ++j)
@@ -130,12 +132,15 @@ static void canonicalize_enum_types(R6Module *m) {
             for (j = 0; j < f->register_type_count; ++j)
                 f->register_types[j] = canonical_enum_spelling(m, f->register_types[j]);
     }
-    for (k = 0; k < m->model_count; ++k)
-        for (j = 0; j < m->models[k].field_count; ++j)
-            m->models[k].fields[j].type_name =
-                canonical_enum_spelling(m, m->models[k].fields[j].type_name);
-    for (k = 0; k < m->global_count; ++k)
-        m->globals[k].type_name = canonical_enum_spelling(m, m->globals[k].type_name);
+    if (m->models)
+        for (k = 0; k < m->model_count; ++k)
+            if (m->models[k].fields)
+                for (j = 0; j < m->models[k].field_count; ++j)
+                    m->models[k].fields[j].type_name =
+                        canonical_enum_spelling(m, m->models[k].fields[j].type_name);
+    if (m->globals)
+        for (k = 0; k < m->global_count; ++k)
+            m->globals[k].type_name = canonical_enum_spelling(m, m->globals[k].type_name);
 }
 
 /* D-M1-31: the pinned comparison arms (c_backend.orb:2747-2814) pick three
@@ -1021,7 +1026,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                             is_fn_type(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global_type(global), type_at(f, i->dest))))
-                return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or union tag constant");
+                return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or tag constant");
             break;
         }
         case R6_OP_LIST_CREATE: {
