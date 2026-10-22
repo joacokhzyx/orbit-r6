@@ -952,7 +952,9 @@ igual que a un `int`. La ronda admite el tipo con el lowering de un entero.
 - Forma en el pin: `{"name","kind":"enumeration","variants":[...],
   "richVariants":["",...],"methods":[]}`, una variante rica vacía por nombre.
   El builder escribe la constante de una variante como `load_var` de
-  `Name_TAG_Variant` con el nombre del enum en `registerTypes`.
+  `Name_TAG_Variant`; el registro llega con el nombre del enum en el front del
+  propio compilador (`front/token.ir`) y con `unknown` en el fixture, donde
+  `infer_dest_type` le da `int`.
 - Cambio: `canonicalize_enum_types` reescribe todo uso del nombre a `int`
   antes de que lo lea cualquier comprobación: `paramTypes`, `returnType`,
   `registerTypes`, campos de modelo y `typeName` de globales. Es el mismo paso
@@ -967,11 +969,13 @@ igual que a un `int`. La ronda admite el tipo con el lowering de un entero.
   desconocido (`x-enum-undeclared-tag`). El control de D-M1-12
   `x-union-kind-enumeration` pasa a control de aceptación `ok-enum-kind-unit`.
 - Controles: fixture `44-enum-tag-constant` (constante, campo de modelo,
-  parámetro, retorno y cuatro comparaciones; salida `blue\r\nred\r\n2\r\nred\r\n`,
-  exit 0). Los dos rechazos y la aceptación están en `tests/reject/`.
+  parámetro, retorno y ocho comparaciones: cuatro `eq` en los dos callees y
+  cuatro `ne` en `main`; salida `blue\r\nred\r\n2\r\nred\r\n`, exit 0). Los dos
+  rechazos y la aceptación están en `tests/reject/`.
 - Puertas: diferencial **42/42 -> 43/43**; loader **195/195 -> 199/199** (142
   rechazos + 57 controles; `make_cases.py --check` 180 archivos sin drift);
-  corpus **47 build / 46 match sobre 97 programas**, trinquete sin cambio.
+  corpus **47 build / 46 match sobre 97 programas**, trinquete sin cambio y su
+  baseline intacto.
 - Censo: **0 -> 0 build** y el grupo `enumeration` de 8 desaparece. `union
   ASTNode` 9 -> 14, `union IRValue` 4 -> 4, `extern return type` 2 -> 3,
   `module must define one non-extern main` 2 -> 2, `register type unknown`

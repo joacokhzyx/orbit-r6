@@ -55,7 +55,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `41-bool-and-word-comparisons` | `bool` en `gt`/`ne`/`eq`, `int` contra `string` por la vía de palabras y `float` contra `float` en `ne` | 0 | (sin salida) |
 | `42-list-parameter-spellings` | parámetro `list<int>`, parámetro `list<string>`, retorno `list<int>`, un resultado de `call` con tipo `list<int>` y un parámetro `list<list<int>>`: el deletreo nombra el contenido y el puntero es uno | 0 | (sin salida) |
 | `43-global-constant-type` | tres constantes de módulo con `typeName` `unknown` y texto decimal (`32`, `3`, `-2`): el texto es el tipo, se imprimen, se comparan y se suman | 0 | `32\r\n3\r\n-2\r\n` |
-| `44-enum-tag-constant` | una enumeración de tres variantes: constante `Color_TAG_*`, campo de modelo del tipo, parámetro, retorno y cuatro comparaciones | 0 | `blue\r\nred\r\n2\r\nred\r\n` |
+| `44-enum-tag-constant` | una enumeración de tres variantes: constante `Color_TAG_*`, campo de modelo del tipo, parámetro, retorno y ocho comparaciones | 0 | `blue\r\nred\r\n2\r\nred\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

@@ -480,8 +480,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Note (D-M1-35, 2026-10-22): `enumeration` is lowered as an `int` too, so
   "non-`union_type` kinds" in the boundary above now means every kind other
   than `union_type` and `enumeration`. The control `x-union-kind-enumeration`
-  becomes the acceptance control `ok-enum-kind-unit`; `x-union-kind-sum` keeps
-  the kind gate pinned.
+  becomes the acceptance control `ok-enum-kind-unit`; `x-union-kind-sum`
+  (filed under D-M1-35) keeps the kind gate pinned.
 - Status: **accepted**.
 
 ## D-M1-13 — `alloc`/`free` stay outside the native subset
@@ -2052,9 +2052,10 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Shape at the pin: the type entry is `{"name","kind":"enumeration",
   "variants":[names],"richVariants":["",...],"methods":[]}`, one empty rich
   variant per name, and the builder writes the constant of a variant as a
-  `load_var` named `Name_TAG_Variant` whose register type is the enum's name
-  (`front/token.orb`, `tokTagName`). The loader already accepted that entry;
-  the refusal was codegen's kind gate.
+  `load_var` named `Name_TAG_Variant`. The register type of that load is the
+  enum's name in the compiler's own front (`front/token.ir`) and `unknown`
+  elsewhere (the fixture); `infer_dest_type` gives the `unknown` slots `int`.
+  The loader already accepted that entry; the refusal was codegen's kind gate.
 - R6: `canonicalize_enum_types` rewrites every use of an enumeration name to
   `int` before any check reads it -- `paramTypes`, `returnType`,
   `registerTypes`, model field types and global `typeName` -- the way
@@ -2071,16 +2072,21 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   because that document now builds.
 - Fixture `44-enum-tag-constant`: the `.orb` and the IR the pin emits from it.
   It reads a variant back through an enum constant, a model field, a parameter
-  and a return type, and compares four of them. Oracle and R6 both print
-  `blue\r\nred\r\n2\r\nred\r\n` and exit 0.
+  and a return type, and compares eight times: four `eq` in the two callees and
+  four `ne` in `main`. Oracle and R6 both print `blue\r\nred\r\n2\r\nred\r\n`
+  and exit 0.
 - Measured: differential **42/42 -> 43/43**; loader **195/195 -> 199/199** (142
   rejections + 57 controls; `make_cases.py --check` 180 files without drift);
   corpus **47 build / 46 match over 97 programs**, ratchet holds at the same
-  numbers; census **0 -> 0 build**, and the `enumeration` group of 8 is gone:
-  `union ASTNode` 9 -> 14, `union IRValue` 4 -> 4, `extern return type` 2 -> 3,
-  `no non-extern main` 2 -> 2, `register type unknown` 0 -> 2 (`front/lexer`,
-  `front/token`: a register slot that no instruction writes and none reads),
-  `model field list` 1 -> 1. Both ratchets re-taken.
+  numbers and its baseline file is untouched; census **0 -> 0 build**, and the
+  `enumeration` group of 8 is gone: `union ASTNode` 9 -> 14, `union IRValue`
+  4 -> 4, `extern return type` 2 -> 3, `no non-extern main` 2 -> 2,
+  `register type unknown` 0 -> 2 (`front/lexer`, `front/token`: a register slot
+  that no instruction writes and none reads), `model field list` 1 -> 1. The
+  census ratchet is re-taken; the corpus ratchet is only re-checked.
 - Not measured, not claimed: an enumeration as a list element kind, an enum
-  inside a union payload, the kind `sum`, and the `Name_COUNT` macro.
+  inside a union payload, the kind `sum`, the `Name_COUNT` macro, an enum in an
+  extern signature and an enum-typed global. The last two are admitted by the
+  rewrite and have no control: an enum is an int at the ABI, and the global path
+  accepts decimal text through `global_integer` as it does for any int.
 - Status: **applied**.
