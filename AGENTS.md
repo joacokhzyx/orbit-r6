@@ -28,7 +28,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 43/43 on 2026-10-22 with:
+Primary gate: differential — verified 44/44 on 2026-10-22 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -84,7 +84,7 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **47 build / 46 match over 97
+D-M1-17) — a **measurement, not a gate**. Measured **47 build / 47 match over 97
 programs** on 2026-10-22 at the D-F0-14 pin: 98 documents, 5 932 267 bytes,
 `filesSha256 e8586b9a…`, the same bytes as D-F0-13. The rounds that took the count from 2/89 at the
 D-M1-17 pin to there are in `docs/M1_REPORT.md`:

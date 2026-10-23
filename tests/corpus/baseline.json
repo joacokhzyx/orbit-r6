@@ -6,7 +6,7 @@
     "programs": 97,
     "oracleOk": 97,
     "r6BuildOk": 47,
-    "match": 46,
+    "match": 47,
     "unknownRegisterTypes": 91
   },
   "byCode": {
@@ -24,7 +24,7 @@
   "byOpcode": {
     "add": {
       "cases": 67,
-      "match": 31
+      "match": 32
     },
     "and_op": {
       "cases": 10,
@@ -32,11 +32,11 @@
     },
     "arg": {
       "cases": 65,
-      "match": 23
+      "match": 24
     },
     "call": {
       "cases": 81,
-      "match": 30
+      "match": 31
     },
     "copy": {
       "cases": 7,
@@ -44,47 +44,47 @@
     },
     "decl_var": {
       "cases": 78,
-      "match": 30
+      "match": 31
     },
     "div": {
       "cases": 13,
-      "match": 7
+      "match": 8
     },
     "eq": {
       "cases": 46,
-      "match": 17
+      "match": 18
     },
     "ge": {
       "cases": 16,
-      "match": 1
+      "match": 2
     },
     "gt": {
       "cases": 33,
-      "match": 11
+      "match": 12
     },
     "jump": {
       "cases": 57,
-      "match": 19
+      "match": 20
     },
     "jump_if_false": {
       "cases": 84,
-      "match": 34
+      "match": 35
     },
     "label": {
       "cases": 84,
-      "match": 34
+      "match": 35
     },
     "le": {
       "cases": 13,
-      "match": 1
+      "match": 2
     },
     "list_create": {
       "cases": 36,
-      "match": 7
+      "match": 8
     },
     "list_get": {
       "cases": 34,
-      "match": 6
+      "match": 7
     },
     "list_len": {
       "cases": 36,
@@ -96,15 +96,15 @@
     },
     "list_push": {
       "cases": 36,
-      "match": 7
+      "match": 8
     },
     "list_set": {
       "cases": 4,
-      "match": 1
+      "match": 2
     },
     "load_const": {
       "cases": 76,
-      "match": 27
+      "match": 28
     },
     "load_field": {
       "cases": 22,
@@ -112,11 +112,11 @@
     },
     "load_var": {
       "cases": 86,
-      "match": 35
+      "match": 36
     },
     "lt": {
       "cases": 40,
-      "match": 13
+      "match": 14
     },
     "mod": {
       "cases": 8,
@@ -128,11 +128,11 @@
     },
     "ne": {
       "cases": 69,
-      "match": 24
+      "match": 25
     },
     "neg": {
       "cases": 38,
-      "match": 14
+      "match": 15
     },
     "not_op": {
       "cases": 2,
@@ -164,7 +164,7 @@
     },
     "ret": {
       "cases": 98,
-      "match": 46
+      "match": 47
     },
     "store_field": {
       "cases": 8,
@@ -172,11 +172,11 @@
     },
     "store_var": {
       "cases": 37,
-      "match": 11
+      "match": 12
     },
     "sub": {
       "cases": 24,
-      "match": 9
+      "match": 10
     },
     "union_get_data": {
       "cases": 6,

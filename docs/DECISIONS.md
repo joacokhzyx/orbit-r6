@@ -2090,3 +2090,60 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   rewrite and have no control: an enum is an int at the ABI, and the global path
   accepts decimal text through `global_integer` as it does for any int.
 - Status: **applied**.
+
+## D-M1-36 - An int is 32 bits, and the slot keeps the sign
+
+- Date: 2026-10-22. Pin: `33abf7a` (D-F0-14). Found by D-M1-32's measurement:
+  `test_time_ns` built and differed at its assert 16, with
+  `sinceNsBetween(0, pastCap)` answering 2147483648 where the oracle answers
+  -1.
+- Reference (pin `33abf7a`, read with `git cat-file blob`):
+  - `runtime/orbit_api.h` declares `typedef int orbit_int;`. An Orbit `int` is
+    a C `int`, 32 bits wide, and the arithmetic the pinned backend emits is
+    that C expression.
+  - Fixture `45-int-overflow` is the measurement of the width: the pin builds
+    its `.orb` and exits 42, while R6 before this round answers 10 at the same
+    program's first probe.
+- Root cause: `win64.c` emitted integer arithmetic at 64 bits - `addq` for
+  `add`, `subq`/`imulq` for `sub`/`mul` - so a result past int32 stayed in the
+  slot, and every consumer that compares with `cmpq` (the convention D-M1-25
+  records) read the 64-bit value. Two boundary sites carried the same defect: a
+  `call` whose destination is an `int` stored all of `%rax`, while a C `int`
+  returns in `%eax` and the 32-bit write zeroes the upper half; and an inline
+  `Int` literal argument was loaded with `movl` into the argument register, so
+  `-1` crossed a call as 4294967295.
+- Admission: none. The loader suite does not move, because the round corrects
+  the lowering of opcodes that were already admitted. No new control is added,
+  and 199/199 is the evidence that nothing new is admitted.
+- Fix: `add`, `sub` and `mul` are `addl`/`subl`/`imull` followed by
+  `movslq %eax, %rax`; a call whose destination type is `int` sign-extends
+  `%eax` before the store; an inline int literal argument is `movl` followed by
+  `movslq` into the argument register. `div`, `mod`, `list_get` and
+  `load_field` already used the 32-bit form.
+- The slot convention does not change: an `int` slot holds the sign-extended
+  32-bit value in its eight bytes, so `cmpq`, the slot copies and the int
+  parameters keep working. Bool slots keep their 32-bit writes; `list_len`
+  keeps its 64-bit store because `OrbitList.len` is a `size_t` (D-M1-25).
+- `neg` stays `negq`. A 32-bit negation differs only for `-INT32_MIN`, which is
+  undefined in C; the oracle folds that comparison under the no-overflow
+  assumption (measured: the probe `.orb` exits 11), so no fixture can pin it
+  and the round leaves the instruction alone.
+- Fixture `45-int-overflow` covers `add` (`bump(2147483647)` must be negative),
+  `mul` (`sq(65536)` must be 0), `sub` (`over - 1` must be 2147483647), the
+  call result (the `bump`/`sq`/`id`/`sum4` destinations) and the literal
+  argument (`id(-1)` must be negative, and `sum4(1, 2, 3, -4)` must be 2, which
+  also measures the fourth argument register, `%r9d`). Oracle and R6 both exit
+  42. The first probe cannot use `main`'s return value alone: the process exit
+  keeps only the low 32 bits, so the wrap has to be observed by a comparison.
+- Effect: differential **43/43 -> 44/44**; loader **199/199** unchanged;
+  corpus **47 build / 46 match -> 47 build / 47 match over 97 programs**, with
+  exactly one verdict moving (`tests/std/test_time_ns.orb`: `r6-differs` ->
+  `match`) and the other 97 cases unchanged; census **0 -> 0 build**, 26
+  modules, 97 699 992 bytes, `irFilesSha256 34e710ca.`, the same six first
+  refusals. The corpus ratchet is re-taken at `match 47`; the census baseline is
+  untouched.
+- Not measured: an `int` operation whose result the C source leaves
+  unobservable, the `float` and `bool` paths (both unchanged), and any width
+  other than 32. No corpus program multiplies past int32, so the `imull` form
+  rests on the fixture.
+- Status: **applied**.

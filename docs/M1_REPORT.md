@@ -1077,3 +1077,36 @@ El trinquete vive en `tests/compiler-ir/baseline.json`: `r6BuildOk 0` con
 los documentos y el hash, así que un movimiento de pin re-toma este baseline en
 el mismo acto.
 
+## Actualización de M1 - un `int` es de 32 bits (2026-10-22)
+
+D-M1-36. El pin declara `typedef int orbit_int` (`runtime/orbit_api.h`), así
+que la aritmética de un `int` es la de un `int` de C: 32 bits, y el resultado
+que no cabe envuelve. R6 la emitía a 64 bits (`addq`, `subq`, `imulq`), y el
+slot conservaba el valor largo. El programa `test_time_ns` lo midió al
+construirse por primera vez (D-M1-32): su aserción 16 esperaba -1 de
+`sinceNsBetween(0, pastCap)` y recibía 2147483648.
+
+El arreglo toca tres puntos. `add`, `sub` y `mul` son `addl`/`subl`/`imull`
+seguidos de `movslq %eax, %rax`. Un `call` con destino `int` extiende el signo
+de `%eax` antes de guardar. Un literal `Int` inline de argumento se carga con
+`movl` y `movslq`. `div`, `mod`, `list_get` y `load_field` ya usaban la forma de
+32 bits, y `list_len` conserva el almacén de 64 bits porque `OrbitList.len` es
+un `size_t` (D-M1-25). La negación sigue en `negq`: solo difiere en
+`-INT32_MIN`, que es indefinido en C, y el oráculo dobla esa comparación (la
+sonda `.orb` sale 11), así que ningún fixture puede pinearla.
+
+El par `45-int-overflow` mide las cuatro puertas: `bump(2147483647)` debe ser
+negativo, `sq(65536)` debe ser 0, `over - 1` debe ser 2147483647 e `id(-1)`
+debe ser negativo. Además pasa cuatro literales en una llamada
+(`sum4(1, 2, 3, -4)` debe ser 2), lo que mide también el cuarto registro de
+argumento, `%r9d`. Los dos lados salen 42. La primera sonda no puede usar el
+valor de retorno de `main`: el exit del proceso conserva solo los 32 bits bajos,
+así que la envoltura se observa con una comparación.
+
+Medido: diferencial **43/43 -> 44/44**; loader **199/199** sin cambio; corpus
+**47 build / 46 match -> 47 build / 47 match sobre 97 programas**, con un solo
+veredicto movido (`test_time_ns`: `r6-differs` -> `match`) y los otros 97
+documentos iguales; censo **0 -> 0 build** con 26 módulos, 97 699 992 bytes,
+`irFilesSha256 34e710ca…` y los mismos seis primeros rechazos. El trinquete del
+corpus se re-toma en `match 47`; el del censo no se toca.
+

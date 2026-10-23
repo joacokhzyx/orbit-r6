@@ -1574,7 +1574,7 @@ static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
         } else {
             if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
             else if (v->kind == R6_VAL_STRING) fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", id);
-            else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovl $%d, %%eax\n", v->as.i32);
+            else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovl $%d, %%eax\n\tmovslq %%eax, %%rax\n", v->as.i32);
             else fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
             fprintf(o, "\tmovq %%rax, %u(%%rsp)\n", off);
         }
@@ -1586,7 +1586,11 @@ static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
     } else {
         if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %s\n", (unsigned)(v->as.i32 + 1) * 8, gp[index]);
         else if (v->kind == R6_VAL_STRING) fprintf(o, "\tleaq .LCr6_%llu(%%rip), %s\n", id, gp[index]);
-        else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovl $%d, %s\n", v->as.i32, index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d");
+        else if (v->kind == R6_VAL_INT)
+            fprintf(o, "\tmovl $%d, %s\n\tmovslq %s, %s\n", v->as.i32,
+                    index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d",
+                    index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d",
+                    gp[index]);
         else fprintf(o, "\tmovl $%d, %s\n", v->as.boolean ? 1 : 0, index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d");
     }
 }
@@ -2226,7 +2230,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\taddsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, boff, off);
-            } else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\taddq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+            } else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\taddl -%u(%%rbp), %%eax\n"
+                               "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                            aoff, boff, off);
             break;
         }
@@ -2247,9 +2252,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         i->opcode == R6_OP_DIV ? "%rax" : "%rdx",
                         i->opcode == R6_OP_DIV ? "%rax" : "%rdx", off);
             } else {
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", aoff);
-                fprintf(o, "\t%s -%u(%%rbp), %%rax\n", i->opcode == R6_OP_SUB ? "subq" : "imulq", boff);
-                fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+                /* D-M1-36: `orbit_int` is a C int, so the operation is 32
+                   bits and the slot keeps the sign-extended result. A 64-bit
+                   `subq`/`imulq` let the overflow escape the slot. */
+                fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", aoff);
+                fprintf(o, "\t%s -%u(%%rbp), %%eax\n", i->opcode == R6_OP_SUB ? "subl" : "imull", boff);
+                fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
             }
             break;
         }
@@ -2622,6 +2630,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tcall %s\n", strcmp(named->name, "main") == 0 ? "orbit_main" : named->name);
                     if (i->has_dest && !is_void(type_at(f, i->dest))) {
                         if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
+                        else if (is_int(type_at(f, i->dest)))
+                            /* D-M1-36: a C int returns in eax; the slot keeps
+                               the sign-extended 32-bit value. */
+                            fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                         else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
                     }
                     pending = base;
@@ -2725,6 +2737,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tcallq *%%r10\n", callee_off);
                 if (i->has_dest) {
                     if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
+                    else if (is_int(type_at(f, i->dest)))
+                        fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                     else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
                 }
                 pending = base;

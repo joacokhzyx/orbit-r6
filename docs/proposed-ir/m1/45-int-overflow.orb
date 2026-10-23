@@ -1,0 +1,25 @@
+fn bump(x: int) -> int {
+    return x + 1
+}
+
+fn sq(v: int) -> int {
+    return v * v
+}
+
+fn sum4(a: int, b: int, c: int, d: int) -> int {
+    return a + b + c + d
+}
+
+fn id(v: int) -> int {
+    return v
+}
+
+fn main() -> int {
+    val over = bump(2147483647)
+    if over >= 0 { return 10 }
+    if sq(65536) != 0 { return 13 }
+    if over - 1 != 2147483647 { return 14 }
+    if sum4(1, 2, 3, -4) != 2 { return 15 }
+    if id(-1) >= 0 { return 12 }
+    return 42
+}
