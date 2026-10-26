@@ -2616,3 +2616,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   group of 3 is gone; `no non-extern main` goes 3 -> 5 and `main must have no
   parameters and return int` appears with 1. The census baseline is re-taken.
 - Status: **applied**.
+
+## D-M1-50 - `Result` and `OrbitResult` are the result type
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). `tests/suite/type_spellings.orb`
+  stopped at `register type Result is unsupported in M1`.
+- Reference (pin `33abf7a`): `mapTypeToC` answers `OrbitResult` for `result`,
+  `Result` and `OrbitResult` alike (`c_backend.orb:502`), and the program's own
+  comment records that the capitalised container spellings are the same types.
+- Decision: `canonicalize_result_types` rewrites `Result` and `OrbitResult` to
+  `result` in parameter, return and register types, as D-M1-32 does for the
+  list spellings. Any other spelling stays refused.
+- Fixture `58-result-spelling`: a function declared `-> Result`, a local
+  `val good: Result`, and two `Result` locals in `main` read through `try` and
+  `catch e`. The emitted IR carries `Result` in its register and return types.
+  Oracle and R6 both print `neg\r\n` and exit 42.
+- Controls: `x-result-spelling-other` (`RESULT`) refuses.
+- Measured: differential **56/56 -> 57/57**; loader **231/231 -> 233/233** (160
+  rejections + 73 controls; `make_cases.py --check` 201 files without drift);
+  corpus **65 build / 65 match**, unchanged: `type_spellings` moves to
+  `register type unknown`, an opaque list read compared with an int (D-M1-51).
+  Census **0/26**, ratchet holds.
+- Status: **applied**.

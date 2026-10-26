@@ -1197,6 +1197,11 @@ def build_reject():
         jd(DOC([FN("r", [I("ret", -1)], [], rtype="result"), MAIN()])),
         "D-M1-49", "CGEN", "a result function has no zero for a bare ret")
 
+    # ---- D-M1-50: `Result` and `OrbitResult` are `result` --------------------
+    add("x-result-spelling-other",
+        jd(DOC([MAIN([I("result_ok", 0, Int(1)), I("ret", -1, Int(0))], ["RESULT"])])),
+        "D-M1-50", "CGEN", "only the spellings mapTypeToC names are the result type")
+
     return cases
 
 
@@ -1801,6 +1806,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/57-bare-return.json",
              "run_exit": 42, "run_stdout": "one\r\n", "rule": "D-M1-49",
              "note": "a value function that falls off its end returns 0, 0.0 or false"},
+            {"file": "../../docs/proposed-ir/m1/58-result-spelling.json",
+             "run_exit": 42, "run_stdout": "neg\r\n", "rule": "D-M1-50",
+             "note": "a Result-spelled return, local and register is the result type"},
         ],
     }
 

@@ -150,6 +150,33 @@ static void canonicalize_union_types(R6Module *m) {
     }
 }
 
+/* D-M1-50: mapTypeToC answers OrbitResult for `result`, `Result` and
+ * `OrbitResult` alike (c_backend.orb:502); the capitalised spellings are the
+ * same type. */
+static char *canonical_result_spelling(char *t) {
+    char *out;
+    if (!t || (strcmp(t, "Result") != 0 && strcmp(t, "OrbitResult") != 0)) return t;
+    out = malloc(sizeof "result");
+    if (!out) return t; /* keep the spelling: the register gate fails closed */
+    strcpy(out, "result");
+    free(t);
+    return out;
+}
+
+static void canonicalize_result_types(R6Module *m) {
+    size_t k, j;
+    for (k = 0; m->functions && k < m->function_count; ++k) {
+        R6Function *f = &m->functions[k];
+        if (f->param_types)
+            for (j = 0; j < f->param_count; ++j)
+                f->param_types[j] = canonical_result_spelling(f->param_types[j]);
+        f->return_type = canonical_result_spelling(f->return_type);
+        if (f->register_types)
+            for (j = 0; j < f->register_type_count; ++j)
+                f->register_types[j] = canonical_result_spelling(f->register_types[j]);
+    }
+}
+
 static char *canonical_enum_spelling(const R6Module *m, char *t) {
     char *out;
     if (!is_enum_type(m, t)) return t;
@@ -3355,6 +3382,7 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     canonicalize_list_types(module);
     canonicalize_enum_types(module);
     canonicalize_union_types(module);
+    canonicalize_result_types(module);
     for (n = 0; n < module->global_count; ++n) {
         size_t prior;
         int32_t ignored;

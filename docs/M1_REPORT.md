@@ -1302,3 +1302,11 @@ el oráculo y R6 imprimen `one\r\n` y salen 42.
 Medido: diferencial **56/56**; loader **231/231** (159 rechazos + 72
 controles); corpus **65/65** sin cambio; censo **0/26**, sin el grupo
 `ret value does not match`.
+
+## Actualización de M1 - la grafía `Result` (2026-10-26)
+
+D-M1-50. El pin trata `Result` y `OrbitResult` como `result`
+(`c_backend.orb:502`), y R6 los reescribe igual que las grafías de lista. El
+par `58-result-spelling` lo mide: el oráculo y R6 imprimen `neg\r\n` y salen
+42. Diferencial **57/57**; loader **233/233** (160 rechazos + 73 controles);
+corpus **65/65** sin cambio; censo **0/26**.

@@ -1,0 +1,19 @@
+fn parse(n: int) -> Result {
+    if n < 0 {
+        return err("neg", 1)
+    }
+    val good: Result = ok(n * 2)
+    return good
+}
+
+fn main() -> int {
+    val a: Result = parse(21)
+    val v: int = try a catch { return 10 }
+    if v != 42 { return 11 }
+    val b: Result = parse(-1)
+    try b catch e {
+        print(e)
+        return v
+    }
+    return 12
+}

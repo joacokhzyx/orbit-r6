@@ -1112,6 +1112,13 @@
       "code": "CGEN",
       "rule": "D-M1-49",
       "note": "a result function has no zero for a bare ret"
+    },
+    {
+      "file": "cases/x-result-spelling-other.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-50",
+      "note": "only the spellings mapTypeToC names are the result type"
     }
   ],
   "accept": [
@@ -1597,6 +1604,13 @@
       "run_stdout": "one\r\n",
       "rule": "D-M1-49",
       "note": "a value function that falls off its end returns 0, 0.0 or false"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/58-result-spelling.json",
+      "run_exit": 42,
+      "run_stdout": "neg\r\n",
+      "rule": "D-M1-50",
+      "note": "a Result-spelled return, local and register is the result type"
     }
   ]
 }
