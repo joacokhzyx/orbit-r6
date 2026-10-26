@@ -2668,3 +2668,32 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `list_push` and `type_spellings` match byte for byte. The ratchet is
   re-taken at 67/67. Census **0/26**, ratchet holds.
 - Status: **applied**.
+
+## D-M1-52 - An int negates at 32 bits
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). Found while measuring the
+  corpus at orbit-lang `d58d647` for the next pin: `tests/suite/int_wrap_32.orb`
+  built under R6 and exited 1 where the oracle exits 0, at
+  `add(2147483647, 1) != -2147483648`.
+- Root cause: the builder lowers the literal `-2147483648` as
+  `load_const -2147483648` (the literal `2147483648` wrapped to 32 bits)
+  followed by `neg`. R6 negated with `negq`, so the slot held `+2147483648`;
+  the oracle's C negates an `orbit_int` and answers `-2147483648`.
+- This corrects D-M1-36, which kept `neg` at `negq` because a probe showed the
+  oracle folding a comparison on `-INT32_MIN` under its no-overflow assumption.
+  When the operand arrives through a register, as here, the oracle's result is
+  the 32-bit wrap.
+- Fix: an `int` `neg` is `negl %eax` followed by `movslq %eax, %rax`, the form
+  D-M1-36 gave `add`, `sub` and `mul`. The encoder gains `negl` (`F7 /3`, with
+  REX.B for `%r8d`-`%r15d`); `tests/coff/asm_probe.c` and GNU `as` disassemble
+  `negl` on `%eax`, `%ecx`, `%r9d` and `%r11d` to the same bytes. A float `neg`
+  is unchanged.
+- Fixture `60-int-neg-wrap`: `add(2147483647, 1)` compared with a local and a
+  literal `-2147483648`, `neg(low)` equal to `low`, `neg(-5)` and
+  `neg(2147483647)`. Oracle and R6 both print `-2147483648\r\n` and exit 42;
+  the driver without the fix exits 10.
+- Admission: none. The loader suite gains the fixture as an acceptance control.
+- Measured: differential **58/58 -> 59/59**; loader **234/234 -> 235/235** (160
+  rejections + 75 controls); corpus at the pin **67 build / 67 match**, no
+  verdict moves; census **0/26**, ratchet holds.
+- Status: **applied**.

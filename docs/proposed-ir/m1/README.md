@@ -71,6 +71,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `57-bare-return` | funciones `int`, `float`, `string` y `bool` que caen al final: el `ret` sin operando devuelve `0`, `0.0` o `false` | 42 | `one\r\n` |
 | `58-result-spelling` | la grafía `Result` en retorno, local y registros es el tipo `result` | 42 | `neg\r\n` |
 | `59-opaque-compare` | lecturas opacas (`elemKind 0`) comparadas con literales y registros `int`, con `-1` y `2147483647` en la lista | 42 | `3\r\n` |
+| `60-int-neg-wrap` | `neg` de un `int` en 32 bits: `-INT32_MIN` vuelve a sí mismo y el literal `-2147483648` se compara con el desborde de `add` | 42 | `-2147483648\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

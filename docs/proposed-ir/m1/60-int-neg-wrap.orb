@@ -1,0 +1,18 @@
+fn neg(a: int) -> int {
+    return -a
+}
+
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn main() -> int {
+    val low = -2147483648
+    if add(2147483647, 1) != low { return 10 }
+    if add(2147483647, 1) != -2147483648 { return 11 }
+    if neg(low) != low { return 12 }
+    if neg(-5) != 5 { return 13 }
+    if neg(2147483647) != -2147483647 { return 14 }
+    print(low)
+    return 42
+}

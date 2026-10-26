@@ -1618,6 +1618,13 @@
       "run_stdout": "3\r\n",
       "rule": "D-M1-51",
       "note": "opaque reads compared with int literals and registers read as ints"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/60-int-neg-wrap.json",
+      "run_exit": 42,
+      "run_stdout": "-2147483648\r\n",
+      "rule": "D-M1-52",
+      "note": "an int negates at 32 bits, so -INT32_MIN wraps to itself"
     }
   ]
 }

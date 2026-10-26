@@ -181,6 +181,12 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "ret") == 0) return emit(a, 0xc3);
     if (strcmp(op, "ud2") == 0) return emit(a, 0x0f) && emit(a, 0x0b);
     if (strcmp(op, "cqto") == 0) return emit(a, 0x48) && emit(a, 0x99);
+    if (strcmp(op, "negl") == 0 && a1) {
+        id1 = reg_id(a1, &w1, &x1);
+        if (id1 < 0 || x1 || w1 != 32) return bad(a, "negl requires a 32-bit GPR");
+        return (id1 < 8 || emit(a, 0x41)) && emit(a, 0xf7) &&
+               emit(a, (uint8_t)(0xd8 | (id1 & 7)));
+    }
     if (strcmp(op, "negq") == 0 && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64) return bad(a, "negq requires a 64-bit GPR");

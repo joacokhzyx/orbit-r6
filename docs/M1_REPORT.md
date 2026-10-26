@@ -1323,3 +1323,13 @@ Medido: diferencial **58/58**; loader **234/234** (160 rechazos + 74
 controles); corpus **65/65 -> 67 build / 67 match sobre 97 programas**
 (`list_push`, `type_spellings`); censo **0/26**. El trinquete se re-toma en
 67/67.
+
+## Actualización de M1 - un `int` se niega en 32 bits (2026-10-26)
+
+D-M1-52. El builder baja `-2147483648` como `load_const -2147483648` más
+`neg`. R6 negaba con `negq` y obtenía `+2147483648`; el oráculo da
+`-2147483648`. Lo midió `int_wrap_32` en el corpus de `d58d647`. Corrige la
+excepción que D-M1-36 había dejado para `neg`: ahora es `negl` más `movslq`. El
+par `60-int-neg-wrap` lo mide: el oráculo y R6 imprimen `-2147483648\r\n` y
+salen 42; el driver anterior sale 10. Diferencial **59/59**; loader **235/235**
+(160 rechazos + 75 controles); corpus **67/67**; censo **0/26**.

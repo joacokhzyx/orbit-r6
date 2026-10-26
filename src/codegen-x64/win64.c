@@ -2628,7 +2628,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovabsq $-9223372036854775808, %%rax\n\tmovq %%rax, %%xmm1\n\txorpd %%xmm1, %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             else
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tnegq %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                /* D-M1-52: an int negates at 32 bits, as add/sub/mul do since
+                   D-M1-36, so -INT32_MIN wraps to itself as in the oracle. */
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tnegl %%eax\n\tmovslq %%eax, %%rax\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             break;
         case R6_OP_JUMP_IF_FALSE:
