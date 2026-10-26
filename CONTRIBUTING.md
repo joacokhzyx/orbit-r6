@@ -33,9 +33,10 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 ## Gates
 
 Run from the repository root. `--r6-command` must be the last argument. The paths
-are those of one machine; substitute yours.
+are those of one machine; substitute yours. The current counts are in the
+README status table.
 
-Differential, the primary gate (48/48 at the last measurement):
+Differential, the primary gate:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -48,7 +49,7 @@ python tests/diff/run_diff.py `
 `--case <stem>` runs one fixture. The verdict is identical exit code and stdout
 bytes against the oracle. A build failure counts as a failure.
 
-Loader contract suite, the second gate (212/212):
+Loader contract suite, the second gate:
 
 ```powershell
 python tests/reject/run_reject.py
@@ -59,7 +60,7 @@ python tests/reject/make_cases.py --check
 Every rejection exits 1 with exactly one `r6: <file>:<line>:<col>:
 error[CODE]: <msg>` line carrying the manifest code.
 
-Corpus, a measurement with a one-way ratchet (49 build / 49 match over 97):
+Corpus, a measurement with a one-way ratchet:
 
 ```powershell
 python tests/corpus/run_corpus.py `
