@@ -1183,3 +1183,17 @@ Medido: diferencial **47/47 -> 48/48**; loader **209/209 -> 212/212** (150
 rechazos + 62 controles); corpus **49/49 -> 52 build / 52 match sobre 97
 programas**, con tres coincidencias nuevas y ningún `r6-differs`; censo
 **0/26** sin cambio. El trinquete se re-toma en 52/52.
+
+## Actualización de M1 - `movslq` con REX.R y REX.B (2026-10-26)
+
+D-M1-41. El codificador emitía `movslq` registro a registro con el prefijo
+fijo `0x48`, así que `movslq %r9d, %r9` se codificaba como
+`movslq %ecx, %rcx`. Un literal `int` como tercer o cuarto argumento truncaba
+entonces el puntero del primer argumento a 32 bits. Bajo gdb la pila queda por
+debajo de `0x80000000` y el defecto no se veía. El prefijo lleva ahora REX.R y
+REX.B, y nueve formas comparadas con GNU `as` dan los mismos bytes.
+
+El par `50-literal-args-r8-r9` lo mide: el oráculo y R6 imprimen `65\r\n` y
+salen 42; el driver anterior revienta con `0xC0000005`. Diferencial **49/49**;
+loader **213/213** (150 rechazos + 63 controles); corpus **52/52** sin cambio;
+censo **0/26**.

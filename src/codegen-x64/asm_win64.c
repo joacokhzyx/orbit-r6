@@ -184,7 +184,8 @@ static bool encode(Asm *a, char *line) {
     if (strcmp(op, "negq") == 0 && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64) return bad(a, "negq requires a 64-bit GPR");
-        return emit(a, 0x48) && emit(a, 0xf7) && emit(a, (uint8_t)(0xd8 | (id1 & 7)));
+        return emit(a, (uint8_t)(0x48 | (id1 >> 3))) && emit(a, 0xf7) &&
+               emit(a, (uint8_t)(0xd8 | (id1 & 7)));
     }
     if (strcmp(op, "idivq") == 0 && a1 && parse_mem(a, a1, &m))
         return rex_modrm_mem(a, 64, 7, m, 0xf7, 0, 0, -1);
@@ -291,7 +292,9 @@ static bool encode(Asm *a, char *line) {
     }
     if (strcmp(op, "movslq") == 0 && id1 >= 0 && !x1 && w1 == 32 &&
         id2 >= 0 && !x2 && w2 == 64)
-        return emit(a, 0x48) && emit(a, 0x63) &&
+        /* REX.R extends the destination and REX.B the source: without them
+           `movslq %r9d, %r9` encodes `movslq %ecx, %rcx`. */
+        return emit(a, (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3))) && emit(a, 0x63) &&
                emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2) {
         if (w2 == 32) return (id2 < 8 || emit(a, 0x41)) &&
@@ -326,7 +329,8 @@ static bool encode(Asm *a, char *line) {
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
     if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && id2 >= 0 && x2) {
-        if (!emit(a, 0x66) || !emit(a, 0x48) || !emit(a, 0x0f) || !emit(a, 0x6e)) return false;
+        if (!emit(a, 0x66) || !emit(a, (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3))) ||
+            !emit(a, 0x0f) || !emit(a, 0x6e)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
     if (strcmp(op, "movsd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)

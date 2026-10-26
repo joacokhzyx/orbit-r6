@@ -2311,3 +2311,35 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `model_literal_fields` to `register type object`. The ratchet is re-taken at
   52/52. Census **0/26**, unchanged.
 - Status: **applied**.
+
+## D-M1-41 - `movslq` carries REX.R and REX.B
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). Found while building a
+  five-argument call: the R6 binary crashed with `0xC0000005` outside gdb and
+  ran correctly inside it.
+- Root cause: `asm_win64.c` encoded the register form of `movslq` with a fixed
+  `0x48` prefix. A source or destination in `%r8`-`%r15` lost its high bit, so
+  `movslq %r9d, %r9` became `movslq %ecx, %rcx` and `movslq %r8d, %r8` became
+  `movslq %eax, %rax`. D-M1-36 emits `movl $n, %r8d` / `movslq %r8d, %r8` for
+  an inline int literal argument in position 2 or 3. The extension then
+  truncated the first argument in `%rcx` to its sign-extended low 32 bits. A
+  pointer in `%rcx` below `0x80000000` survived, which is why gdb, whose
+  stack sits low, hid it.
+- Fix: the prefix is `0x48 | REX.R(dest) | REX.B(src)`. `negq` and the
+  `movq` GPR-to-XMM form had the same fixed prefix and get the same bits; R6
+  emits both only with low registers today, so neither changes any output.
+- Byte evidence: nine forms (`movslq` across `%r8d`, `%r9d`, `%r11d`, `%ecx`
+  and `%eax` sources and destinations, `negq %rax`/`%r10`, `movq %rax, %xmm0`
+  and `movq %r10, %xmm15`) assembled by `tests/coff/asm_probe.c` and by GNU
+  `as` disassemble identically with `objdump -d`. GNU `as` is only the
+  reference for the bytes; no R6 program goes through it.
+- Fixture `50-literal-args-r8-r9`: `mix("abc", 1, 2, -3)` puts a string
+  pointer from `.rdata` in `%rcx` and literals in `%r8`/`%r9`, and
+  `spread(5, 6, "four", -7)` puts the pointer in `%r8`. Oracle and R6 both
+  print `65\r\n` and exit 42. The driver built with the previous encoder
+  crashes on the same IR with `0xC0000005`.
+- Admission: none. The loader suite gains the fixture as an acceptance control.
+- Measured: differential **48/48 -> 49/49**; loader **212/212 -> 213/213**
+  (150 rejections + 63 controls); corpus **52 build / 52 match**, no verdict
+  moves; census **0/26**, ratchet holds.
+- Status: **applied**.

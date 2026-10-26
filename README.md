@@ -20,8 +20,8 @@ Measured on 2026-10-26 at the pin (`33abf7a`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 48/48 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 212/212 (150 rejections, 62 acceptance controls) | gate |
+| Differential (`tests/diff/run_diff.py`) | 49/49 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 213/213 (150 rejections, 63 acceptance controls) | gate |
 | Corpus (`tests/corpus/run_corpus.py`) | 52 build / 52 match over 97 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 0 build over 26 modules | measurement with a one-way ratchet |
 

@@ -1672,6 +1672,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/49-model-parameter.json",
              "run_exit": 42, "run_stdout": "origin\r\n", "rule": "D-M1-40",
              "note": "a model crosses calls by pointer, in a register and on the stack"},
+            {"file": "../../docs/proposed-ir/m1/50-literal-args-r8-r9.json",
+             "run_exit": 42, "run_stdout": "65\r\n", "rule": "D-M1-41",
+             "note": "int literals in r8/r9 leave the pointer in rcx intact"},
         ],
     }
 
