@@ -10,9 +10,9 @@ en D-F0-13 y sin cambio en D-F0-14 - pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
+  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-33abf7a-git `
+  --orbit-root C:\Temp\orbit-pin-a5cdf77-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -100,7 +100,7 @@ documento en un buffer en vez de copiar el prefijo en cada línea). El corpus no
 cambia: los 98 documentos conservan `filesSha256 e8586b9a…` fichero por fichero,
 porque `tests/suite` y `tests/std` no incluyen `emit/ir_emit.orb`. El manifiesto
 re-emitido solo difiere en su bloque `emitter` (binario
-`C:\Temp\orbit-fp-8f487a3e9f.exe`, `languageCommit 33abf7a`). La medición se
+`C:\Temp\orbit-fp-b0d70c396d.exe`, `languageCommit 33abf7a`). La medición se
 re-toma: **47 build / 46 match sobre 97 programas**, el mismo trinquete.
 
 El censo del compilador sí cambia, porque ahí `emit/ir_emit.orb` es uno de los
@@ -566,3 +566,11 @@ El mensaje `register type unknown is unsupported in M1` sube de 12 a 13
 (`test_imports` llega a él), `extern return type is unsupported in M1` de 2 a 3
 (`test_fs`) y desaparecen los cuatro `global ... is outside M1 literal int/bool
 support`. El trinquete se re-tomó en 46/45.
+
+## Re-pin 2026-10-26 (D-F0-15, emisor `a5cdf77`, corpus `91341401`)
+
+El corpus crece a 133 documentos: 109 programas de suite, `imports.support.orb`
+y 23 de std, 6 808 416 bytes, `filesSha256 91341401…`, emitidos con
+`C:\Temp\orbit-fp-b0d70c396d.exe` desde `C:\Temp\orbit-pin-a5cdf77-git`.
+R6 construye y coincide en 91 de 132 programas, ninguno difiere. El commit está
+en `github.com/joacokhzyx/orbit-lang`.

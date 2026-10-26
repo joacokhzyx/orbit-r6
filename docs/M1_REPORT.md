@@ -1333,3 +1333,14 @@ excepción que D-M1-36 había dejado para `neg`: ahora es `negl` más `movslq`. 
 par `60-int-neg-wrap` lo mide: el oráculo y R6 imprimen `-2147483648\r\n` y
 salen 42; el driver anterior sale 10. Diferencial **59/59**; loader **235/235**
 (160 rechazos + 75 controles); corpus **67/67**; censo **0/26**.
+
+## Re-pin D-F0-15: `a5cdf77`, el primer pin público (2026-10-26)
+
+El pin pasa de `33abf7a` a `a5cdf77`, 43 commits ya publicados en
+`github.com/joacokhzyx/orbit-lang`. Trae 34 programas de suite, ocho
+correcciones del compilador, el bootstrap a `-O1` y los tipos de registro que el
+front end ya conoce: el corpus baja de 8045 destinos `unknown` a 425. El corpus
+se regenera a 133 documentos (`filesSha256 91341401…`) y R6 construye y coincide
+en **91 de 132 programas**, ninguno difiere (eran 67 de 97). Diferencial
+**59/59**, loader **235/235**, censo **0 de 27 módulos**. Los dos trinquetes se
+re-toman.

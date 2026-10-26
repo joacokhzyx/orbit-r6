@@ -1,187 +1,180 @@
 {
   "schema": "r6-corpus-baseline/1",
-  "corpusFilesSha256": "e8586b9af976d18c3fdb1d4071a5431dc60da49223a6a09e9e38a02a9b96db0e",
+  "corpusFilesSha256": "91341401c99b132df989d50eaf0a3a622f9292707184f085c2d02f2be4a63316",
   "summary": {
-    "members": 98,
-    "programs": 97,
-    "oracleOk": 97,
-    "r6BuildOk": 67,
-    "match": 67,
-    "unknownRegisterTypes": 91
+    "members": 133,
+    "programs": 132,
+    "oracleOk": 132,
+    "r6BuildOk": 91,
+    "match": 91,
+    "unknownRegisterTypes": 65
   },
   "byCode": {
-    "CGEN": 27,
+    "CGEN": 38,
     "E_OPCODE": 3
   },
   "byFailingOpcode": {
-    "(module-level)": 22,
+    "(module-level)": 32,
     "call": 4,
     "list_push": 3,
-    "store_var": 1
+    "store_var": 1,
+    "copy": 1
   },
   "byOpcode": {
     "add": {
-      "cases": 67,
-      "match": 45
-    },
-    "and_op": {
-      "cases": 10,
-      "match": 7
+      "cases": 98,
+      "match": 67
     },
     "arg": {
-      "cases": 65,
-      "match": 38
+      "cases": 100,
+      "match": 62
     },
     "call": {
-      "cases": 81,
-      "match": 51
+      "cases": 116,
+      "match": 75
     },
     "copy": {
-      "cases": 7,
-      "match": 6
+      "cases": 24,
+      "match": 15
     },
     "decl_var": {
-      "cases": 78,
-      "match": 50
+      "cases": 112,
+      "match": 73
     },
     "div": {
-      "cases": 13,
-      "match": 11
-    },
-    "eq": {
-      "cases": 46,
-      "match": 28
-    },
-    "ge": {
       "cases": 16,
-      "match": 8
-    },
-    "gt": {
-      "cases": 33,
-      "match": 21
-    },
-    "jump": {
-      "cases": 57,
-      "match": 36
-    },
-    "jump_if_false": {
-      "cases": 84,
-      "match": 54
-    },
-    "label": {
-      "cases": 84,
-      "match": 54
-    },
-    "le": {
-      "cases": 13,
-      "match": 9
-    },
-    "list_create": {
-      "cases": 36,
-      "match": 18
-    },
-    "list_get": {
-      "cases": 34,
-      "match": 17
-    },
-    "list_len": {
-      "cases": 36,
-      "match": 16
-    },
-    "list_pop": {
-      "cases": 2,
-      "match": 0
-    },
-    "list_push": {
-      "cases": 36,
-      "match": 18
-    },
-    "list_set": {
-      "cases": 4,
-      "match": 2
-    },
-    "load_const": {
-      "cases": 76,
-      "match": 48
-    },
-    "load_field": {
-      "cases": 22,
-      "match": 10
-    },
-    "load_var": {
-      "cases": 86,
-      "match": 56
-    },
-    "lt": {
-      "cases": 40,
-      "match": 25
-    },
-    "mod": {
-      "cases": 8,
-      "match": 7
-    },
-    "mul": {
-      "cases": 18,
       "match": 14
     },
-    "ne": {
-      "cases": 69,
+    "eq": {
+      "cases": 67,
+      "match": 41
+    },
+    "ge": {
+      "cases": 22,
+      "match": 13
+    },
+    "gt": {
+      "cases": 41,
+      "match": 28
+    },
+    "jump": {
+      "cases": 86,
+      "match": 54
+    },
+    "jump_if_false": {
+      "cases": 120,
+      "match": 79
+    },
+    "label": {
+      "cases": 120,
+      "match": 79
+    },
+    "le": {
+      "cases": 17,
+      "match": 12
+    },
+    "list_create": {
+      "cases": 47,
+      "match": 27
+    },
+    "list_get": {
+      "cases": 45,
+      "match": 26
+    },
+    "list_len": {
+      "cases": 51,
+      "match": 27
+    },
+    "list_pop": {
+      "cases": 3,
+      "match": 1
+    },
+    "list_push": {
+      "cases": 47,
+      "match": 27
+    },
+    "list_set": {
+      "cases": 7,
+      "match": 5
+    },
+    "load_const": {
+      "cases": 105,
+      "match": 66
+    },
+    "load_field": {
+      "cases": 38,
+      "match": 17
+    },
+    "load_var": {
+      "cases": 121,
+      "match": 80
+    },
+    "lt": {
+      "cases": 63,
       "match": 42
     },
+    "mod": {
+      "cases": 13,
+      "match": 12
+    },
+    "mul": {
+      "cases": 33,
+      "match": 24
+    },
+    "ne": {
+      "cases": 106,
+      "match": 67
+    },
     "neg": {
-      "cases": 38,
-      "match": 25
+      "cases": 51,
+      "match": 33
     },
     "not_op": {
       "cases": 2,
       "match": 1
     },
-    "or_op": {
-      "cases": 11,
-      "match": 6
-    },
     "result_err": {
-      "cases": 13,
-      "match": 9
+      "cases": 19,
+      "match": 13
     },
     "result_is_ok": {
-      "cases": 13,
-      "match": 7
+      "cases": 21,
+      "match": 13
     },
     "result_ok": {
-      "cases": 13,
-      "match": 8
+      "cases": 20,
+      "match": 13
     },
     "result_unwrap": {
+      "cases": 21,
+      "match": 13
+    },
+    "result_unwrap_err": {
+      "cases": 5,
+      "match": 4
+    },
+    "ret": {
+      "cases": 133,
+      "match": 91
+    },
+    "store_field": {
       "cases": 13,
       "match": 7
     },
-    "result_unwrap_err": {
-      "cases": 2,
-      "match": 1
-    },
-    "ret": {
-      "cases": 98,
-      "match": 67
-    },
-    "store_field": {
-      "cases": 8,
-      "match": 5
-    },
     "store_var": {
-      "cases": 37,
-      "match": 22
+      "cases": 57,
+      "match": 37
     },
     "sub": {
-      "cases": 24,
-      "match": 16
+      "cases": 38,
+      "match": 23
     },
     "union_get_data": {
-      "cases": 6,
+      "cases": 11,
       "match": 1
     },
     "union_get_tag": {
-      "cases": 6,
+      "cases": 11,
       "match": 1
     }
   }

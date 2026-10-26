@@ -20,14 +20,14 @@ executable.
 
 ## Status
 
-Measured on 2026-10-26 at the pin (`33abf7a`, see below):
+Measured on 2026-10-26 at the pin (`a5cdf77`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
 | Differential (`tests/diff/run_diff.py`) | 59/59 | gate |
 | Loader contract suite (`tests/reject/run_reject.py`) | 235/235 (160 rejections, 75 acceptance controls) | gate |
-| Corpus (`tests/corpus/run_corpus.py`) | 67 build / 67 match over 97 programs | measurement with a one-way ratchet |
-| Compiler-IR census (`tests/compiler-ir/run_census.py`) | 0 build over 26 modules | measurement with a one-way ratchet |
+| Corpus (`tests/corpus/run_corpus.py`) | 91 build / 91 match over 132 programs | measurement with a one-way ratchet |
+| Compiler-IR census (`tests/compiler-ir/run_census.py`) | 0 build over 27 modules | measurement with a one-way ratchet |
 
 The supported subset is what `docs/M1_REPORT.md` states as measured. Overflow,
 NaN payloads, other list kinds and
@@ -78,9 +78,9 @@ The commands below were verified on 2026-10-26 on the machine named in
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
+  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-33abf7a-git `
+  --orbit-root C:\Temp\orbit-pin-a5cdf77-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/reject/run_reject.py
@@ -101,26 +101,27 @@ Corpus and census:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
+  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-33abf7a-git `
+  --orbit-root C:\Temp\orbit-pin-a5cdf77-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/compiler-ir/run_census.py `
-  --compiler C:\Temp\orbit-fp-8f487a3e9f.exe `
-  --tree C:\Temp\orbit-pin-33abf7a-git `
+  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
+  --tree C:\Temp\orbit-pin-a5cdf77-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
 ## The pin
 
-R6 is pinned to one `orbit-lang` commit: `33abf7ab762607c117d01d06bee8584a2e3781c1`.
+R6 is pinned to one `orbit-lang` commit: `a5cdf779ddc0ba37f72eb0a9dcfd750044b3430c`,
+on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 The pin is the Orbit commit and the inputs listed in `docs/PIN.md`: the IR
 emitter, the fixed-point compiler, the runtime recipe, the runtime symbol set
 and the corpus hash.
 
-- Pinned bytes come from `git cat-file blob 33abf7a:<path>`, never from a
+- Pinned bytes come from `git cat-file blob a5cdf77:<path>`, never from a
   working tree that may be ahead of the pin.
 - The corpus and the census regenerate from a tree materialized at the pin.
   `--orbit-root` and `--tree` must point at that tree.

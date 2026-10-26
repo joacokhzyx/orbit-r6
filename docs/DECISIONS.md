@@ -2697,3 +2697,49 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   rejections + 75 controls); corpus at the pin **67 build / 67 match**, no
   verdict moves; census **0/26**, ratchet holds.
 - Status: **applied**.
+
+## D-F0-15 - Re-pin to a5cdf77: the first public pin, typed registers
+
+- Date: 2026-10-26. Moves the pin from `33abf7a` (D-F0-14) to orbit-lang
+  `main` `a5cdf779ddc0ba37f72eb0a9dcfd750044b3430c`, 43 commits. The commit is on
+  the public remote `https://github.com/joacokhzyx/orbit-lang`
+  (`3724b20..a5cdf77` pushed on 2026-10-26), so the corpus and the gates can be
+  reproduced from public bytes for the first time.
+- What moved, from four merges:
+  - `corpus-growth`: 25 suite programs (models, unions, results, strings,
+    lists, memory churn, compiler-shaped programs).
+  - `build-speed`: the bootstrap compiles at `-O1`, stops at iteration 1 when
+    it equals the canonical, and shards the compile; no compiler source moved.
+  - `lang-fixes`: eight compiler fixes with nine suite programs. Two change
+    the IR: `&&`/`||` lower to `copy`, `jump_if_false`, `jump` and `label`
+    around the right operand (`and_op`/`or_op` have no producer), and a
+    multi-payload `match` reads its fields after the tag test.
+  - `typed-ir`: the builder writes the register types it proves. The corpus
+    goes from 8045 `unknown` register destinations to 425
+    (`scripts/ir_unknown_census.py`).
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-b0d70c396d.exe`, built from `C:\Temp\orbit-pin-a5cdf77-git`,
+  converges to `PUBLISHED_C D78411C0.` (was `138FBDF4.`); with it the pinned tree
+  passes `tests/suite` 109/109 and `tests/std` 23/23. The runtime archive
+  rebuilt from the pinned recipe defines 337 symbols, the same exported names
+  as before. The corpus regenerates to 133 documents, 6808416 bytes,
+  `filesSha256 91341401.`.
+- Measurement before the move: at the intermediate `d58d647` the corpus built
+  90 of 132 programs and one differed (`int_wrap_32`), which D-M1-52 fixed
+  before this commit. At `a5cdf77` no program differs.
+- Ratchets: the corpus baseline is re-taken at `r6BuildOk 91`, `match 91`.
+  `run_corpus.py --check --write-baseline` refuses to write across corpora
+  (`the baseline was taken against a different corpus`), so the baseline is
+  written from that run's `--json` report with the same fields the script
+  writes, and a second `--check` run against it prints `ratchet holds: 91 -> 91`.
+  The census baseline is re-taken: 27 modules (one more at the pin), 0 build.
+- The CI workflow's `ORBIT_PIN` moves with the pin, and every command in
+  `AGENTS.md`, `README.md`, `CONTRIBUTING.md` and `tests/corpus/README.md` points
+  at the new fixed point and checkout.
+- Measured: differential **59/59** against the new oracle; loader **235/235**;
+  `make_cases.py --check` without drift; corpus **67 build / 67 match over 97
+  -> 91 build / 91 match over 132 programs**, none differing; census **0 build
+  over 26 -> 0 build over 27 modules**, first refusals `union ASTNode` 14,
+  `no non-extern main` 6, `union IRValue` 4, `list_push` 1, `main must have no
+  parameters` 1, `register type unknown` 1.
+- Status: **applied**.
