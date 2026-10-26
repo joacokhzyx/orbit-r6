@@ -16,7 +16,7 @@ executable.
 
 ## Status
 
-Measured on 2026-10-22 at the pin (`33abf7a`, see below):
+Measured on 2026-10-26 at the pin (`33abf7a`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
@@ -69,7 +69,7 @@ A diagnostic is one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit
 
 ## Gates
 
-The commands below were verified on 2026-10-22 on the machine named in
+The commands below were verified on 2026-10-26 on the machine named in
 `docs/PIN.md`. `--r6-command` must be the last argument.
 
 ```powershell
