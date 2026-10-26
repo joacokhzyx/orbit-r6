@@ -378,10 +378,11 @@ def build_reject():
 
     mod = MOD([MAIN()])
     mod["models"] = [{"name": "Box",
-                      "fields": [{"name": "p", "typeName": "list"}],
+                      "fields": [{"name": "p", "typeName": "Box"}],
                       "typeParams": []}]
     add("x-model-field-unsupported-type", jd({"irVersion": "1", "module": mod}),
-        "D-M1-11", "CGEN", "only int/bool/float/string fields are lowered")
+        "D-M1-11", "CGEN",
+        "only int/bool/float/string/list fields are lowered (list since D-M1-39)")
 
     mod = MOD([MAIN()])
     mod["models"] = [box, dict(box)]
@@ -1064,6 +1065,29 @@ def build_reject():
         "D-M1-38", "CGEN",
         "a declared opaque read destination must agree with the parameter it feeds")
 
+    # ---- D-M1-39: a list field is an OrbitList* member ----------------------
+    # Every list spelling is the same C pointer (c_backend.orb:478), so a model
+    # field of a list type is an 8-byte pointer member. A map field keeps its
+    # spelling and stays refused, and a list field takes only a list value.
+    def bag_doc(field_type, instrs, types):
+        mod = MOD([MAIN(instrs, types)])
+        mod["models"] = [{"name": "Bag", "fields": [{"name": "items", "typeName": field_type}],
+                          "typeParams": []}]
+        return {"irVersion": "1", "module": mod}
+    add("x-model-map-field",
+        jd(bag_doc("map<string,int>", [I("load_const", 0, Int(0)), I("ret", -1, Reg(0))],
+                   ["int"])),
+        "D-M1-39", "CGEN", "a map field has no native storage in the subset")
+    add("x-model-list-field-store-string",
+        jd(bag_doc("list<int>", [I("list_create", 0, Int(8), Int(0), ek=2),
+                                 I("arg", -1, Reg(0)),
+                                 I("call", 1, Str("Bag"), Int(1)),
+                                 I("load_const", 2, Str("x")),
+                                 I("store_field", -1, Reg(1), Sym("Bag.items"), Reg(2)),
+                                 I("ret", -1, Int(0))],
+                   ["list", "Bag", "string"])),
+        "D-M1-39", "CGEN", "a list field takes a list value, not a string")
+
     return cases
 
 
@@ -1618,6 +1642,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/47-opaque-list-read.json",
              "run_exit": 42, "run_stdout": "5\r\n", "rule": "D-M1-38",
              "note": "the emitter's opaque reads feed a string and an int parameter"},
+            {"file": "../../docs/proposed-ir/m1/48-model-list-field.json",
+             "run_exit": 42, "run_stdout": "bc\r\n", "rule": "D-M1-39",
+             "note": "list fields are built, read, pushed through and replaced"},
         ],
     }
 

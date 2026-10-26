@@ -35,7 +35,7 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 Run from the repository root. `--r6-command` must be the last argument. The paths
 are those of one machine; substitute yours.
 
-Differential, the primary gate (46/46 at the last measurement):
+Differential, the primary gate (47/47 at the last measurement):
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -48,7 +48,7 @@ python tests/diff/run_diff.py `
 `--case <stem>` runs one fixture. The verdict is identical exit code and stdout
 bytes against the oracle. A build failure counts as a failure.
 
-Loader contract suite, the second gate (206/206):
+Loader contract suite, the second gate (209/209):
 
 ```powershell
 python tests/reject/run_reject.py

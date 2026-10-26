@@ -1,0 +1,21 @@
+model Bag {
+    id: int
+    items: list<int>
+    names: list<string>
+}
+
+fn main() -> int {
+    val nums = [3, 4]
+    val bag = Bag(7, nums, ["a", "bc"])
+    bag.items.push(5)
+    if bag.items.len() != 3 { return 10 }
+    if nums.len() != 3 { return 11 }
+    val items: list<int> = bag.items
+    if items.get(0) + items.get(1) + items.get(2) != 12 { return 12 }
+    val names: list<string> = bag.names
+    print(names.get(1))
+    bag.items = [100]
+    if bag.items.len() != 1 { return 13 }
+    if nums.len() != 3 { return 15 }
+    return 42 + bag.id - 7
+}

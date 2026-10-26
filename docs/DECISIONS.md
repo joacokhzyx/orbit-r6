@@ -2237,3 +2237,43 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `r6BuildOk 49`, `match 49`. Census **0 -> 0 build**, the same six first
   refusals.
 - Status: **applied**.
+
+## D-M1-39 - A list field is an eight-byte list pointer
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). The census refused
+  `compiler/tir/format.orb` at `model TirFunction field parameters has
+  unsupported type list`, and three corpus programs (`generic_models`,
+  `generic_nested_argument`, `model_literal_fields`) stopped at a model field of
+  type `list<int>`, `list<list<float>>` or `list<string>`.
+- Reference (pin `33abf7a`): `mapTypeToC` gives every list spelling the same C
+  type, `OrbitList*` (`c_backend.orb:478`, `:489-496`), and a synthesized model
+  struct declares each field with that map. A list field is a pointer member:
+  8 bytes, alignment 8.
+- Decision: `canonicalize_list_types` (D-M1-32) also rewrites model field types
+  to `list`. `model_field_size` gives `list` 8/8. `load_field` copies the
+  pointer into the slot, and `store_field` and the constructor copy the slot
+  into the member. The existing checks require a `list` value register for
+  each, so a string or int value stays refused.
+- The field shares the list, as the pointer does in C: a `push` through
+  `bag.items` is visible through the local the list came from.
+- Fixture `48-model-list-field`: a model with an `int` and two list fields,
+  built from a local list and a literal, pushed through the field, read back
+  through typed locals, and replaced with a new list. Oracle and R6 both print
+  `bc\r\n` and exit 42.
+- Not measured, and not in the fixture on purpose: an element read straight off
+  the field (`bag.names.get(1)`). The pin emits it with `elemKind 0`, and its
+  oracle prints `140697716711947` for `print(bag.names.get(1))`, the pointer
+  formatted as an int, instead of `bc`. That is a defect of the language's
+  builder, reported on the language side; R6 keeps those reads `unknown`
+  (D-M1-38 types an opaque read only by a parameter it feeds).
+- Controls: `x-model-map-field` and `x-model-list-field-store-string` refuse.
+  The D-M1-11 control `x-model-field-unsupported-type` used a `list` field; it
+  now uses a model-typed field, which stays refused.
+- Measured: differential **46/46 -> 47/47**; loader **206/206 -> 209/209** (148
+  rejections + 61 controls; `make_cases.py --check` 187 files without drift);
+  corpus **49 build / 49 match**, unchanged: the three programs move to their
+  next refusal, a model parameter (`Box_int`, `Point`) or an `unknown`
+  register. Census **0 -> 0 build**; `compiler/tir/format.orb` moves from the
+  list field to `returning model or void* values is not supported in M1`. The
+  census baseline is re-taken for that refusal; the corpus baseline is not.
+- Status: **applied**.

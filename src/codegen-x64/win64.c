@@ -51,9 +51,9 @@ static bool same_type(const char *a, const char *b) {
 /* D-M1-32: the pinned C type map (c_backend.orb:478-499) answers the same
  * pointer for every list spelling - `list`, `List`, and any `list<...>` at any
  * depth - because the arguments name what is IN the list, not what the pointer
- * is. R6's list register type is that pointer, so the three ABI positions
- * (parameter types, return type, register types) are rewritten to "list"
- * before any check reads them. A `map<...>` keeps its spelling: R6 has no map
+ * is. R6's list register type is that pointer, so the ABI positions
+ * (parameter types, return type, register types) and the model field types
+ * (D-M1-39) are rewritten to "list" before any check reads them. A `map<...>` keeps its spelling: R6 has no map
  * type and refuses it. The replaced string is freed here because the module
  * owns it and r6_module_free frees whatever it holds. */
 static char *canonical_list_spelling(char *t) {
@@ -86,6 +86,12 @@ static void canonicalize_list_types(R6Module *m) {
             for (j = 0; j < f->register_type_count; ++j)
                 f->register_types[j] = canonical_list_spelling(f->register_types[j]);
     }
+    if (m->models)
+        for (k = 0; k < m->model_count; ++k)
+            if (m->models[k].fields)
+                for (j = 0; j < m->models[k].field_count; ++j)
+                    m->models[k].fields[j].type_name =
+                        canonical_list_spelling(m->models[k].fields[j].type_name);
 }
 
 /* D-M1-35: an enumeration is an int. The pinned backend emits
@@ -640,6 +646,8 @@ static bool model_field_size(const char *t, size_t *size, size_t *align) {
     if (is_int(t)) { *size = 4; *align = 4; return true; }
     if (is_bool(t)) { *size = 1; *align = 1; return true; }
     if (is_float(t) || is_string(t)) { *size = 8; *align = 8; return true; }
+    /* D-M1-39: an OrbitList* member (c_backend.orb:478). */
+    if (is_list(t)) { *size = 8; *align = 8; return true; }
     return false;
 }
 
@@ -2476,7 +2484,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
             if (is_float(field->type_name))
                 fprintf(o, "\tmovsd %zu(%%r11), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n", offset, off);
-            else if (is_string(field->type_name))
+            else if (is_string(field->type_name) || is_list(field->type_name))
                 fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
             else if (is_bool(field->type_name))
                 fprintf(o, "\tmovzbl %zu(%%r11), %%eax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
@@ -2510,6 +2518,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", string_id++);
                 }
                 fprintf(o, "\tmovq %%rax, %zu(%%r11)\n", offset);
+            } else if (is_list(field->type_name)) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, %zu(%%r11)\n",
+                        (unsigned)(val->as.i32 + 1) * 8, offset);
             } else if (is_bool(field->type_name)) {
                 if (val->kind == R6_VAL_REG)
                     fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovb %%al, %zu(%%r11)\n",
@@ -2578,6 +2589,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         else
                             fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", arg_string_ids[base + k]);
                         fprintf(o, "\tmovq %%rax, %zu(%%r10)\n", offset);
+                    } else if (is_list(ft)) {
+                        fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, %zu(%%r10)\n",
+                                (unsigned)(av->as.i32 + 1) * 8, offset);
                     } else if (is_bool(ft)) {
                         if (av->kind == R6_VAL_REG)
                             fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovb %%al, %zu(%%r10)\n",

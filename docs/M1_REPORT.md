@@ -1150,3 +1150,20 @@ sobre 97 programas** (`test_regex` y `test_process` coinciden byte a byte).
 Cinco programas de la std pasan de `register type unknown` a
 `returning result values is not supported in M1`, que es ahora el primer
 rechazo de 7 programas. El trinquete se re-toma en `r6BuildOk 49`, `match 49`.
+
+## Actualización de M1 - un campo `list` es un puntero (2026-10-26)
+
+D-M1-39. El pin declara todo campo de lista de un modelo como `OrbitList*`
+(`c_backend.orb:478`): 8 bytes, alineación 8. R6 reescribe los tipos de campo a
+`list` como ya hacía con parámetros, retornos y registros (D-M1-32), y
+`load_field`, `store_field` y el constructor copian el puntero. El par
+`48-model-list-field` lo mide: el oráculo y R6 imprimen `bc\r\n` y salen 42.
+
+El fixture lee los elementos a través de locales tipados. Leídos directo del
+campo, el pin emite `elemKind 0` y su oráculo imprime `140697716711947` en vez
+de `bc`: es un defecto del builder del lenguaje, no de R6.
+
+Medido: diferencial **46/46 -> 47/47**; loader **206/206 -> 209/209** (148
+rechazos + 61 controles); corpus **49 build / 49 match** sin cambio, porque los
+tres programas con campos `list` paran ahora en un parámetro de tipo modelo;
+censo **0/26**, con `tir/format` en `returning model or void* values`.
