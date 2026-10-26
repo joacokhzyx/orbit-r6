@@ -1006,7 +1006,7 @@
       "exit": 1,
       "code": "CGEN",
       "rule": "D-M1-38",
-      "note": "an opaque read whose use is a comparison stays unknown"
+      "note": "an opaque read compared with a string stays unknown (D-M1-51 admits an int)"
     },
     {
       "file": "cases/x-opaque-read-two-uses.json",
@@ -1611,6 +1611,13 @@
       "run_stdout": "neg\r\n",
       "rule": "D-M1-50",
       "note": "a Result-spelled return, local and register is the result type"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/59-opaque-compare.json",
+      "run_exit": 42,
+      "run_stdout": "3\r\n",
+      "rule": "D-M1-51",
+      "note": "opaque reads compared with int literals and registers read as ints"
     }
   ]
 }

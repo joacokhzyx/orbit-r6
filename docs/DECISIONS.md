@@ -2638,3 +2638,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `register type unknown`, an opaque list read compared with an int (D-M1-51).
   Census **0/26**, ratchet holds.
 - Status: **applied**.
+
+## D-M1-51 - An opaque list read compared with an int is an int
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). D-M1-38 typed an opaque read
+  (`elemKind 0`) only by a parameter it feeds. Two corpus programs
+  (`list_push`, `type_spellings`) stopped at an opaque read whose one use is
+  `ne` against an `int` literal.
+- Reference (pin `33abf7a`): `eq` and `ne` compare two words as
+  `(uintptr_t)a == (uintptr_t)b`, and `lt`/`le`/`gt`/`ge` as `intptr_t`
+  (`c_backend.orb:2747-2790`), unless both sides are strings (`strcmp`) or one
+  is a float. An `int` element is stored sign-extended into its slot word
+  (`orbit_list_push_int`), so its low 32 bits sign-extended compare the same
+  way as the word.
+- Decision: an opaque read whose one reader is `eq`, `ne`, `lt`, `le`, `gt`
+  or `ge`, and whose other operand is an `Int` literal or an `int` register,
+  is typed `int`. A comparison with a string compares pointers in the pin, not
+  content, and stays `unknown`; so does any other use.
+- Fixture `59-opaque-compare`: three functions take `xs: list` and compare
+  `xs.get(i)` with an `int` parameter (`>`), an `int` parameter (`==`) and
+  `-1`, over `[4, -1, 9, 2147483647, -7]`. Every `list_get` in the IR has
+  `elemKind 0`. Oracle and R6 both print `3\r\n` and exit 42.
+- Controls: the D-M1-38 control `x-opaque-read-compare` compared with `3`,
+  which this decision admits; it now compares with the string `"x"` and stays
+  refused.
+- Measured: differential **57/57 -> 58/58**; loader **233/233 -> 234/234** (160
+  rejections + 74 controls; `make_cases.py --check` 201 files without drift);
+  corpus **65 build / 65 match -> 67 build / 67 match over 97 programs**:
+  `list_push` and `type_spellings` match byte for byte. The ratchet is
+  re-taken at 67/67. Census **0/26**, ratchet holds.
+- Status: **applied**.

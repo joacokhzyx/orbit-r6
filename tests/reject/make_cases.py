@@ -1050,10 +1050,10 @@ def build_reject():
         "D-M1-38", "CGEN",
         "an opaque read passed as a float is a numeric conversion the subset does not measure")
     add("x-opaque-read-compare",
-        jd(opaque_doc("int", [I("ne", 5, Reg(3), Int(3)),
+        jd(opaque_doc("int", [I("ne", 5, Reg(3), Str("x")),
                               I("ret", -1, Int(0))])),
         "D-M1-38", "CGEN",
-        "an opaque read whose use is a comparison stays unknown")
+        "an opaque read compared with a string stays unknown (D-M1-51 admits an int)")
     add("x-opaque-read-two-uses",
         jd(opaque_doc("int", [I("arg", -1, Reg(3)), I("call", 4, Str("sink"), Int(1)),
                               I("arg", -1, Reg(3)), I("call", 4, Str("sink"), Int(1)),
@@ -1809,6 +1809,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/58-result-spelling.json",
              "run_exit": 42, "run_stdout": "neg\r\n", "rule": "D-M1-50",
              "note": "a Result-spelled return, local and register is the result type"},
+            {"file": "../../docs/proposed-ir/m1/59-opaque-compare.json",
+             "run_exit": 42, "run_stdout": "3\r\n", "rule": "D-M1-51",
+             "note": "opaque reads compared with int literals and registers read as ints"},
         ],
     }
 

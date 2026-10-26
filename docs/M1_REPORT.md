@@ -1310,3 +1310,16 @@ D-M1-50. El pin trata `Result` y `OrbitResult` como `result`
 par `58-result-spelling` lo mide: el oráculo y R6 imprimen `neg\r\n` y salen
 42. Diferencial **57/57**; loader **233/233** (160 rechazos + 73 controles);
 corpus **65/65** sin cambio; censo **0/26**.
+
+## Actualización de M1 - una lectura opaca comparada con un `int` (2026-10-26)
+
+D-M1-51. El pin compara `eq`/`ne` como palabras `uintptr_t` y el resto como
+`intptr_t`; un elemento `int` está extendido en signo en su palabra, así que
+leerlo como `int` compara igual. Una comparación con un string compara
+punteros en el pin y sigue rechazada. El par `59-opaque-compare` lo mide: el
+oráculo y R6 imprimen `3\r\n` y salen 42.
+
+Medido: diferencial **58/58**; loader **234/234** (160 rechazos + 74
+controles); corpus **65/65 -> 67 build / 67 match sobre 97 programas**
+(`list_push`, `type_spellings`); censo **0/26**. El trinquete se re-toma en
+67/67.

@@ -1,0 +1,37 @@
+fn countAbove(xs: list, floor: int) -> int {
+    var n = 0
+    var i = 0
+    while i < xs.len() {
+        if xs.get(i) > floor {
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
+
+fn firstIs(xs: list, want: int) -> bool {
+    return xs.get(0) == want
+}
+
+fn hasMinusOne(xs: list) -> bool {
+    var i = 0
+    while i < xs.len() {
+        if xs.get(i) == -1 {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn main() -> int {
+    val nums = [4, -1, 9, 2147483647, -7]
+    if countAbove(nums, 3) != 3 { return 10 }
+    if countAbove(nums, -2) != 4 { return 11 }
+    if firstIs(nums, 4) == false { return 12 }
+    if firstIs(nums, 5) { return 13 }
+    if hasMinusOne(nums) == false { return 14 }
+    print(countAbove(nums, 0))
+    return 42
+}

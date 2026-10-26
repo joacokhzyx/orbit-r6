@@ -70,6 +70,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `56-extern-result-list` | externs del runtime que devuelven `result` (puntero oculto antes de la arena) y `list`: lectura fallida, bytes aleatorios y directorio vacío | 42 | `read failed\r\n0\r\n` |
 | `57-bare-return` | funciones `int`, `float`, `string` y `bool` que caen al final: el `ret` sin operando devuelve `0`, `0.0` o `false` | 42 | `one\r\n` |
 | `58-result-spelling` | la grafía `Result` en retorno, local y registros es el tipo `result` | 42 | `neg\r\n` |
+| `59-opaque-compare` | lecturas opacas (`elemKind 0`) comparadas con literales y registros `int`, con `-1` y `2147483647` en la lista | 42 | `3\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

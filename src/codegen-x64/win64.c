@@ -773,8 +773,28 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
                 use = pc;
             }
     }
-    if (use == f->instruction_count || use <= at ||
-        f->instructions[use].opcode != R6_OP_ARG || f->instructions[use].has_dest)
+    if (use == f->instruction_count || use <= at) return NULL;
+    /* D-M1-51: a comparison with an int. The pin compares the word as
+     * uintptr_t (eq/ne) or intptr_t (lt/le/gt/ge), and an int element is
+     * stored sign-extended, so the low 32 bits sign-extended compare the same
+     * way. A comparison with a string compares pointers in the pin and stays
+     * unknown. */
+    switch (f->instructions[use].opcode) {
+    case R6_OP_EQ: case R6_OP_NE: case R6_OP_LT: case R6_OP_LE:
+    case R6_OP_GT: case R6_OP_GE: {
+        const R6Instruction *u = &f->instructions[use];
+        const R6Value *other = (u->operands[0].kind == R6_VAL_REG &&
+                                u->operands[0].as.i32 == reg) ? &u->operands[1] : &u->operands[0];
+        if (other->kind == R6_VAL_INT) return "int";
+        if (other->kind == R6_VAL_REG && other->as.i32 != reg &&
+            is_int(type_at(f, other->as.i32)))
+            return "int";
+        return NULL;
+    }
+    default:
+        break;
+    }
+    if (f->instructions[use].opcode != R6_OP_ARG || f->instructions[use].has_dest)
         return NULL;
     for (pc = use + 1; pc < f->instruction_count; ++pc) {
         const R6Instruction *i = &f->instructions[pc];
