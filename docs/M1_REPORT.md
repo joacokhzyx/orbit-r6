@@ -1278,3 +1278,16 @@ R6 imprimen `shape orbit\r\n` y salen 42.
 Medido: diferencial **54/54**; loader **226/226** (156 rechazos + 70
 controles); corpus **63/63 -> 64 build / 64 match sobre 97 programas**
 (`match`); censo **0/26**. El trinquete se re-toma en 64/64.
+
+## Actualización de M1 - un extern del runtime devuelve `result` o `list` (2026-10-26)
+
+D-M1-48. Los cuatro externs `result` del corpus reciben la arena primero
+(`orbit_api.h:589`, `:599`, `:619`, `:722`). En Win64 el puntero de la celda va
+en `rcx`, la arena pasa a `rdx` y los argumentos empiezan en la posición 2. Un
+extern `list` devuelve una palabra en `rax`. El par `56-extern-result-list` lo
+mide: el oráculo y R6 imprimen `read failed\r\n0\r\n` y salen 42.
+
+Medido: diferencial **55/55**; loader **229/229** (158 rechazos + 71
+controles); corpus **64/64 -> 65 build / 65 match sobre 97 programas**
+(`test_http_client`); censo **0/26**, sin el grupo `extern return type`. Los dos
+trinquetes se re-toman.

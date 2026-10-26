@@ -1091,6 +1091,20 @@
       "code": "CGEN",
       "rule": "D-M1-47",
       "note": "a payload read no local binds keeps no type"
+    },
+    {
+      "file": "cases/x-extern-result-no-arena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-48",
+      "note": "a result extern outside the arena-taking runtime family is refused"
+    },
+    {
+      "file": "cases/x-extern-return-object.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-48",
+      "note": "an object return stays outside the subset"
     }
   ],
   "accept": [
@@ -1562,6 +1576,13 @@
       "run_stdout": "shape orbit\r\n",
       "rule": "D-M1-47",
       "note": "a union crosses calls as its cell and match arms bind int and string payloads"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/56-extern-result-list.json",
+      "run_exit": 42,
+      "run_stdout": "read failed\r\n0\r\n",
+      "rule": "D-M1-48",
+      "note": "runtime externs return a result through sret before the arena, and a list in rax"
     }
   ]
 }

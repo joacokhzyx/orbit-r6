@@ -1177,6 +1177,19 @@ def build_reject():
                             I("ret", -1, Int(0))], ["Shape", "unknown"])])),
         "D-M1-47", "CGEN", "a payload read no local binds keeps no type")
 
+    # ---- D-M1-48: a runtime extern returns a result or a list ----------------
+    # A result comes back through the sret pointer ahead of the arena, so only
+    # an arena-taking runtime extern is admitted; an object return stays out.
+    add("x-extern-result-no-arena",
+        jd(DOC([FN("my_result", [], [], rtype="result", extern=True),
+                MAIN([I("call", 0, Str("my_result"), Int(0)),
+                      I("ret", -1, Int(0))], ["result"])])),
+        "D-M1-48", "CGEN", "a result extern outside the arena-taking runtime family is refused")
+    add("x-extern-return-object",
+        jd(DOC([FN("orbit_json_parse", [], [], rtype="object", extern=True, params=["t"],
+                   ptypes=["string"]), MAIN()])),
+        "D-M1-48", "CGEN", "an object return stays outside the subset")
+
     return cases
 
 
@@ -1775,6 +1788,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/55-union-parameter.json",
              "run_exit": 42, "run_stdout": "shape orbit\r\n", "rule": "D-M1-47",
              "note": "a union crosses calls as its cell and match arms bind int and string payloads"},
+            {"file": "../../docs/proposed-ir/m1/56-extern-result-list.json",
+             "run_exit": 42, "run_stdout": "read failed\r\n0\r\n", "rule": "D-M1-48",
+             "note": "runtime externs return a result through sret before the arena, and a list in rax"},
         ],
     }
 

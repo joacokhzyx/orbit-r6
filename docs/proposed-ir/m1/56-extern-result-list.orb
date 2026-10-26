@@ -1,0 +1,13 @@
+extern fn orbit_file_read(path: string) -> result
+extern fn orbit_file_list_dir(path: string) -> list
+extern fn orbit_random_bytes(count: int) -> result
+
+fn main() -> int {
+    try orbit_file_read("r6-no-such-file-7f3a.txt") catch e {
+        print("read failed")
+    }
+    try orbit_random_bytes(16) catch { return 10 }
+    val names = orbit_file_list_dir("r6-no-such-dir-7f3a")
+    print(names.len())
+    return 42
+}

@@ -2553,3 +2553,38 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   ratchet is re-taken at 64/64. Census **0/26**, unchanged groups; the census
   baseline is re-taken with the same counts.
 - Status: **applied**.
+
+## D-M1-48 - A runtime extern returns a result or a list
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). `extern return type is
+  unsupported in M1` was the first refusal of four std programs (`test_fs`,
+  `test_http_client`, `test_json`, `test_random`) and of three census modules
+  (`host/extern`, `selfhost/lexer_trace`, `tools/palette`).
+- Reference (pin `33abf7a`, `runtime/orbit_api.h`): the four result externs
+  the corpus declares are `OrbitResult orbit_json_parse(OrbitArena*, const
+  char*)` (`:589`), `orbit_file_read` (`:599`), `orbit_random_bytes` (`:619`)
+  and `orbit_http_client_fetch` (`:722`); all four take the arena first
+  (`functionNeedsArena`, `c_backend.orb:4416-4437`). The list externs return
+  `OrbitList*` (`orbit_file_list_dir`, `:601`).
+- Decision: an extern may return `list` (one word in `rax`) or `result`. A
+  result extern must be in the arena-taking runtime family: Win64 passes the
+  caller's result cell in `rcx`, the arena moves to `rdx`, and the IR
+  arguments start at position 2. The `result_unwrap` rules of D-M1-43 apply
+  unchanged. An `object` return stays refused.
+- Fixture `56-extern-result-list`: `orbit_file_read` of a missing file takes
+  the `catch` path, `orbit_random_bytes(16)` takes the `ok` path, and
+  `orbit_file_list_dir` of a missing directory returns an empty list. Oracle
+  and R6 both print `read failed\r\n0\r\n` and exit 42. The fixture does not
+  print the random value: it is raw bytes in a `string`, and `len()` is
+  `strlen`, which stops at the first zero byte (it printed `1` in one run).
+- Controls: `x-extern-result-no-arena` and `x-extern-return-object` refuse.
+- Measured: differential **54/54 -> 55/55**; loader **226/226 -> 229/229** (158
+  rejections + 71 controls; `make_cases.py --check` 199 files without drift);
+  corpus **64 build / 64 match -> 65 build / 65 match over 97 programs**:
+  `test_http_client` matches byte for byte; `test_fs` moves to `list_push`,
+  `test_json` to `extern parameter type`, `test_random` to `register type
+  unknown`. The ratchet is re-taken at 65/65. Census **0/26**: the
+  `extern return type` group of 3 is gone; `no non-extern main` goes 2 -> 3,
+  `ret value does not match` 2 -> 3 and `register type unknown` 0 -> 1. The
+  census baseline is re-taken.
+- Status: **applied**.

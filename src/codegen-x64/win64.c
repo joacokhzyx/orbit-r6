@@ -1092,7 +1092,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         for (pc = 0; pc < f->param_count; ++pc)
             if (!is_scalar(f->param_types[pc]))
                 return fail(d, NULL, "CGEN", "extern parameter type is unsupported in M1");
-        if (strcmp(f->return_type, "void") != 0 && !is_scalar(f->return_type))
+        /* D-M1-48: a runtime extern may also return an OrbitList* word or an
+           OrbitResult through the sret pointer. */
+        if (strcmp(f->return_type, "void") != 0 && !is_scalar(f->return_type) &&
+            !is_list(f->return_type) && !is_result(f->return_type))
             return fail(d, NULL, "CGEN", "extern return type is unsupported in M1");
         return true;
     }
@@ -1553,8 +1556,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                         return fail(d, i, "CGEN", "void call destination must be a void register");
                 } else if (!i->has_dest || !same_type(type_at(f, i->dest), callee->return_type))
                     return fail(d, i, "CGEN", "call destination does not match return type of %s", callee->name);
-                if (is_result(callee->return_type) && (callee->is_extern || callee != find_function(m, callee->name)))
-                    return fail(d, i, "CGEN", "a result returned by %s is outside the subset: only a declared Orbit function returns one",
+                if (is_result(callee->return_type) &&
+                    (callee != find_function(m, callee->name) ||
+                     (callee->is_extern && !extern_needs_arena(callee->name))))
+                    return fail(d, i, "CGEN", "a result returned by %s is outside the subset: only a declared Orbit function or an arena-taking runtime extern returns one",
                                 callee->name);
                 arg_count -= arity; /* E-05: consume exactly the last O2 pending args. */
                 break;
@@ -2835,7 +2840,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     /* D-M1-43: an OrbitResult return is 24 bytes, so Win64
                        passes the caller's cell as a hidden first argument. */
                     bool sret_first = is_result(named->return_type);
-                    if (arena_first) emit_load_arena(o, f, is_main, "%rcx");
+                    /* D-M1-48: a runtime extern that returns a result takes
+                       the sret pointer first and the arena second
+                       (`OrbitResult f(OrbitArena*, ...)`). */
+                    size_t hidden = (arena_first ? 1u : 0u) + (sret_first ? 1u : 0u);
+                    if (arena_first) emit_load_arena(o, f, is_main, sret_first ? "%rdx" : "%rcx");
                     if (sret_first)
                         fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n",
                                 result_cell_offset(f, is_main, i->dest));
@@ -2843,7 +2852,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         const R6Value *av = &args[base + k]->operands[0];
                         const char *at;
                         value_type(f, av, &at);
-                        emit_load_arg(o, f, av, at, arena_first || sret_first ? k + 1 : k,
+                        emit_load_arg(o, f, av, at, k + hidden,
                                       arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }
                     fprintf(o, "\tcall %s\n", strcmp(named->name, "main") == 0 ? "orbit_main" : named->name);

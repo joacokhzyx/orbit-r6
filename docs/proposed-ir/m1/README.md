@@ -67,6 +67,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `53-model-return` | un modelo devuelto como puntero: fábrica, identidad que muta su argumento, llamadas anidadas y retorno tras cinco argumentos | 42 | `wide\r\nmade\r\n` |
 | `54-result-local` | locales `result` declarados, reasignados con `var` y devueltos como celdas de 24 bytes | 42 | `zero\r\nsmall\r\nbig\r\nnegative\r\n` |
 | `55-union-parameter` | una unión de cuatro variantes como parámetro: `match` liga payloads `int` y `string`, brazo comodín y variante unitaria | 42 | `shape orbit\r\n` |
+| `56-extern-result-list` | externs del runtime que devuelven `result` (puntero oculto antes de la arena) y `list`: lectura fallida, bytes aleatorios y directorio vacío | 42 | `read failed\r\n0\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la
