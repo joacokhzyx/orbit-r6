@@ -1151,6 +1151,13 @@ def build_reject():
                       I("ret", -1, Int(0))], ["result", "int"])])),
         "D-M1-45", "CGEN", "an int stored into a result local is refused")
 
+    # ---- D-M1-46: a slot no instruction touches is a word -------------------
+    # The builder reserves registers it never uses. One that is read but never
+    # written is not dead and stays unknown.
+    add("x-unknown-slot-read-unwritten",
+        jd(DOC([MAIN([I("ret", -1, Reg(1))], ["int", "unknown"])])),
+        "D-M1-46", "CGEN", "an unknown slot that is read is not a dead slot")
+
     return cases
 
 
@@ -1538,6 +1545,9 @@ def build_accept_files():
                                        I("label", -1, Lab(1)),
                                        I("ret", -1, Int(2))],
                                       ["result", "bool", "unknown"])]))))
+    files.append(("ok-dead-unknown-slot",
+                  jd(DOC([MAIN([I("load_const", 0, Int(7)), I("ret", -1, Reg(0))],
+                               ["int", "unknown", "unknown"])]))))
     files.append(("ok-opaque-read-int-param",
                   jd(DOC([echo, MAIN([I("list_create", 0, Int(8), Int(1), ek=2),
                                       I("load_const", 1, Int(9)),
@@ -1740,6 +1750,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/54-result-local.json",
              "run_exit": 42, "run_stdout": "zero\r\nsmall\r\nbig\r\nnegative\r\n", "rule": "D-M1-45",
              "note": "result locals are declared, reassigned and returned as 24-byte cells"},
+            {"file": "cases/ok-dead-unknown-slot.json", "run_exit": 7,
+             "run_stdout": "", "rule": "D-M1-46",
+             "note": "unknown slots no instruction writes or reads are words"},
         ],
     }
 

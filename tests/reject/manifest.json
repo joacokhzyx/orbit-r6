@@ -1070,6 +1070,13 @@
       "code": "CGEN",
       "rule": "D-M1-45",
       "note": "an int stored into a result local is refused"
+    },
+    {
+      "file": "cases/x-unknown-slot-read-unwritten.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-46",
+      "note": "an unknown slot that is read is not a dead slot"
     }
   ],
   "accept": [
@@ -1527,6 +1534,13 @@
       "run_stdout": "zero\r\nsmall\r\nbig\r\nnegative\r\n",
       "rule": "D-M1-45",
       "note": "result locals are declared, reassigned and returned as 24-byte cells"
+    },
+    {
+      "file": "cases/ok-dead-unknown-slot.json",
+      "run_exit": 7,
+      "run_stdout": "",
+      "rule": "D-M1-46",
+      "note": "unknown slots no instruction writes or reads are words"
     }
   ]
 }

@@ -1252,3 +1252,16 @@ el oráculo y R6 imprimen `zero\r\nsmall\r\nbig\r\nnegative\r\n` y salen 42.
 Medido: diferencial **53/53**; loader **221/221** (153 rechazos + 68
 controles); corpus **60/60 -> 63 build / 63 match sobre 97 programas**; censo
 **0/26**. El trinquete se re-toma en 63/63.
+
+## Actualización de M1 - un registro que nadie toca (2026-10-26)
+
+D-M1-46. El builder reserva registros que ninguna instrucción escribe ni lee
+(un brazo de `match` reserva uno por patrón), y los serializa `unknown`. El pin
+los declara como `uintptr_t r_N;` sin uso, así que su tipo no es observable. R6
+les da el tipo palabra (`void*`); un slot que se lee sin escritura sigue
+rechazado.
+
+Medido: diferencial **53/53** sin cambio; loader **223/223** (154 rechazos + 69
+controles); corpus **63/63** sin cambio, porque los cuatro programas con slots
+muertos paran antes en el tipo de unión; censo **0/26**, con `front/lexer` y
+`front/token` en `ret value does not match function return type`.

@@ -2484,3 +2484,31 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `register type unknown`, `type_spellings` to `register type Result`. The
   ratchet is re-taken at 63/63. Census **0/26**, unchanged.
 - Status: **applied**.
+
+## D-M1-46 - A register no instruction touches is a word
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). The builder reserves registers
+  it never writes or reads: a `match` arm over a union allocates one per
+  pattern, and the census reported the same slot in `compiler/front/lexer.orb`
+  and `compiler/front/token.orb` (D-M1-35). Each is serialized `unknown`, and
+  R6 refused the whole function at the register-type gate.
+- Reference (pin `33abf7a`): the C backend declares every register as a
+  `uintptr_t r_N;` word (`c_backend.orb:3741-3750`), so an unused slot is a
+  declaration nothing reads and has no observable type.
+- Decision: after the D-M1-20 passes, a register still `unknown` that no
+  instruction names as destination or operand is typed `void*`, the word type.
+  A slot that is read is not dead: if nothing writes it, it stays `unknown`
+  and refused.
+- Controls: `ok-dead-unknown-slot` (exit 7) accepts two dead slots;
+  `x-unknown-slot-read-unwritten` refuses a slot that `ret` reads and nothing
+  writes. No fixture: the pin emits dead slots only in programs whose other
+  instructions need D-M1-47, which carries the fixture.
+- Measured: differential **53/53**, unchanged; loader **221/221 -> 223/223**
+  (154 rejections + 69 controls; `make_cases.py --check` 195 files without
+  drift); corpus **63 build / 63 match**, unchanged, because the four corpus
+  programs with dead slots (`match`, `member_resolution`,
+  `union_bare_variant_pattern`, `union_match_exhaustive`) stop first at a
+  union register type. Census **0/26**: `front/lexer` and `front/token` move
+  from `register type unknown` to `ret value does not match function return
+  type`; the census baseline is re-taken.
+- Status: **applied**.

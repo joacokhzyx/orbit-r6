@@ -68,11 +68,11 @@ are D-M1-32, global constants are D-M1-33, enumerations are D-M1-35, the
 entry point is D-M1-37, opaque list reads are D-M1-38, list fields are
 D-M1-39, model parameters are D-M1-40, the movslq encoding is D-M1-41, C bool
 returns are D-M1-42, returned results are D-M1-43, model
-returns are D-M1-44 and result locals are D-M1-45) — verified 221/221 on
-2026-10-26:
+returns are D-M1-44, result locals are D-M1-45 and dead register slots
+are D-M1-46) — verified 223/223 on 2026-10-26:
 
 ```powershell
-python tests/reject/run_reject.py            # 153 rejections + 68 acceptance controls
+python tests/reject/run_reject.py            # 154 rejections + 69 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```

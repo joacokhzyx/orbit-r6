@@ -3242,6 +3242,30 @@ static void infer_register_types(const R6Module *m, R6Function *f) {
         }
         if (!changed) break;
     }
+    /* D-M1-46: the builder reserves registers it never uses (a match arm
+     * allocates one per pattern). The pin declares such a slot as an unused
+     * `uintptr_t r_N;`, so no type is observable; R6 gives it the word type. */
+    {
+        size_t reg;
+        for (reg = 0; reg < f->register_type_count; ++reg) {
+            size_t pc2;
+            bool used = false;
+            char *copy;
+            if (!f->register_types[reg] || strcmp(f->register_types[reg], "unknown") != 0)
+                continue;
+            for (pc2 = 0; pc2 < f->instruction_count && !used; ++pc2) {
+                const R6Instruction *i = &f->instructions[pc2];
+                unsigned k;
+                if (i->has_dest && i->dest == (int32_t)reg) used = true;
+                for (k = 0; k < 3; ++k)
+                    if (i->operands[k].kind == R6_VAL_REG && i->operands[k].as.i32 == (int32_t)reg)
+                        used = true;
+            }
+            if (used || (copy = dup_type_text("void*")) == NULL) continue;
+            free(f->register_types[reg]);
+            f->register_types[reg] = copy;
+        }
+    }
 }
 
 bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
