@@ -36,6 +36,7 @@ static bool is_string(const char *t) { return t && strcmp(t, "string") == 0; }
 static bool is_bool(const char *t) { return t && strcmp(t, "bool") == 0; }
 static bool is_list(const char *t) { return t && strcmp(t, "list") == 0; }
 static bool is_result(const char *t) { return t && strcmp(t, "result") == 0; }
+static size_t hidden_slots(const R6Function *f, bool is_main);
 static bool is_void(const char *t) { return t && strcmp(t, "void") == 0; }
 static bool is_void_ptr(const char *t) { return t && strcmp(t, "void*") == 0; }
 static bool is_scalar(const char *t) {
@@ -741,6 +742,45 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
         }
     }
     return NULL;
+}
+
+/* D-M1-43: every `try` emits a result_unwrap, and the builder leaves its
+ * destination `unknown` (the pin writes `r_N = r.value` into a uintptr_t
+ * word). R6 types it from its use. With no reader the word is never
+ * observed, and it is copied as a void* word. When the one reader is the
+ * decl_var of a local, the destination takes the type the builder gave every
+ * load_var of that local, which is the annotation `val x: T = try ...`. Any
+ * other use, or loads that disagree, leaves it unknown. */
+static const char *unwrap_use_type(const R6Function *f, size_t at) {
+    int32_t reg = f->instructions[at].dest;
+    size_t pc, use = f->instruction_count;
+    const char *name, *type = NULL;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        unsigned k;
+        if (pc != at && i->has_dest && i->dest == reg) return NULL;
+        for (k = 0; k < 3; ++k)
+            if (i->operands[k].kind == R6_VAL_REG && i->operands[k].as.i32 == reg) {
+                if (use != f->instruction_count) return NULL;
+                use = pc;
+            }
+    }
+    if (use == f->instruction_count) return "void*";
+    if (f->instructions[use].opcode != R6_OP_DECL_VAR ||
+        f->instructions[use].operands[1].kind != R6_VAL_REG ||
+        (name = ir_name(&f->instructions[use].operands[0])) == NULL)
+        return NULL;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        const char *t;
+        if (i->opcode != R6_OP_LOAD_VAR || !i->has_dest) continue;
+        if (!ir_name(&i->operands[0]) || strcmp(ir_name(&i->operands[0]), name) != 0) continue;
+        t = type_at(f, i->dest);
+        if (!t || strcmp(t, "unknown") == 0) continue;
+        if (type && strcmp(type, t) != 0) return NULL;
+        type = t;
+    }
+    return is_int(type) || is_float(type) || is_string(type) ? type : NULL;
 }
 
 /* `<Type>_TAG_<variant>` is the bare ordinal constant the pinned builder
@@ -1460,6 +1500,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                         return fail(d, i, "CGEN", "void call destination must be a void register");
                 } else if (!i->has_dest || !same_type(type_at(f, i->dest), callee->return_type))
                     return fail(d, i, "CGEN", "call destination does not match return type of %s", callee->name);
+                if (is_result(callee->return_type) && (callee->is_extern || callee != find_function(m, callee->name)))
+                    return fail(d, i, "CGEN", "a result returned by %s is outside the subset: only a declared Orbit function returns one",
+                                callee->name);
                 arg_count -= arity; /* E-05: consume exactly the last O2 pending args. */
                 break;
             }
@@ -1549,8 +1592,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 if (!i->operands[0].kind || i->operands[0].kind == R6_VAL_NONE ||
                     !value_type(f, &i->operands[0], &a) || !same_type(a, f->return_type))
                     return fail(d, i, "CGEN", "ret value does not match function return type");
-                if (is_result(a))
-                    return fail(d, i, "CGEN", "returning result values is not supported in M1");
+                /* D-M1-43: a result is copied through the sret pointer, so
+                   only a result register can be returned. */
+                if (is_result(a) && i->operands[0].kind != R6_VAL_REG)
+                    return fail(d, i, "CGEN", "a returned result must be a result register");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
                     return fail(d, i, "CGEN", "ret register is out of range");
             }
@@ -1592,8 +1637,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 i->operands[0].kind != R6_VAL_REG ||
                 !is_result(type_at(f, i->operands[0].as.i32)) ||
                 !(is_int(type_at(f, i->dest)) || is_float(type_at(f, i->dest)) ||
-                  is_string(type_at(f, i->dest))))
-                return fail(d, i, "CGEN", "result_unwrap requires a result register operand and an int, float, or string destination");
+                  is_string(type_at(f, i->dest)) ||
+                  (is_void_ptr(type_at(f, i->dest)) &&
+                   same_type(unwrap_use_type(f, pc), "void*"))))
+                return fail(d, i, "CGEN", "result_unwrap requires a result register operand and an int, float, or string destination, or a void* one nothing reads");
             break;
         case R6_OP_RESULT_UNWRAP_ERR:
             if (!valid_dest(f, i, true, d) || !is_string(type_at(f, i->dest)) ||
@@ -1677,6 +1724,10 @@ static size_t max_outgoing_args(const R6Module *m, const R6Function *f) {
             if ((i->operands[0].kind == R6_VAL_STRING || i->operands[0].kind == R6_VAL_SYMBOL) &&
                 i->operands[0].as.string && call_needs_arena(m, i->operands[0].as.string))
                 ++slots;
+            if ((i->operands[0].kind == R6_VAL_STRING || i->operands[0].kind == R6_VAL_SYMBOL) &&
+                i->operands[0].as.string && find_function(m, i->operands[0].as.string) &&
+                is_result(find_function(m, i->operands[0].as.string)->return_type))
+                ++slots;
             if (slots > maximum) maximum = slots;
             pending = arity <= pending ? pending - arity : 0;
         } else if (i->opcode == R6_OP_LIST_CREATE && maximum < 5) {
@@ -1709,9 +1760,16 @@ static bool uses_result_scratch(const R6Function *f) {
  * [slots * 8 + 1, slots * 8 + 24] (field offsets: ok +0, error_code +4,
  * error_msg +8, value +16, i.e. `scratch - 16` is the value word). */
 static unsigned result_scratch_offset(const R6Function *f, bool is_main) {
-    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+    size_t slots = (size_t)f->register_count + hidden_slots(f, is_main) +
                    f->param_count + local_count(f);
     return (unsigned)(slots * 8 + 24);
+}
+
+/* The slot below the registers that holds a hidden first C argument: the
+ * arena for main, and (D-M1-43) the sret pointer of a function that returns
+ * an OrbitResult. main returns int, so the two never meet. */
+static size_t hidden_slots(const R6Function *f, bool is_main) {
+    return is_main || is_result(f->return_type) ? 1 : 0;
 }
 
 static bool has_result_registers(const R6Function *f) {
@@ -1728,7 +1786,7 @@ static bool has_result_registers(const R6Function *f) {
  * D = slots * 8 + 24 + 24 * (reg + 1), and the scratch area covers
  * [slots * 8 + 1, slots * 8 + 24]. */
 static unsigned result_cell_offset(const R6Function *f, bool is_main, int32_t reg) {
-    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+    size_t slots = (size_t)f->register_count + hidden_slots(f, is_main) +
                    f->param_count + local_count(f);
     return (unsigned)(slots * 8 + 24 + 24u * (unsigned)(reg + 1));
 }
@@ -1771,7 +1829,7 @@ static size_t result_area_bytes(const R6Function *f) {
  * placed below the result area so no existing offset moves and no cell or
  * scratch block is overlapped. `n` is the operand index (0 or 1). */
 static unsigned literal_scratch_offset(const R6Function *f, bool is_main, unsigned n) {
-    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+    size_t slots = (size_t)f->register_count + hidden_slots(f, is_main) +
                    f->param_count + local_count(f);
     return (unsigned)(slots * 8 + result_area_bytes(f) + 8u * (n + 1));
 }
@@ -1792,7 +1850,7 @@ static bool uses_spread_scratch(const R6Function *f) {
 
 static unsigned spread_scratch_offset(const R6Function *f, bool is_main,
                                       unsigned n) {
-    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+    size_t slots = (size_t)f->register_count + hidden_slots(f, is_main) +
                    f->param_count + local_count(f);
     unsigned used = (unsigned)(slots * 8 + result_area_bytes(f));
     if (uses_literal_scratch(f)) used += 16;
@@ -2003,7 +2061,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     bool is_main = strcmp(f->name, "main") == 0;
     const char *native_name = is_main ? "orbit_main" : f->name;
     size_t outgoing = max_outgoing_args(m, f);
-    size_t slots = (size_t)f->register_count + (is_main ? 1 : 0) +
+    size_t slots = (size_t)f->register_count + hidden_slots(f, is_main) +
                    f->param_count + local_count(f);
     size_t used = slots * 8;
     used += result_area_bytes(f);
@@ -2015,6 +2073,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
     if (frame) fprintf(o, "\tsubq $%zu, %%rsp\n\t.seh_stackalloc %zu\n", frame, frame);
     fputs("\t.seh_endprologue\n", o);
+    if (!is_main && is_result(f->return_type))
+        fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", (unsigned)(f->register_count + 1) * 8);
     if (is_main) {
         fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", (unsigned)(f->register_count + 1) * 8);
         if (module_needs_arena_global(m))
@@ -2022,10 +2082,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     }
     for (pc = 0; pc < f->param_count; ++pc) {
         const char *t = f->param_types[pc];
-        size_t abi_index = pc + (is_main ? 1 : 0);
-        unsigned home = (unsigned)(f->register_count + (is_main ? 1 : 0) + pc + 1) * 8;
-        if (pc >= 4) {
-            unsigned incoming = (unsigned)(48 + (pc - 4) * 8);
+        size_t abi_index = pc + hidden_slots(f, is_main);
+        unsigned home = (unsigned)(f->register_count + hidden_slots(f, is_main) + pc + 1) * 8;
+        if (abi_index >= 4) {
+            unsigned incoming = (unsigned)(48 + (abi_index - 4) * 8);
             if (is_float(t))
                 fprintf(o, "\tmovsd %u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n", incoming, home);
             else
@@ -2046,7 +2106,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned local_off;
             local_info(m, f, ir_name(&i->operands[0]), &local_index, &local_type,
                        local_buf, sizeof local_buf);
-            local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+            local_off = (unsigned)(f->register_count + hidden_slots(f, is_main) +
                                    f->param_count + local_index + 1) * 8;
             if (i->operands[1].kind == R6_VAL_SYMBOL)
                 /* `val f = inc`: the local word is the function address. */
@@ -2085,7 +2145,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (param_info(f, name, &param_index, &param_type)) {
                 /* The parameter's home slot, exactly as its `arg` binding
                    writes and reads it (D-M1-22). */
-                unsigned home = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+                unsigned home = (unsigned)(f->register_count + hidden_slots(f, is_main) +
                                            param_index + 1) * 8;
                 if (is_float(param_type))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n",
@@ -2094,7 +2154,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                             home, off);
             } else if (local_info(m, f, name, &local_index, &local_type, local_buf, sizeof local_buf)) {
-                local_off = (unsigned)(f->register_count + (is_main ? 1 : 0) +
+                local_off = (unsigned)(f->register_count + hidden_slots(f, is_main) +
                                        f->param_count + local_index + 1) * 8;
                 if (is_float(local_type))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
@@ -2451,7 +2511,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_ARG:
             if (i->has_dest) {
                 int idx = v->as.i32;
-                unsigned home = (unsigned)(f->register_count + (is_main ? 1 : 0) + idx + 1) * 8;
+                unsigned home = (unsigned)(f->register_count + hidden_slots(f, is_main) + idx + 1) * 8;
                 if (is_float(f->param_types[idx]))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n", home, off);
                 else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", home, off);
@@ -2699,16 +2759,22 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                        integer argument. */
                     bool arena_first = named->is_extern &&
                                        extern_needs_arena(named->name);
+                    /* D-M1-43: an OrbitResult return is 24 bytes, so Win64
+                       passes the caller's cell as a hidden first argument. */
+                    bool sret_first = is_result(named->return_type);
                     if (arena_first) emit_load_arena(o, f, is_main, "%rcx");
+                    if (sret_first)
+                        fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n",
+                                result_cell_offset(f, is_main, i->dest));
                     for (k = 0; k < arity; ++k) {
                         const R6Value *av = &args[base + k]->operands[0];
                         const char *at;
                         value_type(f, av, &at);
-                        emit_load_arg(o, f, av, at, arena_first ? k + 1 : k,
+                        emit_load_arg(o, f, av, at, arena_first || sret_first ? k + 1 : k,
                                       arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }
                     fprintf(o, "\tcall %s\n", strcmp(named->name, "main") == 0 ? "orbit_main" : named->name);
-                    if (i->has_dest && !is_void(type_at(f, i->dest))) {
+                    if (i->has_dest && !is_void(type_at(f, i->dest)) && !sret_first) {
                         if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
                         else if (is_int(type_at(f, i->dest)))
                             /* D-M1-36: a C int returns in eax; the slot keeps
@@ -2833,7 +2899,14 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_RET:
             /* D-M1-28: a void function returns without reading the operand,
                exactly like the pinned lowering. */
-            if (strcmp(f->return_type, "void") != 0 && v->kind != R6_VAL_NONE) {
+            if (is_result(f->return_type) && v->kind == R6_VAL_REG) {
+                unsigned cell = result_cell_offset(f, is_main, v->as.i32);
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n"
+                           "\tmovq -%u(%%rbp), %%r10\n\tmovq %%r10, 0(%%rax)\n"
+                           "\tmovq -%u(%%rbp), %%r10\n\tmovq %%r10, 8(%%rax)\n"
+                           "\tmovq -%u(%%rbp), %%r10\n\tmovq %%r10, 16(%%rax)\n",
+                        (unsigned)(f->register_count + 1) * 8, cell, cell - 8, cell - 16);
+            } else if (strcmp(f->return_type, "void") != 0 && v->kind != R6_VAL_NONE) {
                 value_type(f, v, &t);
                 if (v->kind == R6_VAL_REG && is_float(t)) fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n", (unsigned)(v->as.i32 + 1) * 8);
                 else if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
@@ -3112,6 +3185,8 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
             return opaque_read_type(m, f, (size_t)(i - f->instructions));
         return elem_kind_type(i->elem_kind);
     case R6_OP_MAP_KEYS: return "list";
+    case R6_OP_RESULT_UNWRAP:
+        return unwrap_use_type(f, (size_t)(i - f->instructions));
     case R6_OP_UNION_GET_TAG: return "int";   /* D-M1-12's ordinal tag */
     default: return NULL;
     }

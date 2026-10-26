@@ -1,0 +1,40 @@
+fn half(n: int) -> result {
+    if n % 2 != 0 {
+        return err("odd", 3)
+    }
+    return ok(n / 2)
+}
+
+fn scale(x: float) -> result {
+    return ok(x * 2.5)
+}
+
+fn greet(name: string) -> result {
+    return ok("hi " + name)
+}
+
+fn pick(a: int, b: int, c: int, d: int, e: int) -> result {
+    if a + b + c + d + e != 15 {
+        return err("sum " + "off", 1)
+    }
+    return ok(a + b + c + d + e)
+}
+
+fn main() -> int {
+    val h: int = try half(84) catch { return 10 }
+    if h != 42 { return 11 }
+    try half(9) catch e {
+        print(e)
+    }
+    val f: float = try scale(1.5) catch { return 12 }
+    if f != 3.75 { return 13 }
+    val s: string = try greet("r6") catch { return 14 }
+    print(s)
+    val p: int = try pick(1, 2, 3, 4, 5) catch { return 15 }
+    if p != 15 { return 16 }
+    try pick(1, 2, 3, 4, 6) catch why {
+        print(why)
+        return 42
+    }
+    return 17
+}

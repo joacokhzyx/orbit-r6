@@ -28,7 +28,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 50/50 on 2026-10-26 with:
+Primary gate: differential — verified 51/51 on 2026-10-26 with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -66,11 +66,12 @@ D-M1-22, the corpus round-4 string-`add` pins are D-M1-23, the
 list-length-slot fixture is D-M1-25, comparisons are D-M1-31, list spellings
 are D-M1-32, global constants are D-M1-33, enumerations are D-M1-35, the
 entry point is D-M1-37, opaque list reads are D-M1-38, list fields are
-D-M1-39, model parameters are D-M1-40, the movslq encoding is D-M1-41 and C bool
-returns are D-M1-42) — verified 214/214 on 2026-10-26:
+D-M1-39, model parameters are D-M1-40, the movslq encoding is D-M1-41, C bool
+returns are D-M1-42 and returned results are D-M1-43) — verified 217/217
+on 2026-10-26:
 
 ```powershell
-python tests/reject/run_reject.py            # 150 rejections + 64 acceptance controls
+python tests/reject/run_reject.py            # 151 rejections + 66 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
@@ -86,7 +87,7 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **52 build / 52 match over 97
+D-M1-17) — a **measurement, not a gate**. Measured **56 build / 56 match over 97
 programs** on 2026-10-26 at the D-F0-14 pin: 98 documents, 5 932 267 bytes,
 `filesSha256 e8586b9a…`, the same bytes as D-F0-13. The rounds that took the count from 2/89 at the
 D-M1-17 pin to there are in `docs/M1_REPORT.md`:

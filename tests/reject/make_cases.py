@@ -699,9 +699,9 @@ def build_reject():
         "a load_var of an undeclared name stays unknown")
     add("x-infer-result-unwrap",
         jd(DOC([MAIN([I("result_unwrap", 0, Reg(1)),
-                      I("ret", -1, Int(0))], ["unknown", "result"])])),
+                      I("ret", -1, Reg(0))], ["unknown", "result"])])),
         "D-M1-20", "CGEN",
-        "result_unwrap has no rule in the language either: the slot stays unknown")
+        "an unwrap read by anything but a local's decl_var stays unknown (D-M1-43)")
 
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
@@ -1112,6 +1112,23 @@ def build_reject():
                             ["A", "int"])])),
         "D-M1-40", "CGEN", "a model argument must be the parameter's model")
 
+    # ---- D-M1-43: a result crosses a call; `try` types its unwrap -----------
+    # A result-returning callee receives the caller's cell as a hidden first
+    # argument. The unwrap a `try` emits takes the type of the local it
+    # initializes, read off that local's load_var destinations; loads that
+    # disagree leave it unknown.
+    ok_fn = FN("seven", [I("result_ok", 0, Int(7)), I("ret", -1, Reg(0))], ["result"],
+               rtype="result")
+    add("x-unwrap-local-loads-disagree",
+        jd(DOC([ok_fn, MAIN([I("call", 0, Str("seven"), Int(0)),
+                             I("result_unwrap", 1, Reg(0)),
+                             I("decl_var", -1, Sym("x"), Reg(1)),
+                             I("load_var", 2, Sym("x")),
+                             I("load_var", 3, Sym("x")),
+                             I("ret", -1, Int(0))],
+                            ["result", "unknown", "int", "string"])])),
+        "D-M1-43", "CGEN", "an unwrap whose local is loaded as two types stays unknown")
+
     return cases
 
 
@@ -1488,6 +1505,17 @@ def build_accept_files():
     files.append(("ok-enum-kind-unit", jd({"irVersion": "1", "module": enum_mod})))
     echo = FN("echo", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["int"],
               params=["v"], ptypes=["int"])
+    seven = FN("seven", [I("result_ok", 0, Int(7)), I("ret", -1, Reg(0))], ["result"],
+               rtype="result")
+    files.append(("ok-result-unwrap-unread",
+                  jd(DOC([seven, MAIN([I("call", 0, Str("seven"), Int(0)),
+                                       I("result_is_ok", 1, Reg(0)),
+                                       I("result_unwrap", 2, Reg(0)),
+                                       I("jump_if_false", -1, Reg(1), Lab(1)),
+                                       I("ret", -1, Int(1)),
+                                       I("label", -1, Lab(1)),
+                                       I("ret", -1, Int(2))],
+                                      ["result", "bool", "unknown"])]))))
     files.append(("ok-opaque-read-int-param",
                   jd(DOC([echo, MAIN([I("list_create", 0, Int(8), Int(1), ek=2),
                                       I("load_const", 1, Int(9)),
@@ -1678,6 +1706,12 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/51-c-bool-return.json",
              "run_exit": 42, "run_stdout": "1\r\n", "rule": "D-M1-42",
              "note": "a C bool return is read from al, not from the whole of rax"},
+            {"file": "cases/ok-result-unwrap-unread.json", "run_exit": 1,
+             "run_stdout": "", "rule": "D-M1-43",
+             "note": "a returned result is tested and its unread unwrap is a void* word"},
+            {"file": "../../docs/proposed-ir/m1/52-result-return.json",
+             "run_exit": 42, "run_stdout": "odd\r\nhi r6\r\nsum off\r\n", "rule": "D-M1-43",
+             "note": "int, float and string results cross calls and bind through try"},
         ],
     }
 

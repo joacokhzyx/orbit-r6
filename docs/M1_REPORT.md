@@ -1209,3 +1209,22 @@ destino `bool` de una llamada directa pasa ahora por `movzbl %al, %eax`.
 El par `51-c-bool-return` lo mide: el oráculo y R6 imprimen `1\r\n` y salen
 42; el driver anterior sale 10. Diferencial **50/50**; loader **214/214** (150
 rechazos + 64 controles); corpus **52/52** sin cambio; censo **0/26**.
+
+## Actualización de M1 - un `Result` cruza una llamada (2026-10-26)
+
+D-M1-43. El pin devuelve `OrbitResult`, un struct de 24 bytes, por valor. En
+Win64 eso es un puntero oculto en `rcx` y los argumentos se corren una
+posición. El callee guarda ese puntero en el slot que `main` usa para su arena,
+y su `ret` copia la celda de 24 bytes. Cada `try` emite además un
+`result_unwrap` con destino `unknown`: sin lector se copia como palabra
+`void*`, y si inicializa un local toma el tipo que el builder da a los
+`load_var` de ese local.
+
+El par `52-result-return` pasa valores `int`, `float` y `string`, dos mensajes
+de error y un quinto argumento por pila detrás del puntero oculto: el oráculo y
+R6 imprimen `odd\r\nhi r6\r\nsum off\r\n` y salen 42.
+
+Medido: diferencial **51/51**; loader **217/217** (151 rechazos + 66
+controles); corpus **52/52 -> 56 build / 56 match sobre 97 programas**
+(`float_results`, `test_codec`, `test_crypto`, `test_string`); censo **0/26**.
+El trinquete se re-toma en 56/56.

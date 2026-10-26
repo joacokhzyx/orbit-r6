@@ -2369,3 +2369,58 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (150 rejections + 64 controls); corpus **52 build / 52 match**, no verdict
   moves; census **0/26**, ratchet holds.
 - Status: **applied**.
+
+## D-M1-43 - A result crosses a call, and `try` types its unwrap
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). After D-M1-38,
+  `returning result values is not supported in M1` was the first refusal of 7
+  corpus programs (`float_results`, `test_codec`, `test_bytes`, `test_crypto`,
+  `test_io`, `test_json`, `test_string`).
+- Reference (pin `33abf7a`): `mapTypeToC` gives `result` the C type
+  `OrbitResult` (`c_backend.orb:502`), a 24-byte struct (`ok`, `error_code`,
+  `error_msg`, `value`; `runtime/orbit_api.h:180-185`). A function returns it
+  by value (`return r_N;`, `:3423`), and a register holds it by value. The
+  `result_unwrap` a `try` emits is `r_N = r.value;` into a `uintptr_t` word, or
+  `orbit_result_get_float` when the destination is `float` (`:3683-3700`).
+- Two rules, in one decision because every `try` over a returned result emits
+  both: the call and the unwrap. Neither can be measured alone.
+  1. **The call.** Win64 returns a 24-byte struct through a hidden pointer in
+     `rcx`, and the IR arguments move one position, as the arena does for
+     D-M1-27 externs. The callee spills `rcx` into the slot below its
+     registers that `main` uses for its arena (`hidden_slots`), and its `ret`
+     copies the 24-byte cell through that pointer and returns it in `rax`. The
+     caller passes the destination register's result cell. A parameter in ABI
+     position 4 or later is read from the stack by its ABI position, not by its
+     IR index. Only a declared, non-extern Orbit function returns a result;
+     externs already fail with `extern return type`.
+  2. **The unwrap.** The builder leaves the destination `unknown` (D-M1-20 left
+     it there). With no reader, the word is never observed and is typed
+     `void*`. When the one reader is the `decl_var` of a local, the
+     destination takes the type of that local's `load_var` destinations, which
+     the builder writes from the annotation `val x: T = try ...`; those loads
+     must agree and the type must be `int`, `float` or `string`. Any other use
+     stays `unknown`.
+- Fixture `52-result-return`: `half` returns `ok(n / 2)` or `err("odd", 3)`,
+  `scale` an `ok` float, `greet` an `ok` string, and `pick` takes five `int`s,
+  so its fifth argument sits on the stack behind the hidden pointer. `main`
+  binds `int`, `float` and `string` values through `try`, and prints two
+  `catch e` messages. Oracle and R6 both print `odd\r\nhi r6\r\nsum off\r\n`
+  and exit 42.
+- Controls: `x-unwrap-local-loads-disagree` refuses; `ok-result-unwrap-unread`
+  (exit 1) and the fixture accept. The D-M1-20 control `x-infer-result-unwrap`
+  used an unwrap nothing reads, which this decision admits; it now uses an
+  unwrap read by `ret`, which stays refused.
+- Language defects met while writing the fixture, reported on the language
+  side and kept out of it: an `int` literal argument to a function that
+  contains `try`/`catch` is emitted as `(void*)(uintptr_t)(84)` and gcc rejects
+  the C (`-Wint-conversion`); two `catch e` in one function are a duplicate
+  symbol.
+- Measured: differential **50/50 -> 51/51**; loader **214/214 -> 217/217**
+  (151 rejections + 66 controls; `make_cases.py --check` 191 files without
+  drift); corpus **52 build / 52 match -> 56 build / 56 match over 97
+  programs**: `float_results`, `test_codec`, `test_crypto` and `test_string`
+  match byte for byte (`test_string` needed D-M1-42); `test_bytes` and
+  `test_io` move to `returning model or void* values`, `test_json` to
+  `extern return type`. The ratchet is re-taken at 56/56. Census **0/26**,
+  unchanged.
+- Status: **applied**.
