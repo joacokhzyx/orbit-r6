@@ -1,8 +1,12 @@
-# R6
+# Orbit R6
 
-R6 is a native x86-64 code generator for the Orbit language IR (IRv1). It reads
+![Orbit Banner](assets/banner.png)
+
+R6 is a native x86-64 code generator for the Orbit language IR. It reads
 the JSON IR that `orbit build --emit-ir` writes and produces a Windows x64
 executable.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## What R6 is not
 
