@@ -62,6 +62,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `48-model-list-field` | campos `list<int>` y `list<string>` de un modelo: constructor, `push` a través del campo, lectura por locales tipados y reemplazo de la lista | 42 | `bc\r\n` |
 | `49-model-parameter` | un modelo como parámetro: lectura de campos, mutación visible en el llamador, quinto argumento por pila y retorno de un campo `string` | 42 | `origin\r\n` |
 | `50-literal-args-r8-r9` | literales `int` en `%r8`/`%r9` con un puntero de string en `%rcx` o `%r8`: el codificador conserva REX.R/REX.B en `movslq` | 42 | `65\r\n` |
+| `51-c-bool-return` | tres predicados del runtime que devuelven `bool` de C en `al`: `starts_with`, `ends_with` y `contains` con respuestas `false` y `true` | 42 | `1\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

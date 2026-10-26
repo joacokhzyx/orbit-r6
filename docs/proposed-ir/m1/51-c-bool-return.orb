@@ -1,0 +1,14 @@
+extern fn orbit_string_starts_with(s: string, prefix: string) -> bool
+extern fn orbit_string_ends_with(s: string, suffix: string) -> bool
+extern fn orbit_string_contains(s: string, sub: string) -> bool
+
+fn main() -> int {
+    if orbit_string_starts_with("hi", "hello") { return 10 }
+    if orbit_string_starts_with("hello", "he") == false { return 11 }
+    if orbit_string_ends_with("hello", "xlo") { return 12 }
+    if orbit_string_contains("hello", "zz") { return 13 }
+    val hit = orbit_string_contains("orbit r6", "r6")
+    if hit == false { return 14 }
+    print(hit)
+    return 42
+}

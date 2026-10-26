@@ -2343,3 +2343,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (150 rejections + 63 controls); corpus **52 build / 52 match**, no verdict
   moves; census **0/26**, ratchet holds.
 - Status: **applied**.
+
+## D-M1-42 - A C `bool` return is read from `al`
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). Found while building
+  `tests/std/test_string.orb` for a result decision: R6 exited 5 at
+  `if assertTrue(startsWith("hi", "hello")) { return 5 }`, where the oracle
+  exits 0.
+- Reference (pin `33abf7a`): `runtime/orbit_api.h:118` declares
+  `typedef bool orbit_bool`, and `:405` declares
+  `bool orbit_string_starts_with(...)`. The Win64 ABI returns a C `bool` in
+  `al` and leaves the rest of `rax` undefined.
+- Root cause: a direct call with a `bool` destination stored all of `rax` in
+  the slot, and every bool consumer compares the slot's low 32 bits with zero.
+  A `false` with nonzero bits above `al` read as `true`. A function R6 emits
+  writes the whole of `eax`, so only runtime calls were exposed.
+- Fix: a `bool` destination takes `movzbl %al, %eax` before the store.
+- Fixture `51-c-bool-return`: three runtime predicates
+  (`orbit_string_starts_with`, `orbit_string_ends_with`,
+  `orbit_string_contains`) answer `false` and `true`, and the last `true` is
+  printed. Oracle and R6 both print `1\r\n` and exit 42. The driver without
+  the fix exits 10, at the first `false`.
+- Admission: none. The loader suite gains the fixture as an acceptance control.
+- Measured: differential **49/49 -> 50/50**; loader **213/213 -> 214/214**
+  (150 rejections + 64 controls); corpus **52 build / 52 match**, no verdict
+  moves; census **0/26**, ratchet holds.
+- Status: **applied**.

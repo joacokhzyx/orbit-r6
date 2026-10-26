@@ -1197,3 +1197,15 @@ El par `50-literal-args-r8-r9` lo mide: el oráculo y R6 imprimen `65\r\n` y
 salen 42; el driver anterior revienta con `0xC0000005`. Diferencial **49/49**;
 loader **213/213** (150 rechazos + 63 controles); corpus **52/52** sin cambio;
 censo **0/26**.
+
+## Actualización de M1 - un `bool` de C se lee de `al` (2026-10-26)
+
+D-M1-42. El runtime devuelve `bool` de C (`orbit_api.h:118`, `:405`), que la
+ABI de Win64 deja en `al` con el resto de `rax` indefinido. R6 guardaba `rax`
+entero en el slot, y un `false` con bits altos se leía como `true`.
+`test_string` lo midió al construirse: salía 5 donde el oráculo sale 0. El
+destino `bool` de una llamada directa pasa ahora por `movzbl %al, %eax`.
+
+El par `51-c-bool-return` lo mide: el oráculo y R6 imprimen `1\r\n` y salen
+42; el driver anterior sale 10. Diferencial **50/50**; loader **214/214** (150
+rechazos + 64 controles); corpus **52/52** sin cambio; censo **0/26**.

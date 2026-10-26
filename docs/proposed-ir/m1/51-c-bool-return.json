@@ -1,0 +1,689 @@
+{
+  "irVersion": "1",
+  "module": {
+    "functions": [
+      {
+        "name": "orbit_string_starts_with",
+        "params": [
+          "s",
+          "prefix"
+        ],
+        "paramTypes": [
+          "string",
+          "string"
+        ],
+        "instructions": [],
+        "registerCount": 0,
+        "registerTypes": [],
+        "returnType": "bool",
+        "isExtern": true,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
+      },
+      {
+        "name": "orbit_string_ends_with",
+        "params": [
+          "s",
+          "suffix"
+        ],
+        "paramTypes": [
+          "string",
+          "string"
+        ],
+        "instructions": [],
+        "registerCount": 0,
+        "registerTypes": [],
+        "returnType": "bool",
+        "isExtern": true,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
+      },
+      {
+        "name": "orbit_string_contains",
+        "params": [
+          "s",
+          "sub"
+        ],
+        "paramTypes": [
+          "string",
+          "string"
+        ],
+        "instructions": [],
+        "registerCount": 0,
+        "registerTypes": [],
+        "returnType": "bool",
+        "isExtern": true,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
+      },
+      {
+        "name": "main",
+        "params": [],
+        "paramTypes": [],
+        "instructions": [
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "hi"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "hello"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 0,
+            "operand1": {
+              "kind": "String",
+              "value": "orbit_string_starts_with"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 0
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 10
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "hello"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "he"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 1,
+            "operand1": {
+              "kind": "String",
+              "value": "orbit_string_starts_with"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "eq",
+            "dest": 2,
+            "operand1": {
+              "kind": "Register",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "Bool",
+              "value": false
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 11
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "hello"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "xlo"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 3,
+            "operand1": {
+              "kind": "String",
+              "value": "orbit_string_ends_with"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 3
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 4
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 12
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "hello"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "zz"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 4,
+            "operand1": {
+              "kind": "String",
+              "value": "orbit_string_contains"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 6
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 13
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "orbit r6"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "r6"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 5,
+            "operand1": {
+              "kind": "String",
+              "value": "orbit_string_contains"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "decl_var",
+            "dest": -1,
+            "operand1": {
+              "kind": "Sym",
+              "value": "hit"
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 6,
+            "operand1": {
+              "kind": "Sym",
+              "value": "hit"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "eq",
+            "dest": 7,
+            "operand1": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "Bool",
+              "value": false
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 7
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 8
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 14
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 8,
+            "operand1": {
+              "kind": "Sym",
+              "value": "hit"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 9,
+            "operand1": {
+              "kind": "String",
+              "value": "print"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 42
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
+        ],
+        "registerCount": 10,
+        "registerTypes": [
+          "bool",
+          "bool",
+          "unknown",
+          "bool",
+          "bool",
+          "bool",
+          "bool",
+          "unknown",
+          "bool",
+          "unknown"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
+      }
+    ],
+    "globals": [],
+    "models": [],
+    "types": [],
+    "migrations": []
+  }
+}

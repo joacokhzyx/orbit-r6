@@ -2714,6 +2714,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                             /* D-M1-36: a C int returns in eax; the slot keeps
                                the sign-extended 32-bit value. */
                             fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
+                        else if (is_bool(type_at(f, i->dest)))
+                            /* D-M1-42: a C bool returns in al only; the
+                               rest of rax is whatever the callee left. */
+                            fprintf(o, "\tmovzbl %%al, %%eax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                         else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
                     }
                     pending = base;
