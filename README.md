@@ -91,6 +91,12 @@ The verdict of the differential is identical exit code and identical stdout
 bytes against the GCC build of the Orbit oracle. Contribution rules are in
 `CONTRIBUTING.md`.
 
+`scripts/ci.ps1` runs the build, `make_cases.py --check` and the loader suite
+and stops at the first failure. `-Diff` and `-Corpus` add the differential and the
+corpus ratchet, and take `-Compiler`, `-OrbitRoot` and `-Cc`.
+`.github/workflows/ci.yml` runs it on every push and pull request; its `oracle`
+job builds the fixed point and runs on manual dispatch.
+
 Corpus and census:
 
 ```powershell
