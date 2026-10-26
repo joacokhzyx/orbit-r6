@@ -1,0 +1,26 @@
+fn strLen(s: string) -> int {
+    return s.len()
+}
+
+fn twice(n: int) -> int {
+    return n * 2
+}
+
+fn firstLen(parts: list) -> int {
+    return strLen(parts.get(0))
+}
+
+fn pick(nums: list, at: int) -> int {
+    return twice(nums.get(at))
+}
+
+fn main() -> int {
+    val words = ["abc", "hello"]
+    val nums = [7, -5, 2147483647]
+    if firstLen(words) != 3 { return 10 }
+    if pick(nums, 0) != 14 { return 11 }
+    if pick(nums, 1) != -10 { return 12 }
+    if pick(nums, 2) != -2 { return 13 }
+    print(strLen(words.get(1)))
+    return 42
+}

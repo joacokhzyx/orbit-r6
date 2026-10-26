@@ -682,6 +682,59 @@ static const R6Type *find_union_variant(const R6Module *m, const char *variant,
     return NULL;
 }
 
+/* D-M1-38: an opaque read (elemKind 0) is orbit_list_read_word, a bare word
+ * the pinned backend keeps in a uintptr_t register and converts where it is
+ * used. R6 needs the type at the read, so it takes it from the one use the
+ * conversion is a C parameter conversion: the word is the only reader of an
+ * `arg` that a direct call to a declared function consumes, with no label or
+ * jump in between. Only string (the pointer bits) and int (the low 32 bits)
+ * are measured; every other use leaves the read untyped. */
+static const char *opaque_read_type(const R6Module *m, const R6Function *f, size_t at) {
+    int32_t reg = f->instructions[at].dest;
+    size_t pc, use = f->instruction_count, above = 0;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        unsigned k;
+        if (pc != at && i->has_dest && i->dest == reg) return NULL;
+        for (k = 0; k < 3; ++k)
+            if (i->operands[k].kind == R6_VAL_REG && i->operands[k].as.i32 == reg) {
+                if (use != f->instruction_count) return NULL;
+                use = pc;
+            }
+    }
+    if (use == f->instruction_count || use <= at ||
+        f->instructions[use].opcode != R6_OP_ARG || f->instructions[use].has_dest)
+        return NULL;
+    for (pc = use + 1; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        if (i->opcode == R6_OP_LABEL || i->opcode == R6_OP_JUMP ||
+            i->opcode == R6_OP_JUMP_IF_FALSE)
+            return NULL;
+        if (i->opcode == R6_OP_ARG && !i->has_dest) {
+            ++above;
+        } else if (i->opcode == R6_OP_CALL) {
+            const R6Function *callee;
+            const char *name = ir_name(&i->operands[0]), *type;
+            size_t arity;
+            if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0) return NULL;
+            arity = (size_t)i->operands[1].as.i32;
+            if (arity <= above) {
+                above -= arity;
+                continue;
+            }
+            if (i->operands[0].kind != R6_VAL_STRING || !name ||
+                strcmp(name, "print") == 0 || find_model(m, name) ||
+                find_union_variant(m, name, NULL) ||
+                (callee = find_function(m, name)) == NULL ||
+                callee->param_count != arity)
+                return NULL;
+            type = callee->param_types[arity - 1 - above];
+            return is_string(type) || is_int(type) ? type : NULL;
+        }
+    }
+    return NULL;
+}
+
 /* `<Type>_TAG_<variant>` is the bare ordinal constant the pinned builder
  * loads (load_var) for tag comparisons. A union and an enumeration spell it
  * the same way and both use the variant's declaration index as the value. */
@@ -1068,7 +1121,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         case R6_OP_LIST_GET:
             if (!valid_dest(f, i, true, d) ||
-                !kind_matches_type(i->elem_kind, type_at(f, i->dest)) ||
+                !(kind_matches_type(i->elem_kind, type_at(f, i->dest)) ||
+                  (i->elem_kind == 0 &&
+                   same_type(opaque_read_type(m, f, pc), type_at(f, i->dest)))) ||
                 i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
                 i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)))
@@ -1847,7 +1902,7 @@ static bool module_needs_arena_global(const R6Module *m) {
  * orbit_list_pop after the read, so the slot is still in range. */
 static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
                            size_t pc, unsigned list_off, unsigned index_off,
-                           unsigned dest_off, int kind, bool is_pop,
+                           unsigned dest_off, int kind, int decode, bool is_pop,
                            unsigned long long where_id, unsigned long long file_id) {
     unsigned scratch = result_scratch_offset(f, strcmp(f->name, "main") == 0);
     const char *tag = is_pop ? "list_pop" : "list_get";
@@ -1878,11 +1933,14 @@ static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
                    "\tcmpq %%r8, %%r11\n\tjae %s\n",
                 list_off, index_off, null_list, null_data, out_of_range);
     }
-    fprintf(o, "\tcmpl $%d, 32(%%r10)\n\tje %s\n\tcmpl $0, 32(%%r10)\n\tjne %s\n"
-               "%s:\n\tmovq 24(%%r10), %%rax\n\timulq %%r11, %%rax\n"
+    /* An opaque read skips the kind check, as orbit_list_checked does. */
+    if (kind != 0)
+        fprintf(o, "\tcmpl $%d, 32(%%r10)\n\tje %s\n\tcmpl $0, 32(%%r10)\n\tjne %s\n",
+                kind, kind_ok, kind_error);
+    fprintf(o, "%s:\n\tmovq 24(%%r10), %%rax\n\timulq %%r11, %%rax\n"
                "\taddq %%rax, %%r9\n\tmovq 0(%%r9), %%rax\n",
-            kind, kind_ok, kind_error, kind_ok);
-    switch (kind) {
+            kind_ok);
+    switch (decode) {
     case 1: /* string: the slot word is the pointer. */
         fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", dest_off);
         break;
@@ -1905,9 +1963,10 @@ static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
             null_data, index_error);
     if (!is_pop)
         fprintf(o, "%s:\n\tmovl 32(%%r10), %%r9d\n\tjmp %s\n", out_of_range, index_error);
-    fprintf(o, "%s:\n\tmovl 32(%%r10), %%ecx\n\tmovl $%d, %%edx\n"
-               "\tcall orbit_list_kind_error\n\tud2\n",
-            kind_error, kind);
+    if (kind != 0)
+        fprintf(o, "%s:\n\tmovl 32(%%r10), %%ecx\n\tmovl $%d, %%edx\n"
+                   "\tcall orbit_list_kind_error\n\tud2\n",
+                kind_error, kind);
     if (is_pop)
         fprintf(o, "%s:\n\tmovl $0, %%r11d\n\tmovl $0, %%r8d\n\tmovl $0, %%r9d\n"
                    "\tjmp %s\n",
@@ -2149,8 +2208,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned long long file_id = string_id++;
             emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
+            /* D-M1-38: an opaque read decodes as the type its use gave it. */
             emit_list_read(o, f, fn_index, pc, list_off, index_off, off,
-                           i->elem_kind, false, where_id, file_id);
+                           i->elem_kind,
+                           i->elem_kind ? i->elem_kind : is_string(type_at(f, i->dest)) ? 1 : 2,
+                           false, where_id, file_id);
             break;
         }
         case R6_OP_LIST_SET: {
@@ -2181,7 +2243,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
             emit_list_read(o, f, fn_index, pc, list_off, 0, off,
-                           i->elem_kind, true, where_id, file_id);
+                           i->elem_kind, i->elem_kind, true, where_id, file_id);
             break;
         }
         case R6_OP_COPY:
@@ -3023,7 +3085,10 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     }
     case R6_OP_LIST_CREATE: return "list";
     case R6_OP_LIST_LEN: return "int";
-    case R6_OP_LIST_GET: return elem_kind_type(i->elem_kind);
+    case R6_OP_LIST_GET:
+        if (i->elem_kind == 0)
+            return opaque_read_type(m, f, (size_t)(i - f->instructions));
+        return elem_kind_type(i->elem_kind);
     case R6_OP_MAP_KEYS: return "list";
     case R6_OP_UNION_GET_TAG: return "int";   /* D-M1-12's ordinal tag */
     default: return NULL;

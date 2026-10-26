@@ -58,6 +58,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `44-enum-tag-constant` | una enumeración de tres variantes: constante `Color_TAG_*`, campo de modelo del tipo, parámetro, retorno y ocho comparaciones | 0 | `blue\r\nred\r\n2\r\nred\r\n` |
 | `45-int-overflow` | un `int` de 32 bits: `bump(2147483647)` negativo, `sq(65536)` igual a 0, `over - 1` igual a 2147483647, `sum4(1, 2, 3, -4)` igual a 2 e `id(-1)` negativo, con el destino de cada `call` y literales de argumento inline | 0 | (sin salida) |
 | `46-process-argc` | el punto de entrada guarda `argc`/`argv`: `orbit_os_argc` al menos 1, `orbit_os_argv(0)` no vacío y `orbit_os_argv(argc)` vacío | 42 | `1\r\n` |
+| `47-opaque-list-read` | lectura opaca (`elemKind 0`) de un parámetro `list` tipada por su único uso: argumento `string` de `strLen` y argumento `int` de `twice`, con `-5` y `2147483647` como palabras | 42 | `5\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

@@ -1028,6 +1028,42 @@ def build_reject():
     add("x-enum-undeclared-tag", jd(enum_undeclared), "D-M1-35", "CGEN",
         "a tag constant that names no declared variant stays undeclared")
 
+    # ---- D-M1-38: an opaque list read takes the type of its one use --------
+    # elemKind 0 is orbit_list_read_word: the pinned backend keeps the word in
+    # a uintptr_t register and converts it where it is used. R6 types the read
+    # only when that use is the argument of a direct call to a declared
+    # function whose parameter is string or int; every other use stays
+    # unknown, and a declared destination must agree with the use.
+    def opaque_doc(ptype, use, read_type="unknown"):
+        sink = FN("sink", [I("load_const", 0, Int(0)), I("ret", -1, Reg(0))],
+                  ["int"], params=["v"], ptypes=[ptype])
+        return DOC([sink, MAIN([I("list_create", 0, Int(8), Int(1), ek=2),
+                                I("load_const", 1, Int(3)),
+                                I("list_push", -1, Reg(0), Reg(1), ek=2),
+                                I("load_const", 2, Int(0)),
+                                I("list_get", 3, Reg(0), Reg(2), ek=0)] + use,
+                               ["list", "int", "int", read_type, "int", "bool"])])
+    call_sink = [I("arg", -1, Reg(3)), I("call", 4, Str("sink"), Int(1)),
+                 I("ret", -1, Reg(4))]
+    add("x-opaque-read-float-param", jd(opaque_doc("float", call_sink)),
+        "D-M1-38", "CGEN",
+        "an opaque read passed as a float is a numeric conversion the subset does not measure")
+    add("x-opaque-read-compare",
+        jd(opaque_doc("int", [I("ne", 5, Reg(3), Int(3)),
+                              I("ret", -1, Int(0))])),
+        "D-M1-38", "CGEN",
+        "an opaque read whose use is a comparison stays unknown")
+    add("x-opaque-read-two-uses",
+        jd(opaque_doc("int", [I("arg", -1, Reg(3)), I("call", 4, Str("sink"), Int(1)),
+                              I("arg", -1, Reg(3)), I("call", 4, Str("sink"), Int(1)),
+                              I("ret", -1, Reg(4))])),
+        "D-M1-38", "CGEN",
+        "an opaque read with two uses has no single type to take")
+    add("x-opaque-read-declared-mismatch",
+        jd(opaque_doc("int", call_sink, read_type="string")),
+        "D-M1-38", "CGEN",
+        "a declared opaque read destination must agree with the parameter it feeds")
+
     return cases
 
 
@@ -1402,6 +1438,18 @@ def build_accept_files():
                           "variants": ["Red", "Green"], "richVariants": ["", ""],
                           "methods": []}]
     files.append(("ok-enum-kind-unit", jd({"irVersion": "1", "module": enum_mod})))
+    echo = FN("echo", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["int"],
+              params=["v"], ptypes=["int"])
+    files.append(("ok-opaque-read-int-param",
+                  jd(DOC([echo, MAIN([I("list_create", 0, Int(8), Int(1), ek=2),
+                                      I("load_const", 1, Int(9)),
+                                      I("list_push", -1, Reg(0), Reg(1), ek=2),
+                                      I("load_const", 2, Int(0)),
+                                      I("list_get", 3, Reg(0), Reg(2), ek=0),
+                                      I("arg", -1, Reg(3)),
+                                      I("call", 4, Str("echo"), Int(1)),
+                                      I("ret", -1, Reg(4))],
+                                     ["list", "int", "int", "unknown", "int"])]))))
     return files
 
 
@@ -1564,6 +1612,12 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/46-process-argc.json",
              "run_exit": 42, "run_stdout": "1\r\n", "rule": "D-M1-37",
              "note": "the entry point stores argc and argv before the program runs"},
+            {"file": "cases/ok-opaque-read-int-param.json", "run_exit": 9,
+             "run_stdout": "", "rule": "D-M1-38",
+             "note": "an opaque read passed as an int argument is the element's low 32 bits"},
+            {"file": "../../docs/proposed-ir/m1/47-opaque-list-read.json",
+             "run_exit": 42, "run_stdout": "5\r\n", "rule": "D-M1-38",
+             "note": "the emitter's opaque reads feed a string and an int parameter"},
         ],
     }
 

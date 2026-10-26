@@ -993,6 +993,34 @@
       "code": "CGEN",
       "rule": "D-M1-35",
       "note": "a tag constant that names no declared variant stays undeclared"
+    },
+    {
+      "file": "cases/x-opaque-read-float-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-38",
+      "note": "an opaque read passed as a float is a numeric conversion the subset does not measure"
+    },
+    {
+      "file": "cases/x-opaque-read-compare.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-38",
+      "note": "an opaque read whose use is a comparison stays unknown"
+    },
+    {
+      "file": "cases/x-opaque-read-two-uses.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-38",
+      "note": "an opaque read with two uses has no single type to take"
+    },
+    {
+      "file": "cases/x-opaque-read-declared-mismatch.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-38",
+      "note": "a declared opaque read destination must agree with the parameter it feeds"
     }
   ],
   "accept": [
@@ -1380,6 +1408,20 @@
       "run_stdout": "1\r\n",
       "rule": "D-M1-37",
       "note": "the entry point stores argc and argv before the program runs"
+    },
+    {
+      "file": "cases/ok-opaque-read-int-param.json",
+      "run_exit": 9,
+      "run_stdout": "",
+      "rule": "D-M1-38",
+      "note": "an opaque read passed as an int argument is the element's low 32 bits"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/47-opaque-list-read.json",
+      "run_exit": 42,
+      "run_stdout": "5\r\n",
+      "rule": "D-M1-38",
+      "note": "the emitter's opaque reads feed a string and an int parameter"
     }
   ]
 }

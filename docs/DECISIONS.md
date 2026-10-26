@@ -2178,3 +2178,62 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   observe it. The database setup the pinned `main` adds for a module with
   migrations stays outside the subset, which refuses migrations.
 - Status: **applied**.
+
+## D-M1-38 - An opaque list read takes the type of the parameter it feeds
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). After D-M1-36 the widest first
+  refusal in the corpus was `register type unknown is unsupported in M1`, 12
+  programs. In 11 of them the `unknown` slot is the destination of a
+  `list_get` with `elemKind 0`: a read from a list the builder could not type,
+  such as the `parts: list` parameter of the std `join`
+  (`std/string/string.orb:144`).
+- Reference (pin `33abf7a`, read with `git cat-file blob`): `listReadCall`
+  lowers kind 0 to `orbit_list_read_word` (`c_backend.orb:605-613`).
+  `runtime/orbit_api.h:492-497` returns the slot word unchanged and skips the
+  kind check for `ORBIT_ELEM_OPAQUE`. The backend's inference gives such a read
+  `string` only when the receiver register is a string list
+  (`c_backend.orb:957-983`); otherwise the register stays a `uintptr_t` word
+  and C converts it where it is used.
+- Measured uses: of the 18 opaque reads in the 12 programs, every one has a
+  single reader. 13 are the argument of a direct call to a declared function
+  whose parameter is `string` (`orbit_cbuf_append_selfhost`, `assertEqStr`,
+  `matchSeq`, `validSeq`, `verifyHs256`); 3 are a `ne` against a literal and 2
+  are a `list_push` into another opaque list.
+- Decision: a `list_get` with `elemKind 0` whose destination is `unknown` takes
+  the type of the parameter its value is passed to, when all of these hold:
+  the destination register has one writer and one reader; the reader is an
+  `arg` with no destination; the `call` that consumes that `arg` is a direct
+  call by `String` name to a declared function (not `print`, a model or a union
+  variant) whose arity equals its parameter count; no `label`, `jump` or
+  `jump_if_false` lies between the `arg` and the `call`; and the parameter type
+  is `string` or `int`. The `call` is found by counting the pending `arg`s
+  after the read, as `max_outgoing_args` does. A destination declared with a
+  type must agree with the same rule, or `list_get` refuses it.
+- Why it is the oracle's semantics: C converts the `uintptr_t` word to the
+  parameter type at the call. For `orbit_string` the word is the pointer. For
+  `orbit_int` the conversion keeps the low 32 bits, and the R6 int slot holds
+  them sign-extended (D-M1-36). The R6 read is the typed read with the kind
+  check removed, so the null, bounds and index-error paths are unchanged.
+- Not admitted: `float` and `bool` parameters (C converts a word to `double`
+  numerically, and the subset has not measured a `bool` word), a comparison
+  use, a second use, an indirect call, and a `list_push` of the word into
+  another list. Those reads stay `unknown`, with the same diagnostic.
+- Fixture `47-opaque-list-read`: `firstLen(parts: list)` passes `parts.get(0)`
+  to `strLen(s: string)`, and `pick(nums: list, at: int)` passes
+  `nums.get(at)` to `twice(n: int)` for 7, -5 and 2147483647 (the last wraps to
+  -2). Oracle and R6 both print `5\r\n` and exit 42.
+- Controls in `tests/reject/`: `x-opaque-read-float-param`,
+  `x-opaque-read-compare`, `x-opaque-read-two-uses` and
+  `x-opaque-read-declared-mismatch` refuse; `ok-opaque-read-int-param` (exit 9)
+  and the fixture accept.
+- Measured: differential **45/45 -> 46/46**; loader **200/200 -> 206/206** (146
+  rejections + 60 controls; `make_cases.py --check` 185 files without drift);
+  corpus **47 build / 47 match -> 49 build / 49 match over 97 programs**.
+  `tests/std/test_regex.orb` and `tests/std/test_process.orb` go from refusal
+  to a byte-for-byte match; `test_process` needed D-M1-37 first. Five more
+  programs (`test_bytes`, `test_crypto`, `test_io`, `test_json`,
+  `test_string`) move their first refusal from `register type unknown` to
+  `returning result values is not supported in M1`. The ratchet is re-taken at
+  `r6BuildOk 49`, `match 49`. Census **0 -> 0 build**, the same six first
+  refusals.
+- Status: **applied**.

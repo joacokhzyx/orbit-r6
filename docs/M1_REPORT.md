@@ -1128,3 +1128,25 @@ Medido: diferencial **44/44 -> 45/45**; loader **199/199 -> 200/200** (142
 rechazos + 58 controles); corpus **47 build / 47 match sobre 97 programas**, sin
 veredictos movidos, porque ningún programa del corpus que construye lee `argc`.
 El trinquete no se re-toma.
+
+## Actualización de M1 - la lectura opaca de una lista (2026-10-26)
+
+D-M1-38. Un `list_get` con `elemKind 0` lee de una lista que el builder no pudo
+tipar, como el parámetro `parts: list` del `join` de la std. El pin lo baja a
+`orbit_list_read_word`, que devuelve la palabra del slot sin chequear el kind, y
+C la convierte donde se usa. De las 18 lecturas opacas de los 12 programas que
+paraban en `register type unknown`, 13 pasan como argumento a un parámetro
+`string` de una función declarada.
+
+R6 tipa la lectura con el tipo de ese parámetro cuando es `string` o `int`, el
+registro tiene un solo escritor y un solo lector, y la `call` directa consume el
+`arg` sin un `label` o salto en medio. Cualquier otro uso deja el registro
+`unknown`, con el mismo diagnóstico. El par `47-opaque-list-read` mide los dos
+tipos: el oráculo y R6 imprimen `5\r\n` y salen 42.
+
+Medido: diferencial **45/45 -> 46/46**; loader **200/200 -> 206/206** (146
+rechazos + 60 controles); corpus **47 build / 47 match -> 49 build / 49 match
+sobre 97 programas** (`test_regex` y `test_process` coinciden byte a byte).
+Cinco programas de la std pasan de `register type unknown` a
+`returning result values is not supported in M1`, que es ahora el primer
+rechazo de 7 programas. El trinquete se re-toma en `r6BuildOk 49`, `match 49`.
