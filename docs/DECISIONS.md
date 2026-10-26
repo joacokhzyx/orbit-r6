@@ -2454,3 +2454,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `compiler/tir/format.orb` moves to `list_push requires a list register and a
   value register matching elemKind 1..4`; the census baseline is re-taken.
 - Status: **applied**.
+
+## D-M1-45 - A result local is a 24-byte cell
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). After D-M1-44, six corpus
+  programs stopped at `decl_var requires a declared local and a matching
+  scalar, list, void*, model, or function value register`: a local of type
+  `result` (`val value: result = ok(41)`, `var out: result = ...`).
+- Reference (pin `33abf7a`): `hoistedCType` declares a result local as
+  `OrbitResult` (`c_backend.orb:4195`), and `storeCastFor` stores into it
+  without a cast (`:4214`): the local holds the 24-byte struct by value.
+- Decision: a result local gets its own 24-byte cell in the area that already
+  holds one cell per register, at cell index `register_count + local index`.
+  `decl_var` and `store_var` copy the value register's cell into it, and
+  `load_var` copies it into the destination register's cell, eight bytes at a
+  time. The value must be a register (the builder never writes a result
+  literal), and the existing type checks keep a value of another type out.
+- Fixture `54-result-local`: `ratio` returns a `val bad: result` or
+  `val good: result`; `label` declares `var out: result`, reassigns it twice
+  and returns it; `main` reads the values through `try` and three error
+  messages through `catch`. Oracle and R6 both print
+  `zero\r\nsmall\r\nbig\r\nnegative\r\n` and exit 42.
+- Controls: `x-result-local-store-int` refuses.
+- Measured: differential **52/52 -> 53/53**; loader **219/219 -> 221/221** (153
+  rejections + 68 controls; `make_cases.py --check` 193 files without drift);
+  corpus **60 build / 60 match -> 63 build / 63 match over 97 programs**:
+  `result_bind`, `result_catch` and `result_values` match byte for byte;
+  `result_binding` moves to `parameter type result`, `result_try` to
+  `register type unknown`, `type_spellings` to `register type Result`. The
+  ratchet is re-taken at 63/63. Census **0/26**, unchanged.
+- Status: **applied**.

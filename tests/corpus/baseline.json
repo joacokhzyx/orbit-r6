@@ -5,17 +5,16 @@
     "members": 98,
     "programs": 97,
     "oracleOk": 97,
-    "r6BuildOk": 60,
-    "match": 60,
+    "r6BuildOk": 63,
+    "match": 63,
     "unknownRegisterTypes": 91
   },
   "byCode": {
-    "CGEN": 34,
+    "CGEN": 31,
     "E_OPCODE": 3
   },
   "byFailingOpcode": {
-    "(module-level)": 24,
-    "decl_var": 6,
+    "(module-level)": 27,
     "call": 4,
     "list_push": 2,
     "store_var": 1
@@ -35,7 +34,7 @@
     },
     "call": {
       "cases": 81,
-      "match": 44
+      "match": 47
     },
     "copy": {
       "cases": 7,
@@ -43,7 +42,7 @@
     },
     "decl_var": {
       "cases": 78,
-      "match": 43
+      "match": 46
     },
     "div": {
       "cases": 13,
@@ -63,15 +62,15 @@
     },
     "jump": {
       "cases": 57,
-      "match": 30
+      "match": 32
     },
     "jump_if_false": {
       "cases": 84,
-      "match": 48
+      "match": 50
     },
     "label": {
       "cases": 84,
-      "match": 48
+      "match": 50
     },
     "le": {
       "cases": 13,
@@ -87,7 +86,7 @@
     },
     "list_len": {
       "cases": 36,
-      "match": 13
+      "match": 14
     },
     "list_pop": {
       "cases": 2,
@@ -103,7 +102,7 @@
     },
     "load_const": {
       "cases": 76,
-      "match": 41
+      "match": 44
     },
     "load_field": {
       "cases": 22,
@@ -111,7 +110,7 @@
     },
     "load_var": {
       "cases": 86,
-      "match": 49
+      "match": 52
     },
     "lt": {
       "cases": 40,
@@ -143,27 +142,27 @@
     },
     "result_err": {
       "cases": 13,
-      "match": 6
+      "match": 9
     },
     "result_is_ok": {
       "cases": 13,
-      "match": 3
+      "match": 5
     },
     "result_ok": {
       "cases": 13,
-      "match": 6
+      "match": 7
     },
     "result_unwrap": {
       "cases": 13,
-      "match": 3
+      "match": 5
     },
     "result_unwrap_err": {
       "cases": 2,
-      "match": 0
+      "match": 1
     },
     "ret": {
       "cases": 98,
-      "match": 60
+      "match": 63
     },
     "store_field": {
       "cases": 8,

@@ -1110,7 +1110,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 return fail(d, i, "CGEN", "%s has an unsupported value operand", r6_opcode_name(i->opcode));
             }
             if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_model_type(m, vt) ||
-                  is_fn_type(vt)) ||
+                  is_fn_type(vt) || (is_result(vt) && i->operands[1].kind == R6_VAL_REG)) ||
                 !local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf) || !same_type(vt, lt))
                 return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, void*, model, or function value register",
                             r6_opcode_name(i->opcode));
@@ -1130,7 +1130,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
                 ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
                           !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt) ||
-                            is_fn_type(lt))) :
+                            is_fn_type(lt) || (local && is_result(lt)))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global_type(global), type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or tag constant");
@@ -1794,6 +1794,14 @@ static unsigned result_cell_offset(const R6Function *f, bool is_main, int32_t re
     return (unsigned)(slots * 8 + 24 + 24u * (unsigned)(reg + 1));
 }
 
+/* Copies one 24-byte OrbitResult cell to another; both are distances from
+ * %rbp to the cell base, as result_cell_offset returns them. */
+static void emit_cell_copy(FILE *o, unsigned from, unsigned to) {
+    unsigned k;
+    for (k = 0; k < 24; k += 8)
+        fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", from - k, to - k);
+}
+
 /* D-M1-21: the operation opcodes whose value operands may carry an inline
  * literal, and how many of their operands are values. This is exactly the
  * set the pinned corpus produces (2661 operands across 79/94 documents,
@@ -1825,7 +1833,10 @@ static bool uses_literal_scratch(const R6Function *f) {
  * slots; mirrors the frame arithmetic of emit_function(). */
 static size_t result_area_bytes(const R6Function *f) {
     if (!uses_result_scratch(f) && !has_result_registers(f)) return 0;
-    return 24 + (has_result_registers(f) ? 24 * (size_t)f->register_count : 0);
+    /* D-M1-45: one cell per register and one per local, so a result local
+       has its own 24 bytes at cell index register_count + local index. */
+    return 24 + (has_result_registers(f)
+                     ? 24 * ((size_t)f->register_count + local_count(f)) : 0);
 }
 
 /* The two 8-byte immediate slots an operation with an inline literal needs,
@@ -2115,7 +2126,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 /* `val f = inc`: the local word is the function address. */
                 fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                         i->operands[1].as.string, local_off);
-            else if (i->operands[1].kind == R6_VAL_REG) {
+            else if (i->operands[1].kind == R6_VAL_REG && is_result(local_type)) {
+                unsigned from = result_cell_offset(f, is_main, i->operands[1].as.i32);
+                unsigned to = result_cell_offset(f, is_main,
+                                                 (int32_t)(f->register_count + local_index));
+                emit_cell_copy(o, from, to);
+            } else if (i->operands[1].kind == R6_VAL_REG) {
                 if (is_float(local_type))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                             (unsigned)(i->operands[1].as.i32 + 1) * 8, local_off);
@@ -2159,7 +2175,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             } else if (local_info(m, f, name, &local_index, &local_type, local_buf, sizeof local_buf)) {
                 local_off = (unsigned)(f->register_count + hidden_slots(f, is_main) +
                                        f->param_count + local_index + 1) * 8;
-                if (is_float(local_type))
+                if (is_result(local_type))
+                    emit_cell_copy(o, result_cell_offset(f, is_main,
+                                                         (int32_t)(f->register_count + local_index)),
+                                   result_cell_offset(f, is_main, i->dest));
+                else if (is_float(local_type))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                             local_off, off);
                 else

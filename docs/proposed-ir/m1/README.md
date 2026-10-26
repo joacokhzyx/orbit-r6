@@ -65,6 +65,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `51-c-bool-return` | tres predicados del runtime que devuelven `bool` de C en `al`: `starts_with`, `ends_with` y `contains` con respuestas `false` y `true` | 42 | `1\r\n` |
 | `52-result-return` | funciones que devuelven `Result` `int`/`float`/`string` por puntero oculto, `try` con valor anotado, dos `catch e` y un quinto argumento por pila | 42 | `odd\r\nhi r6\r\nsum off\r\n` |
 | `53-model-return` | un modelo devuelto como puntero: fábrica, identidad que muta su argumento, llamadas anidadas y retorno tras cinco argumentos | 42 | `wide\r\nmade\r\n` |
+| `54-result-local` | locales `result` declarados, reasignados con `var` y devueltos como celdas de 24 bytes | 42 | `zero\r\nsmall\r\nbig\r\nnegative\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

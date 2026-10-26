@@ -1063,6 +1063,13 @@
       "code": "CGEN",
       "rule": "D-M1-44",
       "note": "a union cell return stays outside the subset"
+    },
+    {
+      "file": "cases/x-result-local-store-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-45",
+      "note": "an int stored into a result local is refused"
     }
   ],
   "accept": [
@@ -1513,6 +1520,13 @@
       "run_stdout": "wide\r\nmade\r\n",
       "rule": "D-M1-44",
       "note": "a model is returned as its pointer, also after a five-argument call"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/54-result-local.json",
+      "run_exit": 42,
+      "run_stdout": "zero\r\nsmall\r\nbig\r\nnegative\r\n",
+      "rule": "D-M1-45",
+      "note": "result locals are declared, reassigned and returned as 24-byte cells"
     }
   ]
 }

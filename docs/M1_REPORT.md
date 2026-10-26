@@ -1240,3 +1240,15 @@ chequeo de la firma; una unión (`void*`) sigue rechazada. El par
 Medido: diferencial **52/52**; loader **219/219** (152 rechazos + 67
 controles); corpus **56/56 -> 60 build / 60 match sobre 97 programas**; censo
 **0/26**, con `tir/format` en `list_push`. Los dos trinquetes se re-toman.
+
+## Actualización de M1 - un local `Result` (2026-10-26)
+
+D-M1-45. El pin declara un local `result` como `OrbitResult` por valor
+(`c_backend.orb:4195`). R6 le da una celda propia de 24 bytes junto a las
+celdas de los registros, y `decl_var`, `store_var` y `load_var` copian la celda
+entera. El par `54-result-local` declara, reasigna y devuelve locales `result`:
+el oráculo y R6 imprimen `zero\r\nsmall\r\nbig\r\nnegative\r\n` y salen 42.
+
+Medido: diferencial **53/53**; loader **221/221** (153 rechazos + 68
+controles); corpus **60/60 -> 63 build / 63 match sobre 97 programas**; censo
+**0/26**. El trinquete se re-toma en 63/63.

@@ -1,0 +1,36 @@
+fn ratio(a: int, b: int) -> result {
+    if b == 0 {
+        val bad: result = err("zero", 9)
+        return bad
+    }
+    val good: result = ok(a / b)
+    return good
+}
+
+fn label(n: int) -> result {
+    var out: result = ok("small")
+    if n > 10 {
+        out = ok("big")
+    }
+    if n < 0 {
+        out = err("negative", 2)
+    }
+    return out
+}
+
+fn main() -> int {
+    val q: int = try ratio(84, 2) catch { return 10 }
+    if q != 42 { return 11 }
+    try ratio(1, 0) catch e {
+        print(e)
+    }
+    val a: string = try label(3) catch { return 12 }
+    val b: string = try label(30) catch { return 13 }
+    print(a)
+    print(b)
+    try label(-1) catch why {
+        print(why)
+        return q
+    }
+    return 14
+}

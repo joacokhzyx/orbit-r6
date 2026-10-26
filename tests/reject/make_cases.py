@@ -1140,6 +1140,17 @@ def build_reject():
     add("x-return-union-cell", jd({"irVersion": "1", "module": mod}),
         "D-M1-44", "CGEN", "a union cell return stays outside the subset")
 
+    # ---- D-M1-45: a result local is a 24-byte cell ---------------------------
+    # decl_var, store_var and load_var copy the whole OrbitResult; a value of
+    # another type stored into the local stays refused.
+    add("x-result-local-store-int",
+        jd(DOC([MAIN([I("result_ok", 0, Int(1)),
+                      I("decl_var", -1, Sym("r"), Reg(0)),
+                      I("load_const", 1, Int(2)),
+                      I("store_var", -1, Sym("r"), Reg(1)),
+                      I("ret", -1, Int(0))], ["result", "int"])])),
+        "D-M1-45", "CGEN", "an int stored into a result local is refused")
+
     return cases
 
 
@@ -1726,6 +1737,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/53-model-return.json",
              "run_exit": 42, "run_stdout": "wide\r\nmade\r\n", "rule": "D-M1-44",
              "note": "a model is returned as its pointer, also after a five-argument call"},
+            {"file": "../../docs/proposed-ir/m1/54-result-local.json",
+             "run_exit": 42, "run_stdout": "zero\r\nsmall\r\nbig\r\nnegative\r\n", "rule": "D-M1-45",
+             "note": "result locals are declared, reassigned and returned as 24-byte cells"},
         ],
     }
 
