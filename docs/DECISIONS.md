@@ -2424,3 +2424,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `extern return type`. The ratchet is re-taken at 56/56. Census **0/26**,
   unchanged.
 - Status: **applied**.
+
+## D-M1-44 - A model return is the model pointer
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). After D-M1-43,
+  `returning model or void* values is not supported in M1` was the first
+  refusal of five corpus programs (`call_arg_types`, `generic_models`,
+  `color_smoke`, `test_bytes`, `test_io`) and of `compiler/tir/format.orb`.
+- Reference (pin `33abf7a`): `mapTypeToC` gives a declared model `Name*`
+  (`c_backend.orb:524-526`), and a function returns it as that pointer.
+- Decision: a function may return a model. The `ret` of a non-float register
+  already moves the slot into `rax`, and a call already stores `rax` into a
+  non-float, non-int, non-bool destination, so only the signature check
+  changes. The existing checks require the `ret` value and the call
+  destination to have the declared model type. A `void*` return (the D-M1-12
+  union cell) stays refused, now with the message
+  `returning void* values is not supported in M1`.
+- Fixture `53-model-return`: a factory, an identity that mutates its argument
+  and returns it (both names see the change), a nested
+  `total(same(make(1, 1)))`, and a model returned from a five-argument call.
+  Oracle and R6 both print `wide\r\nmade\r\n` and exit 42.
+- Controls: `x-return-union-cell` refuses.
+- Measured: differential **51/51 -> 52/52**; loader **217/217 -> 219/219** (152
+  rejections + 67 controls; `make_cases.py --check` 192 files without drift);
+  corpus **56 build / 56 match -> 60 build / 60 match over 97 programs**:
+  `generic_models`, `color_smoke`, `test_bytes` and `test_io` match byte for
+  byte, and `call_arg_types` moves to `call argument 0 type does not match
+  takesFloat`. The ratchet is re-taken at 60/60. Census **0/26**:
+  `compiler/tir/format.orb` moves to `list_push requires a list register and a
+  value register matching elemKind 1..4`; the census baseline is re-taken.
+- Status: **applied**.

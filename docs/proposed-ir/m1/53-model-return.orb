@@ -1,0 +1,36 @@
+model Pair {
+    left: int
+    right: int
+    name: string
+}
+
+fn make(a: int, b: int) -> Pair {
+    return Pair(a, b, "made")
+}
+
+fn same(p: Pair) -> Pair {
+    p.left = p.left + 1
+    return p
+}
+
+fn widest(a: int, b: int, c: int, d: int, e: int) -> Pair {
+    return Pair(a + b, c + d + e, "wide")
+}
+
+fn total(p: Pair) -> int {
+    return p.left + p.right
+}
+
+fn main() -> int {
+    val p = make(3, 4)
+    if total(p) != 7 { return 10 }
+    val q = same(p)
+    if p.left != 4 { return 11 }
+    if q.left != 4 { return 12 }
+    if total(same(make(1, 1))) != 3 { return 13 }
+    val w = widest(1, 2, 3, 4, 5)
+    if w.right != 12 { return 14 }
+    print(w.name)
+    print(q.name)
+    return 42
+}

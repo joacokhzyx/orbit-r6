@@ -1129,6 +1129,17 @@ def build_reject():
                             ["result", "unknown", "int", "string"])])),
         "D-M1-43", "CGEN", "an unwrap whose local is loaded as two types stays unknown")
 
+    # ---- D-M1-44: a model return is the model pointer ------------------------
+    # The pin returns `Name*` for a model. A union value (a void* cell) as a
+    # return type stays refused.
+    mod = MOD([FN("mk", [I("call", 0, Str("Dot"), Int(0)), I("ret", -1, Reg(0))], ["void*"],
+                  rtype="void*"),
+               MAIN()])
+    mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
+                     "richVariants": [""], "methods": []}]
+    add("x-return-union-cell", jd({"irVersion": "1", "module": mod}),
+        "D-M1-44", "CGEN", "a union cell return stays outside the subset")
+
     return cases
 
 
@@ -1712,6 +1723,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/52-result-return.json",
              "run_exit": 42, "run_stdout": "odd\r\nhi r6\r\nsum off\r\n", "rule": "D-M1-43",
              "note": "int, float and string results cross calls and bind through try"},
+            {"file": "../../docs/proposed-ir/m1/53-model-return.json",
+             "run_exit": 42, "run_stdout": "wide\r\nmade\r\n", "rule": "D-M1-44",
+             "note": "a model is returned as its pointer, also after a five-argument call"},
         ],
     }
 

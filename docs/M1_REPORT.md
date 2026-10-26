@@ -1228,3 +1228,15 @@ Medido: diferencial **51/51**; loader **217/217** (151 rechazos + 66
 controles); corpus **52/52 -> 56 build / 56 match sobre 97 programas**
 (`float_results`, `test_codec`, `test_crypto`, `test_string`); censo **0/26**.
 El trinquete se re-toma en 56/56.
+
+## Actualización de M1 - un modelo devuelto (2026-10-26)
+
+D-M1-44. El pin devuelve un modelo como `Name*`. R6 ya movía el slot a `rax` en
+el `ret` y guardaba `rax` en el destino de la llamada, así que solo cambia el
+chequeo de la firma; una unión (`void*`) sigue rechazada. El par
+`53-model-return` lo mide: el oráculo y R6 imprimen `wide\r\nmade\r\n` y salen
+42.
+
+Medido: diferencial **52/52**; loader **219/219** (152 rechazos + 67
+controles); corpus **56/56 -> 60 build / 60 match sobre 97 programas**; censo
+**0/26**, con `tir/format` en `list_push`. Los dos trinquetes se re-toman.

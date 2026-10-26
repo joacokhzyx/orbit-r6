@@ -1056,6 +1056,13 @@
       "code": "CGEN",
       "rule": "D-M1-43",
       "note": "an unwrap whose local is loaded as two types stays unknown"
+    },
+    {
+      "file": "cases/x-return-union-cell.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-44",
+      "note": "a union cell return stays outside the subset"
     }
   ],
   "accept": [
@@ -1499,6 +1506,13 @@
       "run_stdout": "odd\r\nhi r6\r\nsum off\r\n",
       "rule": "D-M1-43",
       "note": "int, float and string results cross calls and bind through try"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/53-model-return.json",
+      "run_exit": 42,
+      "run_stdout": "wide\r\nmade\r\n",
+      "rule": "D-M1-44",
+      "note": "a model is returned as its pointer, also after a five-argument call"
     }
   ]
 }

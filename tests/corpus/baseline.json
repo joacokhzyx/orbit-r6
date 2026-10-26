@@ -5,37 +5,37 @@
     "members": 98,
     "programs": 97,
     "oracleOk": 97,
-    "r6BuildOk": 56,
-    "match": 56,
+    "r6BuildOk": 60,
+    "match": 60,
     "unknownRegisterTypes": 91
   },
   "byCode": {
-    "CGEN": 38,
+    "CGEN": 34,
     "E_OPCODE": 3
   },
   "byFailingOpcode": {
-    "(module-level)": 29,
+    "(module-level)": 24,
     "decl_var": 6,
-    "call": 3,
+    "call": 4,
     "list_push": 2,
     "store_var": 1
   },
   "byOpcode": {
     "add": {
       "cases": 67,
-      "match": 40
+      "match": 44
     },
     "and_op": {
       "cases": 10,
-      "match": 5
+      "match": 7
     },
     "arg": {
       "cases": 65,
-      "match": 32
+      "match": 36
     },
     "call": {
       "cases": 81,
-      "match": 40
+      "match": 44
     },
     "copy": {
       "cases": 7,
@@ -43,51 +43,51 @@
     },
     "decl_var": {
       "cases": 78,
-      "match": 39
+      "match": 43
     },
     "div": {
       "cases": 13,
-      "match": 10
+      "match": 11
     },
     "eq": {
       "cases": 46,
-      "match": 24
+      "match": 26
     },
     "ge": {
       "cases": 16,
-      "match": 6
+      "match": 8
     },
     "gt": {
       "cases": 33,
-      "match": 17
+      "match": 20
     },
     "jump": {
       "cases": 57,
-      "match": 27
+      "match": 30
     },
     "jump_if_false": {
       "cases": 84,
-      "match": 44
+      "match": 48
     },
     "label": {
       "cases": 84,
-      "match": 44
+      "match": 48
     },
     "le": {
       "cases": 13,
-      "match": 7
+      "match": 9
     },
     "list_create": {
       "cases": 36,
-      "match": 13
+      "match": 16
     },
     "list_get": {
       "cases": 34,
-      "match": 12
+      "match": 15
     },
     "list_len": {
       "cases": 36,
-      "match": 10
+      "match": 13
     },
     "list_pop": {
       "cases": 2,
@@ -95,7 +95,7 @@
     },
     "list_push": {
       "cases": 36,
-      "match": 13
+      "match": 16
     },
     "list_set": {
       "cases": 4,
@@ -103,35 +103,35 @@
     },
     "load_const": {
       "cases": 76,
-      "match": 37
+      "match": 41
     },
     "load_field": {
       "cases": 22,
-      "match": 7
+      "match": 10
     },
     "load_var": {
       "cases": 86,
-      "match": 45
+      "match": 49
     },
     "lt": {
       "cases": 40,
-      "match": 20
+      "match": 23
     },
     "mod": {
       "cases": 8,
-      "match": 6
+      "match": 7
     },
     "mul": {
       "cases": 18,
-      "match": 11
+      "match": 13
     },
     "ne": {
       "cases": 69,
-      "match": 34
+      "match": 38
     },
     "neg": {
       "cases": 38,
-      "match": 21
+      "match": 24
     },
     "not_op": {
       "cases": 2,
@@ -139,11 +139,11 @@
     },
     "or_op": {
       "cases": 11,
-      "match": 4
+      "match": 6
     },
     "result_err": {
       "cases": 13,
-      "match": 4
+      "match": 6
     },
     "result_is_ok": {
       "cases": 13,
@@ -151,7 +151,7 @@
     },
     "result_ok": {
       "cases": 13,
-      "match": 4
+      "match": 6
     },
     "result_unwrap": {
       "cases": 13,
@@ -163,19 +163,19 @@
     },
     "ret": {
       "cases": 98,
-      "match": 56
+      "match": 60
     },
     "store_field": {
       "cases": 8,
-      "match": 3
+      "match": 5
     },
     "store_var": {
       "cases": 37,
-      "match": 18
+      "match": 21
     },
     "sub": {
       "cases": 24,
-      "match": 14
+      "match": 16
     },
     "union_get_data": {
       "cases": 6,

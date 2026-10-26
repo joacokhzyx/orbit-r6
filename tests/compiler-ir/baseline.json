@@ -13,6 +13,6 @@
     "error[CGEN]: extern return type is unsupported in M1": 3,
     "error[CGEN]: module must define one non-extern main": 2,
     "error[CGEN]: register type unknown is unsupported in M1": 2,
-    "error[CGEN]: returning model or void* values is not supported in M1": 1
+    "error[CGEN]: list_push requires a list register and a value register matching elemKind 1..4": 1
   }
 }
