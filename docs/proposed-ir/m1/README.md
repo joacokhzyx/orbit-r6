@@ -57,6 +57,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `43-global-constant-type` | tres constantes de módulo con `typeName` `unknown` y texto decimal (`32`, `3`, `-2`): el texto es el tipo, se imprimen, se comparan y se suman | 0 | `32\r\n3\r\n-2\r\n` |
 | `44-enum-tag-constant` | una enumeración de tres variantes: constante `Color_TAG_*`, campo de modelo del tipo, parámetro, retorno y ocho comparaciones | 0 | `blue\r\nred\r\n2\r\nred\r\n` |
 | `45-int-overflow` | un `int` de 32 bits: `bump(2147483647)` negativo, `sq(65536)` igual a 0, `over - 1` igual a 2147483647, `sum4(1, 2, 3, -4)` igual a 2 e `id(-1)` negativo, con el destino de cada `call` y literales de argumento inline | 0 | (sin salida) |
+| `46-process-argc` | el punto de entrada guarda `argc`/`argv`: `orbit_os_argc` al menos 1, `orbit_os_argv(0)` no vacío y `orbit_os_argv(argc)` vacío | 42 | `1\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

@@ -2862,6 +2862,10 @@ static void emit_entry_wrapper(FILE *o) {
           "\tmovq %rsp, %rbp\n\t.seh_setframe %rbp, 0\n"
           "\tsubq $48, %rsp\n\t.seh_stackalloc 48\n"
           "\t.seh_endprologue\n"
+          /* D-M1-37: the pinned main stores argc/argv for orbit_os_argc and
+           * orbit_os_argv before anything else runs. */
+          "\tleaq _orbit_argc(%rip), %rax\n\tmovl %ecx, 0(%rax)\n"
+          "\tleaq _orbit_argv(%rip), %rax\n\tmovq %rdx, 0(%rax)\n"
           "\tmovl $131072, %ecx\n\tcall orbit_arena_create\n"
           "\tmovq %rax, -8(%rbp)\n"
           "\tmovq %rax, %rcx\n\tcall orbit_main\n"

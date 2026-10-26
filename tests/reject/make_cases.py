@@ -1561,6 +1561,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-enum-kind-unit.json", "run_exit": 0,
              "run_stdout": "", "rule": "D-M1-35",
              "note": "an enumeration whose variants are all unit is an admitted type kind"},
+            {"file": "../../docs/proposed-ir/m1/46-process-argc.json",
+             "run_exit": 42, "run_stdout": "1\r\n", "rule": "D-M1-37",
+             "note": "the entry point stores argc and argv before the program runs"},
         ],
     }
 

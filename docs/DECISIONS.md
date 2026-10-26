@@ -2147,3 +2147,34 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   other than 32. No corpus program multiplies past int32, so the `imull` form
   rests on the fixture.
 - Status: **applied**.
+
+## D-M1-37 - The entry point stores argc and argv for the runtime
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). Found while measuring an opaque
+  list read: `tests/std/test_process.orb` built under R6 and exited 4, at
+  `if argCount() < 1 { return 4 }`, where the oracle exits 0.
+- Reference (pin `33abf7a`, read with `git cat-file blob`): the C `main` the
+  pinned backend writes for a program without routes starts with
+  `_orbit_argv = argv;` and `_orbit_argc = argc;` (`c_backend.orb:302-306`).
+  `runtime/os.c:371-378` defines both globals, initialized to `NULL` and `0`,
+  and `orbit_os_argc`/`orbit_os_argv` read them.
+- Root cause: R6's entry wrapper called `orbit_arena_create` and `orbit_main`
+  and never wrote the two globals. Every program saw `argc` 0 and an empty
+  `argv`.
+- Fix: the wrapper stores `%ecx` into `_orbit_argc` and `%rdx` into
+  `_orbit_argv` before its first call. Each store is a `leaq sym(%rip)`
+  followed by a store through the base register, the RIP-relative form the
+  internal assembler already encodes.
+- Admission: none. The loader suite gains one acceptance control that runs the
+  fixture; no rejection moves.
+- Fixture `46-process-argc`: two externs, `orbit_os_argc` and the
+  arena-taking `orbit_os_argv` (D-M1-27). It checks `argc >= 1`, a non-empty
+  `argv[0]` and an empty `argv[argc]`, and prints `argc`. Oracle and R6 both
+  print `1\r\n` and exit 42. The driver built from `01037c1` builds the same
+  IR and the program exits 10, at the first check.
+- Not changed: the pinned `main` also sets the Windows console to UTF-8 and
+  enables ANSI processing when stdout is a console. That code runs only on a
+  console handle, the gates read stdout through a pipe, and no measurement can
+  observe it. The database setup the pinned `main` adds for a module with
+  migrations stays outside the subset, which refuses migrations.
+- Status: **applied**.

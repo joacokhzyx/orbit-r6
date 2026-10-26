@@ -1,0 +1,11 @@
+extern fn orbit_os_argc() -> int
+extern fn orbit_os_argv(index: int) -> string
+
+fn main() -> int {
+    val n = orbit_os_argc()
+    if n < 1 { return 10 }
+    if orbit_os_argv(0) == "" { return 11 }
+    if orbit_os_argv(n) != "" { return 12 }
+    print(n)
+    return 42
+}

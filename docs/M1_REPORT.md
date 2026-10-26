@@ -1110,3 +1110,21 @@ documentos iguales; censo **0 -> 0 build** con 26 módulos, 97 699 992 bytes,
 `irFilesSha256 34e710ca…` y los mismos seis primeros rechazos. El trinquete del
 corpus se re-toma en `match 47`; el del censo no se toca.
 
+
+## Actualización de M1 - el punto de entrada guarda argc y argv (2026-10-26)
+
+D-M1-37. El `main` de C que escribe el pin empieza con `_orbit_argv = argv;` y
+`_orbit_argc = argc;` (`c_backend.orb:302-306`), y `orbit_os_argc` y
+`orbit_os_argv` leen esos dos globales (`runtime/os.c:371-378`). El wrapper de
+entrada de R6 no los escribía, así que todo programa veía `argc` 0. Lo midió
+`tests/std/test_process.orb`: construido con R6, salía 4 en
+`argCount() < 1`, y el oráculo sale 0.
+
+El wrapper guarda ahora `%ecx` y `%rdx` en los dos globales antes de su primera
+llamada. El par `46-process-argc` lo mide: el oráculo y R6 imprimen `1\r\n` y
+salen 42, y el driver de `01037c1` sale 10 con el mismo IR.
+
+Medido: diferencial **44/44 -> 45/45**; loader **199/199 -> 200/200** (142
+rechazos + 58 controles); corpus **47 build / 47 match sobre 97 programas**, sin
+veredictos movidos, porque ningún programa del corpus que construye lee `argc`.
+El trinquete no se re-toma.
