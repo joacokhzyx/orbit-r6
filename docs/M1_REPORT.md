@@ -1265,3 +1265,16 @@ Medido: diferencial **53/53** sin cambio; loader **223/223** (154 rechazos + 69
 controles); corpus **63/63** sin cambio, porque los cuatro programas con slots
 muertos paran antes en el tipo de unión; censo **0/26**, con `front/lexer` y
 `front/token` en `ret value does not match function return type`.
+
+## Actualización de M1 - una unión como valor (2026-10-26)
+
+D-M1-47. El pin baja una unión a `Name*`, la celda que D-M1-12 ya trata como
+palabra `void*`. R6 reescribe el nombre de la unión a `void*` en parámetros,
+retornos y registros, admite esa palabra como parámetro y argumento, y tipa el
+`union_get_data` de un brazo de `match` por el local que liga, como hace
+D-M1-43 con `result_unwrap`. El par `55-union-parameter` lo mide: el oráculo y
+R6 imprimen `shape orbit\r\n` y salen 42.
+
+Medido: diferencial **54/54**; loader **226/226** (156 rechazos + 70
+controles); corpus **63/63 -> 64 build / 64 match sobre 97 programas**
+(`match`); censo **0/26**. El trinquete se re-toma en 64/64.

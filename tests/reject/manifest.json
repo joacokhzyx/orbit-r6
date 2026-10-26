@@ -1077,6 +1077,20 @@
       "code": "CGEN",
       "rule": "D-M1-46",
       "note": "an unknown slot that is read is not a dead slot"
+    },
+    {
+      "file": "cases/x-union-param-extern.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-47",
+      "note": "a union crossing into an extern is not measured"
+    },
+    {
+      "file": "cases/x-union-payload-unread.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-47",
+      "note": "a payload read no local binds keeps no type"
     }
   ],
   "accept": [
@@ -1541,6 +1555,13 @@
       "run_stdout": "",
       "rule": "D-M1-46",
       "note": "unknown slots no instruction writes or reads are words"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/55-union-parameter.json",
+      "run_exit": 42,
+      "run_stdout": "shape orbit\r\n",
+      "rule": "D-M1-47",
+      "note": "a union crosses calls as its cell and match arms bind int and string payloads"
     }
   ]
 }

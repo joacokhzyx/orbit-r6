@@ -115,6 +115,41 @@ static bool is_enum_type(const R6Module *m, const char *t) {
     return false;
 }
 
+/* D-M1-47: a declared union is `typedef struct Name Name;` in the pin and
+ * `Name*` in every value position (mapTypeToC, c_backend.orb:524-526): the
+ * same pointer word D-M1-12 already gives a union value, typed void*. The
+ * type table keeps the name, which resolves `Name_TAG_Variant`. */
+static char *canonical_union_spelling(const R6Module *m, char *t) {
+    size_t n;
+    char *out;
+    if (!m || !t || !m->types) return t;
+    for (n = 0; n < m->type_count; ++n)
+        if (m->types[n].name && m->types[n].kind &&
+            strcmp(m->types[n].kind, "union_type") == 0 &&
+            strcmp(m->types[n].name, t) == 0)
+            break;
+    if (n == m->type_count) return t;
+    out = malloc(sizeof "void*");
+    if (!out) return t; /* keep the spelling: the register gate fails closed */
+    strcpy(out, "void*");
+    free(t);
+    return out;
+}
+
+static void canonicalize_union_types(R6Module *m) {
+    size_t k, j;
+    for (k = 0; m->functions && k < m->function_count; ++k) {
+        R6Function *f = &m->functions[k];
+        if (f->param_types)
+            for (j = 0; j < f->param_count; ++j)
+                f->param_types[j] = canonical_union_spelling(m, f->param_types[j]);
+        f->return_type = canonical_union_spelling(m, f->return_type);
+        if (f->register_types)
+            for (j = 0; j < f->register_type_count; ++j)
+                f->register_types[j] = canonical_union_spelling(m, f->register_types[j]);
+    }
+}
+
 static char *canonical_enum_spelling(const R6Module *m, char *t) {
     char *out;
     if (!is_enum_type(m, t)) return t;
@@ -751,7 +786,7 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
  * decl_var of a local, the destination takes the type the builder gave every
  * load_var of that local, which is the annotation `val x: T = try ...`. Any
  * other use, or loads that disagree, leaves it unknown. */
-static const char *unwrap_use_type(const R6Function *f, size_t at) {
+static const char *bound_local_type(const R6Function *f, size_t at) {
     int32_t reg = f->instructions[at].dest;
     size_t pc, use = f->instruction_count;
     const char *name, *type = NULL;
@@ -780,7 +815,21 @@ static const char *unwrap_use_type(const R6Function *f, size_t at) {
         if (type && strcmp(type, t) != 0) return NULL;
         type = t;
     }
-    return is_int(type) || is_float(type) || is_string(type) ? type : NULL;
+    return type;
+}
+
+static const char *unwrap_use_type(const R6Function *f, size_t at) {
+    const char *type = bound_local_type(f, at);
+    return is_void_ptr(type) || is_int(type) || is_float(type) || is_string(type) ? type : NULL;
+}
+
+/* D-M1-47: a match arm binding (`Circle(r) => ...`) is a union_get_data whose
+ * only reader is the decl_var of `r`, and the builder leaves its destination
+ * `unknown`. It takes the type of r's loads, as an unwrap does; a payload
+ * nobody reads, or a type outside the payloads D-M1-12 admits, stays unknown. */
+static const char *payload_use_type(const R6Function *f, size_t at) {
+    const char *type = bound_local_type(f, at);
+    return is_int(type) || is_bool(type) || is_string(type) ? type : NULL;
 }
 
 /* `<Type>_TAG_<variant>` is the bare ordinal constant the pinned builder
@@ -1055,10 +1104,11 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         (f->param_count != 0 || !is_int(f->return_type)))
         return fail(d, NULL, "CGEN", "main must have no parameters and return int in M1");
     /* D-M1-40: a model parameter is the `Name*` the pin passes (mapTypeToC),
-     * a word the prologue spills with movq like any non-float parameter. */
+     * a word the prologue spills with movq like any non-float parameter.
+     * D-M1-47: a union parameter is the same word, its D-M1-12 cell. */
     for (pc = 0; pc < f->param_count; ++pc)
         if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc]) ||
-              is_model_type(m, f->param_types[pc])))
+              is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc])))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     /* D-M1-44: a model return is the `Name*` the pin returns (mapTypeToC),
      * one word in rax like any non-float return. A void* (union) return is
@@ -1370,7 +1420,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 if (arg_count == sizeof arg_values / sizeof arg_values[0])
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
                 if (!value_type(f, &i->operands[0], &t) ||
-                    !(is_scalar(t) || is_list(t) || is_model_type(m, t)))
+                    !(is_scalar(t) || is_list(t) || is_model_type(m, t) || is_void_ptr(t)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
                     return fail(d, i, "CGEN", "arg register is out of range");
@@ -3210,6 +3260,8 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     case R6_OP_MAP_KEYS: return "list";
     case R6_OP_RESULT_UNWRAP:
         return unwrap_use_type(f, (size_t)(i - f->instructions));
+    case R6_OP_UNION_GET_DATA:
+        return payload_use_type(f, (size_t)(i - f->instructions));
     case R6_OP_UNION_GET_TAG: return "int";   /* D-M1-12's ordinal tag */
     default: return NULL;
     }
@@ -3281,6 +3333,7 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
      * still fails closed instead of dereferencing an absent function array. */
     canonicalize_list_types(module);
     canonicalize_enum_types(module);
+    canonicalize_union_types(module);
     for (n = 0; n < module->global_count; ++n) {
         size_t prior;
         int32_t ignored;

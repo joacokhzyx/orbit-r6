@@ -5,19 +5,20 @@
     "members": 98,
     "programs": 97,
     "oracleOk": 97,
-    "r6BuildOk": 63,
-    "match": 63,
+    "r6BuildOk": 64,
+    "match": 64,
     "unknownRegisterTypes": 91
   },
   "byCode": {
-    "CGEN": 31,
+    "CGEN": 30,
     "E_OPCODE": 3
   },
   "byFailingOpcode": {
-    "(module-level)": 27,
+    "(module-level)": 25,
     "call": 4,
     "list_push": 2,
-    "store_var": 1
+    "store_var": 1,
+    "ret": 1
   },
   "byOpcode": {
     "add": {
@@ -30,19 +31,19 @@
     },
     "arg": {
       "cases": 65,
-      "match": 36
+      "match": 37
     },
     "call": {
       "cases": 81,
-      "match": 47
+      "match": 48
     },
     "copy": {
       "cases": 7,
-      "match": 5
+      "match": 6
     },
     "decl_var": {
       "cases": 78,
-      "match": 46
+      "match": 47
     },
     "div": {
       "cases": 13,
@@ -50,7 +51,7 @@
     },
     "eq": {
       "cases": 46,
-      "match": 26
+      "match": 27
     },
     "ge": {
       "cases": 16,
@@ -62,15 +63,15 @@
     },
     "jump": {
       "cases": 57,
-      "match": 32
+      "match": 33
     },
     "jump_if_false": {
       "cases": 84,
-      "match": 50
+      "match": 51
     },
     "label": {
       "cases": 84,
-      "match": 50
+      "match": 51
     },
     "le": {
       "cases": 13,
@@ -102,7 +103,7 @@
     },
     "load_const": {
       "cases": 76,
-      "match": 44
+      "match": 45
     },
     "load_field": {
       "cases": 22,
@@ -110,7 +111,7 @@
     },
     "load_var": {
       "cases": 86,
-      "match": 52
+      "match": 53
     },
     "lt": {
       "cases": 40,
@@ -122,15 +123,15 @@
     },
     "mul": {
       "cases": 18,
-      "match": 13
+      "match": 14
     },
     "ne": {
       "cases": 69,
-      "match": 38
+      "match": 39
     },
     "neg": {
       "cases": 38,
-      "match": 24
+      "match": 25
     },
     "not_op": {
       "cases": 2,
@@ -162,7 +163,7 @@
     },
     "ret": {
       "cases": 98,
-      "match": 63
+      "match": 64
     },
     "store_field": {
       "cases": 8,
@@ -178,11 +179,11 @@
     },
     "union_get_data": {
       "cases": 6,
-      "match": 0
+      "match": 1
     },
     "union_get_tag": {
       "cases": 6,
-      "match": 0
+      "match": 1
     }
   }
 }

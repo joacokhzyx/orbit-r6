@@ -1,0 +1,36 @@
+union Shape { Circle(int) Square(int) Label(string) Empty }
+
+fn area(s: Shape) -> int {
+    match s {
+        Circle(r) => { return r * r * 3 }
+        Square(side) => { return side * side }
+        Label(text) => { return text.len() }
+        Empty => { return 0 }
+    }
+    return -1
+}
+
+fn describe(s: Shape, prefix: string) -> int {
+    match s {
+        Label(text) => {
+            print(prefix + text)
+            return 1
+        }
+        _ => { return 0 }
+    }
+    return -1
+}
+
+fn main() -> int {
+    val c = Circle(2)
+    val q = Square(-5)
+    val l = Label("orbit")
+    val e = Empty()
+    if area(c) != 12 { return 10 }
+    if area(q) != 25 { return 11 }
+    if area(l) != 5 { return 12 }
+    if area(e) != 0 { return 13 }
+    if describe(l, "shape ") != 1 { return 14 }
+    if describe(c, "x") != 0 { return 15 }
+    return 42
+}

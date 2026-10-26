@@ -1158,6 +1158,25 @@ def build_reject():
         jd(DOC([MAIN([I("ret", -1, Reg(1))], ["int", "unknown"])])),
         "D-M1-46", "CGEN", "an unknown slot that is read is not a dead slot")
 
+    # ---- D-M1-47: a union type is its cell pointer --------------------------
+    # A declared union name in a signature or register is the D-M1-12 void*
+    # cell. An extern still takes scalars only, and a payload read nobody
+    # binds keeps no type.
+    def shape_mod(fns):
+        mod = MOD(fns)
+        mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
+                         "richVariants": ["int"], "methods": []}]
+        return {"irVersion": "1", "module": mod}
+    add("x-union-param-extern",
+        jd(shape_mod([FN("take", [], [], rtype="int", extern=True, params=["s"],
+                         ptypes=["Shape"]), MAIN()])),
+        "D-M1-47", "CGEN", "a union crossing into an extern is not measured")
+    add("x-union-payload-unread",
+        jd(shape_mod([MAIN([I("arg", -1, Int(4)), I("call", 0, Str("Dot"), Int(1)),
+                            I("union_get_data", 1, Reg(0)),
+                            I("ret", -1, Int(0))], ["Shape", "unknown"])])),
+        "D-M1-47", "CGEN", "a payload read no local binds keeps no type")
+
     return cases
 
 
@@ -1753,6 +1772,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-dead-unknown-slot.json", "run_exit": 7,
              "run_stdout": "", "rule": "D-M1-46",
              "note": "unknown slots no instruction writes or reads are words"},
+            {"file": "../../docs/proposed-ir/m1/55-union-parameter.json",
+             "run_exit": 42, "run_stdout": "shape orbit\r\n", "rule": "D-M1-47",
+             "note": "a union crosses calls as its cell and match arms bind int and string payloads"},
         ],
     }
 

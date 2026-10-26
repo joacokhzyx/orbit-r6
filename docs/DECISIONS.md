@@ -2512,3 +2512,44 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   from `register type unknown` to `ret value does not match function return
   type`; the census baseline is re-taken.
 - Status: **applied**.
+
+## D-M1-47 - A union type is its cell pointer, and a match arm binds its payload
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). Four corpus programs stopped at
+  `register type Shape` or `register type OptInt`: the name of a declared
+  union used as a register, parameter or return type.
+- Reference (pin `33abf7a`): a union is `typedef struct Name Name;`
+  (`c_backend.orb:1678-1686`) and `Name*` in every value position
+  (`mapTypeToC`, `:524-526`), the cell D-M1-12 already lowers as a `void*`
+  word. A match arm `Circle(r) => ...` reads the cell's data word
+  (`union_get_data`, `:3721-3724`) into a register the builder leaves
+  `unknown`, then binds it with `decl_var r`.
+- Decision, three parts that the same programs need together:
+  1. `canonicalize_union_types` rewrites a declared union name in parameter,
+     return and register types to `void*`. The type table keeps the name,
+     which resolves `Name_TAG_Variant`.
+  2. A declared function admits a `void*` parameter and an `arg` admits a
+     `void*` value; both are the word every non-float parameter already is.
+     A `void*` return stays refused (D-M1-44), and an extern still takes
+     scalars only.
+  3. A `union_get_data` destination that is `unknown` takes the type of the
+     local it initializes, read off that local's `load_var` destinations, as
+     D-M1-43 does for `result_unwrap`; the type must be a payload D-M1-12
+     admits (`int`, `bool`, `string`). A payload no local binds stays
+     `unknown`.
+- Fixture `55-union-parameter`: a four-variant union (`Circle(int)`,
+  `Square(int)`, `Label(string)`, `Empty`) passed to `area` and `describe`,
+  whose matches bind `int` and `string` payloads and use a wildcard arm.
+  Oracle and R6 both print `shape orbit\r\n` and exit 42. A unit variant is
+  constructed as `Empty()`; a bare `Empty` is `Undeclared identifier` at the
+  pin.
+- Controls: `x-union-param-extern` and `x-union-payload-unread` refuse.
+- Measured: differential **53/53 -> 54/54**; loader **223/223 -> 226/226** (156
+  rejections + 70 controls; `make_cases.py --check` 197 files without drift);
+  corpus **63 build / 63 match -> 64 build / 64 match over 97 programs**:
+  `match` matches byte for byte; `member_resolution` moves to `ret value does
+  not match function return type`, `union_bare_variant_pattern` to `returning
+  void* values`, `union_match_exhaustive` to `register type unknown`. The
+  ratchet is re-taken at 64/64. Census **0/26**, unchanged groups; the census
+  baseline is re-taken with the same counts.
+- Status: **applied**.
