@@ -60,6 +60,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `46-process-argc` | el punto de entrada guarda `argc`/`argv`: `orbit_os_argc` al menos 1, `orbit_os_argv(0)` no vacío y `orbit_os_argv(argc)` vacío | 42 | `1\r\n` |
 | `47-opaque-list-read` | lectura opaca (`elemKind 0`) de un parámetro `list` tipada por su único uso: argumento `string` de `strLen` y argumento `int` de `twice`, con `-5` y `2147483647` como palabras | 42 | `5\r\n` |
 | `48-model-list-field` | campos `list<int>` y `list<string>` de un modelo: constructor, `push` a través del campo, lectura por locales tipados y reemplazo de la lista | 42 | `bc\r\n` |
+| `49-model-parameter` | un modelo como parámetro: lectura de campos, mutación visible en el llamador, quinto argumento por pila y retorno de un campo `string` | 42 | `origin\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

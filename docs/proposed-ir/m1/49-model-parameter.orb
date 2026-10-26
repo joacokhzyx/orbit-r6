@@ -1,0 +1,32 @@
+model Point {
+    x: int
+    y: int
+    label: string
+}
+
+fn sum(p: Point) -> int {
+    return p.x + p.y
+}
+
+fn shift(p: Point, dx: int) -> int {
+    p.x = p.x + dx
+    return p.x
+}
+
+fn fifth(a: int, b: int, c: int, d: int, p: Point) -> int {
+    return a + b + c + d + p.y
+}
+
+fn name(p: Point) -> string {
+    return p.label
+}
+
+fn main() -> int {
+    val p = Point(3, 4, "origin")
+    if sum(p) != 7 { return 10 }
+    if shift(p, 10) != 13 { return 11 }
+    if p.x != 13 { return 12 }
+    if fifth(1, 2, 3, 4, p) != 14 { return 13 }
+    print(name(p))
+    return 42
+}

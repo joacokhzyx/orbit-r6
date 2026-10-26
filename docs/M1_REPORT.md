@@ -1167,3 +1167,19 @@ Medido: diferencial **46/46 -> 47/47**; loader **206/206 -> 209/209** (148
 rechazos + 61 controles); corpus **49 build / 49 match** sin cambio, porque los
 tres programas con campos `list` paran ahora en un parámetro de tipo modelo;
 censo **0/26**, con `tir/format` en `returning model or void* values`.
+
+## Actualización de M1 - un parámetro de tipo modelo (2026-10-26)
+
+D-M1-40. El pin pasa un modelo como `Name*` (`c_backend.orb:524-526`). R6 ya
+movía todo parámetro y argumento no-float con `movq`, así que la decisión solo
+admite el tipo en dos chequeos: el parámetro de una función declarada y el
+valor de un `arg`. El chequeo de la llamada sigue exigiendo el mismo modelo.
+
+El par `49-model-parameter` pasa el modelo en registro y en la pila (quinto
+argumento), y lo muta en el callee: el oráculo y R6 imprimen `origin\r\n` y
+salen 42.
+
+Medido: diferencial **47/47 -> 48/48**; loader **209/209 -> 212/212** (150
+rechazos + 62 controles); corpus **49/49 -> 52 build / 52 match sobre 97
+programas**, con tres coincidencias nuevas y ningún `r6-differs`; censo
+**0/26** sin cambio. El trinquete se re-toma en 52/52.

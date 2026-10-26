@@ -1088,6 +1088,30 @@ def build_reject():
                    ["list", "Bag", "string"])),
         "D-M1-39", "CGEN", "a list field takes a list value, not a string")
 
+    # ---- D-M1-40: a model parameter is the model pointer --------------------
+    # The pin passes a model as `Name*` (mapTypeToC). R6 admits a model in a
+    # declared function's parameter and in an `arg`; an extern parameter and a
+    # model of another name stay refused.
+    def two_models(fns):
+        mod = MOD(fns)
+        mod["models"] = [{"name": "A", "fields": [{"name": "f", "typeName": "int"}],
+                          "typeParams": []},
+                         {"name": "B", "fields": [{"name": "g", "typeName": "int"}],
+                          "typeParams": []}]
+        return {"irVersion": "1", "module": mod}
+    make_a = [I("arg", -1, Int(1)), I("call", 0, Str("A"), Int(1)), I("arg", -1, Reg(0))]
+    add("x-model-param-extern",
+        jd(two_models([FN("take", [], [], rtype="int", extern=True, params=["p"], ptypes=["A"]),
+                       MAIN(make_a + [I("call", 1, Str("take"), Int(1)), I("ret", -1, Reg(1))],
+                            ["A", "int"])])),
+        "D-M1-40", "CGEN", "a model crossing into an extern is not measured")
+    add("x-model-param-other-model",
+        jd(two_models([FN("take", [I("load_const", 0, Int(0)), I("ret", -1, Reg(0))], ["int"],
+                          params=["p"], ptypes=["B"]),
+                       MAIN(make_a + [I("call", 1, Str("take"), Int(1)), I("ret", -1, Reg(1))],
+                            ["A", "int"])])),
+        "D-M1-40", "CGEN", "a model argument must be the parameter's model")
+
     return cases
 
 
@@ -1645,6 +1669,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/48-model-list-field.json",
              "run_exit": 42, "run_stdout": "bc\r\n", "rule": "D-M1-39",
              "note": "list fields are built, read, pushed through and replaced"},
+            {"file": "../../docs/proposed-ir/m1/49-model-parameter.json",
+             "run_exit": 42, "run_stdout": "origin\r\n", "rule": "D-M1-40",
+             "note": "a model crosses calls by pointer, in a register and on the stack"},
         ],
     }
 

@@ -1014,8 +1014,11 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     if (strcmp(f->name, "main") == 0 &&
         (f->param_count != 0 || !is_int(f->return_type)))
         return fail(d, NULL, "CGEN", "main must have no parameters and return int in M1");
+    /* D-M1-40: a model parameter is the `Name*` the pin passes (mapTypeToC),
+     * a word the prologue spills with movq like any non-float parameter. */
     for (pc = 0; pc < f->param_count; ++pc)
-        if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc])))
+        if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc]) ||
+              is_model_type(m, f->param_types[pc])))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     if (is_model_type(m, f->return_type) || is_void_ptr(f->return_type))
         return fail(d, NULL, "CGEN", "returning model or void* values is not supported in M1");
@@ -1323,7 +1326,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 const char *t;
                 if (arg_count == sizeof arg_values / sizeof arg_values[0])
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
-                if (!value_type(f, &i->operands[0], &t) || !(is_scalar(t) || is_list(t)))
+                if (!value_type(f, &i->operands[0], &t) ||
+                    !(is_scalar(t) || is_list(t) || is_model_type(m, t)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
                     return fail(d, i, "CGEN", "arg register is out of range");

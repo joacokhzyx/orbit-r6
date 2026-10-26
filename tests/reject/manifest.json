@@ -1035,6 +1035,20 @@
       "code": "CGEN",
       "rule": "D-M1-39",
       "note": "a list field takes a list value, not a string"
+    },
+    {
+      "file": "cases/x-model-param-extern.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-40",
+      "note": "a model crossing into an extern is not measured"
+    },
+    {
+      "file": "cases/x-model-param-other-model.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-40",
+      "note": "a model argument must be the parameter's model"
     }
   ],
   "accept": [
@@ -1443,6 +1457,13 @@
       "run_stdout": "bc\r\n",
       "rule": "D-M1-39",
       "note": "list fields are built, read, pushed through and replaced"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/49-model-parameter.json",
+      "run_exit": 42,
+      "run_stdout": "origin\r\n",
+      "rule": "D-M1-40",
+      "note": "a model crosses calls by pointer, in a register and on the stack"
     }
   ]
 }

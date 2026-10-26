@@ -2277,3 +2277,37 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   list field to `returning model or void* values is not supported in M1`. The
   census baseline is re-taken for that refusal; the corpus baseline is not.
 - Status: **applied**.
+
+## D-M1-40 - A model parameter is the model pointer
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). After D-M1-39, four corpus
+  programs stopped at `parameter type <Model> is unsupported in M1` (`Point`,
+  `Alpha`, `Box`, `Trace`), and a fifth (`generic_models`) at `Box_int`.
+- Reference (pin `33abf7a`): `mapTypeToC` gives a declared model `Name*`
+  (`c_backend.orb:524-526`). A model value is a pointer, and a parameter of a
+  model type receives that pointer.
+- Decision: a declared function admits a model-typed parameter, and an `arg`
+  admits a model-typed value. The prologue already spills every non-float
+  parameter with `movq`, from a register or from the stack, and
+  `emit_load_arg` already moves a non-float slot with `movq`. The existing
+  call check requires each argument to have the callee's parameter type, so a
+  model `A` passed where `B` is declared stays refused.
+- The callee shares the instance: a `store_field` through the parameter is
+  visible to the caller, as the pointer is in C.
+- Not admitted: a model parameter of an extern (no runtime function takes one
+  in the subset), a model return (`returning model or void* values`, its own
+  front), and a union or `object` parameter.
+- Fixture `49-model-parameter`: `sum(p)`, `shift(p, dx)` writing `p.x` that
+  `main` reads back, `fifth(1, 2, 3, 4, p)` with the model in the stack slot
+  of the fifth argument, and `name(p)` returning the string field. Oracle and
+  R6 both print `origin\r\n` and exit 42.
+- Controls: `x-model-param-extern` and `x-model-param-other-model` refuse.
+- Measured: differential **47/47 -> 48/48**; loader **209/209 -> 212/212** (150
+  rejections + 62 controls; `make_cases.py --check` 189 files without drift);
+  corpus **49 build / 49 match -> 52 build / 52 match over 97 programs**:
+  `if_expression_no_phantom_branch`, `model_field_owner_typing` and
+  `parameter_type_fallback` match byte for byte; `call_arg_types` and
+  `generic_models` move to `returning model or void* values`, and
+  `model_literal_fields` to `register type object`. The ratchet is re-taken at
+  52/52. Census **0/26**, unchanged.
+- Status: **applied**.
