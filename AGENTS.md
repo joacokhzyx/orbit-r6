@@ -56,21 +56,10 @@ python tests/diff/run_diff.py `
 - `python tests/diff/run_diff.py --help` — remaining flags mirror the pinned
   `scripts/test_suite.py`.
 
-Second gate: loader contract suite (`tests/reject/`, decision D-M1-06;
-`map_*` pins are D-M1-10, model pins are D-M1-11, union pins are D-M1-12,
-alloc/free pins are D-M1-13, function-value pins are D-M1-14, the
-register-global pin is D-M1-15, edge-case pins are D-M1-16, call-target pins
-are D-M1-18, literal-form pins are D-M1-19, unknown-register-type pins are
-D-M1-20, inline-literal-operand pins are D-M1-21, parameter-by-name pins are
-D-M1-22, the corpus round-4 string-`add` pins are D-M1-23, the
-list-length-slot fixture is D-M1-25, comparisons are D-M1-31, list spellings
-are D-M1-32, global constants are D-M1-33, enumerations are D-M1-35, the
-entry point is D-M1-37, opaque list reads are D-M1-38, list fields are
-D-M1-39, model parameters are D-M1-40, the movslq encoding is D-M1-41, C bool
-returns are D-M1-42, returned results are D-M1-43, model
-returns are D-M1-44, result locals are D-M1-45, dead register slots
-are D-M1-46, union values are D-M1-47 and extern result/list returns are
-D-M1-48 and bare returns are D-M1-49) — verified 231/231 on 2026-10-26:
+Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
+case in `tests/reject/manifest.json` names the decision it pins in its `rule`
+field, and `docs/DECISIONS.md` holds the decisions. Verified 231/231 on
+2026-10-26:
 
 ```powershell
 python tests/reject/run_reject.py            # 159 rejections + 72 acceptance controls
