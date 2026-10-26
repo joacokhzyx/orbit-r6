@@ -1,0 +1,131 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Must equal the commit in docs/PIN.md. A pin move edits this line in the
+  # same commit as PIN.md.
+  ORBIT_PIN: 33abf7ab762607c117d01d06bee8584a2e3781c1
+  # The measured toolchain: w64devkit 2.10.0 ships GCC 16.2.0 (docs/PIN.md).
+  W64DEVKIT_URL: https://github.com/skeeto/w64devkit/releases/download/v2.10.0/w64devkit-x64-2.10.0.7z.exe
+  W64DEVKIT_SHA256: 18d0a4c71a166f8401ab6305781bec5882b40b5e06ba9807c61cb5f3b3c6325e
+  R6_MINGW_ROOT: C:/w64devkit
+  R6_MINGW_GCC_VERSION: 16.2.0
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  # Gate on every push and pull request: driver build, reject-case drift,
+  # loader suite (acceptance controls link and run, so they need the archive).
+  loader:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: joacokhzyx/orbit-lang
+          ref: ${{ env.ORBIT_PIN }}
+          path: orbit-lang
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install w64devkit
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'w64devkit.7z.exe'
+          Invoke-WebRequest -Uri $env:W64DEVKIT_URL -OutFile $exe
+          $got = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:W64DEVKIT_SHA256) { throw "w64devkit sha256 $got" }
+          & $exe -oC:\ -y | Out-Null
+          Add-Content $env:GITHUB_PATH 'C:\w64devkit\bin'
+          & C:\w64devkit\bin\gcc.exe --version
+
+      - name: Check the pinned checkout
+        run: |
+          $head = git -C orbit-lang rev-parse HEAD
+          if ($head -ne $env:ORBIT_PIN) { throw "orbit-lang at $head, pin is $env:ORBIT_PIN" }
+
+      - name: Build the runtime archive
+        run: |
+          New-Item -ItemType Directory -Force .r6-build\runtime-win64 | Out-Null
+          $out = Join-Path $PWD '.r6-build\runtime-win64\libruntime_net.a'
+          python orbit-lang/scripts/mklib_runtime.py --cc C:\w64devkit\bin\gcc.exe --out $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $n = (& C:\w64devkit\bin\nm.exe --defined-only $out | Measure-Object -Line).Lines
+          Write-Host "defined symbols: $n"
+
+      - name: CI
+        env:
+          R6_CC: C:\w64devkit\bin\gcc.exe
+        run: ./scripts/ci.ps1
+
+  # Differential and corpus ratchet against the Orbit gcc oracle. Building the
+  # fixed point takes minutes, so the job runs only on manual dispatch. To run
+  # it on every push, delete the `if:` line. It needs the pinned orbit-lang
+  # checkout, a GCC for the oracle side and a Python that runs
+  # `scripts/dev.py fp` in that checkout.
+  oracle:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      ORBIT_CCACHE: '0'
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: joacokhzyx/orbit-lang
+          ref: ${{ env.ORBIT_PIN }}
+          path: orbit-lang
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install w64devkit
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'w64devkit.7z.exe'
+          Invoke-WebRequest -Uri $env:W64DEVKIT_URL -OutFile $exe
+          $got = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:W64DEVKIT_SHA256) { throw "w64devkit sha256 $got" }
+          & $exe -oC:\ -y | Out-Null
+          Add-Content $env:GITHUB_PATH 'C:\w64devkit\bin'
+
+      - name: Build the runtime archive
+        run: |
+          New-Item -ItemType Directory -Force .r6-build\runtime-win64 | Out-Null
+          $out = Join-Path $PWD '.r6-build\runtime-win64\libruntime_net.a'
+          python orbit-lang/scripts/mklib_runtime.py --cc C:\w64devkit\bin\gcc.exe --out $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build the Orbit fixed point
+        working-directory: orbit-lang
+        run: |
+          python scripts/dev.py fp --cc C:\w64devkit\bin\gcc.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fp = python scripts/dev.py fp-path
+          Add-Content $env:GITHUB_ENV "ORBIT_FP=$fp"
+
+      - name: CI with differential and corpus
+        env:
+          R6_CC: C:\w64devkit\bin\gcc.exe
+        run: >
+          ./scripts/ci.ps1 -Diff -Corpus
+          -Compiler $env:ORBIT_FP
+          -OrbitRoot (Join-Path $PWD 'orbit-lang')
+          -Cc C:\w64devkit\bin\gcc.exe
