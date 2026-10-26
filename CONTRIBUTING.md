@@ -1,8 +1,11 @@
 # Contributing to R6
 
-There is no CI. The gates below are the contract, and a contribution runs them
-locally before it is sent. `AGENTS.md` holds the full working rules; this file
-does not replace it.
+`.github/workflows/ci.yml` runs the build, the reject-case drift check and the
+loader suite on every push and pull request. It does not run the differential or
+the corpus ratchet by default. The gates below are the contract, and a
+contribution runs them locally before it is sent.
+
+`AGENTS.md` holds the full working rules; this file does not replace it.
 
 ## What a contribution carries
 
