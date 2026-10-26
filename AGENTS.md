@@ -142,7 +142,8 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging paths only; just
   `ld.exe` is executed.
 - Diagnostics are one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`;
-  exit 2 = CLI misuse, 1 = everything else. There is no CI in this repo.
+  exit 2 = CLI misuse, 1 = everything else. CI is `.github/workflows/ci.yml`,
+  which runs `scripts/ci.ps1`.
 
 ## Hard rules (docs/DECISIONS.md, docs/CONTRACT.md)
 
@@ -353,9 +354,10 @@ Stop and ask rather than push on, when:
 - The runtime archive is not committed and is not byte-reproducible (PIN.md). A
   fresh clone rebuilds it with the pinned recipe and checks the 337-symbol set.
   Do not add the archive or any other binary to the repository.
-- There is no CI. The two gates are the contract until a workflow exists. A
-  public repository needs CI before it accepts pull requests; until then, the
-  contribution instructions say how to run the gates locally.
+- CI (`.github/workflows/ci.yml`) builds the driver, the runtime archive and
+  the loader suite on every push and pull request through `scripts/ci.ps1`.
+  The differential and the corpus need the Orbit oracle and run only on
+  manual dispatch; run them locally before a lowering change.
 - A contribution arrives with its fixture, its decision and its evidence. A pull
   request that changes `src/` without a case and a decision is not reviewable.
 - Do not commit secrets or build artifacts. The absolute paths in PIN.md are
