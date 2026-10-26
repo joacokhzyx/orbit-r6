@@ -1,0 +1,33 @@
+fn pos(x: int) -> int {
+    if x > 0 {
+        return x
+    }
+}
+
+fn half(x: float) -> float {
+    if x > 0.0 {
+        return x / 2.0
+    }
+}
+
+fn name(x: int) -> string {
+    if x == 1 {
+        return "one"
+    }
+}
+
+fn flag(x: int) -> bool {
+    if x == 1 {
+        return true
+    }
+}
+
+fn main() -> int {
+    if pos(5) != 5 { return 10 }
+    if pos(-5) != 0 { return 11 }
+    if half(3.0) != 1.5 { return 12 }
+    if half(-1.0) != 0.0 { return 13 }
+    if flag(2) { return 14 }
+    print(name(1))
+    return 42
+}

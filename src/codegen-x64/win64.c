@@ -1646,6 +1646,15 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                The pinned lowering emits a bare `return;` for both ret forms
                once the return type is void (c_backend.orb:3435-3445 and
                :3466-3471), so a carried value is admitted and ignored. */
+            /* D-M1-49: a bare ret in a value function returns the zero of
+               the type (`return 0;`, `0.0` or `NULL`, c_backend.orb ret arm).
+               A result has no zero in that arm (`return NULL;` is not an
+               OrbitResult), so it stays refused. */
+            if (strcmp(f->return_type, "void") != 0 &&
+                (!i->operands[0].kind || i->operands[0].kind == R6_VAL_NONE) &&
+                !is_result(f->return_type)) {
+                break;
+            }
             if (strcmp(f->return_type, "void") != 0) {
                 if (!i->operands[0].kind || i->operands[0].kind == R6_VAL_NONE ||
                     !value_type(f, &i->operands[0], &a) || !same_type(a, f->return_type))
@@ -2996,6 +3005,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 else if (v->kind == R6_VAL_BOOL) fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
                 else if (v->kind == R6_VAL_FLOAT64) fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm0\n", (unsigned long long)v->as.f64_bits);
                 else return fail(d, i, "CGEN", "returning string literals is unsupported");
+            } else if (strcmp(f->return_type, "void") != 0) {
+                if (is_float(f->return_type)) fputs("\txorpd %xmm0, %xmm0\n", o);
+                else fputs("\tmovl $0, %eax\n", o);
             }
             fputs("\tleave\n\tret\n", o);
             break;

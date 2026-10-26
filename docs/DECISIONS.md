@@ -2588,3 +2588,31 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `ret value does not match` 2 -> 3 and `register type unknown` 0 -> 1. The
   census baseline is re-taken.
 - Status: **applied**.
+
+## D-M1-49 - A bare `ret` in a value function returns the zero of the type
+
+- Date: 2026-10-26. Pin: `33abf7a` (D-F0-14). `ret value does not match
+  function return type` stopped three census modules and, after D-M1-47,
+  `tests/suite/member_resolution.orb`: a `ret` with no operand at the end of an
+  `int` function, after a `match` whose arms all return.
+- Reference (pin `33abf7a`): the `ret` arm of the C backend lowers a `None`
+  operand to `return 0;` for `int`, `bool`, an enum and `main`, `return 0.0;`
+  for `float`, `return;` for `void`, and `return NULL;` for any other type.
+- Decision: a bare `ret` in a value function returns `0` in `eax` (which also
+  clears `rax`, the `NULL` of a pointer return) or `0.0` in `xmm0` for a
+  `float` function. A `result` function stays refused: `return NULL;` is not
+  an `OrbitResult` value.
+- Fixture `57-bare-return`: `pos`, `half`, `name` and `flag` return only inside
+  an `if`, so their fall-through is the bare `ret` (one per function in the
+  IR). `pos(-5)` is 0, `half(-1.0)` is 0.0, `flag(2)` is false, and
+  `name(1)` prints `one`. Oracle and R6 both print `one\r\n` and exit 42. The
+  language accepts a value function that can fall off its end without a
+  diagnostic; that is reported on the language side.
+- Controls: `x-bare-ret-result` refuses.
+- Measured: differential **55/55 -> 56/56**; loader **229/229 -> 231/231** (159
+  rejections + 72 controls; `make_cases.py --check` 200 files without drift);
+  corpus **65 build / 65 match**, unchanged: `member_resolution` moves to
+  `register type unknown`. Census **0/26**: the `ret value does not match`
+  group of 3 is gone; `no non-extern main` goes 3 -> 5 and `main must have no
+  parameters and return int` appears with 1. The census baseline is re-taken.
+- Status: **applied**.

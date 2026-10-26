@@ -1190,6 +1190,13 @@ def build_reject():
                    ptypes=["string"]), MAIN()])),
         "D-M1-48", "CGEN", "an object return stays outside the subset")
 
+    # ---- D-M1-49: a bare ret returns the zero of the type -------------------
+    # The pin writes `return NULL;` for a result, which is not an OrbitResult,
+    # so a bare ret in a result function stays refused.
+    add("x-bare-ret-result",
+        jd(DOC([FN("r", [I("ret", -1)], [], rtype="result"), MAIN()])),
+        "D-M1-49", "CGEN", "a result function has no zero for a bare ret")
+
     return cases
 
 
@@ -1791,6 +1798,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/56-extern-result-list.json",
              "run_exit": 42, "run_stdout": "read failed\r\n0\r\n", "rule": "D-M1-48",
              "note": "runtime externs return a result through sret before the arena, and a list in rax"},
+            {"file": "../../docs/proposed-ir/m1/57-bare-return.json",
+             "run_exit": 42, "run_stdout": "one\r\n", "rule": "D-M1-49",
+             "note": "a value function that falls off its end returns 0, 0.0 or false"},
         ],
     }
 

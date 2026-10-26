@@ -1291,3 +1291,14 @@ Medido: diferencial **55/55**; loader **229/229** (158 rechazos + 71
 controles); corpus **64/64 -> 65 build / 65 match sobre 97 programas**
 (`test_http_client`); censo **0/26**, sin el grupo `extern return type`. Los dos
 trinquetes se re-toman.
+
+## Actualización de M1 - un `ret` sin valor (2026-10-26)
+
+D-M1-49. El pin baja un `ret` sin operando en una función con valor a
+`return 0;`, `0.0` o `NULL` según el tipo. R6 devuelve `0` en `eax` o `0.0` en
+`xmm0`; una función `result` sigue rechazada. El par `57-bare-return` lo mide:
+el oráculo y R6 imprimen `one\r\n` y salen 42.
+
+Medido: diferencial **56/56**; loader **231/231** (159 rechazos + 72
+controles); corpus **65/65** sin cambio; censo **0/26**, sin el grupo
+`ret value does not match`.
