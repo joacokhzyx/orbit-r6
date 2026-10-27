@@ -130,7 +130,7 @@ static char *canonical_union_spelling(const R6Module *m, char *t) {
     if (!m || !t) return t;
     /* D-M1-59: the builder types the `NULL` literal's register "NULL", which
        mapTypeToC declares `void*` (c_backend.orb:472). */
-    if (strcmp(t, "NULL") != 0) {
+    if (strcmp(t, "NULL") != 0 && strcmp(t, "object") != 0) {
         if (!m->types) return t;
         for (n = 0; n < m->type_count; ++n)
             if (m->types[n].name && m->types[n].kind &&
@@ -262,6 +262,23 @@ static const R6Function *find_function(const R6Module *m, const char *name);
  * The IR declaration the builder emits does not repeat it, so a call to one of
  * these externs must prepend the executable arena or it lands on the wrong
  * ABI. The set is copied verbatim; every other name is called as declared. */
+/* D-M1-78: the runtime getters of a parsed JSON object take and return an
+ * `OrbitObject*`, which the IR spells `object` and R6 carries as a pointer
+ * word. The set is the 11 externs of std/json/json.orb. */
+static bool extern_takes_object(const char *name) {
+    static const char *const names[] = {
+        "orbit_object_get_int", "orbit_object_get_float", "orbit_object_get_bool",
+        "orbit_object_get_string", "orbit_object_get_object", "orbit_json_array_len",
+        "orbit_json_array_get_int", "orbit_json_array_get_float",
+        "orbit_json_array_get_bool", "orbit_json_array_get_string",
+        "orbit_json_array_get_object"
+    };
+    size_t n;
+    for (n = 0; name && n < sizeof names / sizeof names[0]; ++n)
+        if (strcmp(name, names[n]) == 0) return true;
+    return false;
+}
+
 static bool extern_needs_arena(const char *name) {
     static const char *const names[] = {
         "orbit_file_read", "orbit_file_list_dir", "orbit_response_header_line",
@@ -1462,12 +1479,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         if (f->param_count > 256 || (f->param_count && !f->param_types))
             return fail(d, NULL, "CGEN", "extern function %s has unsupported parameter metadata", f->name);
         for (pc = 0; pc < f->param_count; ++pc)
-            if (!is_scalar(f->param_types[pc]))
+            if (!is_scalar(f->param_types[pc]) &&
+                !(is_void_ptr(f->param_types[pc]) && extern_takes_object(f->name)))
                 return fail(d, NULL, "CGEN", "extern parameter type is unsupported in M1");
         /* D-M1-48: a runtime extern may also return an OrbitList* word or an
            OrbitResult through the sret pointer. */
         if (strcmp(f->return_type, "void") != 0 && !is_scalar(f->return_type) &&
-            !is_list(f->return_type) && !is_result(f->return_type))
+            !is_list(f->return_type) && !is_result(f->return_type) &&
+            !(is_void_ptr(f->return_type) && extern_takes_object(f->name)))
             return fail(d, NULL, "CGEN", "extern return type is unsupported in M1");
         return true;
     }

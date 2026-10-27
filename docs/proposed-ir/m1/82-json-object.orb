@@ -1,0 +1,44 @@
+// D-M1-78: a parsed JSON object is an `object`, the OrbitObject* the runtime
+// getters take and return. R6 carries it as a pointer word: bound to a local
+// by `try`, passed to a function, returned from one, read through each getter
+// and descended into through a nested object and an array. A missing key reads
+// as the quiet default.
+extern fn orbit_json_parse(text: string) -> result
+extern fn orbit_object_get_int(obj: object, key: string) -> int
+extern fn orbit_object_get_float(obj: object, key: string) -> float
+extern fn orbit_object_get_bool(obj: object, key: string) -> bool
+extern fn orbit_object_get_string(obj: object, key: string) -> string
+extern fn orbit_object_get_object(obj: object, key: string) -> object
+extern fn orbit_json_array_len(obj: object, key: string) -> int
+extern fn orbit_json_array_get_int(obj: object, key: string, index: int) -> int
+extern fn orbit_json_array_get_string(obj: object, key: string, index: int) -> string
+extern fn orbit_json_array_get_object(obj: object, key: string, index: int) -> object
+
+fn child(o: object, key: string) -> object {
+    return orbit_object_get_object(o, key)
+}
+
+fn sum_ids(o: object) -> int {
+    var total = 0
+    var i = 0
+    while i < orbit_json_array_len(o, "ids") {
+        total = total + orbit_json_array_get_int(o, "ids", i)
+        i = i + 1
+    }
+    return total
+}
+
+fn main() -> int {
+    val o: object = try orbit_json_parse("{\"name\":\"api\",\"count\":42,\"ratio\":1.5,\"ok\":true,\"in\":{\"deep\":{\"n\":7}},\"ids\":[1,2,3],\"tags\":[\"a\",\"b\"],\"os\":[{\"id\":9}]}") catch { return 1 }
+    print(orbit_object_get_string(o, "name"))
+    print(orbit_object_get_int(o, "count"))
+    print(orbit_object_get_float(o, "ratio"))
+    print(orbit_object_get_bool(o, "ok"))
+    print(orbit_object_get_int(child(child(o, "in"), "deep"), "n"))
+    print(sum_ids(o))
+    print(orbit_json_array_get_string(o, "tags", 1))
+    print(orbit_object_get_int(orbit_json_array_get_object(o, "os", 0), "id"))
+    print(orbit_object_get_int(o, "missing"))
+    val bad: object = try orbit_json_parse("{\"a\":") catch { return 42 }
+    return orbit_object_get_int(bad, "a")
+}

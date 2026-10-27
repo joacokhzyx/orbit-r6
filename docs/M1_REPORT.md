@@ -1662,3 +1662,12 @@ siguen rechazados. El par `81-float-list-int-push` imprime `4 1.0 7.0 2.5 14.0`.
 El programa del corpus sigue sin construir por un defecto del emisor: tras
 `slot = []`, `slot.push("now a string")` sale con elemKind 2 y el C llama a
 `orbit_list_push_int` con un puntero a string truncado a 32 bits. Diferencial **80/80**; loader **281/281**; corpus **114 build / 114 match over 135 -> 114 / 114**; censo **2/27**.
+
+## Actualizacion de M1 - An object is a pointer word for the JSON getters (2026-10-27)
+
+D-M1-78. `std/test_json` importa `std/json/json.orb`, que declara los getters
+`orbit_object_get_*` con un parametro `object`; el chequeo de externs lo
+rechazaba. En C es `OrbitObject*`. Ahora `object` se escribe `void*` como una
+union y solo los 11 getters de `std/json/json.orb` pueden tomarlo o devolverlo
+en un extern. El par `82-json-object` imprime `api 42 1.5 1 7 6 b 9 0` y sale
+42; `std/test_json` construye y coincide. Diferencial **81/81**; loader **284/284**; corpus **114 build / 114 match over 135 -> 115 / 115**; censo **2/27**.

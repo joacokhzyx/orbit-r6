@@ -1411,6 +1411,15 @@ def build_reject():
                       I("ret", -1, Int(0))], ["list", "float"])])),
         "D-M1-77", "CGEN", "a float does not narrow into an int list")
 
+    # ---- D-M1-78: object is a pointer word for the JSON getters only ---------
+    add("x-extern-object-param-unlisted",
+        jd(DOC([FN("orbit_unlisted", [], [], rtype="int", extern=True,
+                   params=["o"], ptypes=["object"]), MAIN()])),
+        "D-M1-78", "CGEN", "an extern outside the JSON getters takes no object")
+    add("x-extern-object-return-unlisted",
+        jd(DOC([FN("orbit_unlisted", [], [], rtype="object", extern=True), MAIN()])),
+        "D-M1-78", "CGEN", "an extern outside the JSON getters returns no object")
+
     return cases
 
 
@@ -2104,6 +2113,11 @@ def build_manifest(reject, accept_files):
              "run_stdout": "4\r\n1.0\r\n7.0\r\n2.5\r\n14.0\r\n",
              "rule": "D-M1-77",
              "note": "an int literal or register pushed into a list<float> converts to a float"},
+            {"file": "../../docs/proposed-ir/m1/82-json-object.json",
+             "run_exit": 42,
+             "run_stdout": "api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n",
+             "rule": "D-M1-78",
+             "note": "a parsed JSON object bound by try, passed, returned and read through every getter"},
         ],
     }
 

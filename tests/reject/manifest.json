@@ -1308,6 +1308,20 @@
       "code": "CGEN",
       "rule": "D-M1-77",
       "note": "a float does not narrow into an int list"
+    },
+    {
+      "file": "cases/x-extern-object-param-unlisted.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-78",
+      "note": "an extern outside the JSON getters takes no object"
+    },
+    {
+      "file": "cases/x-extern-object-return-unlisted.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-78",
+      "note": "an extern outside the JSON getters returns no object"
     }
   ],
   "accept": [
@@ -1946,6 +1960,13 @@
       "run_stdout": "4\r\n1.0\r\n7.0\r\n2.5\r\n14.0\r\n",
       "rule": "D-M1-77",
       "note": "an int literal or register pushed into a list<float> converts to a float"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/82-json-object.json",
+      "run_exit": 42,
+      "run_stdout": "api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n",
+      "rule": "D-M1-78",
+      "note": "a parsed JSON object bound by try, passed, returned and read through every getter"
     }
   ]
 }

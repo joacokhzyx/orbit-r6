@@ -3647,3 +3647,27 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **80/80**, loader **281/281**, corpus **114 build / 114 match over 135 -> 114 / 114**, census **2/27**,
   self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-78 - An object is a pointer word for the JSON getters
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `std/test_json` imports `std/json/json.orb`, which declares
+  `extern fn orbit_object_get_int(obj: object, key: string) -> int` and ten
+  more getters, and binds `val o: object = try parseJson(...)`. The extern
+  check refused the parameter (`extern parameter type is unsupported in M1`).
+  The C type of `object` is `OrbitObject*`, a pointer.
+- Decision:
+  - `object` is spelled `void*` after loading, the way a union is (D-M1-47),
+    so a register, a local, a parameter and a return of that type are the
+    pointer word every `void*` already is.
+  - An extern may take or return a `void*` only if it is one of the 11 getters
+    of `std/json/json.orb`: `orbit_object_get_{int,float,bool,string,object}`,
+    `orbit_json_array_len` and `orbit_json_array_get_{int,float,bool,string,
+    object}`. Any other extern with an object keeps the refusal.
+- Fixture `82-json-object` (oracle and R6 print `api 42 1.5 1 7 6 b 9 0` one
+  per line and exit 42): `try` binds the parsed object, a function takes and
+  returns one, each getter is read, and a missing key reads as the default.
+  `std/test_json` itself builds and matches.
+- Gates: differential **81/81**, loader **284/284**, corpus **114 build / 114 match over 135 -> 115 / 115**, census **2/27**,
+  self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.
