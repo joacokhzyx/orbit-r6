@@ -1701,8 +1701,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_COPY:
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
-            if (!is_scalar(type_at(f, i->dest)))
-                return fail(d, i, "CGEN", "copy currently supports scalar registers only");
+            if (!is_scalar(type_at(f, i->dest)) &&
+                !(is_result(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG))
+                return fail(d, i, "CGEN", "copy currently supports scalar and result registers only");
             if (i->operands[0].kind == R6_VAL_STRING &&
                 type_at(f, i->dest) && is_string(type_at(f, i->dest)))
                 return fail(d, i, "CGEN", "copy from string literal is not supported; load_const handles literals");
@@ -2960,7 +2961,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         }
         case R6_OP_COPY:
-            if (is_float(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG)
+            if (is_result(type_at(f, i->dest)))
+                emit_cell_copy(o, result_cell_offset(f, is_main, i->operands[0].as.i32),
+                               result_cell_offset(f, is_main, i->dest));
+            else if (is_float(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG)
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             else if (i->operands[0].kind == R6_VAL_REG)

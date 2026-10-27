@@ -1,0 +1,38 @@
+// D-M1-76: an `if` used as a value copies the result of the branch that ran
+// into the register the binding reads. Both branches, a nested choice and a
+// result produced by `ok` or `err` in the branch tail are measured.
+fn make_success() -> result {
+    return ok(41)
+}
+
+fn make_failure() -> result {
+    return err("invalid input", 7)
+}
+
+fn pick(flag: bool) -> result {
+    val r = if flag { make_success() }
+    else { make_failure() }
+    return r
+}
+
+fn pick_three(a: int) -> result {
+    val r = if a == 0 { make_success() }
+    else { if a == 1 { make_failure() } else { ok(5) } }
+    return r
+}
+
+fn unwrap(r: result) -> int {
+    val v: int = try r catch e {
+        return e.len()
+    }
+    return v
+}
+
+fn main() -> int {
+    print(unwrap(pick(true)))
+    print(unwrap(pick(false)))
+    print(unwrap(pick_three(0)))
+    print(unwrap(pick_three(1)))
+    print(unwrap(pick_three(2)))
+    return 42
+}

@@ -1386,6 +1386,17 @@ def build_reject():
                                          I("ret", -1, Reg(1))], ["int", "int"])])),
         "D-M1-75", "CGEN", "an int argument does not match a result parameter")
 
+    # ---- D-M1-76: copy moves a result register into a result register --------
+    add("x-copy-int-into-result",
+        jd(DOC([MAIN([I("load_const", 0, Int(1)), I("copy", 1, Reg(0)),
+                      I("ret", -1, Int(0))], ["int", "result"])])),
+        "D-M1-76", "CGEN", "a copy into a result register reads a result register")
+    add("x-copy-result-into-int",
+        jd(DOC([MAIN([I("load_const", 0, Int(1)), I("result_ok", 1, Reg(0)),
+                      I("copy", 2, Reg(1)), I("ret", -1, Int(0))],
+                     ["int", "result", "int"])])),
+        "D-M1-76", "CGEN", "a result register does not copy into an int register")
+
     return cases
 
 
@@ -2069,6 +2080,11 @@ def build_manifest(reject, accept_files):
              "run_stdout": "41\r\n-1\r\n42\r\n102\r\n9\r\n41\r\n51\r\n9\r\n82\r\n8\r\n41\r\n",
              "rule": "D-M1-75",
              "note": "a result passes as an argument, in a register and on the stack, is read twice and relayed"},
+            {"file": "../../docs/proposed-ir/m1/80-result-branch-value.json",
+             "run_exit": 42,
+             "run_stdout": "41\r\n13\r\n41\r\n13\r\n5\r\n",
+             "rule": "D-M1-76",
+             "note": "an if used as a value copies the result of the branch that ran, also nested"},
         ],
     }
 

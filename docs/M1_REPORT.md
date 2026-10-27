@@ -1642,3 +1642,12 @@ llamador pasa la direccion de la celda del registro y el callee copia los 24
 bytes a una celda propia al entrar. Un extern sigue tomando solo escalares, y
 `main` no toma parametros. El par `79-result-parameter` mide el parametro leido
 dos veces, tras otro parametro, como quinto argumento en la pila y reenviado. Diferencial **78/78**; loader **275/275**; corpus **111 build / 111 match over 135 -> 113 / 113**; censo **2/27**.
+
+## Actualizacion de M1 - A copy moves a result register into a result register (2026-10-27)
+
+D-M1-76. `suite/result_stage2` liga `val r = if flag { make_success() } else {
+make_failure() }`; cada rama termina en un `copy` del registro result del llamado
+al registro que lee el binding, y el opcode aceptaba solo escalares. Ahora copia
+la celda de 24 bytes. El par `80-result-branch-value` mide dos ramas con llamado
+y una eleccion anidada que termina en `ok(5)`: oraculo y R6 imprimen `41 13 41
+13 5` y salen 42. Diferencial **79/79**; loader **278/278**; corpus **113 build / 113 match over 135 -> 114 / 114**; censo **2/27**.

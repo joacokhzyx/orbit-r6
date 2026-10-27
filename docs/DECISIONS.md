@@ -3604,3 +3604,21 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **78/78**, loader **275/275**, corpus **111 build / 111 match over 135 -> 113 / 113**, census **2/27**,
   self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-76 - A copy moves a result register into a result register
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `suite/result_stage2` binds `val r = if flag { make_success() }
+  else { make_failure() }`. Each branch ends in `copy` from the call's result
+  register into the register the binding reads. The opcode accepted scalar
+  registers only (`copy currently supports scalar registers only`).
+- Decision: `copy` from a result register into a result register copies the
+  24-byte cell. Any other pairing keeps the refusal: the existing check of the
+  value type against the register type refuses an int into a result and a
+  result into an int.
+- Fixture `80-result-branch-value` (oracle and R6 print `41 13 41 13 5` one
+  per line and exit 42): an `if` value with two call branches, and a nested
+  choice whose last branch is `ok(5)`.
+- Gates: differential **79/79**, loader **278/278**, corpus **113 build / 113 match over 135 -> 114 / 114**, census **2/27**,
+  self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.
