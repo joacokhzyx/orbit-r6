@@ -1,0 +1,39 @@
+model Account {
+    id: int
+    balance: int
+}
+
+union Op { Plus Minus }
+
+union Event { Deposit(Account, int) Open(Account) Apply(Op, int) Close }
+
+fn run(e: Event) -> int {
+    match e {
+        Deposit(a, n) => {
+            a.balance = a.balance + n
+            return a.balance
+        }
+        Open(a) => { return a.id }
+        Apply(op, n) => {
+            match op {
+                Plus => { return n }
+                Minus => { return -n }
+            }
+            return 0
+        }
+        Close => { return 0 }
+    }
+    return -1
+}
+
+fn main() -> int {
+    val acct = Account { id: 7, balance: 100 }
+    if run(Deposit(acct, 25)) != 125 { return 10 }
+    if acct.balance != 125 { return 11 }
+    if run(Open(acct)) != 7 { return 12 }
+    if run(Apply(Plus(), 4)) != 4 { return 13 }
+    if run(Apply(Minus(), 4)) != -4 { return 14 }
+    if run(Close()) != 0 { return 15 }
+    print("named")
+    return 42
+}

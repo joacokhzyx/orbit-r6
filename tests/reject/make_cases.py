@@ -1227,6 +1227,24 @@ def build_reject():
                            I("ret", -1, Int(0))], ["Pair", "unknown", "int"])])),
         "D-M1-53", "CGEN", "a field reference that names no pack does not type the word")
 
+    # ---- D-M1-54: a model or union payload is a pointer word -----------------
+    # A payload naming no declared model or union stays refused, and a
+    # constructor argument must still have the payload's type.
+    def acct_mod(fns, rich):
+        mod = MOD(fns)
+        mod["models"] = [{"name": "Acct", "fields": [{"name": "n", "typeName": "int"}],
+                          "typeParams": []}]
+        mod["types"] = [{"name": "Ev", "kind": "union_type", "variants": ["Open"],
+                         "richVariants": [rich], "methods": []}]
+        return {"irVersion": "1", "module": mod}
+    add("x-union-payload-undeclared",
+        jd(acct_mod([MAIN()], "Ghost")),
+        "D-M1-54", "CGEN", "a payload naming no declared model or union stays refused")
+    add("x-union-payload-model-mismatch",
+        jd(acct_mod([MAIN([I("arg", -1, Int(4)), I("call", 0, Str("Open"), Int(1)),
+                           I("ret", -1, Int(0))], ["void*"])], "Acct")),
+        "D-M1-54", "CGEN", "an int passed for a model payload is refused")
+
     return cases
 
 
@@ -1843,6 +1861,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/61-union-pack-arm.json",
              "run_exit": 42, "run_stdout": "pack\r\n", "rule": "D-M1-53",
              "note": "multi-payload arms read int, bool and string parts from the pack"},
+            {"file": "../../docs/proposed-ir/m1/62-union-named-payload.json",
+             "run_exit": 42, "run_stdout": "named\r\n", "rule": "D-M1-54",
+             "note": "model and union payloads travel as pointer words, alone and in a pack"},
         ],
     }
 

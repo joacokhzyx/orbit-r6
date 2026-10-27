@@ -2795,3 +2795,37 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (`result_chain`, `result_try`, `union_match_exhaustive`), none differing;
   census **0 build over 27 modules**.
 - Status: **applied**.
+
+## D-M1-54 - A model or union payload is a pointer word
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: D-M1-12 admitted `int`, `bool` and `string` payloads only. A
+  payload naming a model (`Deposit(Account, int)`) or a union
+  (`Apply(Op, int)`, `Program(ProgramNode)` in `ASTNode`) was the first
+  refusal of `union_model_payload` and `union_multi_payload` in the corpus and
+  of 14 compiler modules in the census (`union ASTNode variant Program`).
+- Reference (pin `ca3eb91`): `mapTypeToC` gives a capitalised name `Name*`
+  (`c_backend.orb:511-527`). A single payload is stored in the data word as
+  `(void*)(uintptr_t)(x + 0)`, and a pack field holds the pointer
+  (`c_backend.orb:103-131`).
+- Decision: a payload part that names a declared model or union is an 8-byte,
+  8-aligned pointer word. The constructor stores it with `movq`, a pack read
+  loads it with `movq`, and its register type is the model name or `void*` for
+  a union cell (D-M1-47). A match binding of a model payload takes the type of
+  the local's loads, as D-M1-47 does for scalars.
+- Boundary: a payload naming no declared model or union stays refused
+  (`x-union-payload-undeclared`), and an `int` passed for a model payload is
+  refused (`x-union-payload-model-mismatch`). Float payloads and arity above 2
+  stay refused (D-M1-12).
+- Fixture `62-union-named-payload`: a model in a pack (`Deposit`), a model
+  alone (`Open`) and a union in a pack (`Apply(Op, int)`) with a nested match.
+  The mutation through the payload is visible to the caller. Oracle and R6
+  both print `named\r\n` and exit 42.
+- Measured: differential **60/60 -> 61/61**; loader **238/238 -> 241/241**
+  (164 rejections + 77 controls); corpus **95 -> 97 build / 97 match over 132
+  programs** (`union_model_payload`, `union_multi_payload`), none differing;
+  census **0/27**: the 14 `ASTNode` modules move to
+  `model FieldInitNode field value has unsupported type ASTNode` and the four
+  `IRValue` modules to `model IRInstruction field opcode has unsupported type
+  IROpcode`.
+- Status: **applied**.

@@ -1365,3 +1365,14 @@ registros `unknown` en el corpus, antes 425). El serializador y el runtime no
 cambian. Diferencial **60/60**; loader **238/238**; corpus **95 build / 95
 match sobre 132 programas** (`result_chain`, `result_try`,
 `union_match_exhaustive` entran sin cambios en R6); censo **0/27**.
+
+## Actualización de M1 - un payload de modelo o de unión es una palabra (2026-10-27)
+
+D-M1-54. Un payload que nombra un modelo o una unión declarados es un puntero
+de 8 bytes, solo en la palabra de datos o dentro del paquete. El par
+`62-union-named-payload` lo mide: oráculo y R6 imprimen `named\r\n` y salen 42.
+Diferencial **61/61**; loader **241/241** (164 rechazos + 77 controles); corpus
+**97 build / 97 match sobre 132 programas** (`union_model_payload`,
+`union_multi_payload`); censo **0/27**, y los 14 módulos de `ASTNode` pasan al
+primer rechazo de un campo de modelo de tipo unión. El trinquete se re-toma en
+97/97.

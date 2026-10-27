@@ -874,9 +874,23 @@ static const char *unwrap_use_type(const R6Function *f, size_t at) {
  * only reader is the decl_var of `r`, and the builder leaves its destination
  * `unknown`. It takes the type of r's loads, as an unwrap does; a payload
  * nobody reads, or a type outside the payloads D-M1-12 admits, stays unknown. */
-static const char *payload_use_type(const R6Function *f, size_t at) {
+static const char *payload_use_type(const R6Module *m, const R6Function *f, size_t at) {
     const char *type = bound_local_type(f, at);
-    return is_int(type) || is_bool(type) || is_string(type) ? type : NULL;
+    if (is_int(type) || is_bool(type) || is_string(type)) return type;
+    /* D-M1-54: a model or union payload binds a local the builder types from
+       the pattern; bound_local_type answers void* also for a read with no
+       reader, which D-M1-47 keeps refused. */
+    if (type && find_model(m, type)) return type;
+    if (is_void_ptr(type)) {
+        size_t pc;
+        unsigned k;
+        for (pc = at + 1; pc < f->instruction_count; ++pc)
+            for (k = 0; k < 3; ++k)
+                if (f->instructions[pc].operands[k].kind == R6_VAL_REG &&
+                    f->instructions[pc].operands[k].as.i32 == f->instructions[at].dest)
+                    return type;
+    }
+    return NULL;
 }
 
 static bool resolve_pack_field(const R6Module *m, const R6Function *f,
@@ -972,26 +986,58 @@ static bool union_payload_part(const char *rich, size_t index, char *out, size_t
     }
 }
 
-/* The measured payload vocabulary: int, bool and string. Single float
- * payloads truncate through (uintptr_t) in the pin and named payload types
- * have no serialized reading type (U-02), so both stay fail-closed. */
-static bool union_payload_supported(const char *part) {
-    return is_int(part) || is_bool(part) || is_string(part);
+static bool is_union_name(const R6Module *m, const char *t) {
+    size_t n;
+    if (!m || !t || !m->types) return false;
+    for (n = 0; n < m->type_count; ++n)
+        if (m->types[n].name && m->types[n].kind &&
+            strcmp(m->types[n].kind, "union_type") == 0 &&
+            strcmp(m->types[n].name, t) == 0)
+            return true;
+    return false;
+}
+
+/* D-M1-54: a payload that names a declared model or union is the pointer the
+ * pin's mapTypeToC gives it (`Name*`, c_backend.orb:511-527), one 8-byte word
+ * in the data word or the pack. */
+static bool payload_is_word(const R6Module *m, const char *part) {
+    return find_model(m, part) != NULL || is_union_name(m, part);
+}
+
+/* The register spelling a payload reads into: the scalar itself, the model
+ * name, or `void*` for a union cell (D-M1-47). NULL outside the vocabulary. */
+static const char *payload_reg_type(const R6Module *m, const char *part) {
+    if (is_int(part) || is_bool(part) || is_string(part)) return part;
+    if (find_model(m, part)) return part;
+    if (is_union_name(m, part)) return "void*";
+    return NULL;
+}
+
+/* The measured payload vocabulary: int, bool, string and, from D-M1-54,
+ * declared models and unions. Single float payloads truncate through
+ * (uintptr_t) in the pin, so they stay fail-closed. */
+static bool union_payload_supported(const R6Module *m, const char *part) {
+    return payload_reg_type(m, part) != NULL;
 }
 
 /* C layout of the synthesized `<union>_<variant>` pack struct the pin fills
  * through the `<U>_<V>_pack` helper: payload parts in declaration order with
  * natural alignment. */
-static bool union_pack_layout(const R6Type *type, size_t variant, size_t want,
-                              size_t *offset, size_t *total) {
+static bool union_pack_layout(const R6Module *m, const R6Type *type, size_t variant,
+                              size_t want, size_t *offset, size_t *total) {
     size_t i, off = 0, align_max = 1, want_off = 0;
     if (!type || variant >= type->variant_count) return false;
     for (i = 0; i < union_payload_count(type->rich_variants[variant]); ++i) {
-        char part[16];
+        char part[64];
         size_t size, align;
-        if (!union_payload_part(type->rich_variants[variant], i, part, sizeof part) ||
-            !model_field_size(part, &size, &align))
+        if (!union_payload_part(type->rich_variants[variant], i, part, sizeof part))
             return false;
+        if (payload_is_word(m, part)) {
+            size = 8;
+            align = 8;
+        } else if (!model_field_size(part, &size, &align)) {
+            return false;
+        }
         off = (off + align - 1) / align * align;
         if (i == want) want_off = off;
         off += size;
@@ -1116,7 +1162,7 @@ static bool resolve_pack_field(const R6Module *m, const R6Function *f,
     if (rec_value->kind != R6_VAL_REG ||
         !(receiver = type_at(f, rec_value->as.i32)) || !is_void_ptr(receiver))
         return fail(d, i, "CGEN", "pack field reference %s requires a void* data receiver", ref);
-    if (!union_pack_layout(pack, matched_variant, field_index, out_offset, out_total))
+    if (!union_pack_layout(m, pack, matched_variant, field_index, out_offset, out_total))
         return fail(d, i, "CGEN", "union %s variant %s payloads are outside the M1 native subset",
                     pack->name, pack->variants[matched_variant]);
     *out_type = pack;
@@ -1338,14 +1384,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             const R6Type *pack = NULL;
             size_t index = 0, offset = 0, total = 0, pack_variant = 0, pack_index = 0;
             bool is_pack = false;
-            char part[16];
+            char part[64];
             if (!valid_dest(f, i, true, d)) return false;
             if (!resolve_pack_field(m, f, i, &is_pack, &pack, &pack_variant, &pack_index,
                                     &offset, &total, d))
                 return false;
             if (is_pack) {
                 if (!union_payload_part(pack->rich_variants[pack_variant], pack_index, part, sizeof part) ||
-                    !same_type(type_at(f, i->dest), part))
+                    !same_type(type_at(f, i->dest), payload_reg_type(m, part)))
                     return fail(d, i, "CGEN", "load_field destination type does not match packed payload %s",
                                 pack->variants[pack_variant]);
                 break;
@@ -1673,13 +1719,13 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     return fail(d, i, "CGEN", "union variant %s takes %zu payload value(s); call passes %zu",
                                 variant_type->variants[variant_index], parts, arity);
                 for (k = 0; k < arity; ++k) {
-                    char part[16];
+                    char part[64];
                     const char *t;
                     R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
                     if (!union_payload_part(rich, k, part, sizeof part))
                         return fail(d, i, "CGEN", "union variant %s payloads are outside the M1 native subset",
                                     variant_type->variants[variant_index]);
-                    if (!value_type(f, v, &t) || !same_type(t, part))
+                    if (!value_type(f, v, &t) || !same_type(t, payload_reg_type(m, part)))
                         return fail(d, i, "CGEN", "union constructor argument %zu does not match payload %s", k, part);
                     if (v->kind == R6_VAL_STRING &&
                         (!v->as.string || v->string_len != strlen(v->as.string)))
@@ -2693,7 +2739,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             const R6Type *pack = NULL;
             size_t index = 0, offset = 0, total = 0, pack_variant = 0, pack_index = 0;
             bool is_pack = false;
-            char part[16];
+            char part[64];
             if (!resolve_pack_field(m, f, i, &is_pack, &pack, &pack_variant, &pack_index,
                                     &offset, &total, d))
                 return false;
@@ -2704,7 +2750,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
                 if (is_bool(part))
                     fprintf(o, "\tmovzbl %zu(%%r11), %%eax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
-                else if (is_string(part))
+                else if (is_string(part) || payload_is_word(m, part))
                     fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
                 else
                     fprintf(o, "\tmovslq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
@@ -2981,7 +3027,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 parts = union_payload_count(rich);
                 if (parts >= 2) {
                     size_t offset = 0, total = 0;
-                    if (!union_pack_layout(variant_type, variant_index, 0, &offset, &total))
+                    if (!union_pack_layout(m, variant_type, variant_index, 0, &offset, &total))
                         return fail(d, i, "CGEN", "union %s variant %s payloads are outside the M1 native subset",
                                     variant_type->name, variant_type->variants[variant_index]);
                     if (is_main)
@@ -2992,12 +3038,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                             total, off);
                     for (k = 0; k < parts; ++k) {
                         const R6Value *av = &args[base + k]->operands[0];
-                        char part[16];
-                        if (!union_pack_layout(variant_type, variant_index, k, &offset, &total) ||
+                        char part[64];
+                        if (!union_pack_layout(m, variant_type, variant_index, k, &offset, &total) ||
                             !union_payload_part(rich, k, part, sizeof part))
                             return fail(d, i, "CGEN", "union %s variant %s payloads are outside the M1 native subset",
                                         variant_type->name, variant_type->variants[variant_index]);
-                        if (is_string(part)) {
+                        if (is_string(part) || payload_is_word(m, part)) {
                             if (av->kind == R6_VAL_REG)
                                 fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(av->as.i32 + 1) * 8);
                             else
@@ -3025,7 +3071,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovl $16, %%edx\n\tcall orbit_alloc\n\tmovl $%zu, 0(%%rax)\n", variant_index);
                 if (parts == 1) {
                     const R6Value *av = &args[base]->operands[0];
-                    char part[16];
+                    char part[64];
                     if (!union_payload_part(rich, 0, part, sizeof part))
                         return fail(d, i, "CGEN", "union %s variant %s payloads are outside the M1 native subset",
                                     variant_type->name, variant_type->variants[variant_index]);
@@ -3357,10 +3403,9 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         if (resolve_pack_field(m, f, i, &is_pack, &pack, &variant, &index,
                                &offset, &total, &scratch) && is_pack) {
             /* D-M1-53: a pack part reads as its declared payload type. */
-            if (!union_payload_part(pack->rich_variants[variant], index, buf, cap) ||
-                !union_payload_supported(buf))
+            if (!union_payload_part(pack->rich_variants[variant], index, buf, cap))
                 return NULL;
-            return buf;
+            return payload_reg_type(m, buf);
         }
         if (is_pack) return NULL;
         if (!resolve_field(m, f, i, &model, &index, &scratch)) return NULL;
@@ -3376,7 +3421,7 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     case R6_OP_RESULT_UNWRAP:
         return unwrap_use_type(f, (size_t)(i - f->instructions));
     case R6_OP_UNION_GET_DATA: {
-        const char *type = payload_use_type(f, (size_t)(i - f->instructions));
+        const char *type = payload_use_type(m, f, (size_t)(i - f->instructions));
         return type ? type : pack_word_type(m, f, (size_t)(i - f->instructions));
     }
     case R6_OP_UNION_GET_TAG: return "int";   /* D-M1-12's ordinal tag */
@@ -3500,9 +3545,9 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
                 return fail(diag, NULL, "CGEN", "union %s variant %s payload arity is outside the M1 native subset",
                             type->name, type->variants[v]);
             for (pi = 0; pi < parts; ++pi) {
-                char part[16];
+                char part[64];
                 if (!union_payload_part(type->rich_variants[v], pi, part, sizeof part) ||
-                    !union_payload_supported(part))
+                    !union_payload_supported(module, part))
                     return fail(diag, NULL, "CGEN", "union %s variant %s payloads are outside the M1 native subset",
                                 type->name, type->variants[v]);
             }
