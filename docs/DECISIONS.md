@@ -3408,3 +3408,36 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **72/72**, loader **266/266**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
 - Status: **applied**.
+
+## D-M1-70 - A comparison read only by its branch stores no result
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: D-M1-66 let the branch read the flags but kept the comparison's
+  `setcc`, `movzbl` and `movl` to its slot. In the asm of
+  `compiler/host/main.orb` 9884 instructions, a third of them in the loop
+  tests of the compiler, write a result no instruction reads.
+- Decision:
+  - `flags_only_compare` in `win64.c` is true when the instruction after an
+    `eq`, `ne`, `lt`, `le`, `gt` or `ge` is the `jump_if_false` that
+    `fused_false_jump` fuses, and no other instruction of the function names
+    the comparison's register as operand or destination.
+  - The integer and bool comparisons then stop after `cmpq`, and the jump
+    reads the flags. Float and string comparisons are not fused and keep the
+    result.
+  - Any other read of the register keeps the three instructions. The check is
+    one scan of the function per comparison that is followed by a fused jump.
+- Fixture `74-flags-only-compare` (oracle and R6 print `15139\r\n` and exit
+  42): comparisons that only branch, inside and outside a `while`, and three
+  that keep the result because another branch, an argument of a call or an
+  assignment reads it. The asm of `pick` holds exactly those three `setcc`.
+- Measured: the asm of the compiler goes from 306303 to 296419 instructions
+  and the executable from 2908116 to 2878420 bytes. The self-compile of
+  `compiler/host/main.orb` takes a median of 2.57 s against 2.60 s before and
+  2.13 s for the oracle, nine interleaved runs each (minimum 2.53 s against
+  2.54 s), which is inside the run to run spread.
+- The compiler built this way translates `compiler/host/main.orb` to the C of
+  the oracle (`54f0b797…`), emits IR identical to `main.ir`, and R6 builds
+  that IR into the same executable (sha256 `08e8213a…`).
+- Gates: differential **73/73**, loader **266/266**, corpus **109 build / 109
+  match over 135**, ratchet held, census **2/27**.
+- Status: **applied**.

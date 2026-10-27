@@ -1564,3 +1564,16 @@ con el de GAS en el sondeo. El asm del compilador baja de 310835 a 306303
 instrucciones y el ejecutable de 2926548 a 2908116 bytes. La auto-compilación
 no se mueve: mediana 2,60 s contra 2,14 s del oráculo. Diferencial **72/72**;
 loader **266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.
+
+## Actualización de M1 - una comparación que solo lee su salto no guarda resultado (2026-10-27)
+
+D-M1-70. Si la instrucción siguiente a una comparación entera o bool es el
+`jump_if_false` que lee sus flags (D-M1-66) y ninguna otra instrucción de la
+función nombra su registro, R6 omite el `setcc`, el `movzbl` y el `movl` al
+slot. El par `74-flags-only-compare` lo mide: oráculo y R6 imprimen
+`15139\r\n` y salen 42, y el asm de `pick` conserva el `setcc` solo en las tres
+comparaciones que otro salto, una llamada o una asignación leen. El asm del
+compilador baja de 306303 a 296419 instrucciones y el ejecutable de 2908116 a
+2878420 bytes; la auto-compilación queda en la mediana de 2,57 s contra 2,60 s
+(dentro del ruido), con 2,13 s del oráculo. Diferencial **73/73**; loader
+**266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.

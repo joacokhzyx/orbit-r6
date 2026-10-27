@@ -2546,6 +2546,33 @@ static const char *fused_false_jump(const R6Function *f, size_t pc) {
     }
 }
 
+/* D-M1-70: a comparison whose only reader is the fused jump after it needs
+ * no stored result. True when the instruction after `cmp_pc` is that jump and
+ * no other instruction of the function names the comparison's register. */
+static bool flags_only_compare(const R6Function *f, size_t cmp_pc) {
+    const R6Instruction *cmp = &f->instructions[cmp_pc];
+    size_t k;
+    int n;
+    if (cmp_pc + 1 >= f->instruction_count) return false;
+    if (f->instructions[cmp_pc + 1].opcode != R6_OP_JUMP_IF_FALSE ||
+        !fused_false_jump(f, cmp_pc + 1))
+        return false;
+    for (k = 0; k < f->instruction_count; ++k) {
+        const R6Instruction *other = &f->instructions[k];
+        if (k == cmp_pc || k == cmp_pc + 1) continue;
+        if (other->has_dest && other->dest == cmp->dest) return false;
+        for (n = 0; n < 3; ++n)
+            if (other->operands[n].kind == R6_VAL_REG && other->operands[n].as.i32 == cmp->dest)
+                return false;
+    }
+    return true;
+}
+
+static void emit_compare_result(FILE *o, const char *setcc, unsigned off, bool flags_only) {
+    if (!flags_only)
+        fprintf(o, "\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", setcc, off);
+}
+
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                           size_t fn_index, R6Diagnostic *d) {
     size_t pc, pending = 0;
@@ -2948,9 +2975,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 else
                     fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tmovq -%u(%%rbp), %%rdx\n\tcmpq %%rax, %%rdx\n",
                             boff, aoff);
-                fprintf(o, "\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", off);
-            } else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                           aoff, boff, off);
+                emit_compare_result(o, "sete", off, flags_only_compare(f, pc));
+            } else {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n", aoff, boff);
+                emit_compare_result(o, "sete", off, flags_only_compare(f, pc));
+            }
             break;
         }
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE: {
@@ -2992,15 +3021,14 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 else
                     fprintf(o, "\tmovzbl -%u(%%rbp), %%eax\n\tmovq -%u(%%rbp), %%rdx\n\tcmpq %%rax, %%rdx\n",
                             boff, aoff);
-                fprintf(o, "\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                        setcc, off);
+                emit_compare_result(o, setcc, off, flags_only_compare(f, pc));
             } else {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setl" :
                         i->opcode == R6_OP_LE ? "setle" :
                         i->opcode == R6_OP_GT ? "setg" : "setge";
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                        aoff, boff, setcc, off);
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcmpq -%u(%%rbp), %%rax\n", aoff, boff);
+                emit_compare_result(o, setcc, off, flags_only_compare(f, pc));
             }
             break;
         }

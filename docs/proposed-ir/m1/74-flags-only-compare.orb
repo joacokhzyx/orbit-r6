@@ -1,0 +1,40 @@
+// D-M1-70: a comparison read only by the branch after it leaves no stored
+// result. A comparison read by two branches, by an arithmetic use or by a
+// call keeps it, in a loop and outside one.
+fn weigh(flag: bool) -> int {
+    if flag { return 100 }
+    return 0
+}
+
+fn pick(a: int, b: int) -> int {
+    var n = 0
+    var k = 0
+    while k < 3 {
+        if a < b { n = n + 1 }
+        if a == b { n = n + 2 }
+        k = k + 1
+    }
+    val keep = a < b
+    if keep { n = n + 10 }
+    if keep { n = n + 20 }
+    val same = a == b
+    n = n + weigh(same)
+    var j = 0
+    var seen = false
+    while j < 4 {
+        val hit = j >= a
+        if hit { n = n + 1000 }
+        seen = hit
+        j = j + 1
+    }
+    if seen { n = n + 5000 }
+    return n
+}
+
+fn main() -> int {
+    if pick(1, 2) != 8033 { return 10 }
+    if pick(2, 2) != 7106 { return 11 }
+    if pick(3, 2) != 6000 { return 12 }
+    print(pick(1, 2) + pick(2, 2))
+    return 42
+}
