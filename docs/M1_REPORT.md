@@ -1446,3 +1446,11 @@ del compilador construido por R6 es `compiler/selfhost/lexer_trace.orb`, el
 lexer de Orbit con un driver de traza. Corrido desde el árbol del pin, imprime
 los mismos 400 tokens de `compiler/host/main.orb` que el binario del oráculo,
 byte por byte; el ejecutable de R6 pesa 310769 bytes y el del oráculo 442368.
+
+## Actualización de M1 - s.length sobre un string (2026-10-27)
+
+D-M1-62. `s.length` y `s.len` sobre un string llegan como `load_field`; R6 los
+baja a `strlen`, 0 para un puntero nulo, como el `orbit_string_len` del pin. El
+par `70-string-length-field` lo mide: oráculo y R6 imprimen `length\r\n` y
+salen 42. Diferencial **69/69**; loader **261/261** (176 rechazos + 85
+controles); corpus **105/105**; censo **1/27**.

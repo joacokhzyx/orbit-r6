@@ -81,6 +81,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `67-null-words` | `NULL` es la palabra cero: termina una lista enlazada, se devuelve desde una función de modelo, y `eq`/`ne` entre modelos compara punteros | 42 | `null\r\n` |
 | `68-string-index` | `indexOf` y `find` sobre strings llaman a `orbit_string_indexOf` (con `-1` si no está) | 42 | `found\r\n` |
 | `69-void-main` | `main` sin valor de retorno: el programa sale con 0 | 0 | `void main\r\n` |
+| `70-string-length-field` | `s.length` sobre un string es un `load_field` que da su largo (`strlen`, 0 si es nulo), en un bucle y en una comparación | 42 | `length\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

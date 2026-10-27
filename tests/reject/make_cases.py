@@ -1323,6 +1323,18 @@ def build_reject():
                    params=["n"], ptypes=["int"])])),
         "D-M1-61", "CGEN", "main takes no parameters")
 
+    # ---- D-M1-62: s.length / s.len on a string --------------------------------
+    add("x-string-length-into-string",
+        jd(DOC([MAIN([I("load_const", 0, Str("ab")),
+                      I("load_field", 1, Reg(0), Sym("length")),
+                      I("ret", -1, Int(0))], ["string", "string"])])),
+        "D-M1-62", "CGEN", "a string length read requires an int destination")
+    add("x-string-field-size",
+        jd(DOC([MAIN([I("load_const", 0, Str("ab")),
+                      I("load_field", 1, Reg(0), Sym("size")),
+                      I("ret", -1, Int(0))], ["string", "int"])])),
+        "D-M1-62", "CGEN", "only length and len read a string; other fields are refused")
+
     return cases
 
 
@@ -1963,6 +1975,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/69-void-main.json",
              "run_exit": 0, "run_stdout": "void main\r\n", "rule": "D-M1-61",
              "note": "a void main exits 0"},
+            {"file": "../../docs/proposed-ir/m1/70-string-length-field.json",
+             "run_exit": 42, "run_stdout": "length\r\n", "rule": "D-M1-62",
+             "note": "s.length on a string is its byte length"},
         ],
     }
 

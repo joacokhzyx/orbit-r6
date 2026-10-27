@@ -1217,6 +1217,20 @@
       "code": "CGEN",
       "rule": "D-M1-61",
       "note": "main takes no parameters"
+    },
+    {
+      "file": "cases/x-string-length-into-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-62",
+      "note": "a string length read requires an int destination"
+    },
+    {
+      "file": "cases/x-string-field-size.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-62",
+      "note": "only length and len read a string; other fields are refused"
     }
   ],
   "accept": [
@@ -1786,6 +1800,13 @@
       "run_stdout": "void main\r\n",
       "rule": "D-M1-61",
       "note": "a void main exits 0"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/70-string-length-field.json",
+      "run_exit": 42,
+      "run_stdout": "length\r\n",
+      "rule": "D-M1-62",
+      "note": "s.length on a string is its byte length"
     }
   ]
 }

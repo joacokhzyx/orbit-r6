@@ -3039,3 +3039,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `compiler/host/main.orb` byte for byte and both exit 0; the R6 executable is
   310769 bytes, the oracle's 442368. The census baseline is re-taken at 1.
 - Status: **applied**.
+
+## D-M1-62 - s.length on a string is its byte length
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: the builder emits `s.length` (and `s.len` without a call) as
+  `load_field <s> "length"`, and R6 accepted `load_field` only on a model
+  receiver. In the compiler's IR at orbit-lang `cf770ed` it was the first
+  refusal of `tirEscape` (`compiler/tir/format.orb`).
+- Reference (pin `ca3eb91`): the C backend lowers a `load_field` named
+  `length` or `len` on a string receiver to `orbit_string_len(s)`, whose header
+  body is `s ? strlen(s) : 0` (`orbit_api.h:411-413`; D-M1-29 lowers the same
+  body for `list_len` on a string).
+- Decision: a `load_field` whose receiver is a string register and whose field
+  is `length` or `len` reads `strlen` of the pointer, 0 for a null pointer,
+  into an `int` destination. A destination the builder leaves `unknown` takes
+  `int`. Any other field on a string stays refused.
+- Controls: `x-string-length-into-string` (a `string` destination) and
+  `x-string-field-size` (the field `size`) stay refused.
+- Fixture `70-string-length-field`: `s.length` in a `while` bound that counts
+  quotes with `at`, compared with a literal, and on the empty string. Oracle and
+  R6 both print `length\r\n` and exit 42.
+- Measured: differential **68/68 -> 69/69**; loader **258/258 -> 261/261**
+  (176 rejections + 85 controls); corpus **105 build / 105 match over 132
+  programs**, none differing; `member_resolution` moves from its `.length`
+  read to `call target system_uptime`. Census **1/27**, ratchet holds.
+- Status: **applied**.

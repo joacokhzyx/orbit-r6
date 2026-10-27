@@ -15,10 +15,9 @@
   },
   "byFailingOpcode": {
     "(module-level)": 19,
-    "call": 4,
+    "call": 5,
     "store_var": 1,
     "list_push": 1,
-    "load_field": 1,
     "copy": 1
   },
   "byOpcode": {

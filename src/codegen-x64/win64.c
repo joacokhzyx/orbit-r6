@@ -1143,6 +1143,20 @@ static bool union_pack_layout(const R6Module *m, const R6Type *type, size_t vari
     return true;
 }
 
+/* D-M1-62: `s.length`/`s.len` on a string is a load_field the pin lowers to
+ * `orbit_string_len(s)` when the receiver is a string (c_backend.orb load_field
+ * arm, `fname == "length" || fname == "len"`). */
+static bool string_length_field(const R6Function *f, const R6Instruction *i) {
+    const char *ref;
+    if (i->opcode != R6_OP_LOAD_FIELD || i->operands[0].kind != R6_VAL_REG ||
+        !is_string(type_at(f, i->operands[0].as.i32)))
+        return false;
+    if (i->operands[1].kind != R6_VAL_SYMBOL && i->operands[1].kind != R6_VAL_STRING)
+        return false;
+    ref = i->operands[1].as.string;
+    return ref && (strcmp(ref, "length") == 0 || strcmp(ref, "len") == 0);
+}
+
 /* Resolve the `field` or `owner.field` reference of load_field/store_field.
  * The pinned builder qualifies the owner whenever the receiver type is known
  * (fieldOwnerForObject) and scans the module for the last model with the
@@ -1490,6 +1504,11 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             bool is_pack = false;
             char part[64];
             if (!valid_dest(f, i, true, d)) return false;
+            if (string_length_field(f, i)) {
+                if (!is_int(type_at(f, i->dest)))
+                    return fail(d, i, "CGEN", "a string length read requires an int destination");
+                break;
+            }
             if (!resolve_pack_field(m, f, i, &is_pack, &pack, &pack_variant, &pack_index,
                                     &offset, &total, d))
                 return false;
@@ -2866,6 +2885,16 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             size_t index = 0, offset = 0, total = 0, pack_variant = 0, pack_index = 0;
             bool is_pack = false;
             char part[64];
+            if (string_length_field(f, i)) {
+                unsigned null_id = (unsigned)pc * 2;
+                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovl $0, %%eax\n"
+                           "\ttestq %%rcx, %%rcx\n\tje .Lr6_f%zu_field_len_null_%u\n"
+                           "\tcall strlen\n.Lr6_f%zu_field_len_null_%u:\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, fn_index, null_id,
+                        fn_index, null_id, off);
+                break;
+            }
             if (!resolve_pack_field(m, f, i, &is_pack, &pack, &pack_variant, &pack_index,
                                     &offset, &total, d))
                 return false;
@@ -3529,6 +3558,7 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         size_t index, variant, offset, total;
         bool is_pack = false;
         R6Diagnostic scratch;
+        if (string_length_field(f, i)) return "int";
         if (resolve_pack_field(m, f, i, &is_pack, &pack, &variant, &index,
                                &offset, &total, &scratch) && is_pack) {
             /* D-M1-53: a pack part reads as its declared payload type. */

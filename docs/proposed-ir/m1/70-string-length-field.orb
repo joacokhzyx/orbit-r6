@@ -1,0 +1,19 @@
+fn escape(text: string) -> int {
+    var i = 0
+    var quotes = 0
+    while i < text.length {
+        if text.at(i) == 34 { quotes = quotes + 1 }
+        i = i + 1
+    }
+    return quotes
+}
+
+fn main() -> int {
+    val s = "say \"hi\" twice \"x\""
+    if s.length != 18 { return 10 }
+    if escape(s) != 4 { return 11 }
+    val e = ""
+    if e.length != 0 { return 12 }
+    print("length")
+    return 42
+}
