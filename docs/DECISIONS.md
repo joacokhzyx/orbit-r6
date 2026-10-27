@@ -3839,11 +3839,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `compiler/host/main.orb` to C (`ORBIT_SKIP_CC=1`, interleaved with the
   oracle, 7 and 9 runs): median 3.38 s against 3.24 s (ratio 1.042) before,
   2.33 s against 2.46 s (ratio 0.945) after.
-- Benchmarks, best of 5, before D-M1-79 and after D-M1-82 (these include the
-  float and division decisions): `fib.ir` 0.532 s -> 0.442 s, `ints.ir`
-  10.420 s -> 2.472 s, `floats.ir` 5.228 s -> 1.083 s, `lists.ir` 1.218 s ->
-  0.610 s, `sa.ir` 0.610 s -> 0.541 s, `sb.ir` 0.357 s -> 0.270 s, `sc.ir`
-  2.036 s -> 1.522 s.
+- Benchmarks: see D-M1-83.
 - Gates: differential **85/85**, loader **284/284**, corpus **115 build / 115
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
@@ -3878,6 +3874,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   the destination is the right operand, a square, a swap through a temporary,
   a constant on the left, negation of zero, 1e308 * 10 and 4.9e-324 / 2.
 - Benchmark `floats.ir`, best of 5: 1.26 s -> 0.82 s.
+- Totals of D-M1-79..83 on a machine with nothing else running, best of 5 per
+  program (`C:\Temp\pa\bench`, same exit code as the oracle's build):
+
+  | program | gcc -O1 | `18b25e7` | D-M1-83 |
+  |---|---|---|---|
+  | `fib.ir` | 0.333 s | 0.461 s | 0.406 s |
+  | `ints.ir` | 4.169 s | 9.559 s | 2.229 s |
+  | `floats.ir` | 0.487 s | 4.086 s | 0.742 s |
+  | `lists.ir` | 0.565 s | 0.647 s | 0.589 s |
+  | `sa.ir` | 0.545 s | 0.523 s | 0.505 s |
+  | `sb.ir` | 0.276 s | 0.270 s | 0.280 s |
+  | `sc.ir` | 1.404 s | 1.416 s | 1.378 s |
+
+- Totals for `compiler/host/main.orb`: instructions 306 871 -> 230 156,
+  `.text` 1 413 488 B -> 1 152 368 B, image 3 047 590 B -> 2 785 958 B. The
+  R6-built compiler compiling `compiler/host/main.orb` to C
+  (`ORBIT_SKIP_CC=1`, interleaved with the oracle's compiler, median of 9
+  runs): 2.15 s against 2.28 s, ratio 0.940; at `18b25e7` the ratio was 1.042
+  (3.38 s against 3.24 s).
 - Gates: differential **86/86**, loader **284/284**, corpus **115 build / 115
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
