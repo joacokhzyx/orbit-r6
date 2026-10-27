@@ -3192,3 +3192,45 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **69/69**, loader **261/261**, corpus **109 build /
   109 match over 135**, ratchet held, census **2/27**.
 - Status: **applied**.
+
+## D-M1-65 - Only the functions main reaches are emitted
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `emit_function` ran for every function of the module. The
+  compiler's IR carries functions no call reaches, and each one costs code, a
+  `.pdata` entry and the runtime members it references.
+- Decision:
+  - A function is live when the non-extern `main` or a route handler reaches
+    it. An edge is a `call` target (Symbol or String) or a Symbol operand that
+    names a function. That second form binds a function value in
+    `load_const`, `decl_var`, `store_var` and `arg`.
+  - Externs add no edges, because they are never emitted.
+  - Unreachable functions are still validated. A construct the subset refuses
+    is refused wherever it sits. The case `x-dead-function-validated` pins it.
+  - `R6Function.live` carries the result from `mark_live_functions` to the
+    emission loop and to `module_needs_arena_global`, so the arena global
+    exists only when an emitted function needs it.
+  - `find_function` reads a hash table of the function names, built once per
+    module. The first function of a name wins, as before.
+- Fixtures:
+  - `71-dead-functions` (oracle and R6 print `live\r\n` and exit 42): `double`
+    is reached by a call, `bump` only as a function value, `triple` through a
+    call chain. Three functions that call each other or scan a string are
+    unreachable. `nm` of the R6 executable lists the first four and none of
+    the others.
+  - `ok-dead-undefined-call` is the negative control: two unreachable
+    functions, one binding the other as a value, call an extern no archive
+    defines. Before this decision the build ended in `error[LINK]` with
+    `undefined reference to no_such_runtime_symbol`. Now it builds and exits 7.
+  - `ok-fn-value` (existing) keeps a function reached only by its Symbol.
+- Measured: `compiler/host/main.orb` builds to 3343316 bytes, from 3357756.
+  Over the 70 fixtures and 135 corpus programs, 179 executables build and 21
+  change: 42720297 bytes become 42577405. `71-dead-functions` goes from
+  236641 to 235057 bytes. The compiler built this way translates
+  `compiler/host/main.orb` to the C of the oracle (6212022 bytes,
+  `54f0b797…`), emits IR identical to `main.ir`, and R6 builds that IR into the
+  same executable (sha256 `6275d24e…`).
+- Gates: differential **70/70**, loader **264/264** (177 rejections + 87
+  controls), corpus **109 build / 109 match over 135**, ratchet held, census
+  **2/27**.
+- Status: **applied**.

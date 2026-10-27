@@ -59,6 +59,7 @@ typedef struct {
     size_t instruction_count; R6Instruction *instructions;
     int32_t register_count; size_t register_type_count; char **register_types;
     char *return_type; bool is_extern, has_route; R6Route route;
+    bool live; /* set by codegen (D-M1-65): reachable from main */
 } R6Function;
 typedef struct { char *name; R6Value value; char *type_name; } R6Global;
 typedef struct {

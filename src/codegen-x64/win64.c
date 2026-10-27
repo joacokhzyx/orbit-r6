@@ -605,12 +605,102 @@ static size_t local_count(const R6Function *f) {
     return local_table.f == f ? local_table.count : 0;
 }
 
+/* D-M1-65: functions by name through an open addressing table built once per
+ * module, so a call does not scan the 1038 functions of the compiler. The
+ * first function of a name wins, as the scan it replaces did. */
+typedef struct {
+    int32_t *slots;
+    size_t nslots;
+} FunctionTable;
+
+static FunctionTable function_table;
+
+static void function_table_release(void) {
+    free(function_table.slots);
+    memset(&function_table, 0, sizeof function_table);
+}
+
+static bool function_table_build(const R6Module *m) {
+    size_t n, i;
+    function_table_release();
+    function_table.nslots = 16;
+    while (function_table.nslots < m->function_count * 2 + 2) function_table.nslots *= 2;
+    function_table.slots = (int32_t *)malloc(function_table.nslots * sizeof *function_table.slots);
+    if (!function_table.slots) { function_table.nslots = 0; return false; }
+    for (i = 0; i < function_table.nslots; ++i) function_table.slots[i] = -1;
+    for (n = 0; n < m->function_count; ++n) {
+        const char *name = m->functions[n].name;
+        size_t h;
+        bool present = false;
+        if (!name) continue;
+        h = (size_t)(name_hash(name) & (function_table.nslots - 1));
+        while (function_table.slots[h] >= 0) {
+            if (strcmp(m->functions[function_table.slots[h]].name, name) == 0) { present = true; break; }
+            h = (h + 1) & (function_table.nslots - 1);
+        }
+        if (!present) function_table.slots[h] = (int32_t)n;
+    }
+    return true;
+}
+
 static const R6Function *find_function(const R6Module *m, const char *name) {
-    size_t n;
+    size_t n, h;
+    if (function_table.nslots) {
+        h = (size_t)(name_hash(name) & (function_table.nslots - 1));
+        while (function_table.slots[h] >= 0) {
+            const R6Function *f = &m->functions[function_table.slots[h]];
+            if (strcmp(f->name, name) == 0) return f;
+            h = (h + 1) & (function_table.nslots - 1);
+        }
+        return NULL;
+    }
     for (n = 0; n < m->function_count; ++n)
         if (m->functions[n].name && strcmp(m->functions[n].name, name) == 0)
             return &m->functions[n];
     return NULL;
+}
+
+/* D-M1-65: a function is emitted when main reaches it. Roots are the
+ * non-extern main and any route handler. An edge is a call target or a
+ * Symbol operand that names a function, which is how a function value is
+ * bound (load_const, decl_var, store_var, arg). Externs are never emitted,
+ * so their bodies add no edges. Every function is still validated. */
+static bool mark_live_functions(R6Module *m) {
+    size_t *stack;
+    size_t top = 0, n;
+    stack = (size_t *)malloc((m->function_count ? m->function_count : 1) * sizeof *stack);
+    if (!stack) return false;
+    for (n = 0; n < m->function_count; ++n) {
+        R6Function *f = &m->functions[n];
+        f->live = false;
+        if (!f->is_extern && (f->has_route || strcmp(f->name, "main") == 0)) {
+            f->live = true;
+            stack[top++] = n;
+        }
+    }
+    while (top) {
+        const R6Function *f = &m->functions[stack[--top]];
+        size_t pc;
+        for (pc = 0; pc < f->instruction_count; ++pc) {
+            const R6Instruction *i = &f->instructions[pc];
+            unsigned k;
+            for (k = 0; k < 3; ++k) {
+                const R6Value *v = &i->operands[k];
+                const R6Function *target;
+                R6Function *mutable_target;
+                bool names_function = v->kind == R6_VAL_SYMBOL ||
+                    (v->kind == R6_VAL_STRING && i->opcode == R6_OP_CALL && k == 0);
+                if (!names_function || !v->as.string) continue;
+                target = find_function(m, v->as.string);
+                if (!target || target->live) continue;
+                mutable_target = &m->functions[target - m->functions];
+                mutable_target->live = true;
+                if (!mutable_target->is_extern) stack[top++] = (size_t)(target - m->functions);
+            }
+        }
+    }
+    free(stack);
+    return true;
 }
 
 /* Function values carry the pinned builder's signature spelling
@@ -2309,7 +2399,7 @@ static bool module_needs_arena_global(const R6Module *m) {
     for (n = 0; n < m->function_count; ++n) {
         const R6Function *f = &m->functions[n];
         size_t pc;
-        if (f->is_extern || !f->name || strcmp(f->name, "main") == 0) continue;
+        if (f->is_extern || !f->live || !f->name || strcmp(f->name, "main") == 0) continue;
         for (pc = 0; pc < f->instruction_count; ++pc) {
             const R6Instruction *i = &f->instructions[pc];
             if (i->opcode == R6_OP_LIST_CREATE) return true;
@@ -3702,6 +3792,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
         return fail(diag, NULL, "CGEN", "module has missing global storage");
     /* D-M1-32: after the storage guards, so a module the loader cannot produce
      * still fails closed instead of dereferencing an absent function array. */
+    if (!function_table_build(module)) return fail(diag, NULL, "CGEN", "out of memory indexing functions");
     canonicalize_list_types(module);
     canonicalize_enum_types(module);
     canonicalize_union_types(module);
@@ -3818,9 +3909,11 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
         if (!validate_function(module, f, diag)) return false;
     }
     if (!main_found) return fail(diag, NULL, "CGEN", "module must define one non-extern main");
+    if (!mark_live_functions(module)) return fail(diag, NULL, "CGEN", "out of memory marking reachable functions");
     if (module_needs_arena_global(module))
         fputs("\t.section .data,\"dw\"\nr6_arena:\n\t.byte 0,0,0,0,0,0,0,0\n\t.text\n", out);
     for (n = 0; n < module->function_count; ++n) {
+        if (!module->functions[n].live) continue;
         if (!local_table_build(&module->functions[n]))
             return fail(diag, NULL, "CGEN", "out of memory indexing locals of %s", module->functions[n].name);
         if (!emit_function(out, module, &module->functions[n], n, diag)) return false;
@@ -3832,7 +3925,9 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
 bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     bool ok;
     local_table_release();
+    function_table_release();
     ok = codegen_module(out, module, diag);
     local_table_release();
+    function_table_release();
     return ok;
 }

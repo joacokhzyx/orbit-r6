@@ -1,0 +1,48 @@
+// D-M1-65: only the functions main reaches are emitted. `double` is reached by
+// a call, `bump` only as a function value, and `triple` through `triple_twice`
+// by a call chain. `unused_scan`, `unused_outer` and `unused_inner` are never
+// reached: the last two reference each other, which does not make them live.
+fn double(n: int) -> int {
+    return n * 2
+}
+
+fn bump(n: int) -> int {
+    return n + 1
+}
+
+fn triple(n: int) -> int {
+    return n * 3
+}
+
+fn triple_twice(n: int) -> int {
+    return triple(triple(n))
+}
+
+fn unused_inner(n: int) -> int {
+    return unused_outer(n - 1) + double(n)
+}
+
+fn unused_outer(n: int) -> int {
+    if n <= 0 { return 0 }
+    return unused_inner(n - 1)
+}
+
+fn unused_scan(text: string) -> int {
+    var i = 0
+    var total = 0
+    while i < text.length {
+        total = total + text.at(i)
+        i = i + 1
+    }
+    print(text + "!")
+    return total
+}
+
+fn main() -> int {
+    val step = bump
+    if step(20) != 21 { return 10 }
+    if double(step(20)) != 42 { return 11 }
+    if triple_twice(2) != 18 { return 12 }
+    print("live")
+    return 42
+}

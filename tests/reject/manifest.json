@@ -1231,6 +1231,13 @@
       "code": "CGEN",
       "rule": "D-M1-62",
       "note": "only length and len read a string; other fields are refused"
+    },
+    {
+      "file": "cases/x-dead-function-validated.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-65",
+      "note": "a function main never reaches is still validated"
     }
   ],
   "accept": [
@@ -1283,6 +1290,12 @@
       "run_exit": 11,
       "rule": "D-M1-12",
       "note": "union constructor + tag + data round-trip inside main"
+    },
+    {
+      "file": "cases/ok-dead-undefined-call.json",
+      "run_exit": 7,
+      "rule": "D-M1-65",
+      "note": "functions main does not reach, one binding the other as a value, are not emitted"
     },
     {
       "file": "cases/ok-fn-value.json",
@@ -1807,6 +1820,13 @@
       "run_stdout": "length\r\n",
       "rule": "D-M1-62",
       "note": "s.length on a string is its byte length"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/71-dead-functions.json",
+      "run_exit": 42,
+      "run_stdout": "live\r\n",
+      "rule": "D-M1-65",
+      "note": "calls, function values and call chains keep a function; unreachable ones are dropped"
     }
   ]
 }

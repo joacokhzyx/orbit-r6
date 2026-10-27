@@ -1335,6 +1335,14 @@ def build_reject():
                       I("ret", -1, Int(0))], ["string", "int"])])),
         "D-M1-62", "CGEN", "only length and len read a string; other fields are refused")
 
+    # ---- D-M1-65: functions main does not reach are validated, not emitted ----
+    add("x-dead-function-validated",
+        jd(DOC([MAIN(),
+                FN("unused", [I("load_const", 0, Str("ab")),
+                              I("load_field", 1, Reg(0), Sym("size")),
+                              I("ret", -1, Reg(1))], ["string", "int"])])),
+        "D-M1-65", "CGEN", "a function main never reaches is still validated")
+
     return cases
 
 
@@ -1400,6 +1408,18 @@ def build_accept_files():
                  I("ret", -1, Reg(1))],
                 ["fn(string;int)->int", "int"])
     files.append(("ok-fn-extern", jd(DOC([ext, main]))))
+    # D-M1-65: both dead functions reach a symbol no archive defines. Emitting
+    # either one fails the link, so the build passing is the measurement.
+    undefined = FN("no_such_runtime_symbol", [], [], rtype="int", extern=True)
+    dead_inner = FN("dead_inner", [I("call", 0, Sym("no_such_runtime_symbol"), Int(0)),
+                                   I("ret", -1, Reg(0))], ["int"])
+    dead_outer = FN("dead_outer", [I("decl_var", -1, Sym("f"), Sym("dead_inner")),
+                                   I("load_var", 0, Sym("f")),
+                                   I("call", 1, Reg(0), Int(0)),
+                                   I("ret", -1, Reg(1))], ["fn()->int", "int"])
+    files.append(("ok-dead-undefined-call",
+                  jd(DOC([undefined, dead_outer, dead_inner,
+                          MAIN([I("load_const", 0, Int(7)), I("ret", -1, Reg(0))])]))))
     files.append(("ok-sym-bool-literal",
                   jd(DOC([MAIN([I("load_const", 0, Sym("true")),
                                 I("jump_if_false", -1, Reg(0), Lab(1)),
@@ -1762,6 +1782,8 @@ def build_manifest(reject, accept_files):
              "note": "model constructor + field load round-trip inside main"},
             {"file": "cases/ok-union-ctor.json", "run_exit": 11, "rule": "D-M1-12",
              "note": "union constructor + tag + data round-trip inside main"},
+            {"file": "cases/ok-dead-undefined-call.json", "run_exit": 7, "rule": "D-M1-65",
+             "note": "functions main does not reach, one binding the other as a value, are not emitted"},
             {"file": "cases/ok-fn-value.json", "run_exit": 42, "rule": "D-M1-14",
              "note": "function value binding + indirect call round-trip (f(41) == 42)"},
             {"file": "cases/ok-fn-extern.json", "run_exit": 98, "rule": "D-M1-14",
@@ -1978,6 +2000,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/70-string-length-field.json",
              "run_exit": 42, "run_stdout": "length\r\n", "rule": "D-M1-62",
              "note": "s.length on a string is its byte length"},
+            {"file": "../../docs/proposed-ir/m1/71-dead-functions.json",
+             "run_exit": 42, "run_stdout": "live\r\n", "rule": "D-M1-65",
+             "note": "calls, function values and call chains keep a function; unreachable ones are dropped"},
         ],
     }
 

@@ -1494,3 +1494,18 @@ compilador de 3357756 bytes (`2b8cb011…`) y los 205 ejecutables de los
 fixtures y del corpus tienen el mismo SHA-256 antes y después. Diferencial
 **69/69**; loader **261/261**; corpus **109 build / 109 match sobre 135**,
 la regla de no retroceso se cumple; censo **2/27**.
+
+## Actualización de M1 - solo se emiten las funciones que main alcanza (2026-10-27)
+
+D-M1-65. R6 emite solo las funciones que `main` alcanza por una llamada, por un
+valor de función (un operando `Sym` que nombra una función) o por una cadena de
+ambas. Las demás se validan igual y no se emiten. El par `71-dead-functions`
+lo mide: oráculo y R6 imprimen `live\r\n` y salen 42, y `nm` del ejecutable de
+R6 no lista las tres funciones inalcanzables. El control
+`ok-dead-undefined-call` llama a un extern sin definición desde dos funciones
+inalcanzables: antes terminaba en `error[LINK]`, ahora construye y sale 7. El
+compilador completo baja de 3357756 a 3343316 bytes; sobre 70 fixtures y 135
+programas del corpus, 21 de 179 ejecutables cambian y suman 142892 bytes menos.
+Diferencial **70/70**; loader **264/264**; corpus **109 build / 109 match
+sobre 135**; censo **2/27**. El compilador así construido se compila a sí
+mismo a un C idéntico al del oráculo y el punto fijo nativo sigue cerrando.
