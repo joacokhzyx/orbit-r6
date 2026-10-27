@@ -879,6 +879,39 @@ static const char *payload_use_type(const R6Function *f, size_t at) {
     return is_int(type) || is_bool(type) || is_string(type) ? type : NULL;
 }
 
+static bool resolve_pack_field(const R6Module *m, const R6Function *f,
+                               const R6Instruction *i, bool *is_pack,
+                               const R6Type **out_type, size_t *out_variant,
+                               size_t *out_index, size_t *out_offset,
+                               size_t *out_total, R6Diagnostic *d);
+
+/* D-M1-53: since D-F0-15 a multi-payload arm reads its data word only through
+ * `load_field <Union>_<Variant>._i` after the tag test, and the builder
+ * leaves the word and every part `unknown`. The word is the pack pointer when
+ * each of its readers is such a pack reference. */
+static const char *pack_word_type(const R6Module *m, const R6Function *f, size_t at) {
+    int32_t reg = f->instructions[at].dest;
+    size_t pc, readers = 0;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        unsigned k;
+        if (pc != at && i->has_dest && i->dest == reg) return NULL;
+        for (k = 0; k < 3; ++k) {
+            const R6Type *pack;
+            size_t variant, index, offset, total;
+            bool is_pack = false;
+            R6Diagnostic scratch;
+            if (i->operands[k].kind != R6_VAL_REG || i->operands[k].as.i32 != reg) continue;
+            if (i->opcode != R6_OP_LOAD_FIELD || k != 0) return NULL;
+            resolve_pack_field(m, f, i, &is_pack, &pack, &variant, &index,
+                               &offset, &total, &scratch);
+            if (!is_pack) return NULL;
+            ++readers;
+        }
+    }
+    return readers ? "void*" : NULL;
+}
+
 /* `<Type>_TAG_<variant>` is the bare ordinal constant the pinned builder
  * loads (load_var) for tag comparisons. A union and an enumeration spell it
  * the same way and both use the variant's declaration index as the value. */
@@ -3317,8 +3350,19 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     }
     case R6_OP_LOAD_FIELD: {
         const R6Model *model;
-        size_t index;
+        const R6Type *pack;
+        size_t index, variant, offset, total;
+        bool is_pack = false;
         R6Diagnostic scratch;
+        if (resolve_pack_field(m, f, i, &is_pack, &pack, &variant, &index,
+                               &offset, &total, &scratch) && is_pack) {
+            /* D-M1-53: a pack part reads as its declared payload type. */
+            if (!union_payload_part(pack->rich_variants[variant], index, buf, cap) ||
+                !union_payload_supported(buf))
+                return NULL;
+            return buf;
+        }
+        if (is_pack) return NULL;
         if (!resolve_field(m, f, i, &model, &index, &scratch)) return NULL;
         return model->fields[index].type_name;
     }
@@ -3331,8 +3375,10 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     case R6_OP_MAP_KEYS: return "list";
     case R6_OP_RESULT_UNWRAP:
         return unwrap_use_type(f, (size_t)(i - f->instructions));
-    case R6_OP_UNION_GET_DATA:
-        return payload_use_type(f, (size_t)(i - f->instructions));
+    case R6_OP_UNION_GET_DATA: {
+        const char *type = payload_use_type(f, (size_t)(i - f->instructions));
+        return type ? type : pack_word_type(m, f, (size_t)(i - f->instructions));
+    }
     case R6_OP_UNION_GET_TAG: return "int";   /* D-M1-12's ordinal tag */
     default: return NULL;
     }

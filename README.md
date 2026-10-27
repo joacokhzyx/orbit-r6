@@ -20,13 +20,13 @@ executable.
 
 ## Status
 
-Measured on 2026-10-26 at the pin (`a5cdf77`, see below):
+Measured on 2026-10-27 at the pin (`a5cdf77`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 59/59 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 235/235 (160 rejections, 75 acceptance controls) | gate |
-| Corpus (`tests/corpus/run_corpus.py`) | 91 build / 91 match over 132 programs | measurement with a one-way ratchet |
+| Differential (`tests/diff/run_diff.py`) | 60/60 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 238/238 (162 rejections, 76 acceptance controls) | gate |
+| Corpus (`tests/corpus/run_corpus.py`) | 92 build / 92 match over 132 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 0 build over 27 modules | measurement with a one-way ratchet |
 
 The supported subset is what `docs/M1_REPORT.md` states as measured. Overflow,

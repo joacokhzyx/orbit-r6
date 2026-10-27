@@ -1119,6 +1119,20 @@
       "code": "CGEN",
       "rule": "D-M1-50",
       "note": "only the spellings mapTypeToC names are the result type"
+    },
+    {
+      "file": "cases/x-pack-word-other-reader.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-53",
+      "note": "a data word with a reader other than a pack field keeps no type"
+    },
+    {
+      "file": "cases/x-pack-word-model-reader.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-53",
+      "note": "a field reference that names no pack does not type the word"
     }
   ],
   "accept": [
@@ -1625,6 +1639,13 @@
       "run_stdout": "-2147483648\r\n",
       "rule": "D-M1-52",
       "note": "an int negates at 32 bits, so -INT32_MIN wraps to itself"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/61-union-pack-arm.json",
+      "run_exit": 42,
+      "run_stdout": "pack\r\n",
+      "rule": "D-M1-53",
+      "note": "multi-payload arms read int, bool and string parts from the pack"
     }
   ]
 }

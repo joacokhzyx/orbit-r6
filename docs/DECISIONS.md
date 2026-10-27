@@ -2743,3 +2743,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `no non-extern main` 6, `union IRValue` 4, `list_push` 1, `main must have no
   parameters` 1, `register type unknown` 1.
 - Status: **applied**.
+
+## D-M1-53 - A multi-payload arm reads its pack
+
+- Date: 2026-10-27. Pin: `a5cdf77` (D-F0-15).
+- Root cause: since D-F0-15 a multi-payload `match` arm reads its data word
+  only through `load_field <Union>_<Variant>._i`, after the tag test. The
+  builder leaves the `union_get_data` destination and every part `unknown`,
+  so `tests/suite/union_multi_payload_unit_variant.orb` stopped at
+  `register type unknown`.
+- Decision: a `union_get_data` destination whose every reader is a
+  `load_field` naming a pack field of a declared union is the pack pointer
+  (`void*`). A pack `load_field` destination takes the part's declared type,
+  inside the D-M1-12 payload vocabulary (`int`, `bool`, `string`). The lowering
+  is the D-M1-12 one; only the types are inferred.
+- Boundary: a data word with any other reader, and a word read through a field
+  reference that names no pack, keep no type and are refused (CGEN,
+  `x-pack-word-other-reader`, `x-pack-word-model-reader`). A read nothing binds
+  stays refused (D-M1-47, `x-union-payload-unread`).
+- Fixture `61-union-pack-arm`: arms with `int, int`, `int, string` and
+  `bool, int` packs and a unit arm. Oracle and R6 both print `pack\r\n` and
+  exit 42.
+- Measured: differential **59/59 -> 60/60**; loader **235/235 -> 238/238**
+  (162 rejections + 76 controls); corpus **91 -> 92 build / 92 match over 132
+  programs** (`union_multi_payload_unit_variant`), none differing; census
+  **0/27**, ratchet holds.
+- Status: **applied**.

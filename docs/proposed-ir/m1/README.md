@@ -72,6 +72,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `58-result-spelling` | la grafía `Result` en retorno, local y registros es el tipo `result` | 42 | `neg\r\n` |
 | `59-opaque-compare` | lecturas opacas (`elemKind 0`) comparadas con literales y registros `int`, con `-1` y `2147483647` en la lista | 42 | `3\r\n` |
 | `60-int-neg-wrap` | `neg` de un `int` en 32 bits: `-INT32_MIN` vuelve a sí mismo y el literal `-2147483648` se compara con el desborde de `add` | 42 | `-2147483648\r\n` |
+| `61-union-pack-arm` | brazos de `match` con varios payloads: la palabra de datos es el puntero al paquete y cada `load_field <Union>_<Variant>._i` lee el tipo declarado (`int`, `bool`, `string`) | 42 | `pack\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

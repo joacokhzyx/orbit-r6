@@ -1,0 +1,26 @@
+union Move { Step(int, int) Note(int, string) Flag(bool, int) Stop }
+
+fn score(m: Move) -> int {
+    match m {
+        Stop => { return 0 }
+        Step(dx, dy) => { return dx * 10 + dy }
+        Note(n, label) => {
+            print(label)
+            return n + label.len()
+        }
+        Flag(on, w) => {
+            if on { return w }
+            return -w
+        }
+    }
+    return -1
+}
+
+fn main() -> int {
+    if score(Step(3, -4)) != 26 { return 10 }
+    if score(Note(7, "pack")) != 11 { return 11 }
+    if score(Flag(true, 9)) != 9 { return 12 }
+    if score(Flag(false, 9)) != -9 { return 13 }
+    if score(Stop()) != 0 { return 14 }
+    return 42
+}

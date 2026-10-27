@@ -1202,6 +1202,31 @@ def build_reject():
         jd(DOC([MAIN([I("result_ok", 0, Int(1)), I("ret", -1, Int(0))], ["RESULT"])])),
         "D-M1-50", "CGEN", "only the spellings mapTypeToC names are the result type")
 
+    # ---- D-M1-53: a multi-payload arm reads its pack -------------------------
+    # The data word is the pack pointer only when every reader is a pack
+    # field reference; a part reads as its declared payload type.
+    def pair_mod(fns):
+        mod = MOD(fns)
+        mod["types"] = [{"name": "Pair", "kind": "union_type", "variants": ["Two"],
+                         "richVariants": ["int" + "\t" + "int"], "methods": []}]
+        return {"irVersion": "1", "module": mod}
+    add("x-pack-word-other-reader",
+        jd(pair_mod([MAIN([I("arg", -1, Int(1)), I("arg", -1, Int(2)),
+                           I("call", 0, Str("Two"), Int(2)),
+                           I("union_get_data", 1, Reg(0)),
+                           I("load_field", 2, Reg(1), Sym("Pair_Two._0")),
+                           I("arg", -1, Reg(1)),
+                           I("call", 3, Str("print"), Int(1)),
+                           I("ret", -1, Reg(2))], ["Pair", "unknown", "unknown", "void"])])),
+        "D-M1-53", "CGEN", "a data word with a reader other than a pack field keeps no type")
+    add("x-pack-word-model-reader",
+        jd(pair_mod([MAIN([I("arg", -1, Int(1)), I("arg", -1, Int(2)),
+                           I("call", 0, Str("Two"), Int(2)),
+                           I("union_get_data", 1, Reg(0)),
+                           I("load_field", 2, Reg(1), Sym("x")),
+                           I("ret", -1, Int(0))], ["Pair", "unknown", "int"])])),
+        "D-M1-53", "CGEN", "a field reference that names no pack does not type the word")
+
     return cases
 
 
@@ -1815,6 +1840,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/60-int-neg-wrap.json",
              "run_exit": 42, "run_stdout": "-2147483648\r\n", "rule": "D-M1-52",
              "note": "an int negates at 32 bits, so -INT32_MIN wraps to itself"},
+            {"file": "../../docs/proposed-ir/m1/61-union-pack-arm.json",
+             "run_exit": 42, "run_stdout": "pack\r\n", "rule": "D-M1-53",
+             "note": "multi-payload arms read int, bool and string parts from the pack"},
         ],
     }
 

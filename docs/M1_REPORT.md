@@ -1344,3 +1344,15 @@ se regenera a 133 documentos (`filesSha256 91341401…`) y R6 construye y coinci
 en **91 de 132 programas**, ninguno difiere (eran 67 de 97). Diferencial
 **59/59**, loader **235/235**, censo **0 de 27 módulos**. Los dos trinquetes se
 re-toman.
+
+## Actualización de M1 - un brazo con varios payloads lee su paquete (2026-10-27)
+
+D-M1-53. Desde D-F0-15 un brazo de `match` con varios payloads lee la palabra
+de datos solo con `load_field <Union>_<Variant>._i`, después del test de tag, y
+el builder deja esos registros en `unknown`. R6 tipa la palabra como el puntero
+al paquete cuando todos sus lectores son campos del paquete, y cada parte con
+su tipo declarado (`int`, `bool`, `string`). El par `61-union-pack-arm` lo mide:
+oráculo y R6 imprimen `pack\r\n` y salen 42. Diferencial **60/60**; loader
+**238/238** (162 rechazos + 76 controles); corpus **92 build / 92 match sobre
+132 programas** (`union_multi_payload_unit_variant`); censo **0/27**. El
+trinquete se re-toma en 92/92.
