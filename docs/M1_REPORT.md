@@ -1396,3 +1396,13 @@ controles); corpus **101 build / 101 match sobre 132 programas**
 (`model_nested`); censo **0/27**: los módulos del compilador pasan a los
 registros `unknown` (10) y a `list_push` (9). El trinquete se re-toma en
 101/101.
+
+## Actualización de M1 - una lista de referencias guarda punteros (2026-10-27)
+
+D-M1-57. Una lista con `elemKind 5` guarda palabras puntero: listas, modelos y
+celdas de unión. Se lee con el chequeo de tipo contra 5 y se escribe con
+`orbit_list_push_ref` y `orbit_list_set_ref`. El par `65-ref-lists` lo mide:
+oráculo y R6 imprimen `a\r\n` y salen 42. Diferencial **64/64**; loader
+**247/247** (167 rechazos + 80 controles); corpus **103 build / 103 match sobre
+132 programas** (`list_element_type`, `test_collections_boxed`); censo
+**0/27**. El trinquete se re-toma en 103/103.

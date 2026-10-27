@@ -721,9 +721,17 @@ def build_reject():
     # opaque accessor: kind 0 is admitted at the create only.
     add("x-list-create-kind-ref",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=5),
-                      I("ret", -1, Int(0))], ["list"])])),
-        "D-M1-30", "CGEN",
-        "elemKind 5 (ref) still has no native slot decoder for a created list")
+                      I("load_const", 1, Int(7)),
+                      I("list_push", 2, Reg(0), Reg(1), ek=5),
+                      I("ret", -1, Int(0))], ["list", "int", "void"])])),
+        "D-M1-57", "CGEN",
+        "a ref list (elemKind 5, D-M1-57) takes pointer words; an int push is refused")
+    add("x-list-get-ref-into-int",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=5),
+                      I("load_const", 1, Int(0)),
+                      I("list_get", 2, Reg(0), Reg(1), ek=5),
+                      I("ret", -1, Reg(2))], ["list", "int", "int"])])),
+        "D-M1-57", "CGEN", "a ref read into an int destination is refused")
     add("x-list-get-kind-opaque",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
                       I("load_const", 1, Int(0)),
@@ -1898,6 +1906,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/64-model-word-fields.json",
              "run_exit": 42, "run_stdout": "ab\r\n", "rule": "D-M1-56",
              "note": "model fields holding models and unions are read, written and built"},
+            {"file": "../../docs/proposed-ir/m1/65-ref-lists.json",
+             "run_exit": 42, "run_stdout": "a\r\n", "rule": "D-M1-57",
+             "note": "lists of models and unions push, read, set and pop pointer words"},
         ],
     }
 

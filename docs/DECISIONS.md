@@ -2884,3 +2884,36 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   refusals `register type unknown` 10, `list_push` 9, `no non-extern main` 7,
   `main must have no parameters` 1.
 - Status: **applied**.
+
+## D-M1-57 - A ref list holds pointer words
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: `elemKind 5` (ref) was outside the subset (D-M1-16 E-03,
+  D-M1-30): a list of lists, models or unions could not be created, pushed or
+  read. `list_element_type` stopped at `register type unknown` on its ref read,
+  and the compiler's own IR (`compiler/host/main.orb`) carries 145 ref reads
+  (144 `list_get`, one `list_pop`) and 50 ref writes (48 `list_push`, two
+  `list_set`).
+- Reference (pin `ca3eb91`): the C backend reads a ref element with
+  `orbit_list_read_ref`, which checks `ORBIT_ELEM_REF` (5) and returns the slot
+  word, and writes it with `orbit_list_push_ref`/`orbit_list_set_ref`
+  (`c_backend.orb:605-662`; `orbit_api.h:521-525`; `collections.c:272-276,449`).
+- Decision: `list_create` admits kind 5. A ref element is a pointer word: a
+  `list`, a declared model or a `void*` union cell. `list_get` and `list_pop`
+  with kind 5 use the inline read of D-M1-38 with the kind check against 5 and
+  store the slot word; `list_push` and `list_set` call
+  `orbit_list_push_ref`/`orbit_list_set_ref`. A ref read the builder leaves
+  `unknown` takes the type of the local it is bound to, as D-M1-43 does for an
+  unwrap; a read nothing loads stays unknown.
+- Controls: `x-list-create-kind-ref` is retargeted from D-M1-30 to an `int`
+  pushed into a ref list, and `x-list-get-ref-into-int` refuses a ref read into
+  an `int` destination.
+- Fixture `65-ref-lists`: a `list<Item>` pushed, read in a callee, replaced
+  with `set` and popped, and a `list<Tok>` of union cells read and matched.
+  Oracle and R6 both print `a\r\n` and exit 42.
+- Measured: differential **63/63 -> 64/64**; loader **245/245 -> 247/247**
+  (167 rejections + 80 controls); corpus **101 -> 103 build / 103 match over
+  132 programs** (`list_element_type`, `test_collections_boxed`), none
+  differing; census **0/27**, first refusals `register type unknown` 11,
+  `list_push` 8, `no non-extern main` 7, `main must have no parameters` 1.
+- Status: **applied**.

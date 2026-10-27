@@ -328,6 +328,20 @@ static bool kind_matches_type(int kind, const char *type) {
     return want != NULL && same_type(want, type);
 }
 
+static bool is_model_type(const R6Module *m, const char *t);
+
+/* D-M1-57: a ref element (elemKind 5) is a pointer word: a list, a model or a
+ * union cell. The pin reads it with orbit_list_read_ref and writes it with
+ * orbit_list_push_ref/orbit_list_set_ref (c_backend.orb:605-662). */
+static bool ref_elem_type(const R6Module *m, const char *type) {
+    return is_list(type) || is_void_ptr(type) || is_model_type(m, type);
+}
+
+static bool elem_matches(const R6Module *m, int kind, const char *type) {
+    if (kind == 5) return ref_elem_type(m, type);
+    return kind_matches_type(kind, type);
+}
+
 static bool valid_symbol(const char *s) {
     size_t i;
     if (!s || !(s[0] == '_' || (s[0] >= 'A' && s[0] <= 'Z') ||
@@ -875,6 +889,18 @@ static const char *bound_local_type(const R6Function *f, size_t at) {
     return type;
 }
 
+/* Whether any instruction after `at` reads its destination register. */
+static bool has_reader(const R6Function *f, size_t at) {
+    size_t pc;
+    unsigned k;
+    for (pc = at + 1; pc < f->instruction_count; ++pc)
+        for (k = 0; k < 3; ++k)
+            if (f->instructions[pc].operands[k].kind == R6_VAL_REG &&
+                f->instructions[pc].operands[k].as.i32 == f->instructions[at].dest)
+                return true;
+    return false;
+}
+
 static const char *unwrap_use_type(const R6Function *f, size_t at) {
     const char *type = bound_local_type(f, at);
     return is_void_ptr(type) || is_int(type) || is_float(type) || is_string(type) ? type : NULL;
@@ -891,16 +917,7 @@ static const char *payload_use_type(const R6Module *m, const R6Function *f, size
        the pattern; bound_local_type answers void* also for a read with no
        reader, which D-M1-47 keeps refused. */
     if (type && find_model(m, type)) return type;
-    if (is_void_ptr(type)) {
-        size_t pc;
-        unsigned k;
-        for (pc = at + 1; pc < f->instruction_count; ++pc)
-            for (k = 0; k < 3; ++k)
-                if (f->instructions[pc].operands[k].kind == R6_VAL_REG &&
-                    f->instructions[pc].operands[k].as.i32 == f->instructions[at].dest)
-                    return type;
-    }
-    return NULL;
+    return is_void_ptr(type) && has_reader(f, at) ? type : NULL;
 }
 
 static bool resolve_pack_field(const R6Module *m, const R6Function *f,
@@ -1332,21 +1349,21 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                (collections.c:102-116) and a read accepts an opaque list
                (:118-128), so the create only needs an 8-byte slot, a capacity
                and a list destination. Kinds 1..4 keep their exact mapping and
-               kind 5 (ref) stays outside the native subset. */
+               kind 5 is the ref kind of D-M1-57. */
             if (!valid_dest(f, i, true, d) || !is_list(type_at(f, i->dest)) ||
                 i->operands[0].kind != R6_VAL_INT || i->operands[0].as.i32 != 8 ||
-                !(i->elem_kind == 0 || elem_kind_type(i->elem_kind)) ||
+                !(i->elem_kind == 0 || i->elem_kind == 5 || elem_kind_type(i->elem_kind)) ||
                 !value_type(f, &i->operands[1], &capacity_type) || !is_int(capacity_type))
-                return fail(d, i, "CGEN", "list_create requires an 8-byte slot size, a kind in 0..4, a list destination, and an int capacity");
+                return fail(d, i, "CGEN", "list_create requires an 8-byte slot size, a kind in 0..5, a list destination, and an int capacity");
             break;
         }
         case R6_OP_LIST_PUSH: {
             const char *vt = i->operands[1].kind == R6_VAL_REG ? type_at(f, i->operands[1].as.i32) : NULL;
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
-                !vt || !kind_matches_type(i->elem_kind, vt) ||
+                !vt || !elem_matches(m, i->elem_kind, vt) ||
                 (i->has_dest && !is_void(type_at(f, i->dest))))
-                return fail(d, i, "CGEN", "list_push requires a list register and a value register matching elemKind 1..4");
+                return fail(d, i, "CGEN", "list_push requires a list register and a value register matching elemKind 1..5");
             break;
         }
         case R6_OP_LIST_LEN:
@@ -1362,7 +1379,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         case R6_OP_LIST_GET:
             if (!valid_dest(f, i, true, d) ||
-                !(kind_matches_type(i->elem_kind, type_at(f, i->dest)) ||
+                !(elem_matches(m, i->elem_kind, type_at(f, i->dest)) ||
                   (i->elem_kind == 0 &&
                    same_type(opaque_read_type(m, f, pc), type_at(f, i->dest)))) ||
                 i->operands[0].kind != R6_VAL_REG ||
@@ -1375,14 +1392,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
                 i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)) ||
-                !vt || !kind_matches_type(i->elem_kind, vt) ||
+                !vt || !elem_matches(m, i->elem_kind, vt) ||
                 (i->has_dest && !is_void(type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "list_set requires list/index registers, an elemKind-matching value register, and an optional void destination");
             break;
         }
         case R6_OP_LIST_POP:
             if (!valid_dest(f, i, true, d) ||
-                !kind_matches_type(i->elem_kind, type_at(f, i->dest)) ||
+                !elem_matches(m, i->elem_kind, type_at(f, i->dest)) ||
                 i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)))
                 return fail(d, i, "CGEN", "list_pop requires a list register and an elemKind matching the destination");
@@ -2223,7 +2240,7 @@ static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
                "\taddq %%rax, %%r9\n\tmovq 0(%%r9), %%rax\n",
             kind_ok);
     switch (decode) {
-    case 1: /* string: the slot word is the pointer. */
+    case 1: /* string and ref (D-M1-57): the slot word is the pointer. */
         fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", dest_off);
         break;
     case 3: /* float: the slot word holds the binary64 bits. */
@@ -2446,6 +2463,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             const char *callee = i->elem_kind == 1 ? "orbit_list_push_string" :
                                  i->elem_kind == 2 ? "orbit_list_push_int" :
                                  i->elem_kind == 3 ? "orbit_list_push_float" :
+                                 i->elem_kind == 5 ? "orbit_list_push_ref" :
                                                      "orbit_list_push_bool";
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n",
                     scratch, list_off);
@@ -2504,6 +2522,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             /* D-M1-38: an opaque read decodes as the type its use gave it. */
             emit_list_read(o, f, fn_index, pc, list_off, index_off, off,
                            i->elem_kind,
+                           i->elem_kind == 5 ? 1 :
                            i->elem_kind ? i->elem_kind : is_string(type_at(f, i->dest)) ? 1 : 2,
                            false, where_id, file_id);
             break;
@@ -2516,6 +2535,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             const char *callee = i->elem_kind == 1 ? "orbit_list_set_string" :
                                  i->elem_kind == 2 ? "orbit_list_set_int" :
                                  i->elem_kind == 3 ? "orbit_list_set_float" :
+                                 i->elem_kind == 5 ? "orbit_list_set_ref" :
                                                      "orbit_list_set_bool";
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
                        "\tmovq -%u(%%rbp), %%r8\n",
@@ -2536,7 +2556,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
             emit_list_read(o, f, fn_index, pc, list_off, 0, off,
-                           i->elem_kind, i->elem_kind, true, where_id, file_id);
+                           i->elem_kind, i->elem_kind == 5 ? 1 : i->elem_kind, true, where_id, file_id);
             break;
         }
         case R6_OP_COPY:
@@ -3422,8 +3442,16 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     case R6_OP_LIST_CREATE: return "list";
     case R6_OP_LIST_LEN: return "int";
     case R6_OP_LIST_GET:
-        if (i->elem_kind == 0)
+    case R6_OP_LIST_POP:
+        if (i->elem_kind == 0 && i->opcode == R6_OP_LIST_GET)
             return opaque_read_type(m, f, (size_t)(i - f->instructions));
+        if (i->elem_kind == 5) {
+            /* D-M1-57: a ref read bound to a local takes the type of its loads. */
+            size_t at = (size_t)(i - f->instructions);
+            const char *type = bound_local_type(f, at);
+            if (!type || !ref_elem_type(m, type)) return NULL;
+            return !is_void_ptr(type) || has_reader(f, at) ? type : NULL;
+        }
         return elem_kind_type(i->elem_kind);
     case R6_OP_MAP_KEYS: return "list";
     case R6_OP_RESULT_UNWRAP:

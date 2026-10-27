@@ -24,9 +24,9 @@ Measured on 2026-10-27 at the pin (`ca3eb91`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 63/63 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 245/245 (166 rejections, 79 acceptance controls) | gate |
-| Corpus (`tests/corpus/run_corpus.py`) | 101 build / 101 match over 132 programs | measurement with a one-way ratchet |
+| Differential (`tests/diff/run_diff.py`) | 64/64 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 247/247 (167 rejections, 80 acceptance controls) | gate |
+| Corpus (`tests/corpus/run_corpus.py`) | 103 build / 103 match over 132 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 0 build over 27 modules | measurement with a one-way ratchet |
 
 The supported subset is what `docs/M1_REPORT.md` states as measured. Overflow,

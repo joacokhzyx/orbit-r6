@@ -774,8 +774,15 @@
       "file": "cases/x-list-create-kind-ref.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-30",
-      "note": "elemKind 5 (ref) still has no native slot decoder for a created list"
+      "rule": "D-M1-57",
+      "note": "a ref list (elemKind 5, D-M1-57) takes pointer words; an int push is refused"
+    },
+    {
+      "file": "cases/x-list-get-ref-into-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-57",
+      "note": "a ref read into an int destination is refused"
     },
     {
       "file": "cases/x-list-get-kind-opaque.json",
@@ -1695,6 +1702,13 @@
       "run_stdout": "ab\r\n",
       "rule": "D-M1-56",
       "note": "model fields holding models and unions are read, written and built"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/65-ref-lists.json",
+      "run_exit": 42,
+      "run_stdout": "a\r\n",
+      "rule": "D-M1-57",
+      "note": "lists of models and unions push, read, set and pop pointer words"
     }
   ]
 }

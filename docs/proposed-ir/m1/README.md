@@ -76,6 +76,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `62-union-named-payload` | payloads que nombran un modelo o una unión: una palabra puntero en la palabra de datos y en el paquete | 42 | `named\r\n` |
 | `63-union-return` | funciones que devuelven una unión: la celda vuelve en `rax`, se re-construye y se pasa | 42 | `shapes\r\n` |
 | `64-model-word-fields` | campos de modelo que son un modelo o una unión: una palabra puntero que se construye, se lee y se reescribe | 42 | `ab\r\n` |
+| `65-ref-lists` | listas de referencias (`elemKind 5`): modelos y uniones se agregan, leen, reemplazan y quitan como palabras puntero | 42 | `a\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

@@ -1,0 +1,55 @@
+model Item {
+    id: int
+    name: string
+}
+
+union Tok { Num(int) Word(string) End }
+
+fn total(items: list<Item>) -> int {
+    var sum = 0
+    var i = 0
+    while i < items.len() {
+        val it: Item = items.get(i)
+        sum = sum + it.id
+        i = i + 1
+    }
+    return sum
+}
+
+fn weigh(t: Tok) -> int {
+    match t {
+        Num(n) => { return n }
+        Word(w) => { return w.len() }
+        End => { return 0 }
+    }
+    return -1
+}
+
+fn main() -> int {
+    val items: list<Item> = []
+    items.push(Item { id: 3, name: "a" })
+    items.push(Item { id: 4, name: "bb" })
+    items.push(Item { id: 5, name: "ccc" })
+    if total(items) != 12 { return 10 }
+    items.set(1, Item { id: 40, name: "dd" })
+    if total(items) != 48 { return 11 }
+    val last: Item = items.pop()
+    if last.id != 5 { return 12 }
+    if total(items) != 43 { return 13 }
+
+    val toks: list<Tok> = []
+    toks.push(Num(7))
+    toks.push(Word("four"))
+    toks.push(End())
+    var w = 0
+    var k = 0
+    while k < toks.len() {
+        val t: Tok = toks.get(k)
+        w = w + weigh(t)
+        k = k + 1
+    }
+    if w != 11 { return 15 }
+    val first: Item = items.get(0)
+    print(first.name)
+    return 42
+}
