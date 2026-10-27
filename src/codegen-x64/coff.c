@@ -175,6 +175,7 @@ static bool write_name(FILE *f, const char *name, uint32_t string_offset) {
 bool r6_coff_write(const R6CoffObject *o, FILE *out) {
     uint32_t *sec_raw = NULL, *sec_reloc = NULL, *sym_name_offsets = NULL;
     uint32_t *sec_name_offsets = NULL;
+    size_t *rel_order = NULL, *rel_start = NULL, *rel_next = NULL;
     uint64_t cursor, sym_count = 0;
     uint32_t string_size = 4, sym_ptr;
     size_t i, j;
@@ -185,21 +186,36 @@ bool r6_coff_write(const R6CoffObject *o, FILE *out) {
     sec_reloc = (uint32_t *)calloc(o->section_count ? o->section_count : 1, sizeof *sec_reloc);
     sym_name_offsets = (uint32_t *)calloc(o->symbol_count ? o->symbol_count : 1, sizeof *sym_name_offsets);
     sec_name_offsets = (uint32_t *)calloc(o->section_count ? o->section_count : 1, sizeof *sec_name_offsets);
-    if (!sec_raw || !sec_reloc || !sym_name_offsets || !sec_name_offsets) goto oom;
+    rel_order = (size_t *)malloc((o->relocation_count ? o->relocation_count : 1) * sizeof *rel_order);
+    rel_start = (size_t *)calloc(o->section_count + 1, sizeof *rel_start);
+    rel_next = (size_t *)calloc(o->section_count + 1, sizeof *rel_next);
+    if (!sec_raw || !sec_reloc || !sym_name_offsets || !sec_name_offsets ||
+        !rel_order || !rel_start || !rel_next) goto oom;
+    /* One counting sort replaces a scan of every relocation per section:
+     * rel_order lists the relocations of section i, in input order, at
+     * [rel_start[i], rel_start[i + 1]). */
+    for (j = 0; j < o->relocation_count; ++j) {
+        if (o->relocations[j].section >= o->section_count) {
+            set_error((R6CoffObject *)o, "COFF relocation names a missing section");
+            goto done;
+        }
+        ++rel_start[o->relocations[j].section + 1];
+    }
+    for (i = 0; i < o->section_count; ++i) rel_start[i + 1] += rel_start[i];
+    for (i = 0; i < o->section_count; ++i) sec_reloc[i] = (uint32_t)(rel_start[i + 1] - rel_start[i]);
     for (i = 0; i < o->section_count; ++i) {
-        size_t count = 0;
         if (strlen(o->sections[i].name) > 8) {
             sec_name_offsets[i] = string_size;
             string_size += (uint32_t)strlen(o->sections[i].name) + 1;
         }
-        for (j = 0; j < o->relocation_count; ++j)
-            if (o->relocations[j].section == i) ++count;
-        if (count > UINT16_MAX) {
+        if (sec_reloc[i] > UINT16_MAX) {
             set_error((R6CoffObject *)o, "COFF relocation overflow is unsupported");
             goto done;
         }
-        sec_reloc[i] = (uint32_t)count;
     }
+    memcpy(rel_next, rel_start, (o->section_count + 1) * sizeof *rel_next);
+    for (j = 0; j < o->relocation_count; ++j)
+        rel_order[rel_next[o->relocations[j].section]++] = j;
     for (i = 0; i < o->symbol_count; ++i) {
         if (o->symbols[i].aux_count) {
             set_error((R6CoffObject *)o, "COFF auxiliary symbols are not yet supported");
@@ -221,12 +237,14 @@ bool r6_coff_write(const R6CoffObject *o, FILE *out) {
     }
     cursor = 20u + (uint64_t)o->section_count * 40u;
     for (i = 0; i < o->section_count; ++i) {
+        uint32_t count;
         cursor = alignment((uint32_t)cursor, 16);
         if (o->sections[i].size) sec_raw[i] = (uint32_t)cursor;
         cursor += o->sections[i].size;
         cursor = alignment((uint32_t)cursor, 4);
-        if (sec_reloc[i]) sec_reloc[i] = (uint32_t)cursor;
-        cursor += (uint64_t)sec_reloc[i] * 10u;
+        count = sec_reloc[i];
+        if (count) sec_reloc[i] = (uint32_t)cursor;
+        cursor += (uint64_t)count * 10u;
         if (cursor > UINT32_MAX) {
             set_error((R6CoffObject *)o, "COFF object exceeds 4 GiB file offsets");
             goto done;
@@ -243,10 +261,8 @@ bool r6_coff_write(const R6CoffObject *o, FILE *out) {
         !write_u16(out, 0)) goto io;
     cursor = 20u + (uint64_t)o->section_count * 40u;
     for (i = 0; i < o->section_count; ++i) {
-        size_t rc = 0;
+        size_t rc = rel_start[i + 1] - rel_start[i];
         uint32_t ch = o->sections[i].characteristics;
-        for (j = 0; j < o->relocation_count; ++j)
-            if (o->relocations[j].section == i) ++rc;
         if (!write_name(out, o->sections[i].name, sec_name_offsets[i]) ||
             !write_u32(out, 0) || !write_u32(out, 0) ||
             !write_u32(out, (uint32_t)o->sections[i].size) ||
@@ -256,17 +272,16 @@ bool r6_coff_write(const R6CoffObject *o, FILE *out) {
     }
     cursor = 20u + (uint64_t)o->section_count * 40u;
     for (i = 0; i < o->section_count; ++i) {
-        size_t rc = 0;
+        size_t rc = rel_start[i + 1] - rel_start[i], k;
         if (sec_raw[i]) {
             while (cursor < sec_raw[i]) { if (fputc(0, out) == EOF) goto io; ++cursor; }
         }
         if (sec_raw[i] && !write_bytes(out, o->sections[i].data, o->sections[i].size)) goto io;
         if (sec_raw[i]) cursor += o->sections[i].size;
-        for (j = 0; j < o->relocation_count; ++j) if (o->relocations[j].section == i) ++rc;
         if (rc) {
             while (cursor < sec_reloc[i]) { if (fputc(0, out) == EOF) goto io; ++cursor; }
-            for (j = 0; j < o->relocation_count; ++j) if (o->relocations[j].section == i) {
-                const R6CoffRelocation *r = &o->relocations[j].relocation;
+            for (k = rel_start[i]; k < rel_start[i + 1]; ++k) {
+                const R6CoffRelocation *r = &o->relocations[rel_order[k]].relocation;
                 if (!write_u32(out, r->offset) || !write_u32(out, r->symbol) ||
                     !write_u16(out, r->type)) goto io;
                 cursor += 10;
@@ -303,6 +318,7 @@ io:
     set_error((R6CoffObject *)o, "I/O error writing COFF object");
 done:
     free(sec_raw); free(sec_reloc); free(sym_name_offsets); free(sec_name_offsets);
+    free(rel_order); free(rel_start); free(rel_next);
     return ok;
 }
 

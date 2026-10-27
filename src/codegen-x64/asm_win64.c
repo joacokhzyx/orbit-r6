@@ -536,6 +536,41 @@ static bool resolve_local_branches(Asm *a) {
     return true;
 }
 
+/* Index of the object's symbols by name, for the extern lookup in
+ * finalize_object. The first symbol of a name wins, as the linear scan it
+ * replaces did. It is sized once for the symbols present plus one new
+ * extern per fixup, so it never rehashes. */
+typedef struct { int32_t *slots; size_t nslots; } SymbolIndex;
+
+static int32_t symbol_find(const SymbolIndex *x, const R6CoffObject *o, const char *name) {
+    size_t h = (size_t)(name_hash(name) & (x->nslots - 1));
+    while (x->slots[h] >= 0) {
+        if (strcmp(o->symbols[x->slots[h]].name, name) == 0) return x->slots[h];
+        h = (h + 1) & (x->nslots - 1);
+    }
+    return -1;
+}
+
+static void symbol_add(SymbolIndex *x, const R6CoffObject *o, size_t index) {
+    const char *name = o->symbols[index].name;
+    size_t h;
+    if (symbol_find(x, o, name) >= 0) return;
+    h = (size_t)(name_hash(name) & (x->nslots - 1));
+    while (x->slots[h] >= 0) h = (h + 1) & (x->nslots - 1);
+    x->slots[h] = (int32_t)index;
+}
+
+static bool symbol_index_build(SymbolIndex *x, const R6CoffObject *o, size_t extra) {
+    size_t i;
+    x->nslots = 1024;
+    while (x->nslots < (o->symbol_count + extra) * 2 + 2) x->nslots *= 2;
+    x->slots = (int32_t *)malloc(x->nslots * sizeof *x->slots);
+    if (!x->slots) return false;
+    for (i = 0; i < x->nslots; ++i) x->slots[i] = -1;
+    for (i = 0; i < o->symbol_count; ++i) symbol_add(x, o, i);
+    return true;
+}
+
 static bool finalize_object(Asm *a) {
     int text = r6_coff_add_section(a->obj, ".text", 0x60500020u);
     int rdata = r6_coff_add_section(a->obj, ".rdata", 0x40500040u);
@@ -543,6 +578,7 @@ static bool finalize_object(Asm *a) {
     int pdata = r6_coff_add_section(a->obj, ".pdata", 0x40300040u);
     int data = r6_coff_add_section(a->obj, ".data", 0xC0500040u);
     int section_ids[5] = {text, rdata, xdata, pdata, data};
+    SymbolIndex index = {NULL, 0};
     size_t i, j;
     if (text < 0 || rdata < 0 || xdata < 0 || pdata < 0 || data < 0)
         return bad(a, "%s", r6_coff_error(a->obj));
@@ -598,19 +634,26 @@ static bool finalize_object(Asm *a) {
             !r6_coff_add_relocation(a->obj, pdata, (uint32_t)(i * 12 + 8), uw_symbol, 3))
             return bad(a, "%s", r6_coff_error(a->obj));
     }
+    if (!symbol_index_build(&index, a->obj, a->nrelocs))
+        return bad(a, "out of memory indexing COFF symbols");
     for (i = 0; i < a->nrelocs; ++i) {
         Fixup *f = &a->relocs[i];
         int sym = -1, li = find_label(a, f->name);
         if (f->type == 0xfffe) continue;
         if (li >= 0) sym = a->labels[li].symbol;
         else {
-            for (j = 0; j < a->obj->symbol_count; ++j)
-                if (strcmp(a->obj->symbols[j].name, f->name) == 0) { sym = (int)j; break; }
-            if (sym < 0) sym = r6_coff_add_symbol(a->obj, f->name, -1, 0, 0x20, 2);
+            sym = symbol_find(&index, a->obj, f->name);
+            if (sym < 0) {
+                sym = r6_coff_add_symbol(a->obj, f->name, -1, 0, 0x20, 2);
+                if (sym >= 0) symbol_add(&index, a->obj, (size_t)sym);
+            }
         }
-        if (sym < 0 || !r6_coff_add_relocation(a->obj, f->sec, f->off, sym, f->type))
+        if (sym < 0 || !r6_coff_add_relocation(a->obj, f->sec, f->off, sym, f->type)) {
+            free(index.slots);
             return bad(a, "%s", r6_coff_error(a->obj));
+        }
     }
+    free(index.slots);
     return true;
 }
 

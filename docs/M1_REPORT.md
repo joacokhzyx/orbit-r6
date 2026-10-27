@@ -1478,3 +1478,19 @@ compilador: `compiler/host/main.orb` (el compilador completo) y
 `main`, y ninguna de sus funciones es rechazada. Diferencial **69/69**; loader
 **261/261**; corpus **109 build / 109 match sobre 135 programas**, ninguno
 difiere; censo **2/27**.
+
+## Actualización de M1 - R6 construye el compilador en 5 s (2026-10-27)
+
+D-M1-64. `r6 build` sobre `compiler/host/main.orb` (17,6 MB de IR, 1038
+funciones) baja de 41 s a 4,7 s, medido en la misma máquina cargada y con el
+driver sin optimizar; en una máquina libre baja de 20,6 s a 2,4 s. Cuatro
+causas, todas cuadráticas o de asignación: el escritor COFF avanzaba el cursor
+de relocaciones por el desplazamiento del archivo en vez de por la cuenta (el
+objeto pesaba 211 MB y se escribía cero a cero; ahora pesa 3,4 MB), el
+ensamblador buscaba cada símbolo externo contra todos los símbolos, el
+generador comparaba cada `decl_var` con todos los anteriores, y el cargador
+hacía un `malloc` por nodo JSON. Los bytes del ejecutable no cambian: el
+compilador de 3357756 bytes (`2b8cb011…`) y los 205 ejecutables de los
+fixtures y del corpus tienen el mismo SHA-256 antes y después. Diferencial
+**69/69**; loader **261/261**; corpus **109 build / 109 match sobre 135**,
+la regla de no retroceso se cumple; censo **2/27**.

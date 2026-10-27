@@ -530,22 +530,79 @@ static const char *global_type(const R6Global *g) {
     return global_integer(g, &ignored) ? "int" : NULL;
 }
 
-static size_t local_count(const R6Function *f) {
-    size_t pc, count = 0;
-    for (pc = 0; pc < f->instruction_count; ++pc) {
-        const R6Instruction *i = &f->instructions[pc];
-        const char *name = ir_name(&i->operands[0]);
-        size_t j;
-        bool seen = false;
-        if (i->opcode != R6_OP_DECL_VAR || !name) continue;
-        for (j = 0; j < pc; ++j) {
-            const R6Instruction *p = &f->instructions[j];
-            const char *prior = p->opcode == R6_OP_DECL_VAR ? ir_name(&p->operands[0]) : NULL;
-            if (prior && strcmp(prior, name) == 0) { seen = true; break; }
-        }
-        if (!seen) ++count;
+/* D-M1-64: the locals of one function, found by name through an open
+ * addressing table instead of a scan of every earlier decl_var. The frame
+ * helpers ask for the local count of the same function once per instruction,
+ * so the table is built once per function and kept until another function
+ * asks. `first_pc[k]` is the instruction of the first decl_var that names
+ * the k-th distinct local. */
+typedef struct {
+    const R6Function *f;
+    size_t count;
+    size_t *first_pc;
+    int32_t *slots;
+    size_t nslots;
+} LocalTable;
+
+static LocalTable local_table;
+
+static uint64_t name_hash(const char *s) {
+    uint64_t h = 1469598103934665603ull;
+    while (*s) { h ^= (unsigned char)*s++; h *= 1099511628211ull; }
+    return h;
+}
+
+static void local_table_release(void) {
+    free(local_table.first_pc);
+    free(local_table.slots);
+    memset(&local_table, 0, sizeof local_table);
+}
+
+static int32_t local_table_find(const R6Function *f, const char *name) {
+    size_t h;
+    if (!local_table.nslots) return -1;
+    h = (size_t)(name_hash(name) & (local_table.nslots - 1));
+    while (local_table.slots[h] >= 0) {
+        const char *candidate = ir_name(&f->instructions[local_table.first_pc[local_table.slots[h]]].operands[0]);
+        if (strcmp(candidate, name) == 0) return local_table.slots[h];
+        h = (h + 1) & (local_table.nslots - 1);
     }
-    return count;
+    return -1;
+}
+
+static bool local_table_build(const R6Function *f) {
+    size_t pc, declared = 0, i;
+    if (local_table.f == f) return true;
+    local_table_release();
+    for (pc = 0; pc < f->instruction_count; ++pc)
+        if (f->instructions[pc].opcode == R6_OP_DECL_VAR && ir_name(&f->instructions[pc].operands[0]))
+            ++declared;
+    local_table.nslots = 16;
+    while (local_table.nslots < declared * 2 + 2) local_table.nslots *= 2;
+    local_table.first_pc = (size_t *)malloc((declared ? declared : 1) * sizeof *local_table.first_pc);
+    local_table.slots = (int32_t *)malloc(local_table.nslots * sizeof *local_table.slots);
+    if (!local_table.first_pc || !local_table.slots) { local_table_release(); return false; }
+    for (i = 0; i < local_table.nslots; ++i) local_table.slots[i] = -1;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *ins = &f->instructions[pc];
+        const char *name = ir_name(&ins->operands[0]);
+        size_t h;
+        if (ins->opcode != R6_OP_DECL_VAR || !name) continue;
+        if (local_table_find(f, name) >= 0) continue;
+        h = (size_t)(name_hash(name) & (local_table.nslots - 1));
+        while (local_table.slots[h] >= 0) h = (h + 1) & (local_table.nslots - 1);
+        local_table.slots[h] = (int32_t)local_table.count;
+        local_table.first_pc[local_table.count++] = pc;
+    }
+    local_table.f = f;
+    return true;
+}
+
+/* The distinct locals the function declares. Callers build the table for
+ * `f` first (local_table_build); a function it was not built for counts as
+ * having none, which the callers' own build call rules out. */
+static size_t local_count(const R6Function *f) {
+    return local_table.f == f ? local_table.count : 0;
 }
 
 static const R6Function *find_function(const R6Module *m, const char *name) {
@@ -741,39 +798,24 @@ static bool param_info(const R6Function *f, const char *name, size_t *index,
  * the local with the function's signature spelling (fn_value_spelling). */
 static bool local_info(const R6Module *m, const R6Function *f, const char *name,
                        size_t *index, const char **type, char *buf, size_t cap) {
-    size_t pc, prior_unique = 0;
-    for (pc = 0; pc < f->instruction_count; ++pc) {
-        const R6Instruction *i = &f->instructions[pc];
-        const char *candidate;
-        size_t j;
-        bool seen = false;
-        if (i->opcode != R6_OP_DECL_VAR) continue;
-        candidate = ir_name(&i->operands[0]);
-        if (!candidate) continue;
-        for (j = 0; j < pc; ++j) {
-            const R6Instruction *p = &f->instructions[j];
-            const char *prior;
-            if (p->opcode != R6_OP_DECL_VAR) continue;
-            prior = ir_name(&p->operands[0]);
-            if (prior && strcmp(prior, candidate) == 0) { seen = true; break; }
-        }
-        if (strcmp(candidate, name) == 0) {
-            const char *t;
-            if (i->operands[1].kind == R6_VAL_SYMBOL) {
-                char ret[16];
-                if (!fn_value_spelling(m, i->operands[1].as.string, buf, cap) ||
-                    !fn_type_ok(buf, ret, sizeof ret, NULL)) return false;
-                t = buf;
-            } else if (!value_type(f, &i->operands[1], &t)) {
-                return false;
-            }
-            if (index) *index = prior_unique;
-            if (type) *type = t;
-            return true;
-        }
-        if (!seen) ++prior_unique;
+    const R6Instruction *i;
+    const char *t;
+    int32_t k;
+    if (!name || local_table.f != f) return false;
+    k = local_table_find(f, name);
+    if (k < 0) return false;
+    i = &f->instructions[local_table.first_pc[k]];
+    if (i->operands[1].kind == R6_VAL_SYMBOL) {
+        char ret[16];
+        if (!fn_value_spelling(m, i->operands[1].as.string, buf, cap) ||
+            !fn_type_ok(buf, ret, sizeof ret, NULL)) return false;
+        t = buf;
+    } else if (!value_type(f, &i->operands[1], &t)) {
+        return false;
     }
-    return false;
+    if (index) *index = (size_t)k;
+    if (type) *type = t;
+    return true;
 }
 
 static const R6Model *find_model(const R6Module *m, const char *name) {
@@ -3649,7 +3691,7 @@ static void infer_register_types(const R6Module *m, R6Function *f) {
     }
 }
 
-bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
+static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
     size_t n;
     bool main_found = false;
     if (diag) memset(diag, 0, sizeof *diag);
@@ -3748,6 +3790,7 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
         const R6Function *f = fm;
         size_t k;
         if (!f->name) return fail(diag, NULL, "CGEN", "function has null name");
+        if (!local_table_build(f)) return fail(diag, NULL, "CGEN", "out of memory indexing locals of %s", f->name);
         if (strcmp(f->name, "main") == 0 && !f->is_extern) main_found = true;
         for (k = 0; k < n; ++k)
             if (strcmp(module->functions[k].name, f->name) == 0)
@@ -3777,8 +3820,19 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
     if (!main_found) return fail(diag, NULL, "CGEN", "module must define one non-extern main");
     if (module_needs_arena_global(module))
         fputs("\t.section .data,\"dw\"\nr6_arena:\n\t.byte 0,0,0,0,0,0,0,0\n\t.text\n", out);
-    for (n = 0; n < module->function_count; ++n)
+    for (n = 0; n < module->function_count; ++n) {
+        if (!local_table_build(&module->functions[n]))
+            return fail(diag, NULL, "CGEN", "out of memory indexing locals of %s", module->functions[n].name);
         if (!emit_function(out, module, &module->functions[n], n, diag)) return false;
+    }
     emit_entry_wrapper(out);
     return !ferror(out);
+}
+
+bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
+    bool ok;
+    local_table_release();
+    ok = codegen_module(out, module, diag);
+    local_table_release();
+    return ok;
 }

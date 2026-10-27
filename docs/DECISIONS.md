@@ -3128,3 +3128,67 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `compiler/selfhost/lexer_trace.orb`. The other 25 modules are libraries whose
   only refusal is `module must define one non-extern main`.
 - Status: **applied**.
+
+## D-M1-64 - R6 builds the compiler in 5 s
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `r6 build` took 41 s on `compiler/host/main.orb` (17.6 MB of IR,
+  1038 functions). Timed per phase with a build of the driver that reads
+  `clock()` between phases, the cost sat in six places:
+  - `r6_coff_write` advanced its cursor by `count * 10` bytes of relocations
+    after it had replaced `count` with the section's file offset. The object
+    was 211 MB for 3.4 MB of content and was written zero by zero with
+    `fputc`. The linker accepted the gaps.
+  - The relocation lists were found by scanning every relocation once per
+    section, in three places.
+  - `finalize_object` looked up each external symbol by comparing it with
+    every symbol already in the object.
+  - `local_count` and `local_info` compared every `decl_var` with all the ones
+    before it, and the frame helpers called `local_count` for each
+    instruction.
+  - The JSON tree took one `malloc` and one `free` per node, and `jfree`
+    walked it at the end.
+  - Validation found the callee of each `call` by scanning the functions, and
+    each label by scanning the instructions.
+- Decision:
+  - The relocation cursor advances by the count. One counting sort groups the
+    relocations by section.
+  - The assembler indexes the object's symbols by name in a hash table sized
+    once for the symbols and fixups.
+  - `win64.c` keeps one hash table of the locals of the current function.
+    `codegen_module` builds it per function and `r6_codegen_win64` releases it.
+  - The loader allocates the JSON tree from 1 MiB chunks, frees them in one
+    pass, and copies plain runs of a string in one step. Validation looks up
+    functions and labels through hash tables built once.
+  - No fixed array and no limit is added. A failed allocation is a `CGEN` or
+    `E_MEMORY` diagnostic.
+- Order of diagnostics: the duplicate-function check still runs first and the
+  duplicate-label check still runs in instruction order. A pure speed change
+  needs no new fixture.
+- Measured on `compiler/host/main.orb` from `0cfce74`, driver built without
+  optimization, both runs back to back on a loaded machine:
+
+  | Phase | Before | After |
+  |---|---|---|
+  | read | 16 ms | 21 ms |
+  | JSON load and validation | 4619 ms | 1451 ms |
+  | register inference and validation | 1099 ms | 454 ms |
+  | assembler text | 8092 ms | 1116 ms |
+  | assembling | 15381 ms | 949 ms |
+  | COFF write | 11181 ms | 48 ms |
+  | `ld` | 266 ms | 259 ms |
+  | total | 40.9 s | 4.7 s |
+
+  On an idle machine the same build takes 20.6 s before and 2.4 s after. The
+  object file shrinks from 211508235 to 3454987 bytes.
+- Evidence that the output is unchanged: the executable of `main.ir` is
+  byte-identical (sha256 `2b8cb011…`, 3357756 bytes) and so are the 205
+  executables built from the 70 fixtures and the 135 corpus programs (the
+  sha256 of each compared before and after, with the same 27 refusals and
+  messages). `objdump -dr -t` of `19-int-list-get.o` differs only in the
+  section file offsets. That compiler translates `compiler/host/main.orb` to
+  the C of the oracle (6212022 bytes, `54f0b797…`), emits IR identical to the
+  IR it was built from, and R6 builds that IR into the same executable.
+- Gates: differential **69/69**, loader **261/261**, corpus **109 build /
+  109 match over 135**, ratchet held, census **2/27**.
+- Status: **applied**.
