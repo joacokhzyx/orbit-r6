@@ -1,0 +1,54 @@
+// D-M1-75: a result passes as an argument. The C callee receives an
+// OrbitResult by value, which Win64 passes as a pointer to a copy. The
+// parameter is read twice, sits after other parameters, travels on the stack
+// as the fifth argument and is passed on to a second function.
+fn make(flag: bool) -> result {
+    if flag { return ok(41) }
+    return err("bad input", 7)
+}
+
+fn unwrap(r: result) -> int {
+    val v: int = try r catch {
+        return 0 - 1
+    }
+    return v
+}
+
+fn unwrap_or(n: int, r: result, fallback: int) -> int {
+    val v: int = try r catch {
+        return fallback + n
+    }
+    return v + n
+}
+
+fn error_length(r: result) -> int {
+    val v: int = try r catch e {
+        return e.len()
+    }
+    return v
+}
+
+fn fifth(a: int, b: int, c: int, d: int, r: result) -> int {
+    return a + b + c + d + unwrap(r)
+}
+
+fn relay(r: result) -> int {
+    return unwrap(r) + error_length(r)
+}
+
+fn main() -> int {
+    val good = make(true)
+    val bad = make(false)
+    print(unwrap(good))
+    print(unwrap(bad))
+    print(unwrap_or(1, good, 100))
+    print(unwrap_or(2, bad, 100))
+    print(error_length(bad))
+    print(error_length(good))
+    print(fifth(1, 2, 3, 4, good))
+    print(fifth(1, 2, 3, 4, bad))
+    print(relay(good))
+    print(relay(bad))
+    print(unwrap(make(true)))
+    return 42
+}

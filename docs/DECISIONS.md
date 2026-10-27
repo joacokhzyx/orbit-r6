@@ -3576,3 +3576,31 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **77/77**, loader **271/271**, corpus **110 build / 110 match over 135 -> 111 / 111**, census **2/27**,
   self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-75 - A result passes as an argument to a declared function
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `suite/result_binding` and `suite/result_string_value` call
+  `fn unwrap(r: result)`. The parameter check refused `result`
+  (`parameter type result is unsupported in M1`). The C signature is
+  `orbit_int unwrap(OrbitArena* arena, OrbitResult r)`: a 24-byte struct,
+  which Win64 passes as a pointer to a caller-made copy.
+- Decision:
+  - A declared Orbit function other than `main` may take `result` parameters.
+    The caller passes `leaq` of the result register's cell in the ABI slot of
+    that argument, in a register or on the stack. The callee copies the 24
+    bytes at the pointer into a cell of its own at entry, before any other
+    instruction, so the caller's cell is not aliased once the callee runs.
+  - The cells of the parameters follow those of the locals
+    (`register_count + locals + param`). `arg` with a destination and
+    `load_var` of the parameter copy that cell.
+  - A runtime extern still takes scalars only, and a result argument goes to
+    a declared Orbit function only. A result literal, an int for a result
+    parameter and a result for an int parameter are refused.
+- Fixture `79-result-parameter` (oracle and R6 print `41 -1 42 102 9 41 51 9
+  82 8 41` one per line and exit 42): a parameter read twice, one after
+  another parameter, one on the stack as the fifth argument, a result relayed
+  to two functions and the result of a call passed in place.
+- Gates: differential **78/78**, loader **275/275**, corpus **111 build / 111 match over 135 -> 113 / 113**, census **2/27**,
+  self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

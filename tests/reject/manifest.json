@@ -1259,6 +1259,27 @@
       "code": "CGEN",
       "rule": "D-M1-73",
       "note": "a float argument does not narrow to an int parameter"
+    },
+    {
+      "file": "cases/x-main-result-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-75",
+      "note": "main takes no parameters, a result one included"
+    },
+    {
+      "file": "cases/x-call-result-arg-to-int-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-75",
+      "note": "a result argument does not match an int parameter"
+    },
+    {
+      "file": "cases/x-call-int-arg-to-result-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-75",
+      "note": "an int argument does not match a result parameter"
     }
   ],
   "accept": [
@@ -1876,6 +1897,13 @@
       "run_stdout": "9\r\n5\r\n20\r\n0\r\nwide\r\n41\r\nnarrow\r\n-23\r\n103\r\n997\r\n",
       "rule": "D-M1-74",
       "note": "variants of three and four payloads: a union, int, bool and string parts with padding"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/79-result-parameter.json",
+      "run_exit": 42,
+      "run_stdout": "41\r\n-1\r\n42\r\n102\r\n9\r\n41\r\n51\r\n9\r\n82\r\n8\r\n41\r\n",
+      "rule": "D-M1-75",
+      "note": "a result passes as an argument, in a register and on the stack, is read twice and relayed"
     }
   ]
 }

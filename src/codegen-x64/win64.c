@@ -1486,7 +1486,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
      * D-M1-47: a union parameter is the same word, its D-M1-12 cell. */
     for (pc = 0; pc < f->param_count; ++pc)
         if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc]) ||
-              is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc])))
+              is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc]) ||
+              (is_result(f->param_types[pc]) && strcmp(f->name, "main") != 0)))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     /* D-M1-44: a model return is the `Name*` the pin returns (mapTypeToC),
      * one word in rax like any non-float return. D-M1-55: a void* return (a
@@ -1560,7 +1561,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
                 ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
                           !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt) ||
-                            is_fn_type(lt) || (local && is_result(lt)))) :
+                            is_fn_type(lt) || is_result(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global_type(global), type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or tag constant");
@@ -1810,7 +1811,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 if (arg_count == sizeof arg_values / sizeof arg_values[0])
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
                 if (!value_type(f, &i->operands[0], &t) ||
-                    !(is_scalar(t) || is_list(t) || is_model_type(m, t) || is_void_ptr(t)))
+                    !(is_scalar(t) || is_list(t) || is_model_type(m, t) || is_void_ptr(t) ||
+                      (is_result(t) && i->operands[0].kind == R6_VAL_REG)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
                     return fail(d, i, "CGEN", "arg register is out of range");
@@ -1935,6 +1937,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                         !(same_type(t, callee->param_types[k]) ||
                           int_widens_to_float(t, callee->param_types[k])))
                         return fail(d, i, "CGEN", "call argument %zu type does not match %s", k, callee->name);
+                    if (is_result(t) && (callee != find_function(m, callee->name) || callee->is_extern))
+                        return fail(d, i, "CGEN", "a result argument of %s is outside the subset: only a declared Orbit function takes one",
+                                    callee->name);
                 }
                 if (is_void(callee->return_type)) {
                     /* Spec 3.1 step 7: a void callee needs no destination; the
@@ -2266,6 +2271,20 @@ static bool has_result_registers(const R6Function *f) {
     return false;
 }
 
+/* D-M1-74: a result parameter arrives as the pointer Win64 passes for a
+ * 24-byte struct and is copied into a cell of its own at entry. The cells of
+ * the parameters follow those of the locals. */
+static bool has_result_params(const R6Function *f) {
+    size_t k;
+    for (k = 0; k < f->param_count; ++k)
+        if (is_result(f->param_types[k])) return true;
+    return false;
+}
+
+static int32_t param_cell_register(const R6Function *f, size_t param) {
+    return (int32_t)(f->register_count + local_count(f) + param);
+}
+
 /* Result registers hold a private 24-byte OrbitResult cell below the list
  * scratch area. The returned value is the distance from %rbp to the cell
  * base (field offsets: ok +0, error_code +4, error_msg +8, value +16).
@@ -2316,11 +2335,13 @@ static bool uses_literal_scratch(const R6Function *f) {
 /* The bytes the list scratch and the result cells reserve below the register
  * slots; mirrors the frame arithmetic of emit_function(). */
 static size_t result_area_bytes(const R6Function *f) {
-    if (!uses_result_scratch(f) && !has_result_registers(f)) return 0;
+    if (!uses_result_scratch(f) && !has_result_registers(f) && !has_result_params(f)) return 0;
     /* D-M1-45: one cell per register and one per local, so a result local
-       has its own 24 bytes at cell index register_count + local index. */
-    return 24 + (has_result_registers(f)
-                     ? 24 * ((size_t)f->register_count + local_count(f)) : 0);
+       has its own 24 bytes at cell index register_count + local index.
+       D-M1-74: a function with a result parameter adds one cell per parameter. */
+    return 24 + (has_result_registers(f) || has_result_params(f)
+                     ? 24 * ((size_t)f->register_count + local_count(f) +
+                             (has_result_params(f) ? f->param_count : 0)) : 0);
 }
 
 /* The two 8-byte immediate slots an operation with an inline literal needs,
@@ -2672,6 +2693,15 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq %u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", incoming, home);
         } else if (is_float(t)) fprintf(o, "\tmovsd %%xmm%zu, -%u(%%rbp)\n", abi_index, home);
         else fprintf(o, "\tmovq %s, -%u(%%rbp)\n", abi_index == 0 ? "%rcx" : abi_index == 1 ? "%rdx" : abi_index == 2 ? "%r8" : "%r9", home);
+        if (is_result(t)) {
+            /* The home slot holds the caller's pointer; the cell holds the
+               copy the C callee owns. */
+            unsigned cell = result_cell_offset(f, is_main, param_cell_register(f, pc));
+            fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", home);
+            unsigned kk;
+            for (kk = 0; kk < 24; kk += 8)
+                fprintf(o, "\tmovq %u(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", kk, cell - kk);
+        }
     }
     for (pc = 0; pc < f->instruction_count; ++pc) {
         const R6Instruction *i = &f->instructions[pc];
@@ -2732,7 +2762,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                    writes and reads it (D-M1-22). */
                 unsigned home = (unsigned)(f->register_count + hidden_slots(f, is_main) +
                                            param_index + 1) * 8;
-                if (is_float(param_type))
+                if (is_result(param_type))
+                    emit_cell_copy(o, result_cell_offset(f, is_main, param_cell_register(f, param_index)),
+                                   result_cell_offset(f, is_main, i->dest));
+                else if (is_float(param_type))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n",
                             home, off);
                 else
@@ -3129,7 +3162,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (i->has_dest) {
                 int idx = v->as.i32;
                 unsigned home = (unsigned)(f->register_count + hidden_slots(f, is_main) + idx + 1) * 8;
-                if (is_float(f->param_types[idx]))
+                if (is_result(f->param_types[idx]))
+                    emit_cell_copy(o, result_cell_offset(f, is_main, param_cell_register(f, (size_t)idx)),
+                                   result_cell_offset(f, is_main, i->dest));
+                else if (is_float(f->param_types[idx]))
                     fprintf(o, "\tmovsd -%u(%%rbp), %%xmm15\n\tmovsd %%xmm15, -%u(%%rbp)\n", home, off);
                 else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", home, off);
             } else { args[pending] = i; arg_string_ids[pending++] = ULLONG_MAX; }
@@ -3401,6 +3437,17 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         const R6Value *av = &args[base + k]->operands[0];
                         const char *at;
                         value_type(f, av, &at);
+                        if (is_result(at)) {
+                            unsigned cell = result_cell_offset(f, is_main, av->as.i32);
+                            size_t ai = k + hidden;
+                            if (ai >= 4)
+                                fprintf(o, "\tleaq -%u(%%rbp), %%rax\n\tmovq %%rax, %u(%%rsp)\n",
+                                        cell, (unsigned)(32 + (ai - 4) * 8));
+                            else
+                                fprintf(o, "\tleaq -%u(%%rbp), %s\n", cell,
+                                        ai == 0 ? "%rcx" : ai == 1 ? "%rdx" : ai == 2 ? "%r8" : "%r9");
+                            continue;
+                        }
                         emit_load_arg_as(o, f, av, at, named->param_types[k], k + hidden,
                                          arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }

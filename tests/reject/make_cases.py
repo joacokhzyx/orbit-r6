@@ -1364,6 +1364,28 @@ def build_reject():
                                     I("ret", -1, Reg(0))], ["int"])])),
         "D-M1-73", "CGEN", "a float argument does not narrow to an int parameter")
 
+    # ---- D-M1-75: a result parameter of a declared Orbit function ------------
+    def result_param_fn():
+        return FN("take", [I("arg", 0, Int(0)), I("ret", -1, Int(0))],
+                  ["result"], params=["r"], ptypes=["result"])
+
+    add("x-main-result-param",
+        jd(DOC([FN("main", [I("arg", 0, Int(0)), I("ret", -1, Int(0))],
+                   ["result"], params=["r"], ptypes=["result"])])),
+        "D-M1-75", "CGEN", "main takes no parameters, a result one included")
+    add("x-call-result-arg-to-int-param",
+        jd(DOC([one_arg_fn(), MAIN([I("load_const", 0, Int(1)), I("result_ok", 1, Reg(0)),
+                                    I("arg", -1, Reg(1)),
+                                    I("call", 2, Str("one"), Int(1)),
+                                    I("ret", -1, Reg(2))], ["int", "result", "int"])])),
+        "D-M1-75", "CGEN", "a result argument does not match an int parameter")
+    add("x-call-int-arg-to-result-param",
+        jd(DOC([result_param_fn(), MAIN([I("load_const", 0, Int(1)),
+                                         I("arg", -1, Reg(0)),
+                                         I("call", 1, Str("take"), Int(1)),
+                                         I("ret", -1, Reg(1))], ["int", "int"])])),
+        "D-M1-75", "CGEN", "an int argument does not match a result parameter")
+
     return cases
 
 
@@ -2042,6 +2064,11 @@ def build_manifest(reject, accept_files):
              "run_stdout": "9\r\n5\r\n20\r\n0\r\nwide\r\n41\r\nnarrow\r\n-23\r\n103\r\n997\r\n",
              "rule": "D-M1-74",
              "note": "variants of three and four payloads: a union, int, bool and string parts with padding"},
+            {"file": "../../docs/proposed-ir/m1/79-result-parameter.json",
+             "run_exit": 42,
+             "run_stdout": "41\r\n-1\r\n42\r\n102\r\n9\r\n41\r\n51\r\n9\r\n82\r\n8\r\n41\r\n",
+             "rule": "D-M1-75",
+             "note": "a result passes as an argument, in a register and on the stack, is read twice and relayed"},
         ],
     }
 

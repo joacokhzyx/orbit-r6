@@ -1632,3 +1632,13 @@ D-M1-53. Ahora el limite es cuatro y cinco payloads siguen rechazados. El par
 `78-union-wide-pack` mide variantes de tres y cuatro payloads con relleno entre
 un bool y un int y un match anidado sobre el payload `Op`: oraculo y R6
 imprimen `9 5 20 0 wide 41 narrow -23 103 997` y salen 42. Diferencial **77/77**; loader **271/271**; corpus **110 build / 110 match over 135 -> 111 / 111**; censo **2/27**.
+
+## Actualizacion de M1 - A result passes as an argument to a declared function (2026-10-27)
+
+D-M1-75. `suite/result_binding` y `suite/result_string_value` llaman a `fn unwrap(r:
+result)`; el chequeo de parametros rechazaba `result`. En C el parametro es un
+`OrbitResult` por valor, 24 bytes, que Win64 pasa como puntero a una copia. El
+llamador pasa la direccion de la celda del registro y el callee copia los 24
+bytes a una celda propia al entrar. Un extern sigue tomando solo escalares, y
+`main` no toma parametros. El par `79-result-parameter` mide el parametro leido
+dos veces, tras otro parametro, como quinto argumento en la pila y reenviado. Diferencial **78/78**; loader **275/275**; corpus **111 build / 111 match over 135 -> 113 / 113**; censo **2/27**.
