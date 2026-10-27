@@ -143,11 +143,11 @@ bool r6_peephole_win64(const char *path, char *error, size_t error_capacity) {
 #define K_END 5
 #define K_OTHER 6
 
-#define BIT(r) ((uint16_t)(1u << (r)))
-#define ALL_REGS ((uint16_t)0xffffu)
+#define BIT(r) (1u << (r))
+#define ALL_REGS 0xffffffffu
 
 typedef struct {
-    uint16_t use, def;
+    uint32_t use, def;
     int kind;
     size_t target; /* line index of the label a jump names, or (size_t)-1 */
     bool dead;
@@ -171,7 +171,17 @@ static const char *const G8[16] = {"al",  "cl",  "dl",   "bl",   "spl",  "bpl", 
 static int token_reg(const char *s, size_t n, int *width) {
     int r;
     *width = 0;
-    if (n >= 3 && memcmp(s, "xmm", 3) == 0) return -2;
+    if (n >= 4 && n <= 5 && memcmp(s, "xmm", 3) == 0) {
+        int v = 0;
+        size_t d;
+        for (d = 3; d < n; ++d) {
+            if (s[d] < '0' || s[d] > '9') return -1;
+            v = v * 10 + (s[d] - '0');
+        }
+        if (v > 15) return -1;
+        *width = 128;
+        return 16 + v;
+    }
     if (n == 3 && memcmp(s, "rip", 3) == 0) return -2;
     for (r = 0; r < 16; ++r) {
         if (strlen(G64[r]) == n && memcmp(G64[r], s, n) == 0) {
@@ -192,8 +202,8 @@ static int token_reg(const char *s, size_t n, int *width) {
 
 /* Registers named anywhere in the operand; *unknown is set on a name this
  * pass does not know. */
-static uint16_t operand_mask(PSpan s, bool *unknown) {
-    uint16_t mask = 0;
+static uint32_t operand_mask(PSpan s, bool *unknown) {
+    uint32_t mask = 0;
     size_t k = 0;
     while (k < s.n) {
         size_t start;
@@ -296,7 +306,11 @@ static void analyze_line(const char *line, size_t len, PInfo *pi) {
     }
     if (span_eq(mn, "ret")) {
         pi->kind = K_RET;
-        pi->use = BIT(0) | BIT(3) | BIT(6) | BIT(7) | BIT(12) | BIT(13) | BIT(14) | BIT(15);
+        pi->use = BIT(0) | BIT(3) | BIT(6) | BIT(7) | BIT(12) | BIT(13) | BIT(14) | BIT(15) | BIT(16);
+        {
+            int x;
+            for (x = 6; x < 16; ++x) pi->use |= BIT(16 + x);
+        }
         return;
     }
     if (span_eq(mn, "ud2")) {
@@ -316,8 +330,9 @@ static void analyze_line(const char *line, size_t len, PInfo *pi) {
         return;
     }
     if (span_eq(mn, "call") || span_eq(mn, "callq")) {
-        pi->use = BIT(1) | BIT(2) | BIT(8) | BIT(9);
-        pi->def = BIT(0) | BIT(1) | BIT(2) | BIT(8) | BIT(9) | BIT(10) | BIT(11);
+        pi->use = BIT(1) | BIT(2) | BIT(8) | BIT(9) | BIT(16) | BIT(17) | BIT(18) | BIT(19);
+        pi->def = BIT(0) | BIT(1) | BIT(2) | BIT(8) | BIT(9) | BIT(10) | BIT(11) | BIT(16) |
+                  BIT(17) | BIT(18) | BIT(19) | BIT(20) | BIT(21);
         if (a.n > 0 && a.p[0] == '*') pi->use |= operand_mask(a, &unknown);
         if (span_eq(a, "___chkstk_ms")) pi->use |= BIT(0);
         if (unknown) pi->use = ALL_REGS;
@@ -332,8 +347,12 @@ static void analyze_line(const char *line, size_t len, PInfo *pi) {
         int width, r;
         pi->use = operand_mask(a, &unknown);
         r = bare_reg(b, &width);
-        if (r >= 0 && width >= 32 && !span_eq(mn, "movb")) pi->def = BIT(r);
-        else pi->use |= operand_mask(b, &unknown);
+        if (r >= 0 && width >= 32 && !span_eq(mn, "movb")) {
+            if (span_eq(mn, "movsd") && r >= 16 && bare_reg(a, &width) >= 16) pi->use |= BIT(r);
+            else pi->def = BIT(r);
+        } else {
+            pi->use |= operand_mask(b, &unknown);
+        }
         if (unknown) {
             pi->use = ALL_REGS;
             pi->def = 0;
@@ -366,9 +385,14 @@ typedef struct {
     size_t *length;
     PInfo *info;
     PLabel *labels;
-    uint16_t *live_in;
+    uint32_t *live_in;
     size_t cap;
+    unsigned long long pool_bits[16];
+    size_t pool_label[16];
+    size_t pool_count, pool_serial;
 } PWork;
+
+#define MAX_POOL 16
 
 static const char *line_text(const PWork *w, size_t i, size_t *len) {
     if (w->info[i].text) {
@@ -379,9 +403,9 @@ static const char *line_text(const PWork *w, size_t i, size_t *len) {
     return w->text[i];
 }
 
-static uint16_t live_out(const PWork *w, size_t i, size_t end) {
+static uint32_t live_out(const PWork *w, size_t i, size_t end) {
     const PInfo *pi = &w->info[i];
-    uint16_t out = 0;
+    uint32_t out = 0;
     if (pi->kind == K_RET || pi->kind == K_END) return 0;
     if (pi->kind == K_JMP || pi->kind == K_JCC)
         out = pi->target == (size_t)-1 ? ALL_REGS : w->live_in[pi->target];
@@ -484,8 +508,14 @@ static bool rename_register(PSpan s, int d, int src, char *out, size_t cap, size
         r = token_reg(s.p + start, k - start, &width);
         if (r == d) {
             const char *name;
+            char xname[16];
             if (width == 8) return false;
-            name = width == 64 ? G64[src] : G32[src];
+            if (width == 128) {
+                snprintf(xname, sizeof xname, "xmm%d", src - 16);
+                name = xname;
+            } else {
+                name = width == 64 ? G64[src] : G32[src];
+            }
             n = strlen(name);
             if (*used + n + 2 >= cap) return false;
             out[(*used)++] = '%';
@@ -504,7 +534,7 @@ static bool rename_register(PSpan s, int d, int src, char *out, size_t cap, size
 
 static bool is_compare_mnemonic(PSpan mn) {
     return span_eq(mn, "cmpq") || span_eq(mn, "cmpl") || span_eq(mn, "testq") ||
-           span_eq(mn, "testl");
+           span_eq(mn, "testl") || span_eq(mn, "ucomisd");
 }
 
 /* A load that cannot fault: a frame slot, the stack or a symbol. */
@@ -528,7 +558,7 @@ static bool writes_register(PSpan mn, PSpan a, PSpan b, int r) {
     if (span_eq(mn, "movb") || span_eq(mn, "orb") || span_eq(mn, "andb"))
         return (operand_mask(b, &unknown) & BIT(r)) != 0 || unknown;
     if (is_compare_mnemonic(mn) || span_eq(mn, "cmpb") || span_eq(mn, "ucomisd")) return false;
-    if (b.n > 0 && bare_reg(b, &w) == r) return !mnemonic_in(mn, MOVES) || w < 32;
+    if (b.n > 0 && bare_reg(b, &w) == r) return !mnemonic_in(mn, MOVES) || w < 32 || span_eq(mn, "movsd");
     if (b.n == 0 && bare_reg(a, &w) == r) return !span_eq(mn, "idivl") && !span_eq(mn, "idivq") &&
                                                    !span_eq(mn, "pushq");
     return false;
@@ -573,13 +603,13 @@ static int propagate_copy(PWork *w, size_t i, size_t end, int src, int dst) {
         }
         kl = line_text(w, k, &klen);
         split_operands(kl, klen, &kmn, &ka, &kb);
-        if (mentions_xmm(ka) || mentions_xmm(kb)) break;
         {
-            uint16_t explicit_use = (uint16_t)(operand_mask(ka, &unknown) | operand_mask(kb, &unknown));
-            if (unknown || (pi->use & BIT(dst) & (uint16_t)~explicit_use)) break;
+            uint32_t explicit_use = (uint32_t)(operand_mask(ka, &unknown) | operand_mask(kb, &unknown));
+            if (unknown || (pi->use & BIT(dst) & (uint32_t)~explicit_use)) break;
         }
-        if (pi->def & BIT(src)) break;
-        if (writes_register(kmn, ka, kb, src)) break;
+        if (((pi->def & BIT(src)) || writes_register(kmn, ka, kb, src)) &&
+            (live_out(w, k, end) & BIT(dst)))
+            break;
         if (kb.n == 0 && bare_reg(ka, &wd) == dst && !span_eq(kmn, "idivl") &&
             !span_eq(kmn, "idivq") && !span_eq(kmn, "pushq"))
             break;
@@ -668,13 +698,21 @@ static long sweep_function(PWork *w, size_t first, size_t end) {
         line = line_text(w, i, &len);
         split_operands(line, len, &mn, &a, &b);
         j = next_live(w, i, end);
+        /* A move of a register onto itself. */
+        if ((span_eq(mn, "movq") || span_eq(mn, "movaps")) && a.n > 0 && same_span(a, b) &&
+            bare_reg(a, &wa) >= 0 && (wa == 64 || wa == 128)) {
+            kill_line(w, i);
+            ++changed;
+            continue;
+        }
         is_q = span_eq(mn, "movq");
         is_l = span_eq(mn, "movl");
         rb = (is_q || is_l) ? bare_reg(b, &wb) : -1;
         /* A definition nothing reads, from a source that cannot fault. */
-        if ((is_q || is_l || span_eq(mn, "movslq") || span_eq(mn, "leaq") || span_eq(mn, "movabsq")) &&
+        if ((is_q || is_l || span_eq(mn, "movslq") || span_eq(mn, "leaq") || span_eq(mn, "movabsq") ||
+             span_eq(mn, "movaps") || span_eq(mn, "movsd")) &&
             (rb = bare_reg(b, &wb)) >= 0 && wb >= 32 && rb != 4 && rb != 5 && cannot_fault(a) &&
-            !mentions_xmm(a) && !(live_out(w, i, end) & BIT(rb))) {
+            !(live_out(w, i, end) & BIT(rb))) {
             kill_line(w, i);
             ++changed;
             continue;
@@ -718,6 +756,123 @@ static long sweep_function(PWork *w, size_t first, size_t end) {
                 ++changed;
                 continue;
             }
+        }
+        /* movabsq $bits, %D ; movq %D, %xmmK  loads the constant from .rdata */
+        if (span_eq(mn, "movabsq") && (ra = bare_reg(b, &wa)) >= 0 && wa == 64 && ra < 16 &&
+            a.n > 3 && a.p[0] == '$' && a.p[1] == '0' && a.p[2] == 'x' && j < end && w->info[j].kind == K_PLAIN) {
+            PSpan jm, ja, jb;
+            int rx, wx;
+            jline = line_text(w, j, &jlen);
+            split_operands(jline, jlen, &jm, &ja, &jb);
+            if (span_eq(jm, "movq") && same_span(ja, b) && (rx = bare_reg(jb, &wx)) >= 16 &&
+                !(live_out(w, j, end) & BIT(ra))) {
+                unsigned long long bits = strtoull(a.p + 1, NULL, 16);
+                size_t e;
+                char label[40], text[128];
+                for (e = 0; e < w->pool_count; ++e)
+                    if (w->pool_bits[e] == bits) break;
+                if (e == w->pool_count) {
+                    if (e >= MAX_POOL) goto no_pool;
+                    w->pool_bits[e] = bits;
+                    w->pool_label[e] = w->pool_serial++;
+                    ++w->pool_count;
+                }
+                snprintf(label, sizeof label, ".LCr6f%zu(%%rip)", w->pool_label[e]);
+                snprintf(text, sizeof text, "\tmovsd %s, %.*s", label, (int)jb.n, jb.p);
+                {
+                    char *copy = (char *)malloc(strlen(text) + 1);
+                    if (!copy) return -1;
+                    strcpy(copy, text);
+                    free(w->info[j].text);
+                    w->info[j].text = copy;
+                    analyze_line(copy, strlen(copy), &w->info[j]);
+                }
+                kill_line(w, i);
+                ++changed;
+                continue;
+            }
+        }
+    no_pool:
+        /* movaps/movsd A, %X ; OP B, %X ; movaps %X, D  becomes  movaps A, D ; OP B, D */
+        if ((span_eq(mn, "movaps") || span_eq(mn, "movsd")) && (rb = bare_reg(b, &wb)) >= 16 &&
+            j < end && w->info[j].kind == K_PLAIN) {
+            PSpan jm, ja, jb, km, ka2, kb2;
+            size_t k2 = next_live(w, j, end), klen2;
+            const char *kline2;
+            int rd, wd2, rbb, wbb;
+            jline = line_text(w, j, &jlen);
+            split_operands(jline, jlen, &jm, &ja, &jb);
+            if ((span_eq(jm, "addsd") || span_eq(jm, "subsd") || span_eq(jm, "mulsd") ||
+                 span_eq(jm, "divsd")) && same_span(jb, b) && k2 < end && w->info[k2].kind == K_PLAIN) {
+                kline2 = line_text(w, k2, &klen2);
+                split_operands(kline2, klen2, &km, &ka2, &kb2);
+                rd = bare_reg(kb2, &wd2);
+                rbb = bare_reg(ja, &wbb);
+                if (span_eq(km, "movaps") && same_span(ka2, b) && rd >= 16 && rd != rb &&
+                    rbb != rd && !(operand_mask(ja, &(bool){false}) & (BIT(rd) | BIT(rb))) &&
+                    !(live_out(w, k2, end) & BIT(rb))) {
+                    char first[128];
+                    char *copy;
+                    const char *fm = span_eq(mn, "movaps") ? "movaps" : "movsd";
+                    bool same = a.n == kb2.n && memcmp(a.p, kb2.p, a.n) == 0;
+                    if (same) {
+                        snprintf(first, sizeof first, "\t%.*s %.*s, %.*s", (int)jm.n, jm.p, (int)ja.n, ja.p,
+                                 (int)kb2.n, kb2.p);
+                        kill_line(w, i);
+                    } else {
+                        if (!set_text(w, i, a, kb2, fm)) return -1;
+                        snprintf(first, sizeof first, "\t%.*s %.*s, %.*s", (int)jm.n, jm.p, (int)ja.n, ja.p,
+                                 (int)kb2.n, kb2.p);
+                    }
+                    copy = (char *)malloc(strlen(first) + 1);
+                    if (!copy) return -1;
+                    strcpy(copy, first);
+                    free(w->info[j].text);
+                    w->info[j].text = copy;
+                    analyze_line(copy, strlen(copy), &w->info[j]);
+                    kill_line(w, k2);
+                    ++changed;
+                    continue;
+                }
+            }
+        }
+        /* movaps %S, %D ; readers of D read S instead */
+        if (span_eq(mn, "movaps") && (ra = bare_reg(a, &wa)) >= 16 && (rb = bare_reg(b, &wb)) >= 16 &&
+            ra != rb) {
+            int r = propagate_copy(w, i, end, ra, rb);
+            if (r < 0) return -1;
+            if (r > 0) {
+                ++changed;
+                continue;
+            }
+        }
+        /* movsd .LC(%rip), %K ; OP %K, %X  becomes  OP .LC(%rip), %X */
+        if (span_eq(mn, "movsd") && (rb = bare_reg(b, &wb)) >= 16 && a.n > 6 &&
+            memcmp(a.p + a.n - 6, "(%rip)", 6) == 0) {
+            size_t k = j, steps;
+            for (steps = 0; steps < 4 && k < end; ++steps, k = next_live(w, k, end)) {
+                const char *kl;
+                size_t klen;
+                PSpan kmn, ka, kb;
+                if (w->info[k].kind != K_PLAIN) break;
+                if (!((w->info[k].use | w->info[k].def) & BIT(rb))) continue;
+                kl = line_text(w, k, &klen);
+                split_operands(kl, klen, &kmn, &ka, &kb);
+                if ((span_eq(kmn, "addsd") || span_eq(kmn, "subsd") || span_eq(kmn, "mulsd") ||
+                     span_eq(kmn, "divsd") || span_eq(kmn, "ucomisd")) &&
+                    bare_reg(ka, &wa) == rb && bare_reg(kb, &wa) >= 16 && !same_span(kb, b) &&
+                    !(live_out(w, k, end) & BIT(rb))) {
+                    char mnbuf[16];
+                    memcpy(mnbuf, kmn.p, kmn.n);
+                    mnbuf[kmn.n] = 0;
+                    if (!set_text(w, k, a, kb, mnbuf)) return -1;
+                    kill_line(w, i);
+                    ++changed;
+                    break;
+                }
+                break;
+            }
+            if (w->info[i].dead) continue;
         }
         /* movq %S, %D ; readers of D read S instead */
         if (is_q && (ra = bare_reg(a, &wa)) >= 0 && wa == 64 && rb >= 0 && wb == 64 && ra != rb &&
@@ -810,8 +965,8 @@ static bool process_final(PWork *w, size_t first, size_t end) {
         do {
             again = false;
             for (i = end; i-- > first;) {
-                uint16_t in, out = live_out(w, i, end);
-                in = (uint16_t)(w->info[i].use | (out & (uint16_t)~w->info[i].def));
+                uint32_t in, out = live_out(w, i, end);
+                in = (uint32_t)(w->info[i].use | (out & (uint32_t)~w->info[i].def));
                 if (in != w->live_in[i]) {
                     w->live_in[i] = in;
                     again = true;
@@ -821,6 +976,23 @@ static bool process_final(PWork *w, size_t first, size_t end) {
         changed = sweep_function(w, first, end);
         if (changed < 0) return false;
         if (changed == 0) break;
+    }
+    if (w->pool_count > 0) {
+        char *block = (char *)malloc(w->pool_count * 160 + 64);
+        size_t e, used = 0;
+        if (!block) return false;
+        used += (size_t)sprintf(block + used, "\t.section .rdata,\"dr\"");
+        for (e = 0; e < w->pool_count; ++e) {
+            unsigned long long v = w->pool_bits[e];
+            used += (size_t)sprintf(block + used, "\n.LCr6f%zu:\n\t.byte %llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu",
+                                    w->pool_label[e], v & 255, (v >> 8) & 255, (v >> 16) & 255,
+                                    (v >> 24) & 255, (v >> 32) & 255, (v >> 40) & 255, (v >> 48) & 255,
+                                    (v >> 56) & 255);
+        }
+        used += (size_t)sprintf(block + used, "\n\t.text\n\t.seh_endproc");
+        free(w->info[end - 1].text);
+        w->info[end - 1].text = block;
+        w->pool_count = 0;
     }
     return true;
 }
@@ -868,7 +1040,7 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
     }
     w.info = (PInfo *)calloc(count + 1, sizeof *w.info);
     w.labels = (PLabel *)malloc((count + 1) * sizeof *w.labels);
-    w.live_in = (uint16_t *)calloc(count + 1, sizeof *w.live_in);
+    w.live_in = (uint32_t *)calloc(count + 1, sizeof *w.live_in);
     if (!w.info || !w.labels || !w.live_in) goto oom;
     for (i = 0; i < count; ++i) {
         if (!in_function) {

@@ -221,7 +221,17 @@ static bool parse_rm(Asm *a, const char *s, int width, Mem *m) {
  * (D-M1-80). */
 static bool parse_xrm(Asm *a, const char *s, Mem *m) {
     int w, x, id;
-    if (*s != '%') return parse_mem(a, s, m);
+    if (*s != '%') {
+        static char rip_label[256];
+        const char *paren = strchr(s, '(');
+        if (!parse_mem(a, s, m)) return false;
+        if (m->rip && paren && (size_t)(paren - s) < sizeof rip_label) {
+            memcpy(rip_label, s, (size_t)(paren - s));
+            rip_label[paren - s] = 0;
+            m->symbol = rip_label;
+        }
+        return true;
+    }
     id = reg_id(s, &w, &x);
     if (id < 0 || !x) return false;
     m->base = id; m->rip = 0; m->reg = 1; m->byte = 0;
@@ -476,8 +486,10 @@ static bool encode(Asm *a, char *line) {
             !emit(a, 0x0f) || !emit(a, 0x7e)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if (strcmp(op, "movsd") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
+    if (strcmp(op, "movsd") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m)) {
+        if (m.rip) { char *paren = strchr(a1, '('); *paren = 0; m.symbol = trim(a1); }
         return rex_modrm_mem(a, 0, id2, m, 0x10, 0, 1, 0x0f);
+    }
     if (strcmp(op, "movsd") == 0 && id1 >= 0 && x1 && parse_mem(a, a2, &m))
         return rex_modrm_mem(a, 0, id1, m, 0x11, 0, 1, 0x0f);
     if (strcmp(op, "movaps") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))

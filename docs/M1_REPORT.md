@@ -1729,3 +1729,14 @@ copias ignoraba que `sete %al` escribe rax: los 83 pares pasaban y solo el
 self-host lo detecto. El par `86-register-cleanup` sale 42. Diferencial
 **85/85**; loader **284/284**; corpus **115 build / 115 match over 135 -> 115 /
 115**; self-host C `54f0b797...`.
+
+## Actualizacion de M1 - Float constants load from .rdata and xmm moves are fused (2026-10-27)
+
+D-M1-83. Tras D-M1-80 cada constante float se armaba por uso con `movabsq` +
+`movq` y cada operacion pasaba por xmm0. La vivacidad de `r6_peephole_final`
+cubre ahora xmm0-xmm15 y el pase carga las constantes desde un bloque `.rdata`
+al final de la funcion (`movsd .LCr6f<n>(%rip), %xmmK`), las pliega en la
+operacion aritmetica como operando de memoria, fusiona `movaps A,%X` + `OP B,%X`
++ `movaps %X,D` y renombra copias xmm. `floats.ir`: 1.26 s -> 0.82 s. El par
+`87-float-cleanup` sale 42. Diferencial **86/86**; loader **284/284**; corpus
+**115 build / 115 match over 135 -> 115 / 115**; self-host C `54f0b797...`.

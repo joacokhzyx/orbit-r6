@@ -3848,3 +3848,37 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-83 - Float constants load from .rdata and xmm moves are fused
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: after D-M1-80 a float constant was still built per use with
+  `movabsq $bits, %rax` + `movq %rax, %xmmK`, and each operation went through
+  xmm0: `movaps %xmm7, %xmm0`, `mulsd %xmm9, %xmm0`, `movaps %xmm0, %xmm9`.
+  `floats.ir` ran 1.26 s against 0.60 s for the oracle.
+- Decision: the liveness of `r6_peephole_final` (D-M1-82) covers xmm0-xmm15 and
+  the pass adds:
+  - `movabsq $0x<bits>, %D` + `movq %D, %xmmK` with D dead becomes
+    `movsd .LCr6f<n>(%rip), %xmmK`, with the 8 bytes in a `.rdata` block at
+    the end of the function; equal constants in one function share a label;
+  - `movsd .LCr6f<n>(%rip), %K` + `addsd|subsd|mulsd|divsd|ucomisd %K, %X`
+    with K dead becomes the operation with the memory operand;
+  - `movaps A, %X` + `OP B, %X` + `movaps %X, D` with X dead becomes
+    `movaps A, D` + `OP B, D`, unless B names D or X;
+  - `movaps %S, %D` renames the readers of D to S as it does for general
+    registers, and a dead `movaps` or `movsd` between registers goes;
+  - `movq %X, %X` and `movaps %X, %X` go.
+  A call reads xmm0-xmm3 and writes xmm0-xmm5; `ret` reads xmm0 and
+  xmm6-xmm15, so the restores of the callee-saved registers stay.
+- The assembler accepts `label(%rip)` as the source of `movsd` and of
+  `addsd`..`divsd`, `ucomisd`.
+- Fixture `87-float-cleanup` (oracle and R6 print `-86.53966155315554
+  -10.924478458669366 153.57059251167735 -3.5207706118582354 2.25 0.0 0.0
+  -0.0 inf 0.0 0` one per line and exit 42): `a = c - a` and `b = b / a` where
+  the destination is the right operand, a square, a swap through a temporary,
+  a constant on the left, negation of zero, 1e308 * 10 and 4.9e-324 / 2.
+- Benchmark `floats.ir`, best of 5: 1.26 s -> 0.82 s.
+- Gates: differential **86/86**, loader **284/284**, corpus **115 build / 115
+  match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
+  `compiler/host/main.orb`.
+- Status: **applied**.

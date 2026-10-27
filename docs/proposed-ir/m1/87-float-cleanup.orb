@@ -1,0 +1,54 @@
+// D-M1-83: float constants load from .rdata and the xmm moves around an
+// arithmetic operation are fused. The shapes that must not fuse wrongly are the
+// ones where the destination is also the right operand (`a = c - a`,
+// `a = c / a`), a square (`x * x`), a swap through a temporary, a constant on
+// the left, a negative zero and large and small constants. The oracle and R6
+// print the same eleven lines and exit 42.
+fn shapes(a0: float, b0: float, c0: float) -> float {
+    var a = a0
+    var b = b0
+    var c = c0
+    var i = 0
+    while i < 6 {
+        a = c - a
+        b = b / a + 0.5
+        c = c * c - 1.0
+        val t = a
+        a = b
+        b = t
+        c = 2.0 - c * 0.25
+        i = i + 1
+    }
+    return a + b * 3.0 + c
+}
+
+fn mix(x: float, n: int) -> float {
+    var s = 0.0
+    var k = 1.0
+    var i = 0
+    while i < n {
+        s = s + x * k - 1.5e-3
+        k = k * 1.0009765625 + 7.0e10 * 0.0
+        i = i + 1
+    }
+    return s
+}
+
+fn sign(x: float) -> float {
+    return -x * -1.0
+}
+
+fn main() -> int {
+    print(shapes(1.5, 2.5, 3.5))
+    print(shapes(0.25, 0.5, 0.75))
+    print(mix(3.0, 50))
+    print(mix(-0.5, 7))
+    print(sign(2.25))
+    print(sign(0.0))
+    print(0.0 - 0.0)
+    print(-1.0 * 0.0)
+    print(1.0e308 * 10.0)
+    print(4.9e-324 / 2.0)
+    print(shapes(100000.0, 0.001, 123456.789) > 0.0)
+    return 42
+}
