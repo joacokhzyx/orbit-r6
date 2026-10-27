@@ -1592,3 +1592,20 @@ instrucciones, el ejecutable de 2878420 a 2851796 bytes y la auto-compilación
 de 2,57 s a 2,52 s (mediana), contra 2,13 s del oráculo. Diferencial
 **74/74**; loader **266/266**; corpus **109 build / 109 match sobre 135**;
 censo **2/27**.
+
+## Actualización de M1 - una igualdad de strings prueba el primer byte antes de llamar a strcmp (2026-10-27)
+
+D-M1-72. Un `eq` o `ne` de strings llamaba siempre a `strcmp`. Una sonda en el C
+del compilador contó 147423232 llamadas en la auto-compilación: el 90,2 %
+difiere en el primer byte, el 0,8 % es el mismo puntero y el 9,0 % comparte el
+primer byte. Ahora la comparación carga el primer byte de cada lado, sale con
+ZF apagado si difieren y con ZF encendido si el byte es cero o los punteros
+coinciden; solo el resto llama a `strcmp`. Un operando NULL falla en la carga,
+como en `strcmp`. El par `76-string-equality-fast-path` lo mide: oráculo y R6
+imprimen `97\r\n` y salen 42. `gcc -O1` compila la comparación del oráculo a
+`call strcmp` sin prueba previa. La auto-compilación baja de 3,15 s a 2,77 s
+(mediana de nueve corridas intercaladas, 2,66 s el oráculo); `strcmp` pasa de
+cerca del 16 % al 3 % de las muestras. El tiempo que queda en msvcrt es
+`memmove` (10,7 %) y `strlen` (4,6 %), llamados desde el runtime y desde
+`.len()` igual que en el oráculo. Diferencial **75/75**; loader **266/266**;
+corpus **109 build / 109 match sobre 135**; censo **2/27**.

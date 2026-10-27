@@ -1,0 +1,33 @@
+// D-M1-72: a string `==` or `!=` compares the first bytes and the pointers
+// before it calls strcmp. Every pair below must keep the answer of strcmp:
+// the same pointer, a first byte that differs, equal contents behind two
+// pointers, a common prefix, two empty strings and an empty string against a
+// longer one. The branch-only form and the stored form are both measured.
+fn check(a: string, b: string) -> int {
+    var n = 0
+    if a == b { n = n + 1 }
+    if a != b { n = n + 2 }
+    val e = a == b
+    if e { n = n + 10 }
+    if e { n = n + 20 }
+    return n
+}
+
+fn main() -> int {
+    val s = "or" + "bit"
+    val same_content = "orb" + "it"
+    val empty_a = "" + ""
+    val empty_b = "" + ""
+    if check(s, s) != 31 { return 10 }
+    if check("orbit", "r6") != 2 { return 11 }
+    if check(s, same_content) != 31 { return 12 }
+    if check("orbit1", "orbit2") != 2 { return 13 }
+    if check("orbit", "orbi") != 2 { return 14 }
+    if check("orbi", "orbit") != 2 { return 15 }
+    if check(empty_a, empty_b) != 31 { return 16 }
+    if check(empty_a, "x") != 2 { return 17 }
+    if check("x", empty_b) != 2 { return 18 }
+    if check("A", "a") != 2 { return 19 }
+    print(check(s, s) + check("orbit", "r6") + check(s, same_content) + check(empty_a, empty_b) + check("orbit", "orbi"))
+    return 42
+}

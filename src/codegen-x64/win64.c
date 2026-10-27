@@ -2582,6 +2582,19 @@ static void emit_compare_result(FILE *o, const char *setcc, unsigned off, bool f
         fprintf(o, "\t%s %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n", setcc, off);
 }
 
+/* D-M1-72: ZF is set when two strings are equal. Most string comparisons of
+ * the compiler differ in the first byte, so that byte and the pointers are
+ * tested before the call to strcmp. A NULL operand faults on the byte load,
+ * as strcmp does. */
+static void emit_string_equality(FILE *o, size_t fn_index, size_t pc, unsigned aoff, unsigned boff) {
+    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+               "\tmovzbl (%%rcx), %%eax\n\tcmpb (%%rdx), %%al\n\tjne .Lr6_f%zu_streq_%zu\n"
+               "\ttestq %%rax, %%rax\n\tje .Lr6_f%zu_streq_%zu\n"
+               "\tcmpq %%rcx, %%rdx\n\tje .Lr6_f%zu_streq_%zu\n"
+               "\tcall strcmp\n\tcmpl $0, %%eax\n.Lr6_f%zu_streq_%zu:\n",
+            aoff, boff, fn_index, pc, fn_index, pc, fn_index, pc, fn_index, pc);
+}
+
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                           size_t fn_index, R6Diagnostic *d) {
     size_t pc, pending = 0;
@@ -2964,12 +2977,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             t = operand_type_of(f, i, 0);
             t1 = operand_type_of(f, i, 1);
             if (is_string(t) && is_string(t1)) {
-                if (flags_only_compare(f, pc))
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tcmpl $0, %%eax\n",
-                            aoff, boff);
-                else
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                            aoff, boff, off, off, off);
+                emit_string_equality(o, fn_index, pc, aoff, boff);
+                emit_compare_result(o, "sete", off, flags_only_compare(f, pc));
             } else if (is_float(t) || is_float(t1)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\tsete %%al\n\tsetnp %%dl\n\tandb %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         aoff, boff, off);
@@ -3003,12 +3012,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             const char *t1 = operand_type_of(f, i, 1);
             materialize_literals(o, f, i, is_main, &string_id);
             if (i->opcode == R6_OP_NE && is_string(t0) && is_string(t1)) {
-                if (flags_only_compare(f, pc))
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tcmpl $0, %%eax\n",
-                            aoff, boff);
-                else
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                            aoff, boff, off, off, off);
+                emit_string_equality(o, fn_index, pc, aoff, boff);
+                emit_compare_result(o, "setne", off, flags_only_compare(f, pc));
             } else if (is_float(t0) || is_float(t1)) {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setb" :

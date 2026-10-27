@@ -500,6 +500,8 @@ static bool encode(Asm *a, char *line) {
         if (imm > 127) return bad(a, "cmpb immediate outside signed-byte range");
         return rex_modrm_mem(a, 8, 7, m, 0x80, 0, 0, -1) && emit(a, (uint8_t)imm);
     }
+    if (strcmp(op, "cmpb") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2 && w2 == 8)
+        return rex_modrm_mem(a, 8, 0, m, 0x3a, 0, 0, -1);
     if (strcmp(op, "subq") == 0 && parse_imm(a1, &imm) && strcmp(a2, "%rsp") == 0) {
         if (imm <= 127) return emit(a, 0x48) && emit(a, 0x83) && emit(a, 0xec) && emit(a, (uint8_t)imm);
         return emit(a, 0x48) && emit(a, 0x81) && emit(a, 0xec) && emit32(a, (uint32_t)imm);

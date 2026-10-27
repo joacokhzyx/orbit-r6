@@ -3472,3 +3472,46 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **74/74**, loader **266/266**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
 - Status: **applied**.
+
+## D-M1-72 - A string equality tests the first byte and the pointers before it calls strcmp
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: the self-compile of `compiler/host/main.orb` makes 147423232
+  string equality calls. Counted with a probe in place of `strcmp` in the C of
+  the compiler, 90.2% of them differ in the first byte (132998610), 0.8% are
+  the same pointer (1143316), 9.0% share the first byte and need the full
+  comparison (13281305, of which 826027 are equal), and none compare two empty
+  strings. A sampler put `strcmp` at about 16% of the run.
+- Decision: a string `eq` or `ne` loads the first byte of the left operand,
+  compares it with the first byte of the right operand and leaves with ZF
+  clear when they differ. Equal first bytes of zero, or the same pointer, leave with
+  ZF set. Anything else calls `strcmp`. D-M1-70 and D-M1-71 are unchanged: the
+  result is still ZF, read by the fused jump or by `sete` and `setne`.
+- NULL: `strcmp` faults on a NULL operand and so does the byte load, so a
+  program that compares a NULL string stops in the oracle and in R6. The first
+  load is the left operand and the compare reads the right one before any
+  branch, so neither operand is skipped.
+- The assembler gains `cmpb mem, %al` (opcode `3A /r`).
+- Oracle: `gcc -O1` compiles `strcmp(a, b) == 0` to `call strcmp`,
+  `testl %eax, %eax`, `sete`, with no inline test of the first byte. The
+  comparison costs the oracle one library call each time, so the first-byte
+  test makes R6 do less work there than the oracle does.
+- Fixture `76-string-equality-fast-path` (oracle and R6 print `97\r\n` and
+  exit 42): the same pointer, a first byte that differs, equal contents behind
+  two pointers, a shared prefix in both directions, two empty strings and an
+  empty string against a longer one, each in the branch-only form and the
+  stored form.
+- Measured: the asm of the compiler goes from 287746 to 306871 instructions
+  and the executable from 2851796 to 3047590 bytes. The self-compile of
+  `compiler/host/main.orb` takes a median of 2.77 s against 3.15 s before and
+  2.66 s for the oracle, nine interleaved runs each on a busy machine (minimum
+  2.65 s against 2.94 s and 2.49 s). `strcmp` falls from about 16% to 3% of the
+  samples. The rest of the msvcrt time is `memmove` (10.7%) and `strlen`
+  (4.6%), both called from the runtime and from `.len()` in the same way the
+  oracle calls them; R6 emits no direct `memcpy`.
+- The compiler built this way translates `compiler/host/main.orb` to the C of
+  the oracle (`54f0b797…`), emits IR identical to `main.ir`, and R6 builds
+  that IR into the same executable.
+- Gates: differential **75/75**, loader **266/266**, corpus **109 build / 109
+  match over 135**, ratchet held, census **2/27**.
+- Status: **applied**.
