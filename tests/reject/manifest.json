@@ -418,7 +418,7 @@
       "exit": 1,
       "code": "CGEN",
       "rule": "D-M1-11",
-      "note": "only int/bool/float/string/list fields are lowered (list since D-M1-39)"
+      "note": "a field naming no declared type stays refused (list fields since D-M1-39, model and union fields since D-M1-56)"
     },
     {
       "file": "cases/x-duplicate-model-name.json",
@@ -1147,6 +1147,20 @@
       "code": "CGEN",
       "rule": "D-M1-54",
       "note": "an int passed for a model payload is refused"
+    },
+    {
+      "file": "cases/x-model-field-model-store-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-56",
+      "note": "an int stored into a model field is refused"
+    },
+    {
+      "file": "cases/x-model-field-union-ctor-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-56",
+      "note": "an int passed for a union field is refused"
     }
   ],
   "accept": [
@@ -1674,6 +1688,13 @@
       "run_stdout": "shapes\r\n",
       "rule": "D-M1-55",
       "note": "functions return union cells built, matched and passed through"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/64-model-word-fields.json",
+      "run_exit": 42,
+      "run_stdout": "ab\r\n",
+      "rule": "D-M1-56",
+      "note": "model fields holding models and unions are read, written and built"
     }
   ]
 }

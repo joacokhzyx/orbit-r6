@@ -378,11 +378,12 @@ def build_reject():
 
     mod = MOD([MAIN()])
     mod["models"] = [{"name": "Box",
-                      "fields": [{"name": "p", "typeName": "Box"}],
+                      "fields": [{"name": "p", "typeName": "Ghost"}],
                       "typeParams": []}]
     add("x-model-field-unsupported-type", jd({"irVersion": "1", "module": mod}),
         "D-M1-11", "CGEN",
-        "only int/bool/float/string/list fields are lowered (list since D-M1-39)")
+        "a field naming no declared type stays refused (list fields since D-M1-39, "
+        "model and union fields since D-M1-56)")
 
     mod = MOD([MAIN()])
     mod["models"] = [box, dict(box)]
@@ -1245,6 +1246,33 @@ def build_reject():
                            I("ret", -1, Int(0))], ["void*"])], "Acct")),
         "D-M1-54", "CGEN", "an int passed for a model payload is refused")
 
+    # ---- D-M1-56: a model or union field is a pointer word -------------------
+    # The value written into such a field must still have the field's type.
+    def node_mod(fns):
+        mod = MOD(fns)
+        mod["models"] = [{"name": "Leaf", "fields": [{"name": "n", "typeName": "int"}],
+                          "typeParams": []},
+                         {"name": "Node", "fields": [{"name": "leaf", "typeName": "Leaf"},
+                                                     {"name": "tag", "typeName": "Ev"}],
+                          "typeParams": []}]
+        mod["types"] = [{"name": "Ev", "kind": "union_type", "variants": ["Hit"],
+                         "richVariants": [""], "methods": []}]
+        return {"irVersion": "1", "module": mod}
+    add("x-model-field-model-store-int",
+        jd(node_mod([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("Leaf"), Int(1)),
+                           I("call", 1, Str("Hit"), Int(0)),
+                           I("arg", -1, Reg(0)), I("arg", -1, Reg(1)),
+                           I("call", 2, Str("Node"), Int(2)),
+                           I("store_field", -1, Reg(2), Sym("Node.leaf"), Int(3)),
+                           I("ret", -1, Int(0))], ["Leaf", "void*", "Node"])])),
+        "D-M1-56", "CGEN", "an int stored into a model field is refused")
+    add("x-model-field-union-ctor-int",
+        jd(node_mod([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("Leaf"), Int(1)),
+                           I("arg", -1, Reg(0)), I("arg", -1, Int(7)),
+                           I("call", 1, Str("Node"), Int(2)),
+                           I("ret", -1, Int(0))], ["Leaf", "Node"])])),
+        "D-M1-56", "CGEN", "an int passed for a union field is refused")
+
     return cases
 
 
@@ -1867,6 +1895,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/63-union-return.json",
              "run_exit": 42, "run_stdout": "shapes\r\n", "rule": "D-M1-55",
              "note": "functions return union cells built, matched and passed through"},
+            {"file": "../../docs/proposed-ir/m1/64-model-word-fields.json",
+             "run_exit": 42, "run_stdout": "ab\r\n", "rule": "D-M1-56",
+             "note": "model fields holding models and unions are read, written and built"},
         ],
     }
 

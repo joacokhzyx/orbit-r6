@@ -1386,3 +1386,13 @@ lo justificara. El par `63-union-return` lo mide: oráculo y R6 imprimen
 rechazos + 78 controles); corpus **100 build / 100 match sobre 132 programas**
 (`mini_parser`, `union_bare_variant_pattern`, `union_payload_return`); censo
 **0/27**. El trinquete se re-toma en 100/100.
+
+## Actualización de M1 - un campo de modelo o de unión es una palabra (2026-10-27)
+
+D-M1-56. Un campo de modelo que nombra un modelo o una unión es un puntero de 8
+bytes. El par `64-model-word-fields` lo mide: oráculo y R6 imprimen `ab\r\n` y
+salen 42. Diferencial **63/63**; loader **245/245** (166 rechazos + 79
+controles); corpus **101 build / 101 match sobre 132 programas**
+(`model_nested`); censo **0/27**: los módulos del compilador pasan a los
+registros `unknown` (10) y a `list_push` (9). El trinquete se re-toma en
+101/101.

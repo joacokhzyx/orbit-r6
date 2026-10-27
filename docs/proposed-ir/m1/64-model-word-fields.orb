@@ -1,0 +1,46 @@
+model Point {
+    x: int
+    y: int
+}
+
+union Expr { Num(int) Add(BinNode) Neg(Expr) }
+
+model BinNode {
+    left: Expr
+    right: Expr
+}
+
+model Segment {
+    name: string
+    from: Point
+    to: Point
+    weight: Expr
+}
+
+fn eval(e: Expr) -> int {
+    match e {
+        Num(n) => { return n }
+        Add(b) => { return eval(b.left) + eval(b.right) }
+        Neg(inner) => { return 0 - eval(inner) }
+    }
+    return 0
+}
+
+fn length(s: Segment) -> int {
+    return (s.to.x - s.from.x) + (s.to.y - s.from.y)
+}
+
+fn main() -> int {
+    val a = Point { x: 1, y: 2 }
+    val b = Point { x: 4, y: 6 }
+    val w = Add(BinNode { left: Num(5), right: Neg(Num(2)) })
+    val seg = Segment { name: "ab", from: a, to: b, weight: w }
+    if length(seg) != 7 { return 10 }
+    if eval(seg.weight) != 3 { return 11 }
+    seg.to = Point { x: 10, y: 10 }
+    if length(seg) != 17 { return 12 }
+    seg.weight = Num(9)
+    if eval(seg.weight) != 9 { return 13 }
+    print(seg.name)
+    return 42
+}

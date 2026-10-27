@@ -138,6 +138,11 @@ static char *canonical_union_spelling(const R6Module *m, char *t) {
 
 static void canonicalize_union_types(R6Module *m) {
     size_t k, j;
+    /* D-M1-56: a union-typed model field is the same cell word. */
+    for (k = 0; m->models && k < m->model_count; ++k)
+        for (j = 0; m->models[k].fields && j < m->models[k].field_count; ++j)
+            m->models[k].fields[j].type_name =
+                canonical_union_spelling(m, m->models[k].fields[j].type_name);
     for (k = 0; m->functions && k < m->function_count; ++k) {
         R6Function *f = &m->functions[k];
         if (f->param_types)
@@ -705,12 +710,17 @@ static bool is_model_type(const R6Module *m, const char *t) {
 /* M1 model fields cover the scalar storage the pinned C backend synthesizes
  * for a model struct: orbit_int (4/4), orbit_bool (1/1), orbit_float (8/8)
  * and orbit_string (8/8 pointer). Anything else stays fail-closed. */
-static bool model_field_size(const char *t, size_t *size, size_t *align) {
+/* D-M1-39: an OrbitList* member (c_backend.orb:478). D-M1-56: a model member
+ * is its `Name*` and a union member its cell, both one pointer word. */
+static bool field_is_word(const R6Module *m, const char *t) {
+    return is_list(t) || is_void_ptr(t) || is_model_type(m, t);
+}
+
+static bool model_field_size(const R6Module *m, const char *t, size_t *size, size_t *align) {
     if (is_int(t)) { *size = 4; *align = 4; return true; }
     if (is_bool(t)) { *size = 1; *align = 1; return true; }
     if (is_float(t) || is_string(t)) { *size = 8; *align = 8; return true; }
-    /* D-M1-39: an OrbitList* member (c_backend.orb:478). */
-    if (is_list(t)) { *size = 8; *align = 8; return true; }
+    if (field_is_word(m, t)) { *size = 8; *align = 8; return true; }
     return false;
 }
 
@@ -718,12 +728,12 @@ static bool model_field_size(const char *t, size_t *size, size_t *align) {
  * natural alignment, struct size rounded up to the widest member (sizeof(M)
  * at the pin). Returns the offset of field `want` and the total size; the
  * total is exact for any `want` in [0, field_count]. */
-static bool model_field_layout(const R6Model *model, size_t want,
+static bool model_field_layout(const R6Module *m, const R6Model *model, size_t want,
                                size_t *offset, size_t *total) {
     size_t i, off = 0, align_max = 1, want_off = 0;
     for (i = 0; i < model->field_count; ++i) {
         size_t size, align;
-        if (!model_field_size(model->fields[i].type_name, &size, &align))
+        if (!model_field_size(m, model->fields[i].type_name, &size, &align))
             return false;
         off = (off + align - 1) / align * align;
         if (i == want) want_off = off;
@@ -1035,7 +1045,7 @@ static bool union_pack_layout(const R6Module *m, const R6Type *type, size_t vari
         if (payload_is_word(m, part)) {
             size = 8;
             align = 8;
-        } else if (!model_field_size(part, &size, &align)) {
+        } else if (!model_field_size(m, part, &size, &align)) {
             return false;
         }
         off = (off + align - 1) / align * align;
@@ -1587,7 +1597,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     const char *t;
                     size_t size, align;
                     R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
-                    if (!model_field_size(model->fields[k].type_name, &size, &align))
+                    if (!model_field_size(m, model->fields[k].type_name, &size, &align))
                         return fail(d, i, "CGEN", "model %s field %s has unsupported type %s",
                                     model->name, model->fields[k].name, model->fields[k].type_name);
                     if (!value_type(f, v, &t) || !same_type(t, model->fields[k].type_name))
@@ -2756,13 +2766,13 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             if (!resolve_field(m, f, i, &model, &index, d)) return false;
             field = &model->fields[index];
-            if (!model_field_layout(model, index, &offset, &total))
+            if (!model_field_layout(m, model, index, &offset, &total))
                 return fail(d, i, "CGEN", "model %s field %s has unsupported type %s",
                             model->name, field->name, field->type_name);
             fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
             if (is_float(field->type_name))
                 fprintf(o, "\tmovsd %zu(%%r11), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n", offset, off);
-            else if (is_string(field->type_name) || is_list(field->type_name))
+            else if (is_string(field->type_name) || field_is_word(m, field->type_name))
                 fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
             else if (is_bool(field->type_name))
                 fprintf(o, "\tmovzbl %zu(%%r11), %%eax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
@@ -2777,7 +2787,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             size_t index = 0, offset = 0, total = 0;
             if (!resolve_field(m, f, i, &model, &index, d)) return false;
             field = &model->fields[index];
-            if (!model_field_layout(model, index, &offset, &total))
+            if (!model_field_layout(m, model, index, &offset, &total))
                 return fail(d, i, "CGEN", "model %s field %s has unsupported type %s",
                             model->name, field->name, field->type_name);
             fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
@@ -2796,7 +2806,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", string_id++);
                 }
                 fprintf(o, "\tmovq %%rax, %zu(%%r11)\n", offset);
-            } else if (is_list(field->type_name)) {
+            } else if (field_is_word(m, field->type_name)) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, %zu(%%r11)\n",
                         (unsigned)(val->as.i32 + 1) * 8, offset);
             } else if (is_bool(field->type_name)) {
@@ -2846,13 +2856,13 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(f->register_count + 1) * 8);
                 else
                     fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rcx\n", o);
-                if (!model_field_layout(model, 0, &offset, &total))
+                if (!model_field_layout(m, model, 0, &offset, &total))
                     return fail(d, i, "CGEN", "model %s has an unsupported field type", model->name);
                 fprintf(o, "\tmovl $%zu, %%edx\n\tcall orbit_alloc\n\tmovq %%rax, %%r10\n", total);
                 for (k = 0; k < arity; ++k) {
                     const R6Value *av = &args[base + k]->operands[0];
                     const char *ft = model->fields[k].type_name;
-                    if (!model_field_layout(model, k, &offset, &total))
+                    if (!model_field_layout(m, model, k, &offset, &total))
                         return fail(d, i, "CGEN", "model %s has an unsupported field type", model->name);
                     if (is_float(ft)) {
                         if (av->kind == R6_VAL_REG)
@@ -2867,7 +2877,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         else
                             fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", arg_string_ids[base + k]);
                         fprintf(o, "\tmovq %%rax, %zu(%%r10)\n", offset);
-                    } else if (is_list(ft)) {
+                    } else if (field_is_word(m, ft)) {
                         fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, %zu(%%r10)\n",
                                 (unsigned)(av->as.i32 + 1) * 8, offset);
                     } else if (is_bool(ft)) {
@@ -3569,7 +3579,7 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag) {
                 if (strcmp(model->fields[prior].name, model->fields[k].name) == 0)
                     return fail(diag, NULL, "CGEN", "model %s has duplicate field %s",
                                 model->name, model->fields[k].name);
-            if (!model_field_size(model->fields[k].type_name, &size, &align))
+            if (!model_field_size(module, model->fields[k].type_name, &size, &align))
                 return fail(diag, NULL, "CGEN", "model %s field %s has unsupported type %s",
                             model->name, model->fields[k].name, model->fields[k].type_name);
         }

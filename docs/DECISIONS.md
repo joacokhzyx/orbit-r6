@@ -2854,3 +2854,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   132 programs** (`mini_parser`, `union_bare_variant_pattern`,
   `union_payload_return`), none differing; census **0/27**, ratchet holds.
 - Status: **applied**.
+
+## D-M1-56 - A model or union field is a pointer word
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: model fields were `int`, `bool`, `float`, `string` and `list`
+  (D-M1-11, D-M1-39). After D-M1-54 the first refusal of 14 compiler modules
+  was `model FieldInitNode field value has unsupported type ASTNode`, of four
+  more `model IRInstruction field opcode has unsupported type IROpcode`, and of
+  the corpus program `model_nested` a model field of model type.
+- Reference (pin `ca3eb91`): `mapTypeToC` gives a model or union field
+  `Name*` (`c_backend.orb:511-527`), one pointer member of the struct.
+- Decision: a field that names a declared model is an 8-byte, 8-aligned
+  pointer member; a field that names a declared union takes the cell spelling
+  `void*` (D-M1-47) and the same layout. The constructor, `load_field` and
+  `store_field` move it with `movq`. A self-referential field (`Box.p: Box`) is
+  one such pointer.
+- Controls: `x-model-field-unsupported-type` is retargeted to a field naming no
+  declared type; `x-model-field-model-store-int` and
+  `x-model-field-union-ctor-int` refuse an `int` written into a model field and
+  passed for a union field.
+- Fixture `64-model-word-fields`: a segment with two `Point` fields and an
+  `Expr` field, a `BinNode` holding two `Expr`s, reads through `s.to.x`,
+  rewrites of both fields and a recursive evaluation. Oracle and R6 both print
+  `ab\r\n` and exit 42.
+- Measured: differential **62/62 -> 63/63**; loader **242/242 -> 245/245**
+  (166 rejections + 79 controls); corpus **100 -> 101 build / 101 match over
+  132 programs** (`model_nested`), none differing; census **0/27**, first
+  refusals `register type unknown` 10, `list_push` 9, `no non-extern main` 7,
+  `main must have no parameters` 1.
+- Status: **applied**.
