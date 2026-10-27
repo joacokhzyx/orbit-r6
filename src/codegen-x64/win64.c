@@ -296,6 +296,7 @@ static char *intrinsic_string[] = { (char *)"string" };
 static char *intrinsic_string_int[] = { (char *)"string", (char *)"int" };
 static char *intrinsic_string_int_int[] = { (char *)"string", (char *)"int",
                                             (char *)"int" };
+static char *intrinsic_string_string[] = { (char *)"string", (char *)"string" };
 
 static R6Function r6_intrinsics[] = {
     { .name = (char *)"orbit_string_len", .param_count = 1,
@@ -307,7 +308,31 @@ static R6Function r6_intrinsics[] = {
     { .name = (char *)"orbit_string_slice", .param_count = 3,
       .param_types = intrinsic_string_int_int, .return_type = (char *)"string",
       .is_extern = true },
+    /* D-M1-60: `orbit_int orbit_string_indexOf(orbit_string, orbit_string)`
+       (orbit_api.h:413). The pin renames `orbit_string_find`, and `find` or
+       `indexOf` when no user function has the name, to it
+       (c_backend.orb:3001-3006), so all four call the one symbol. */
+    { .name = (char *)"orbit_string_indexOf", .param_count = 2,
+      .param_types = intrinsic_string_string, .return_type = (char *)"int",
+      .is_extern = true },
+    { .name = (char *)"orbit_string_find", .param_count = 2,
+      .param_types = intrinsic_string_string, .return_type = (char *)"int",
+      .is_extern = true },
+    { .name = (char *)"find", .param_count = 2,
+      .param_types = intrinsic_string_string, .return_type = (char *)"int",
+      .is_extern = true },
+    { .name = (char *)"indexOf", .param_count = 2,
+      .param_types = intrinsic_string_string, .return_type = (char *)"int",
+      .is_extern = true },
 };
+
+/* The symbol an intrinsic call lands on (D-M1-60). */
+static const char *intrinsic_symbol(const char *name) {
+    if (strcmp(name, "orbit_string_find") == 0 || strcmp(name, "find") == 0 ||
+        strcmp(name, "indexOf") == 0)
+        return "orbit_string_indexOf";
+    return name;
+}
 
 static const R6Function *find_intrinsic(const char *name) {
     size_t n;
@@ -3091,7 +3116,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         emit_load_arg(o, f, av, at, k + hidden,
                                       arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }
-                    fprintf(o, "\tcall %s\n", strcmp(named->name, "main") == 0 ? "orbit_main" : named->name);
+                    fprintf(o, "\tcall %s\n",
+                            strcmp(named->name, "main") == 0 ? "orbit_main" :
+                            find_function(m, named->name) ? named->name :
+                            intrinsic_symbol(named->name));
                     if (i->has_dest && !is_void(type_at(f, i->dest)) && !sret_first) {
                         if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
                         else if (is_int(type_at(f, i->dest)))

@@ -2986,3 +2986,30 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   programs**, no verdict moves; census **0/27**, `compiler/ir/cteval.orb`
   moves from `register type NULL` to `register type unknown`.
 - Status: **applied**.
+
+## D-M1-60 - indexOf and find call orbit_string_indexOf
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: the builder emits `s.indexOf(t)` as a call to
+  `orbit_string_indexOf`, `s.find(t)` as `orbit_string_find` or a bare `find`,
+  and declares none of them. R6 refused them as undeclared targets: 61
+  functions of the compiler's IR at orbit-lang `bd60022`, and the corpus
+  program `user_fn_named_find`.
+- Reference (pin `ca3eb91`): `orbit_int orbit_string_indexOf(orbit_string,
+  orbit_string)` (`orbit_api.h:413`), defined in the archive. The C backend
+  renames `orbit_string_find`, and `find` or `indexOf` when no user function
+  has the name, to it (`c_backend.orb:3001-3006`).
+- Decision: the D-M1-29 intrinsic table gains `orbit_string_indexOf`,
+  `orbit_string_find`, `find` and `indexOf`, each `(string, string) -> int`, and
+  all four call `orbit_string_indexOf`. A module function with one of these
+  names is resolved from its declaration first, as for every intrinsic. The
+  `int` return is sign-extended from `eax` (D-M1-36).
+- Controls: `x-index-of-int-arg` (an `int` argument) and `x-find-arity` (one
+  argument) stay refused.
+- Fixture `68-string-index`: `indexOf` found and not found, `find`, a call
+  through a function, and an empty haystack. Oracle and R6 both print
+  `found\r\n` and exit 42.
+- Measured: differential **66/66 -> 67/67**; loader **252/252 -> 255/255**
+  (172 rejections + 83 controls); corpus **104 -> 105 build / 105 match over
+  132 programs** (`user_fn_named_find`), none differing; census **0/27**.
+- Status: **applied**.

@@ -1426,3 +1426,12 @@ función de modelo puede devolver `NULL`. El par `67-null-words` lo mide:
 oráculo y R6 imprimen `null\r\n` y salen 42. Diferencial **66/66**; loader
 **252/252** (170 rechazos + 82 controles); corpus **104/104** sin cambios;
 censo **0/27**.
+
+## Actualización de M1 - indexOf y find (2026-10-27)
+
+D-M1-60. `indexOf` y `find` sobre strings, con o sin el prefijo
+`orbit_string_`, llaman a `orbit_string_indexOf` del runtime. El par
+`68-string-index` lo mide: oráculo y R6 imprimen `found\r\n` y salen 42.
+Diferencial **67/67**; loader **255/255** (172 rechazos + 83 controles); corpus
+**105 build / 105 match sobre 132 programas** (`user_fn_named_find`); censo
+**0/27**. El trinquete se re-toma en 105/105.

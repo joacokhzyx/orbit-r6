@@ -1189,6 +1189,20 @@
       "code": "CGEN",
       "rule": "D-M1-59",
       "note": "a model function returns NULL, not any void* word"
+    },
+    {
+      "file": "cases/x-index-of-int-arg.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-60",
+      "note": "indexOf takes two strings; an int argument is refused"
+    },
+    {
+      "file": "cases/x-find-arity.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-60",
+      "note": "find with one argument is not the indexOf alias"
     }
   ],
   "accept": [
@@ -1744,6 +1758,13 @@
       "run_stdout": "null\r\n",
       "rule": "D-M1-59",
       "note": "NULL ends a linked list, models compare as words, a model function returns NULL"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/68-string-index.json",
+      "run_exit": 42,
+      "run_stdout": "found\r\n",
+      "rule": "D-M1-60",
+      "note": "indexOf and find call orbit_string_indexOf"
     }
   ]
 }

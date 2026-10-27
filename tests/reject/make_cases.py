@@ -1301,6 +1301,19 @@ def build_reject():
                      MAIN()])),
         "D-M1-59", "CGEN", "a model function returns NULL, not any void* word")
 
+    # ---- D-M1-60: indexOf and its aliases take two strings -------------------
+    add("x-index-of-int-arg",
+        jd(DOC([MAIN([I("load_const", 0, Str("ab")), I("load_const", 1, Int(1)),
+                      I("arg", -1, Reg(0)), I("arg", -1, Reg(1)),
+                      I("call", 2, Str("orbit_string_indexOf"), Int(2)),
+                      I("ret", -1, Int(0))], ["string", "int", "int"])])),
+        "D-M1-60", "CGEN", "indexOf takes two strings; an int argument is refused")
+    add("x-find-arity",
+        jd(DOC([MAIN([I("load_const", 0, Str("ab")), I("arg", -1, Reg(0)),
+                      I("call", 1, Str("find"), Int(1)),
+                      I("ret", -1, Int(0))], ["string", "int"])])),
+        "D-M1-60", "CGEN", "find with one argument is not the indexOf alias")
+
     return cases
 
 
@@ -1935,6 +1948,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/67-null-words.json",
              "run_exit": 42, "run_stdout": "null\r\n", "rule": "D-M1-59",
              "note": "NULL ends a linked list, models compare as words, a model function returns NULL"},
+            {"file": "../../docs/proposed-ir/m1/68-string-index.json",
+             "run_exit": 42, "run_stdout": "found\r\n", "rule": "D-M1-60",
+             "note": "indexOf and find call orbit_string_indexOf"},
         ],
     }
 
