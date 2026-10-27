@@ -12,7 +12,7 @@ typedef struct { char name[160]; uint32_t begin, end, push_end, fp_end, alloc_en
 typedef struct { char name[160]; int sec; uint32_t off; uint16_t type; } Fixup;
 /* D-M1-63: labels, procedures, fixups and globals grow on the heap, and
  * labels and globals are found through an open-addressing hash of their
- * names, so a module the size of the compiler (1030 functions) assembles in
+ * names, so a module the size of the compiler (1038 functions) assembles in
  * one pass without a fixed table. */
 typedef struct { char (*names)[160]; size_t n, cap; int32_t *slots; size_t nslots; } NameSet;
 typedef struct {
