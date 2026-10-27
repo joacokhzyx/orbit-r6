@@ -1454,3 +1454,18 @@ baja a `strlen`, 0 para un puntero nulo, como el `orbit_string_len` del pin. El
 par `70-string-length-field` lo mide: oráculo y R6 imprimen `length\r\n` y
 salen 42. Diferencial **69/69**; loader **261/261** (176 rechazos + 85
 controles); corpus **105/105**; censo **1/27**.
+
+## Actualización de M1 - el ensamblador crece; Orbit se compila con R6 (2026-10-27)
+
+D-M1-63. Las tablas del ensamblador (etiquetas, procedimientos, relocaciones,
+globales) crecen en el heap y las etiquetas se buscan por hash; los bytes del
+objeto no cambian. Los chequeos quedan igual: loader **261/261**, diferencial
+**69/69**, corpus **105/105**, censo **1/27**.
+
+Medido sobre orbit-lang `0cfce74`, todavía fuera del pin: R6 construye el
+compilador completo (`compiler/host/main.orb`, 1038 funciones) en 42 s, un
+ejecutable de 3357756 bytes. Ese compilador traduce `compiler/host/main.orb` a
+un C idéntico byte por byte al del oráculo (6212022 bytes, el `PUBLISHED_C` del
+árbol), en 9345 ms contra 5423 ms. Su IR del compilador es idéntico al IR del
+que salió, y R6 lo vuelve a construir en un ejecutable idéntico: el punto fijo
+nativo cierra sin pasar por C.

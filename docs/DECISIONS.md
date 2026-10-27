@@ -3065,3 +3065,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   programs**, none differing; `member_resolution` moves from its `.length`
   read to `call target system_uptime`. Census **1/27**, ratchet holds.
 - Status: **applied**.
+
+## D-M1-63 - The assembler grows its tables
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: `asm_win64.c` kept labels (2048), procedures (256), fixups
+  (2048) and `.globl` names (512) in fixed arrays and found a label by a linear
+  scan. `compiler/host/main.orb` at orbit-lang `0cfce74` (1038 functions)
+  passed validation and stopped at `line 18625: too many assembler relocations
+  (limit 2048)`.
+- Decision: the four tables are heap arrays that double when full, and labels
+  and globals are found through an open-addressing FNV-1a hash of the name.
+  The instruction encoding and the order of labels, and so the object bytes,
+  do not change. The `Asm` state no longer sits on the stack.
+- Measured: loader **261/261**, differential **69/69**, corpus **105 build /
+  105 match**, census **1/27**, all unchanged. Built from orbit-lang `0cfce74`
+  (not the pin), `compiler/host/main.orb` emitted by that tree's fixed point
+  builds under R6 in 42 s into a 3357756-byte executable. That executable:
+  prints `orbit 0.1.0-rc.2`; emits the same IR for
+  `tests/suite/union_model_payload.orb` as the oracle; translates
+  `compiler/host/main.orb` to C byte-identical to the oracle's (6212022 bytes,
+  sha256 `54f0b797…`, the tree's `PUBLISHED_C`) in 9345 ms against the
+  oracle's 5423 ms; and emits IR for `compiler/host/main.orb` identical to the
+  IR it was built from, which R6 builds into a byte-identical executable
+  (sha256 `2b8cb011…`).
+- Status: **applied**. The census reaches `compiler/host/main.orb` when the pin
+  moves to a tree that carries orbit-lang `typed-ir-2` to `typed-ir-5`.

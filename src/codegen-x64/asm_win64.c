@@ -10,15 +10,77 @@ typedef struct { uint8_t *p; size_t n, cap; } Bytes;
 typedef struct { char name[160]; int sec; uint32_t off; int global; int symbol; } Label;
 typedef struct { char name[160]; uint32_t begin, end, push_end, fp_end, alloc_end, alloc; } Function;
 typedef struct { char name[160]; int sec; uint32_t off; uint16_t type; } Fixup;
+/* D-M1-63: labels, procedures, fixups and globals grow on the heap, and
+ * labels and globals are found through an open-addressing hash of their
+ * names, so a module the size of the compiler (1030 functions) assembles in
+ * one pass without a fixed table. */
+typedef struct { char (*names)[160]; size_t n, cap; int32_t *slots; size_t nslots; } NameSet;
 typedef struct {
     R6CoffObject *obj;
     Bytes sec[5];
-    Label labels[2048]; size_t nlabels;
-    Function funcs[256]; size_t nfuncs; int active_func;
-    Fixup relocs[2048]; size_t nrelocs;
+    Label *labels; size_t nlabels, label_cap;
+    int32_t *label_slots; size_t label_nslots;
+    Function *funcs; size_t nfuncs, func_cap; int active_func;
+    Fixup *relocs; size_t nrelocs, reloc_cap;
+    NameSet globals;
     char *error; size_t error_cap;
     int section;
 } Asm;
+
+static uint64_t name_hash(const char *s) {
+    uint64_t h = 1469598103934665603ull;
+    while (*s) { h ^= (unsigned char)*s++; h *= 1099511628211ull; }
+    return h;
+}
+
+/* Grows *p (elements of `size` bytes) so it holds at least `need`. */
+static bool grow_array(void **p, size_t *cap, size_t need, size_t size) {
+    size_t next = *cap ? *cap : 256;
+    void *q;
+    if (need <= *cap) return true;
+    while (next < need) { if (next > SIZE_MAX / 2 / size) return false; next *= 2; }
+    q = realloc(*p, next * size);
+    if (!q) return false;
+    *p = q; *cap = next; return true;
+}
+
+/* Rebuilds a slot table of indexes into `names` (stride `stride` bytes, name
+ * first) with twice the entries as slots; -1 marks an empty slot. */
+static bool rehash(int32_t **slots, size_t *nslots, const char *names, size_t stride, size_t n) {
+    size_t want = 1024, i;
+    int32_t *t;
+    while (want < n * 2 + 2) want *= 2;
+    t = (int32_t *)malloc(want * sizeof *t);
+    if (!t) return false;
+    for (i = 0; i < want; ++i) t[i] = -1;
+    for (i = 0; i < n; ++i) {
+        size_t h = (size_t)(name_hash(names + i * stride) & (want - 1));
+        while (t[h] >= 0) h = (h + 1) & (want - 1);
+        t[h] = (int32_t)i;
+    }
+    free(*slots); *slots = t; *nslots = want; return true;
+}
+
+static int32_t lookup(const int32_t *slots, size_t nslots, const char *names, size_t stride,
+                      const char *name) {
+    size_t h;
+    if (!nslots) return -1;
+    h = (size_t)(name_hash(name) & (nslots - 1));
+    while (slots[h] >= 0) {
+        if (strcmp(names + (size_t)slots[h] * stride, name) == 0) return slots[h];
+        h = (h + 1) & (nslots - 1);
+    }
+    return -1;
+}
+
+static bool insert_slot(int32_t **slots, size_t *nslots, const char *names, size_t stride,
+                        size_t index) {
+    size_t h;
+    if ((index + 1) * 2 > *nslots) return rehash(slots, nslots, names, stride, index + 1);
+    h = (size_t)(name_hash(names + index * stride) & (*nslots - 1));
+    while ((*slots)[h] >= 0) h = (h + 1) & (*nslots - 1);
+    (*slots)[h] = (int32_t)index; return true;
+}
 
 static bool bad(Asm *a, const char *fmt, ...) {
     va_list ap;
@@ -63,18 +125,24 @@ static char *trim(char *s) {
 }
 
 static bool add_label(Asm *a, const char *name, int global) {
-    size_t i;
-    for (i = 0; i < a->nlabels; ++i) if (strcmp(a->labels[i].name, name) == 0) {
+    int32_t i = lookup(a->label_slots, a->label_nslots, (const char *)a->labels,
+                       sizeof *a->labels, name);
+    if (i >= 0) {
         if (a->labels[i].sec != a->section || a->labels[i].off != a->sec[a->section].n)
             return bad(a, "duplicate assembler label '%s'", name);
         a->labels[i].global |= global; return true;
     }
-    if (a->nlabels == sizeof a->labels / sizeof a->labels[0]) return bad(a, "too many assembler labels");
+    if (a->nlabels >= INT32_MAX ||
+        !grow_array((void **)&a->labels, &a->label_cap, a->nlabels + 1, sizeof *a->labels))
+        return bad(a, "too many assembler labels");
     snprintf(a->labels[a->nlabels].name, sizeof a->labels[a->nlabels].name, "%s", name);
     a->labels[a->nlabels].sec = a->section;
     a->labels[a->nlabels].off = (uint32_t)a->sec[a->section].n;
     a->labels[a->nlabels].global = global;
     a->labels[a->nlabels].symbol = -1;
+    if (!insert_slot(&a->label_slots, &a->label_nslots, (const char *)a->labels,
+                     sizeof *a->labels, a->nlabels))
+        return bad(a, "out of memory indexing assembler labels");
     ++a->nlabels; return true;
 }
 
@@ -118,7 +186,8 @@ static bool parse_mem(Asm *a, const char *s, Mem *m) {
 
 static bool add_fixup(Asm *a, const char *name, int section, uint32_t off, uint16_t type) {
     Fixup *f;
-    if (a->nrelocs == sizeof a->relocs / sizeof a->relocs[0]) return bad(a, "too many assembler relocations (limit 2048)");
+    if (!grow_array((void **)&a->relocs, &a->reloc_cap, a->nrelocs + 1, sizeof *a->relocs))
+        return bad(a, "out of memory growing assembler relocations");
     f = &a->relocs[a->nrelocs++]; snprintf(f->name, sizeof f->name, "%s", name);
     f->sec = section; f->off = off; f->type = type; return true;
 }
@@ -400,21 +469,30 @@ static bool encode(Asm *a, char *line) {
 }
 
 static int find_label(const Asm *a, const char *name) {
-    size_t i;
-    for (i = 0; i < a->nlabels; ++i) if (strcmp(a->labels[i].name, name) == 0) return (int)i;
-    return -1;
+    return (int)lookup(a->label_slots, a->label_nslots, (const char *)a->labels,
+                       sizeof *a->labels, name);
 }
 
-static bool is_global(const char *name, char globals[][160], size_t n) {
-    size_t i;
-    for (i = 0; i < n; ++i) if (strcmp(globals[i], name) == 0) return true;
-    return false;
+static bool is_global(const NameSet *g, const char *name) {
+    return lookup(g->slots, g->nslots, (const char *)g->names, sizeof *g->names, name) >= 0;
 }
 
-static bool add_global(char globals[][160], size_t *n, const char *name, Asm *a) {
-    if (*n >= 512) return bad(a, "too many global assembler symbols");
-    if (is_global(name, globals, *n)) return true;
-    snprintf(globals[(*n)++], 160, "%s", name); return true;
+static bool add_global(NameSet *g, const char *name, Asm *a) {
+    if (is_global(g, name)) return true;
+    if (g->n >= INT32_MAX ||
+        !grow_array((void **)&g->names, &g->cap, g->n + 1, sizeof *g->names))
+        return bad(a, "too many global assembler symbols");
+    snprintf(g->names[g->n], sizeof *g->names, "%s", name);
+    if (!insert_slot(&g->slots, &g->nslots, (const char *)g->names, sizeof *g->names, g->n))
+        return bad(a, "out of memory indexing global assembler symbols");
+    ++g->n; return true;
+}
+
+static void free_asm(Asm *a) {
+    size_t i;
+    for (i = 0; i < 5; ++i) free(a->sec[i].p);
+    free(a->labels); free(a->label_slots); free(a->funcs); free(a->relocs);
+    free(a->globals.names); free(a->globals.slots);
 }
 
 static bool emit_byte_directive(Asm *a, char *s) {
@@ -537,7 +615,7 @@ static bool finalize_object(Asm *a) {
 }
 
 bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t error_capacity) {
-    Asm a; char line[1024], globals[512][160]; size_t nglobal = 0, lineno = 0;
+    Asm a; char line[1024]; size_t lineno = 0;
     if (!input || !object) {
         if (error && error_capacity) snprintf(error, error_capacity, "null assembler input/output");
         return false;
@@ -553,11 +631,13 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
         if (strcmp(s, ".text") == 0) { a.section = 0; continue; }
         if (strncmp(s, ".section .rdata", 15) == 0) { a.section = 1; continue; }
         if (strncmp(s, ".section .data", 14) == 0) { a.section = 4; continue; }
-        if (strncmp(s, ".globl ", 7) == 0) { if (!add_global(globals, &nglobal, trim(s + 7), &a)) goto fail; continue; }
+        if (strncmp(s, ".globl ", 7) == 0) { if (!add_global(&a.globals, trim(s + 7), &a)) goto fail; continue; }
         if (strncmp(s, ".def ", 5) == 0 || strcmp(s, ".seh_endprologue") == 0 ||
             strcmp(s, ".seh_pushreg %rbp") == 0 || strcmp(s, ".seh_setframe %rbp, 0") == 0) continue;
         if (strncmp(s, ".seh_proc ", 10) == 0) {
-            if (a.active_func >= 0 || a.nfuncs == sizeof a.funcs / sizeof a.funcs[0]) { bad(&a, "invalid/nested .seh_proc at line %zu", lineno); goto fail; }
+            if (a.active_func >= 0) { bad(&a, "invalid/nested .seh_proc at line %zu", lineno); goto fail; }
+            if (!grow_array((void **)&a.funcs, &a.func_cap, a.nfuncs + 1, sizeof *a.funcs)) { bad(&a, "out of memory growing procedures"); goto fail; }
+            memset(&a.funcs[a.nfuncs], 0, sizeof *a.funcs);
             a.active_func = (int)a.nfuncs++;
             snprintf(a.funcs[a.active_func].name, sizeof a.funcs[a.active_func].name, "%s", trim(s + 10));
             a.funcs[a.active_func].begin = (uint32_t)a.sec[0].n; continue;
@@ -574,7 +654,7 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
         len = strlen(s);
         if (len && s[len - 1] == ':') {
             s[len - 1] = 0;
-            if (!add_label(&a, s, is_global(s, globals, nglobal))) goto fail;
+            if (!add_label(&a, s, is_global(&a.globals, s))) goto fail;
             continue;
         }
         snprintf(original, sizeof original, "%s", s);
@@ -594,10 +674,10 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
     if (ferror(input)) { bad(&a, "error reading assembler input"); goto fail; }
     if (a.active_func >= 0) { bad(&a, "unterminated .seh_proc"); goto fail; }
     if (!finalize_object(&a)) goto fail;
-    for (size_t i = 0; i < 5; ++i) free(a.sec[i].p);
+    free_asm(&a);
     return true;
 fail:
-    for (size_t i = 0; i < 5; ++i) free(a.sec[i].p);
+    free_asm(&a);
     r6_coff_free(object);
     return false;
 }
