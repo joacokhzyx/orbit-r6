@@ -1522,3 +1522,16 @@ imprimen `599\r\n` y salen 42. En el asm del compilador los pares
 el tiempo de auto-compilación no se mueve fuera del ruido (mediana 5,02 s
 contra 5,11 s). Diferencial **71/71**; loader **265/265**; corpus **109 build
 / 109 match sobre 135**; censo **2/27**.
+
+## Actualización de M1 - una carga tras el store de su slot lee el registro (2026-10-27)
+
+D-M1-67. Entre el generador y el ensamblador, `peephole.c` reescribe dos líneas
+contiguas `movq %R, M` y `movq M, %S`: quita la segunda si `S` es `R` y la
+cambia por `movq %R, %S` si no. El store se queda, así que toda lectura
+posterior del slot es la misma. Solo reescribe registros de 64 bits y solo
+líneas contiguas. El compilador completo pasa de 294546 a 285322
+instrucciones y de 3323348 a 3234260 bytes; su auto-compilación baja de 5,02 s
+a 4,39 s (mediana de nueve corridas intercaladas), contra 2,31 s del oráculo.
+El C que produce sigue siendo idéntico byte por byte al del oráculo.
+Diferencial **71/71**; loader **265/265**; corpus **109 build / 109 match
+sobre 135**; censo **2/27**.

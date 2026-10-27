@@ -3270,3 +3270,40 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   controls), corpus **109 build / 109 match over 135**, ratchet held, census
   **2/27**.
 - Status: **applied**.
+
+## D-M1-67 - A load right after the store of its slot reads the register
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: every IR register lives in a stack slot, so the generator stores
+  a result and the next instruction loads the same slot. In the asm of
+  `compiler/host/main.orb` 9224 `movq %rax, M` lines are followed by
+  `movq M, %rax`, 5643 by `movq M, %r11` and 2578 by `movq M, %rcx`. The load
+  waits for the store to forward.
+- Decision:
+  - A new stage, `peephole.c`, rewrites the asm text between the generator and
+    the assembler. For two adjacent lines `movq %R, M` and `movq M, %S` it
+    drops the second when `S` is `R` and replaces it with `movq %R, %S`
+    otherwise. The store stays, so every later read of the slot is unchanged.
+  - Only adjacent lines match. A label, a `call` or any other line between
+    them ends the match, and a load of another slot ends it too.
+  - Only 64-bit general registers match. A 32-bit load clears the upper half
+    and an xmm load clears the upper lane, which a dropped load would not.
+  - The stage rewrites `.r6-build/r6-<pid>.s` in place and fails closed with
+    `error[PEEPHOLE]`. The comment in `win64.c` that ruled out peephole
+    rewriting now points here.
+- Fixtures: no new one. The rewrite applies to every function of every
+  fixture and every corpus program. In the asm of the compiler 17904 adjacent
+  store and load pairs name the same slot and 18989 name another slot, which
+  must stay. The differential (71 programs), the corpus (109 programs) and
+  the self-compile of the compiler are the controls for both.
+- Measured: the asm of `compiler/host/main.orb` goes from 294546 to 285322
+  instructions. The self-compile of `compiler/host/main.orb` by the R6-built
+  compiler takes a median of 4.39 s against 5.02 s, nine interleaved runs each
+  (minimum 4.22 s against 4.91 s). The oracle takes 2.31 s. The executable
+  shrinks from 3323348 to 3234260 bytes. The compiler translates
+  `compiler/host/main.orb` to the C of the oracle (`54f0b797…`), emits IR
+  identical to `main.ir`, and R6 builds that IR into the same executable
+  (sha256 `6025ca1f…`).
+- Gates: differential **71/71**, loader **265/265**, corpus **109 build / 109
+  match over 135**, ratchet held, census **2/27**.
+- Status: **applied**.

@@ -12,7 +12,8 @@ executable.
 
 - R6 does not lower programs through C. GCC never compiles an R6 program.
 - R6 does not use GAS. `src/codegen-x64/win64.c` emits a private assembly text,
-  `asm_win64.c` encodes it to bytes and `coff.c` writes an AMD64 COFF object.
+  `peephole.c` drops reloads of a slot just stored, `asm_win64.c` encodes it to
+  bytes and `coff.c` writes an AMD64 COFF object.
 - GNU `ld` only links. It is the one external tool the program path runs.
 - R6 does not guess. An opcode, type, version or platform outside the supported
   set gets one diagnostic and a nonzero exit.
@@ -171,7 +172,7 @@ and the corpus hash.
 | Path | Content |
 |---|---|
 | `src/loader/` | Strict JSON IRv1 parser and validator; admits opcodes |
-| `src/codegen-x64/` | `win64.c` (IR to private asm text), `asm_win64.c` (encoder), `coff.c` (COFF writer) |
+| `src/codegen-x64/` | `win64.c` (IR to private asm text), `peephole.c` (reload removal on the asm text), `asm_win64.c` (encoder), `coff.c` (COFF writer) |
 | `src/driver/r6.c` | CLI, temporaries under `.r6-build`, direct `ld` link |
 | `tests/diff/` | Differential harness |
 | `tests/reject/` | Loader contract suite: `manifest.json` is the truth, `cases/` is rendered from it |

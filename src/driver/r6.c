@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "../loader/ir.h"
 #include "../codegen-x64/asm_win64.h"
+#include "../codegen-x64/peephole.h"
 #include "../codegen-x64/win64.h"
 
 #include <errno.h>
@@ -133,6 +134,10 @@ int main(int argc, char **argv) {
         goto free_module;
     }
     asm_file = NULL;
+    if (!r6_peephole_win64(asm_path, asm_error, sizeof asm_error)) {
+        fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
+        goto free_module;
+    }
 
     root = getenv("R6_MINGW_ROOT");
     if (!root || !*root) root = "C:/w64devkit";

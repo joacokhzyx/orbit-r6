@@ -150,8 +150,9 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 - Fail closed: any opcode, version, type or platform not explicitly supported
   gets a diagnostic and nonzero exit. No stubs, invented semantics or fallback.
 - Programs are never lowered through C and never assembled by GAS/GCC:
-  `win64.c` emits a private GAS-shaped text, `asm_win64.c` encodes it to bytes,
-  `coff.c` writes AMD64 COFF; GNU `ld` is only the linker.
+  `win64.c` emits a private GAS-shaped text, `peephole.c` drops reloads of a
+  slot just stored, `asm_win64.c` encodes it to bytes, `coff.c` writes AMD64
+  COFF; GNU `ld` is only the linker.
 - Never write to the Orbit checkout; moving the pin requires a dated entry in
   `docs/DECISIONS.md`.
 - Do not generalize semantics that pass in fixtures beyond what
@@ -162,7 +163,8 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 
 - `src/loader/ir.{h,c}` — strict JSON IRv1 parser/validator, owns `R6Module`;
   also gates which opcodes are admitted (`E_UNSUPPORTED` outside the range).
-- `src/codegen-x64/win64.{c,h}` — IR → private asm text; `asm_win64.{c,h}` —
+- `src/codegen-x64/win64.{c,h}` — IR → private asm text; `peephole.{c,h}` —
+  rewrites that text in place (D-M1-67); `asm_win64.{c,h}` —
   encodes only the selector's instruction subset; `coff.{c,h}` — AMD64 COFF
   writer (sections, symbols, REL32/ADDR32NB relocations, unwind data).
 - `src/driver/r6.c` — CLI, temporaries under `.r6-build`, direct `ld` link.
