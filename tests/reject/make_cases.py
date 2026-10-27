@@ -1314,6 +1314,15 @@ def build_reject():
                       I("ret", -1, Int(0))], ["string", "int"])])),
         "D-M1-60", "CGEN", "find with one argument is not the indexOf alias")
 
+    # ---- D-M1-61: main returns int or void, and takes nothing ----------------
+    add("x-main-returns-string",
+        jd(DOC([FN("main", [I("ret", -1, Str("x"))], [], rtype="string")])),
+        "D-M1-61", "CGEN", "main returns int or void; a string main is refused")
+    add("x-main-with-param",
+        jd(DOC([FN("main", [I("arg", 0, Int(0)), I("ret", -1)], ["int"], rtype="void",
+                   params=["n"], ptypes=["int"])])),
+        "D-M1-61", "CGEN", "main takes no parameters")
+
     return cases
 
 
@@ -1951,6 +1960,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/68-string-index.json",
              "run_exit": 42, "run_stdout": "found\r\n", "rule": "D-M1-60",
              "note": "indexOf and find call orbit_string_indexOf"},
+            {"file": "../../docs/proposed-ir/m1/69-void-main.json",
+             "run_exit": 0, "run_stdout": "void main\r\n", "rule": "D-M1-61",
+             "note": "a void main exits 0"},
         ],
     }
 

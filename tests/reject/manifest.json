@@ -1203,6 +1203,20 @@
       "code": "CGEN",
       "rule": "D-M1-60",
       "note": "find with one argument is not the indexOf alias"
+    },
+    {
+      "file": "cases/x-main-returns-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-61",
+      "note": "main returns int or void; a string main is refused"
+    },
+    {
+      "file": "cases/x-main-with-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-61",
+      "note": "main takes no parameters"
     }
   ],
   "accept": [
@@ -1765,6 +1779,13 @@
       "run_stdout": "found\r\n",
       "rule": "D-M1-60",
       "note": "indexOf and find call orbit_string_indexOf"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/69-void-main.json",
+      "run_exit": 0,
+      "run_stdout": "void main\r\n",
+      "rule": "D-M1-61",
+      "note": "a void main exits 0"
     }
   ]
 }

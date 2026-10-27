@@ -1324,9 +1324,12 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         return fail(d, NULL, "CGEN", "function %s has missing parameter metadata", f->name);
     if (f->param_count > 256)
         return fail(d, NULL, "CGEN", "function %s exceeds the 256-parameter Win64 limit", f->name);
+    /* D-M1-61: a void main is `int orbit_main` returning 0 in the pin
+       (c_backend.orb: isMain sets retType "int"). */
     if (strcmp(f->name, "main") == 0 &&
-        (f->param_count != 0 || !is_int(f->return_type)))
-        return fail(d, NULL, "CGEN", "main must have no parameters and return int in M1");
+        (f->param_count != 0 ||
+         !(is_int(f->return_type) || strcmp(f->return_type, "void") == 0)))
+        return fail(d, NULL, "CGEN", "main must have no parameters and return int or void in M1");
     /* D-M1-40: a model parameter is the `Name*` the pin passes (mapTypeToC),
      * a word the prologue spills with movq like any non-float parameter.
      * D-M1-47: a union parameter is the same word, its D-M1-12 cell. */
@@ -3260,7 +3263,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 else if (v->kind == R6_VAL_BOOL) fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
                 else if (v->kind == R6_VAL_FLOAT64) fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm0\n", (unsigned long long)v->as.f64_bits);
                 else return fail(d, i, "CGEN", "returning string literals is unsupported");
-            } else if (strcmp(f->return_type, "void") != 0) {
+            } else if (strcmp(f->return_type, "void") != 0 || is_main) {
                 if (is_float(f->return_type)) fputs("\txorpd %xmm0, %xmm0\n", o);
                 else fputs("\tmovl $0, %eax\n", o);
             }

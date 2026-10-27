@@ -1435,3 +1435,14 @@ D-M1-60. `indexOf` y `find` sobre strings, con o sin el prefijo
 Diferencial **67/67**; loader **255/255** (172 rechazos + 83 controles); corpus
 **105 build / 105 match sobre 132 programas** (`user_fn_named_find`); censo
 **0/27**. El trinquete se re-toma en 105/105.
+
+## Actualización de M1 - un main void sale con 0 (2026-10-27)
+
+D-M1-61. `main` puede no devolver valor; el programa sale con 0, como el
+`int orbit_main` del pin. El par `69-void-main` lo mide: oráculo y R6 imprimen
+`void main\r\n` y salen 0. Diferencial **68/68**; loader **258/258** (174
+rechazos + 84 controles); corpus **105/105**. Censo **1/27**: el primer módulo
+del compilador construido por R6 es `compiler/selfhost/lexer_trace.orb`, el
+lexer de Orbit con un driver de traza. Corrido desde el árbol del pin, imprime
+los mismos 400 tokens de `compiler/host/main.orb` que el binario del oráculo,
+byte por byte; el ejecutable de R6 pesa 310769 bytes y el del oráculo 442368.

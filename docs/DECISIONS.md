@@ -3013,3 +3013,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (172 rejections + 83 controls); corpus **104 -> 105 build / 105 match over
   132 programs** (`user_fn_named_find`), none differing; census **0/27**.
 - Status: **applied**.
+
+## D-M1-61 - A void main exits 0
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: R6 required `main` to return `int`. The compiler's own entry
+  points declare `fn main()`: `compiler/host/main.orb` and
+  `compiler/selfhost/lexer_trace.orb`, whose first refusal was
+  `main must have no parameters and return int in M1`.
+- Reference (pin `ca3eb91`): the C backend emits every `main` as
+  `int orbit_main(OrbitArena* arena)` (`isMain` sets `retType "int"`), and a
+  `return` in a void `main` becomes `return 0;`; measured on a void main with
+  an early `return`, the oracle exits 0.
+- Decision: `main` may return `void`. Every `ret` in a void `main` leaves 0
+  in `eax`, which the entry wrapper turns into the exit code. `main` still
+  takes no parameters.
+- Controls: `x-main-returns-string` and `x-main-with-param` stay refused.
+- Fixture `69-void-main`: a void `main` that calls a recursive function and
+  prints. Oracle and R6 both print `void main\r\n` and exit 0.
+- Measured: differential **67/67 -> 68/68**; loader **255/255 -> 258/258**
+  (174 rejections + 84 controls); corpus **105 build / 105 match over 132
+  programs**, no verdict moves; census **0 -> 1 build over 27 modules**:
+  `compiler/selfhost/lexer_trace.orb` builds. Run from the pinned tree, the
+  R6 build and the oracle build print the same 400 token lines of
+  `compiler/host/main.orb` byte for byte and both exit 0; the R6 executable is
+  310769 bytes, the oracle's 442368. The census baseline is re-taken at 1.
+- Status: **applied**.

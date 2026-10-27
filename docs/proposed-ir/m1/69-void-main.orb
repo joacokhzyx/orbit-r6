@@ -1,0 +1,13 @@
+fn count(n: int) -> int {
+    if n <= 0 { return 0 }
+    return 1 + count(n - 1)
+}
+
+fn main() {
+    val c = count(5)
+    if c != 5 {
+        print("wrong")
+        return
+    }
+    print("void main")
+}

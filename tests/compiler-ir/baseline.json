@@ -5,14 +5,10 @@
   "summary": {
     "modules": 27,
     "emitted": 27,
-    "r6BuildOk": 0
+    "r6BuildOk": 1
   },
   "refusals": {
-    "error[CGEN]: union ASTNode variant Program payloads are outside the M1 native subset": 14,
-    "error[CGEN]: module must define one non-extern main": 6,
-    "error[CGEN]: union IRValue variant Int payloads are outside the M1 native subset": 4,
-    "error[CGEN]: list_push requires a list register and a value register matching elemKind 1..4": 1,
-    "error[CGEN]: main must have no parameters and return int in M1": 1,
-    "error[CGEN]: register type unknown is unsupported in M1": 1
+    "error[CGEN]: register type unknown is unsupported in M1": 17,
+    "error[CGEN]: module must define one non-extern main": 9
   }
 }
