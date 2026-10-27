@@ -1483,32 +1483,36 @@ difiere; censo **2/27**.
 
 D-M1-64. `r6 build` sobre `compiler/host/main.orb` (17,6 MB de IR, 1038
 funciones) baja de 41 s a 4,7 s, medido en la misma máquina cargada y con el
-driver sin optimizar; en una máquina libre baja de 20,6 s a 2,4 s. Cuatro
-causas, todas cuadráticas o de asignación: el escritor COFF avanzaba el cursor
-de relocaciones por el desplazamiento del archivo en vez de por la cuenta (el
+driver sin optimizar; en una máquina libre baja de 20,6 s a 2,4 s. Seis causas,
+todas cuadráticas o de asignación: el escritor COFF avanzaba el cursor de
+relocaciones por el desplazamiento del archivo en vez de por la cuenta (el
 objeto pesaba 211 MB y se escribía cero a cero; ahora pesa 3,4 MB), el
-ensamblador buscaba cada símbolo externo contra todos los símbolos, el
-generador comparaba cada `decl_var` con todos los anteriores, y el cargador
-hacía un `malloc` por nodo JSON. Los bytes del ejecutable no cambian: el
-compilador de 3357756 bytes (`2b8cb011…`) y los 205 ejecutables de los
-fixtures y del corpus tienen el mismo SHA-256 antes y después. Diferencial
-**69/69**; loader **261/261**; corpus **109 build / 109 match sobre 135**,
-la regla de no retroceso se cumple; censo **2/27**.
+ensamblador buscaba cada símbolo externo contra todos los símbolos, el generador
+comparaba cada `decl_var` con todos los anteriores, el cargador hacía un
+`malloc` por nodo JSON, las listas de relocaciones se buscaban recorriendo todas
+las relocaciones una vez por sección, y la validación recorría las funciones
+para cada callee y las instrucciones para cada label. Los bytes del ejecutable
+no cambian: el compilador de 3357756 bytes (`2b8cb011…`) y los 178 ejecutables
+de los 69 fixtures y de los 109 programas del corpus que construyen tienen el
+mismo SHA-256 antes y después, con las mismas 26 negativas. Diferencial
+**69/69**; loader **261/261**; corpus **109 build / 109 match sobre 135**, la
+regla de no retroceso se cumple; censo **2/27**.
 
 ## Actualización de M1 - solo se emiten las funciones que main alcanza (2026-10-27)
 
-D-M1-65. R6 emite solo las funciones que `main` alcanza por una llamada, por un
-valor de función (un operando `Sym` que nombra una función) o por una cadena de
-ambas. Las demás se validan igual y no se emiten. El par `71-dead-functions`
-lo mide: oráculo y R6 imprimen `live\r\n` y salen 42, y `nm` del ejecutable de
-R6 no lista las tres funciones inalcanzables. El control
-`ok-dead-undefined-call` llama a un extern sin definición desde dos funciones
-inalcanzables: antes terminaba en `error[LINK]`, ahora construye y sale 7. El
-compilador completo baja de 3357756 a 3343316 bytes; sobre 70 fixtures y 135
-programas del corpus, 21 de 179 ejecutables cambian y suman 142892 bytes menos.
-Diferencial **70/70**; loader **264/264**; corpus **109 build / 109 match
-sobre 135**; censo **2/27**. El compilador así construido se compila a sí
-mismo a un C idéntico al del oráculo y el punto fijo nativo sigue cerrando.
+D-M1-65. R6 emite solo las funciones que `main` o un handler de ruta alcanza por
+una llamada (un `call` con destino Symbol o String), por un valor de función (un
+operando `Sym` que nombra una función) o por una cadena de ambas. Las demás se
+validan igual y no se emiten. El par `71-dead-functions` lo mide: oráculo y R6
+imprimen `live\r\n` y salen 42, y `nm` del ejecutable de R6 no lista las tres
+funciones inalcanzables. El control `ok-dead-undefined-call` llama a un extern
+sin definición desde dos funciones inalcanzables: antes terminaba en
+`error[LINK]`, ahora construye y sale 7. El compilador completo baja de 3357756
+a 3343316 bytes; sobre 70 fixtures y 135 programas del corpus, 21 de 179
+ejecutables cambian y suman 142892 bytes menos. Diferencial **70/70**; loader
+**264/264**; corpus **109 build / 109 match sobre 135**; censo **2/27**. El
+compilador así construido se compila a sí mismo a un C idéntico al del oráculo y
+el punto fijo nativo sigue cerrando.
 
 ## Actualización de M1 - un salto sobre una comparación lee los flags (2026-10-27)
 
@@ -1539,14 +1543,15 @@ sobre 135**; censo **2/27**.
 ## Actualización de M1 - los slots más usados viven en registros (2026-10-27)
 
 D-M1-68. `regalloc.c` corre después de `peephole.c` sobre el texto de cada
-función y pasa los slots más referenciados a rbx, rsi, rdi y r12-r15. Un slot
-es candidato si todas sus referencias son formas que el ensamblador codifica
-con un registro; un `leaq`, un `movsd` o las celdas de resultado lo dejan en
-memoria. La función empuja los registros que usa tras fijar el frame pointer, y
+función y pasa los slots más referenciados a rbx, rsi, rdi y r12-r15. Un slot es
+candidato si todas sus referencias son formas que el ensamblador codifica con un
+registro; un `leaq`, un `movsd` o las celdas de resultado lo dejan en memoria.
+La función empuja los registros que usa tras fijar el frame pointer, y
 `asm_win64.c` escribe un código `UWOP_PUSH_NONVOL` por cada uno. Las líneas del
 asm del compilador que nombran un slot bajan de 159741 a 58103 y el ejecutable
-de 3234260 a 2926548 bytes. La auto-compilación de `compiler/host/main.orb`
-baja de 3,87 s a 2,60 s (mediana de nueve corridas intercaladas), contra 2,09 s
-del oráculo. El objeto de R6 y el de GAS para el mismo texto tienen las mismas
-311836 instrucciones y los mismos datos de unwind. Diferencial **72/72**; loader
+de 3234260 a 2926548 bytes. La auto-compilación de `compiler/host/main.orb` baja
+de 3,87 s a 2,60 s (mediana de nueve corridas intercaladas), contra 2,09 s del
+oráculo (la carga de la máquina difiere entre decisiones: se compara solo el par
+de cada una). El objeto de R6 y el de GAS para el mismo texto tienen las mismas
+310835 instrucciones y los mismos datos de unwind. Diferencial **72/72**; loader
 **266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.

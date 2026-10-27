@@ -3182,10 +3182,10 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   On an idle machine the same build takes 20.6 s before and 2.4 s after. The
   object file shrinks from 211508235 to 3454987 bytes.
 - Evidence that the output is unchanged: the executable of `main.ir` is
-  byte-identical (sha256 `2b8cb011…`, 3357756 bytes) and so are the 205
-  executables built from the 70 fixtures and the 135 corpus programs (the
-  sha256 of each compared before and after, with the same 27 refusals and
-  messages). `objdump -dr -t` of `19-int-list-get.o` differs only in the
+  byte-identical (sha256 `2b8cb011…`, 3357756 bytes) and so are the 178
+  executables built from the 69 fixtures and the 109 corpus programs that
+  build (the sha256 of each compared before and after, with the same 26
+  refusals and messages). `objdump -dr -t` of `19-int-list-get.o` differs only in the
   section file offsets. That compiler translates `compiler/host/main.orb` to
   the C of the oracle (6212022 bytes, `54f0b797…`), emits IR identical to the
   IR it was built from, and R6 builds that IR into the same executable.
@@ -3344,7 +3344,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
     by 8 when the count is odd. Each `leave` is preceded by `movq` reloads
     from the push area. A function that names one of the seven registers,
     returns without `leave`, or jumps to a label it does not define is left
-    as it is.
+    as it is. The stage fails closed with `error[REGALLOC]`.
   - `asm_win64.c` accepts a register where a memory operand may stand for the
     forms above, `pushq` of the seven registers, `movq $imm, %reg`, and the
     REX prefix of `%sil`, `%dil` and `%r8b` to `%r15b`. It records each push
@@ -3362,11 +3362,13 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   3234260 to 2926548 bytes. The self-compile of `compiler/host/main.orb` by
   the R6-built compiler takes a median of 2.60 s against 3.87 s, nine
   interleaved runs each (minimum 2.57 s against 3.78 s). The oracle takes
-  2.09 s. A minimum weight of 3 gives 2.64 s and 24 gives 2.79 s against
+  2.09 s. Machine load differs between this measurement and the one in
+  D-M1-67; compare only the pair inside each decision. A minimum weight of 3 gives 2.64 s and 24 gives 2.79 s against
   2.58 s at 6, five and seven runs.
 - Encoding check: `objdump -d` of the object R6 writes for the asm of the
-  compiler matches the object GAS writes for the same text, 311836
-  instructions, and the unwind data (`.xdata`, 1427 lines) is identical.
+  compiler matches the object GAS writes for the same text, 310835
+  instructions (the 1001 function headings that `objdump` also prints are not
+  counted), and the unwind data (`.xdata`, 1427 lines) is identical.
 - The compiler built this way translates `compiler/host/main.orb` to the C of
   the oracle (`54f0b797…`), emits IR identical to `main.ir`, and R6 builds
   that IR into the same executable (sha256 `59fbfe5d…`).

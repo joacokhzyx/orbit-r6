@@ -165,10 +165,10 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 - `src/loader/ir.{h,c}` — strict JSON IRv1 parser/validator, owns `R6Module`;
   also gates which opcodes are admitted (`E_UNSUPPORTED` outside the range).
 - `src/codegen-x64/win64.{c,h}` — IR → private asm text; `peephole.{c,h}` —
-  rewrites that text in place (D-M1-67); `regalloc.{c,h}` — assigns registers to
-  slots on that text (D-M1-68); `asm_win64.{c,h}` —
-  encodes only the selector's instruction subset; `coff.{c,h}` — AMD64 COFF
-  writer (sections, symbols, REL32/ADDR32NB relocations, unwind data).
+  rewrites that text in place (D-M1-67); `regalloc.{c,h}` — assigns registers
+  to slots on that text (D-M1-68); `asm_win64.{c,h}` — encodes only the
+  selector's instruction subset; `coff.{c,h}` — AMD64 COFF writer (sections,
+  symbols, REL32/ADDR32NB relocations, unwind data).
 - `src/driver/r6.c` — CLI, temporaries under `.r6-build`, direct `ld` link.
 - `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — probes
   that produced `docs/COFF_OBJECTS.md`.
