@@ -1555,3 +1555,12 @@ oráculo (la carga de la máquina difiere entre decisiones: se compara solo el p
 de cada una). El objeto de R6 y el de GAS para el mismo texto tienen las mismas
 310835 instrucciones y los mismos datos de unwind. Diferencial **72/72**; loader
 **266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.
+## Actualización de M1 - la arena se carga con un movq relativo a RIP (2026-10-27)
+
+D-M1-69. Una función distinta de `main` leía la arena con `leaq r6_arena(%rip),
+%rax` y `movq 0(%rax), %reg`. Ahora emite `movq r6_arena(%rip), %reg`, y
+`asm_win64.c` codifica esa carga con una relocación REL32; el objeto coincide
+con el de GAS en el sondeo. El asm del compilador baja de 310835 a 306303
+instrucciones y el ejecutable de 2926548 a 2908116 bytes. La auto-compilación
+no se mueve: mediana 2,60 s contra 2,14 s del oráculo. Diferencial **72/72**;
+loader **266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.

@@ -2361,7 +2361,7 @@ static void emit_load_arena(FILE *o, const R6Function *f, bool is_main,
         fprintf(o, "\tmovq -%u(%%rbp), %s\n",
                 (unsigned)(f->register_count + 1) * 8, reg);
     else
-        fprintf(o, "\tleaq r6_arena(%%rip), %%rax\n\tmovq 0(%%rax), %s\n", reg);
+        fprintf(o, "\tmovq r6_arena(%%rip), %s\n", reg);
 }
 
 /* D-M1-23: spreads one scalar operand of a string `add` into a string with the
@@ -2714,7 +2714,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             emit_load_arg(o, f, &i->operands[1], "int", 3, 0);
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n", scratch);
             if (is_main) fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", arena_off);
-            else fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rdx\n", o);
+            else fputs("\tmovq r6_arena(%rip), %rdx\n", o);
             fprintf(o, "\tmovl $8, %%r8d\n\tmovl $%d, 32(%%rsp)\n"
                        "\tcall orbit_list_create_typed\n\tcmpb $1, -%u(%%rbp)\n"
                        "\tje .Lr6_f%zu_list_create_ok_%u\n\tmovq $0, -%u(%%rbp)\n"
@@ -3174,7 +3174,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 if (is_main)
                     fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(f->register_count + 1) * 8);
                 else
-                    fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rcx\n", o);
+                    fputs("\tmovq r6_arena(%rip), %rcx\n", o);
                 if (!model_field_layout(m, model, 0, &offset, &total))
                     return fail(d, i, "CGEN", "model %s has an unsupported field type", model->name);
                 fprintf(o, "\tmovl $%zu, %%edx\n\tcall orbit_alloc\n\tmovq %%rax, %%r10\n", total);
@@ -3363,7 +3363,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     if (is_main)
                         fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(f->register_count + 1) * 8);
                     else
-                        fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rcx\n", o);
+                        fputs("\tmovq r6_arena(%rip), %rcx\n", o);
                     fprintf(o, "\tmovl $%zu, %%edx\n\tcall orbit_alloc\n\tmovq %%rax, -%u(%%rbp)\n\tmovq %%rax, %%r10\n",
                             total, off);
                     for (k = 0; k < parts; ++k) {
@@ -3397,7 +3397,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 if (is_main)
                     fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(f->register_count + 1) * 8);
                 else
-                    fputs("\tleaq r6_arena(%rip), %rax\n\tmovq 0(%rax), %rcx\n", o);
+                    fputs("\tmovq r6_arena(%rip), %rcx\n", o);
                 fprintf(o, "\tmovl $16, %%edx\n\tcall orbit_alloc\n\tmovl $%zu, 0(%%rax)\n", variant_index);
                 if (parts == 1) {
                     const R6Value *av = &args[base]->operands[0];

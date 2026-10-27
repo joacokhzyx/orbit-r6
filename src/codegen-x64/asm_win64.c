@@ -372,6 +372,12 @@ static bool encode(Asm *a, char *line) {
         if (id2 < 0 || x2 || w2 != 64) return bad(a, "lea destination must be a 64-bit GPR");
         return rex_modrm_mem(a, 64, id2, m, 0x8d, 0, 0, -1);
     }
+    if (strcmp(op, "movq") == 0 && parse_mem(a, a1, &m) && m.rip) {
+        id2 = reg_id(a2, &w2, &x2);
+        if (id2 < 0 || x2 || w2 != 64) return bad(a, "movq from a symbol must load a 64-bit GPR");
+        { char *label = a1; char *paren = strchr(label, '('); *paren = 0; m.symbol = trim(label); }
+        return rex_modrm_mem(a, 64, id2, m, 0x8b, 0, 0, -1);
+    }
     id1 = reg_id(a1, &w1, &x1); id2 = reg_id(a2, &w2, &x2);
     if (strcmp(op, "testq") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));

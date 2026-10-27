@@ -3376,3 +3376,35 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   controls), corpus **109 build / 109 match over 135**, ratchet held, census
   **2/27**.
 - Status: **applied**.
+
+## D-M1-69 - The arena loads with one RIP-relative movq
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: a function other than `main` read the arena with
+  `leaq r6_arena(%rip), %rax` and `movq 0(%rax), %reg`. The asm of
+  `compiler/host/main.orb` holds 4532 such pairs, and each wrote `%rax` for
+  nothing.
+- Decision:
+  - `win64.c` emits `movq r6_arena(%rip), %reg` at the five places that load
+    the arena (`emit_load_arena`, `list_create`, the model allocation and the
+    two union allocations). The store of the arena in `main` keeps `leaq`.
+  - `asm_win64.c` encodes `movq sym(%rip), %r64` as REX.W 8B /r with a REL32
+    relocation to the symbol, as `leaq` does. A destination that is not a
+    64-bit general register is a diagnostic.
+- Fixtures: no new one. The `movq` appears in the asm of six fixtures with
+  `%rcx` and five with `%rdx`, and all pass the differential. The other
+  registers of `emit_load_arena` use the same line of code.
+- Encoding check: `asm_probe` on `movq r6_arena(%rip), %rcx|%rdx|%r8|%rax`
+  and GNU `as` on the same text give identical `objdump -dr` output (bytes
+  `48 8b 0d`, `48 8b 15`, `4c 8b 05`, `48 8b 05`, `IMAGE_REL_AMD64_REL32`).
+- Measured: the asm of the compiler goes from 310835 to 306303 instructions
+  and the executable from 2926548 to 2908116 bytes. The self-compile of
+  `compiler/host/main.orb` takes a median of 2.60 s against 2.14 s for the
+  oracle, nine interleaved runs (minimum 2.54 s against 2.10 s). D-M1-68
+  measured 2.60 s as well, so the time does not move.
+- The compiler built this way translates `compiler/host/main.orb` to the C of
+  the oracle (`54f0b797…`), emits IR identical to `main.ir`, and R6 builds
+  that IR into the same executable (sha256 `7dad2f06…`).
+- Gates: differential **72/72**, loader **266/266**, corpus **109 build / 109
+  match over 135**, ratchet held, census **2/27**.
+- Status: **applied**.
