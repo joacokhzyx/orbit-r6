@@ -2769,3 +2769,29 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   programs** (`union_multi_payload_unit_variant`), none differing; census
   **0/27**, ratchet holds.
 - Status: **applied**.
+
+## D-F0-16 - Re-pin to ca3eb91: typed unwraps, payloads and list reads
+
+- Date: 2026-10-27. Moves the pin from `a5cdf77` (D-F0-15) to orbit-lang
+  `main` `ca3eb9103dfcff03f11831eddb8be98bc521b787`, four commits, pushed to
+  `https://github.com/joacokhzyx/orbit-lang` (`a5cdf77..ca3eb91`).
+- What moved: the `typed-ir-2` merge. The builder types a `try` unwrap from
+  the annotation of the `val` it feeds, a single `int`/`bool`/`string` union
+  payload from the variant, and a list read whose element is a list or a
+  declared model. The C backend casts the word for those registers. The
+  corpus goes from 425 `unknown` register destinations to 341
+  (`scripts/ir_unknown_census.py`). The serializer (`ir_emit.orb`), the corpus
+  script and `runtime/` did not move, so the runtime archive is kept.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-33ea94e9ec.exe`, built from `C:\Temp\orbit-pin-ca3eb91-git`,
+  converges to `PUBLISHED_C BA1304FD.` (was `D78411C0.`); with it the pinned tree
+  passes `tests/suite` 109/109 and `tests/std` 23/23. The corpus regenerates
+  to 133 documents, 6808178 bytes, `filesSha256 3f20ced0.`.
+- Ratchets: the corpus baseline is written by `run_corpus.py --write-baseline`
+  at the pin, and a `--check` run against it holds at 95 -> 95. The census
+  baseline is re-taken: 27 modules, 0 build, the same first refusals.
+- Measured: differential **60/60** against the new oracle; loader **238/238**;
+  corpus **92 build / 92 match -> 95 build / 95 match over 132 programs**
+  (`result_chain`, `result_try`, `union_match_exhaustive`), none differing;
+  census **0 build over 27 modules**.
+- Status: **applied**.

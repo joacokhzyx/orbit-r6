@@ -1356,3 +1356,12 @@ oráculo y R6 imprimen `pack\r\n` y salen 42. Diferencial **60/60**; loader
 **238/238** (162 rechazos + 76 controles); corpus **92 build / 92 match sobre
 132 programas** (`union_multi_payload_unit_variant`); censo **0/27**. El
 trinquete se re-toma en 92/92.
+
+## Re-pin a `ca3eb91` (2026-10-27)
+
+D-F0-16. El pin pasa de `a5cdf77` a `ca3eb91`: el builder tipa los `try`, los
+payloads simples de unión y las lecturas de listas de listas o de modelos (341
+registros `unknown` en el corpus, antes 425). El serializador y el runtime no
+cambian. Diferencial **60/60**; loader **238/238**; corpus **95 build / 95
+match sobre 132 programas** (`result_chain`, `result_try`,
+`union_match_exhaustive` entran sin cambios en R6); censo **0/27**.

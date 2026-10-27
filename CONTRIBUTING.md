@@ -31,7 +31,7 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 - Materialize a checkout of `orbit-lang` at the pinned commit and build its
   fixed-point compiler. Do not use a working tree that is ahead of the pin.
 - Never write to the Orbit checkout. Read pinned bytes with
-  `git cat-file blob a5cdf77:<path>`.
+  `git cat-file blob ca3eb91:<path>`.
 
 ## Gates
 
@@ -43,9 +43,9 @@ Differential, the primary gate:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
+  --compiler C:\Temp\orbit-fp-33ea94e9ec.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-a5cdf77-git `
+  --orbit-root C:\Temp\orbit-pin-ca3eb91-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -67,9 +67,9 @@ Corpus, a measurement with a one-way ratchet:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
+  --compiler C:\Temp\orbit-fp-33ea94e9ec.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-a5cdf77-git `
+  --orbit-root C:\Temp\orbit-pin-ca3eb91-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```

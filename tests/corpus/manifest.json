@@ -1,19 +1,19 @@
 {
   "schema": "r6-ir-corpus/1",
   "emitter": {
-    "path": "C:\\Temp\\orbit-fp-b0d70c396d.exe",
-    "sha256": "c0df50b7839569a5af2398a9b33f82c74638e5869d2b843268d4b0a1fc48c00d",
-    "bytes": 861696,
+    "path": "C:\\Temp\\orbit-fp-33ea94e9ec.exe",
+    "sha256": "e24f5c378c2e193cf68658a00fe04556ddf1fa10b71c87b9f44ae223408b46f6",
+    "bytes": 864768,
     "version": "orbit 0.1.0-rc.2",
-    "languageCommit": "a5cdf779ddc0ba37f72eb0a9dcfd750044b3430c"
+    "languageCommit": "ca3eb9103dfcff03f11831eddb8be98bc521b787"
   },
   "counts": {
     "executable": 132,
     "support": 1,
     "total": 133
   },
-  "totalBytes": 6808416,
-  "filesSha256": "91341401c99b132df989d50eaf0a3a622f9292707184f085c2d02f2be4a63316",
+  "totalBytes": 6808178,
+  "filesSha256": "3f20ced0bdcd64d5ae96330b347bf17eef11bb8e239882c75f742e7311e3afa0",
   "files": [
     {
       "path": "tests/suite/arena_sink_scope.orb",
@@ -47,8 +47,8 @@
       "path": "tests/suite/bitwise_operators.orb",
       "kind": "executable",
       "ir": "tests/suite/bitwise_operators.ir",
-      "bytes": 25750,
-      "sha256": "1e80bf6474fc2e218079211707108ec9156f62dee43e4b7596914fb0b614db24"
+      "bytes": 25744,
+      "sha256": "31d7c3c2652e4eee9e274fe4b22f92ec74f3f2079b3941be6502a4e9c5b174dd"
     },
     {
       "path": "tests/suite/bom_utf8.orb",
@@ -131,8 +131,8 @@
       "path": "tests/suite/float_results.orb",
       "kind": "executable",
       "ir": "tests/suite/float_results.ir",
-      "bytes": 16984,
-      "sha256": "7dec2ac22b5c9aa72932384e3e74539ffb40f6ca3db72837066a83abb702a674"
+      "bytes": 16980,
+      "sha256": "d3f5e44875bc696b53c138f79907d2aa342af1550ca86076e990148cc43180a0"
     },
     {
       "path": "tests/suite/fn_named_like_c_keyword.orb",
@@ -201,8 +201,8 @@
       "path": "tests/suite/generic_nested_argument.orb",
       "kind": "executable",
       "ir": "tests/suite/generic_nested_argument.ir",
-      "bytes": 22471,
-      "sha256": "4a3dcd33e57fa2a1a3a972be29b4714ec0517264e7a97c067c00dc3d634f8db1"
+      "bytes": 22465,
+      "sha256": "503c128194d0a8eaf87ba1fd33ae4012d261c872fdce4c76d5a75056e1c94466"
     },
     {
       "path": "tests/suite/global_const.orb",
@@ -285,15 +285,15 @@
       "path": "tests/suite/list_element_type.orb",
       "kind": "executable",
       "ir": "tests/suite/list_element_type.ir",
-      "bytes": 94231,
-      "sha256": "52afe6f83ff4ca23f9d6a1fe7249bc99bcf62c67a697f6aab0e2b35a953d0fa1"
+      "bytes": 94222,
+      "sha256": "392ce3371dfb56e653987d58cbb7d8021922516f7dd0c78f7ff88777b8dde2e8"
     },
     {
       "path": "tests/suite/list_element_type_annotation.orb",
       "kind": "executable",
       "ir": "tests/suite/list_element_type_annotation.ir",
-      "bytes": 57345,
-      "sha256": "4f901ac0396a0b4d1d47ad91293bab87042206cbf1bb29e26d6d1577b6b9a57b"
+      "bytes": 57336,
+      "sha256": "28149f321dc0a4dc68aef6e018d2a38ec987cbe4fa493e9ee58cdfe6be9bd357"
     },
     {
       "path": "tests/suite/list_index_out_of_range.orb",
@@ -334,8 +334,8 @@
       "path": "tests/suite/match.orb",
       "kind": "executable",
       "ir": "tests/suite/match.ir",
-      "bytes": 22276,
-      "sha256": "ab4e2ec0fdc9628750eede1ca4be5f054f594791a8449706b42fdd11d5892676"
+      "bytes": 22268,
+      "sha256": "abe0d39244d7b17aa8e244e0929ae99ac41150264d8ba8b0903c2bc9276b8081"
     },
     {
       "path": "tests/suite/member_and_index_store.orb",
@@ -348,15 +348,15 @@
       "path": "tests/suite/member_resolution.orb",
       "kind": "executable",
       "ir": "tests/suite/member_resolution.ir",
-      "bytes": 16532,
-      "sha256": "212db6752aac3ccbc33e9d464b65ba099ac9b7cc37802be4285d38c9ebecbd97"
+      "bytes": 16520,
+      "sha256": "621630490da098dd8dddbe094e4a7406b98634e0ff2cdae2b9c7b866394ef39f"
     },
     {
       "path": "tests/suite/mini_parser.orb",
       "kind": "executable",
       "ir": "tests/suite/mini_parser.ir",
-      "bytes": 48016,
-      "sha256": "49f188736736f43afc78e29ee3aade30b9f5372007d56a4e2597bbd74ee77670"
+      "bytes": 48011,
+      "sha256": "9f0cae3a5ffa8c5bfcc0d2464b2ba4dcac30c6b05ea5eb9da2ac88183b932499"
     },
     {
       "path": "tests/suite/model_alloc_loop.orb",
@@ -397,8 +397,8 @@
       "path": "tests/suite/model_list_of_models.orb",
       "kind": "executable",
       "ir": "tests/suite/model_list_of_models.ir",
-      "bytes": 19529,
-      "sha256": "f032908eed327436c96a4c1378032c76896d64fefbc606b4d037c6389732a260"
+      "bytes": 19524,
+      "sha256": "fe60958ce1ed110be8d90542ab40af7da0920f42d7db1df24b26982e1b3c41bd"
     },
     {
       "path": "tests/suite/model_literal_fields.orb",
@@ -537,78 +537,78 @@
       "path": "tests/suite/result_bind.orb",
       "kind": "executable",
       "ir": "tests/suite/result_bind.ir",
-      "bytes": 4245,
-      "sha256": "4611c87871a6d412dcbc5a87fe4f4644fe5089421e30d6bf11044d5399238e38"
+      "bytes": 4241,
+      "sha256": "ae062db05dd89bd22ffd186958f6afcb5af243fc0f4444a4140f4f95e723bc64"
     },
     {
       "path": "tests/suite/result_binding.orb",
       "kind": "executable",
       "ir": "tests/suite/result_binding.ir",
-      "bytes": 15650,
-      "sha256": "ae09d7b20a369445d7388b6473a3ac38c4af1b5c7eff938c1357d90a1dff57b7"
+      "bytes": 15634,
+      "sha256": "bfae865af32f7809d529d942bc06b10316098a9082c10a3bb8dc7f976bfeaadb"
     },
     {
       "path": "tests/suite/result_catch.orb",
       "kind": "executable",
       "ir": "tests/suite/result_catch.ir",
-      "bytes": 3655,
-      "sha256": "09536de0981a313d9d02350a154fb8529ac6b82cd277b675e6f62e02e6543245"
+      "bytes": 3651,
+      "sha256": "a4d8b8204d3dd4f582e70a6fd159ce854c742908d5b835f847e5ac179f036ddb"
     },
     {
       "path": "tests/suite/result_catch_binding_scope.orb",
       "kind": "executable",
       "ir": "tests/suite/result_catch_binding_scope.ir",
-      "bytes": 15951,
-      "sha256": "bc8f6d1bab4554f4d26be342d2a0247871eb342d685021d0b61d4ac4d459ff0f"
+      "bytes": 15943,
+      "sha256": "d776cef8849d5fa43bb0c57e3ec68e9dd0ab596dcdb3a35c2a05665ff3e70011"
     },
     {
       "path": "tests/suite/result_chain.orb",
       "kind": "executable",
       "ir": "tests/suite/result_chain.ir",
-      "bytes": 18417,
-      "sha256": "d8d353f25a5c61fe7d81e1f0dc347cfe855c74c53efae9e3e7a8fbe5aaff3714"
+      "bytes": 18393,
+      "sha256": "5c75fc1729081af20392ed1ef7d4f9aeef7dd71042c35021aa01ec1140d58d18"
     },
     {
       "path": "tests/suite/result_in_loop.orb",
       "kind": "executable",
       "ir": "tests/suite/result_in_loop.ir",
-      "bytes": 11236,
-      "sha256": "09e2fc516c141d572a48322a9f96026437c2d051d752bbaadbc53da3045735d1"
+      "bytes": 11232,
+      "sha256": "88b4515feff495fd8728a2f99bffd8259dfef6099e4cbaa805dee938945c05ba"
     },
     {
       "path": "tests/suite/result_message.orb",
       "kind": "executable",
       "ir": "tests/suite/result_message.ir",
-      "bytes": 13766,
-      "sha256": "2528e5f4951147321908a7fe3172b9b89568316741b11f4de7720d5b164a64d5"
+      "bytes": 13762,
+      "sha256": "6cbd7a6c7162dc69e0ea8f753dd8b9b6cc783a9c199c8868a3ef2ef7c8a77fff"
     },
     {
       "path": "tests/suite/result_stage2.orb",
       "kind": "executable",
       "ir": "tests/suite/result_stage2.ir",
-      "bytes": 10392,
-      "sha256": "6673c2f80a227b3f795d4ede04726f92993cd8bef112e04140169a6da9bd2b82"
+      "bytes": 10388,
+      "sha256": "882052299b0da8885cfd6f43240395a36795cf60c7ef3f1aaec60d58f2915c63"
     },
     {
       "path": "tests/suite/result_string_value.orb",
       "kind": "executable",
       "ir": "tests/suite/result_string_value.ir",
-      "bytes": 10392,
-      "sha256": "cc61fc80d22fc66e605a98dd1fbf95b5355f7e84358589af1e85b93c1a33d62c"
+      "bytes": 10391,
+      "sha256": "5e54417957ddf167fb6fa2eaa59538c62906b84ac2ac5c1a7687c2f9b7850301"
     },
     {
       "path": "tests/suite/result_try.orb",
       "kind": "executable",
       "ir": "tests/suite/result_try.ir",
-      "bytes": 5661,
-      "sha256": "bf880dc5c8c26b3304ffaaba1347f639ba6fa989ae9e1786988c23ba92c6b161"
+      "bytes": 5653,
+      "sha256": "72e8ecf341f7bb1993c4018e21802fc394f7869ecf1d895b37d1171b5438fc71"
     },
     {
       "path": "tests/suite/result_values.orb",
       "kind": "executable",
       "ir": "tests/suite/result_values.ir",
-      "bytes": 7312,
-      "sha256": "b616d5436aff55c4d593de59ef94e1698209f3481d1c08d221c7df12ef650c36"
+      "bytes": 7304,
+      "sha256": "0966927a23bba856a564f8a811b0c4b28bef3d1fd1ea9f404074e0e4c283f772"
     },
     {
       "path": "tests/suite/scope_shadow_clobbers_outer.orb",
@@ -684,8 +684,8 @@
       "path": "tests/suite/type_spellings.orb",
       "kind": "executable",
       "ir": "tests/suite/type_spellings.ir",
-      "bytes": 7495,
-      "sha256": "cce4f8d8eeef2533fa346ce8b24ad1a54a7a1827d25cfa24dee29a307102479b"
+      "bytes": 7491,
+      "sha256": "4d91cb7608f59a8864e2b963325a571444ed4b7f578675c23678e0d2d62aab6f"
     },
     {
       "path": "tests/suite/unary_neg.orb",
@@ -698,50 +698,50 @@
       "path": "tests/suite/union_bare_variant_pattern.orb",
       "kind": "executable",
       "ir": "tests/suite/union_bare_variant_pattern.ir",
-      "bytes": 19851,
-      "sha256": "5ab40d0805bf7a7700f707f5f48cca4eefb282495d29f30c6a75ee7a9e58e3ab"
+      "bytes": 19843,
+      "sha256": "d40412765b5d5b5062725f76c3bd4447bc3a9749a316077c089b5872af4f83a2"
     },
     {
       "path": "tests/suite/union_match_exhaustive.orb",
       "kind": "executable",
       "ir": "tests/suite/union_match_exhaustive.ir",
-      "bytes": 28463,
-      "sha256": "6a004d37d64cfe6d466578594179f5aebfc08815617fd5d0fb927882545c5887"
+      "bytes": 28443,
+      "sha256": "9f0c65108dd1b7eecb4ff055187403fb87e2216355e068db31327ef1c9f0164b"
     },
     {
       "path": "tests/suite/union_model_payload.orb",
       "kind": "executable",
       "ir": "tests/suite/union_model_payload.ir",
-      "bytes": 16433,
-      "sha256": "fe0f6e6f88cb5be2da6704445011fd2728b0f43509bf1e8385449e70bef86aaf"
+      "bytes": 16432,
+      "sha256": "6fb88213a27dfc3e64dc47a842df095e632ae48ae08653ee02fe7cb9a517cd3a"
     },
     {
       "path": "tests/suite/union_multi_payload.orb",
       "kind": "executable",
       "ir": "tests/suite/union_multi_payload.ir",
-      "bytes": 32235,
-      "sha256": "4781b070932d4c26fcb190444ccef4face8eba601f06fef9b8635197930de11c"
+      "bytes": 32231,
+      "sha256": "be0acff8049f109a8a9b0b29cca519dd3b5ed3be7bb16abb8c36ddbea7b50261"
     },
     {
       "path": "tests/suite/union_multi_payload_unit_variant.orb",
       "kind": "executable",
       "ir": "tests/suite/union_multi_payload_unit_variant.ir",
-      "bytes": 14016,
-      "sha256": "99d44e3f49aae105a03493878f3dcb2dae0818fc1f494a3af88ef1411a34c392"
+      "bytes": 14015,
+      "sha256": "a274c7cb0b4ffe7ca96d9043363de4a9dc5213dcfffb353832bb2935d5fabcd5"
     },
     {
       "path": "tests/suite/union_nested_match.orb",
       "kind": "executable",
       "ir": "tests/suite/union_nested_match.ir",
-      "bytes": 22810,
-      "sha256": "5fad74c79f5f96f4bd99e9330110eda6d775b97f46b9bb67761f35059e47bd68"
+      "bytes": 22806,
+      "sha256": "864ab434c2eebab6652ed1cb257a2a41668eb27b3ce22a587fad88c11d802119"
     },
     {
       "path": "tests/suite/union_payload_return.orb",
       "kind": "executable",
       "ir": "tests/suite/union_payload_return.ir",
-      "bytes": 26272,
-      "sha256": "ab30de99bbdee6ea7327d705aac556406e9cb19856b6c2b68d8513e1b28e8768"
+      "bytes": 26264,
+      "sha256": "640c26096a02e4c153ff6fdfcc4cb4dd611c96f1b0af5418b4a3b92deab2b68d"
     },
     {
       "path": "tests/suite/user_fn_named_check.orb",
@@ -754,8 +754,8 @@
       "path": "tests/suite/user_fn_named_find.orb",
       "kind": "executable",
       "ir": "tests/suite/user_fn_named_find.ir",
-      "bytes": 24029,
-      "sha256": "550cbbfa29d5ebaec63010ca645c48106df64f741fdaaf283b408f6de13670c0"
+      "bytes": 24017,
+      "sha256": "7322d11d40d757c79c4548bc84377ed7da311959f3559f5e69dffb021c3db4d0"
     },
     {
       "path": "tests/suite/user_fn_named_like_compiler_helper.orb",
@@ -817,8 +817,8 @@
       "path": "tests/std/test_codec.orb",
       "kind": "executable",
       "ir": "tests/std/test_codec.ir",
-      "bytes": 187962,
-      "sha256": "d94f4e12fd7c7f6fff1f420de42ab5a0e682aa47043afa2430cf2dfc4019f688"
+      "bytes": 187954,
+      "sha256": "1941b232aed9d325a7581882ea793214903080d1801bd45b0c270ee701f643cc"
     },
     {
       "path": "tests/std/test_collections.orb",
@@ -852,8 +852,8 @@
       "path": "tests/std/test_fs.orb",
       "kind": "executable",
       "ir": "tests/std/test_fs.ir",
-      "bytes": 122665,
-      "sha256": "137d7bb3a22e13851bcdced33a2314e08494db527d6150a09f8dfd27f1457c13"
+      "bytes": 122661,
+      "sha256": "b4d76056d9b6a96f54cfe753ea9b197cfe6ee1a05d082040e17a61b229fa6dc4"
     },
     {
       "path": "tests/std/test_hash.orb",
@@ -873,8 +873,8 @@
       "path": "tests/std/test_imports.orb",
       "kind": "executable",
       "ir": "tests/std/test_imports.ir",
-      "bytes": 891170,
-      "sha256": "533dfea6ecf01d4dc5dc3bda7b8bc33c136ec10d7274e78e7095c3b10f8277e8"
+      "bytes": 891165,
+      "sha256": "76b79f8c999e6506a4bc3f86a32903994da1c6fb2a84edf5dcd7b4932d087848"
     },
     {
       "path": "tests/std/test_io.orb",
@@ -915,8 +915,8 @@
       "path": "tests/std/test_random.orb",
       "kind": "executable",
       "ir": "tests/std/test_random.ir",
-      "bytes": 35467,
-      "sha256": "7c8d29fe4a967aa8ff72443f81136fc13e986507d38716e6f68624a49326dae3"
+      "bytes": 35461,
+      "sha256": "2566f57a0161c036aa0dc2318de98e23dd915c1a84e874536549733b2209de45"
     },
     {
       "path": "tests/std/test_regex.orb",
@@ -929,8 +929,8 @@
       "path": "tests/std/test_string.orb",
       "kind": "executable",
       "ir": "tests/std/test_string.ir",
-      "bytes": 237391,
-      "sha256": "020666aafbff847cc18bb7542ccc541f8f9027f69322f787c62126674546c605"
+      "bytes": 237387,
+      "sha256": "ed1961bedc814889952779f45803790295bb479cfeee3763168117d6c157e002"
     },
     {
       "path": "tests/std/test_time.orb",

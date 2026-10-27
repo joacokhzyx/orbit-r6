@@ -10,9 +10,9 @@ en D-F0-13 y sin cambio en D-F0-14 - pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-b0d70c396d.exe `
+  --compiler C:\Temp\orbit-fp-33ea94e9ec.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-a5cdf77-git `
+  --orbit-root C:\Temp\orbit-pin-ca3eb91-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -574,3 +574,10 @@ y 23 de std, 6 808 416 bytes, `filesSha256 91341401…`, emitidos con
 `C:\Temp\orbit-fp-b0d70c396d.exe` desde `C:\Temp\orbit-pin-a5cdf77-git`.
 R6 construye y coincide en 91 de 132 programas, ninguno difiere. El commit está
 en `github.com/joacokhzyx/orbit-lang`.
+
+## Re-pin 2026-10-27 (D-F0-16, emisor `ca3eb91`, corpus `3f20ced0`)
+
+Los mismos 133 documentos, 6 808 178 bytes, `filesSha256 3f20ced0…`, emitidos
+con `C:\Temp\orbit-fp-33ea94e9ec.exe` desde `C:\Temp\orbit-pin-ca3eb91-git`.
+Cambian los `registerTypes`: 341 destinos `unknown` (antes 425). R6 construye y
+coincide en 95 de 132 programas, ninguno difiere.
