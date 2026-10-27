@@ -92,7 +92,7 @@ python tests/corpus/run_corpus.py `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- Regenerates the 97+1 corpus with the pinned compiler (`--orbit-root` is the
+- Regenerates the 135+1 corpus with the pinned compiler (`--orbit-root` is the
   tree carrying the language's `scripts/emit_ir_corpus.py`; `--ir-dir` measures
   an already-emitted one), verifies every `sha256` against
   `tests/corpus/manifest.json`, then builds both sides per program and requires
@@ -176,7 +176,8 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   `run_census.py` emits every `compiler/**/*.orb` at the pin and records R6's
   first refusal on each; `baseline.json` is the one-way ratchet over
   `r6BuildOk`.
-- `scripts/` — `build-r6.ps1` (driver build), `migrate-m1-fixtures.py`
+- `scripts/` — `build-r6.ps1` (driver build), `ci.ps1` (the CI steps, runnable
+  locally), `migrate-m1-fixtures.py`
   (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
   pre-migration revision, `06d7d2c^`, skipping fixtures newer than the base).
 - `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module

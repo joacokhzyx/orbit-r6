@@ -83,8 +83,9 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `69-void-main` | `main` sin valor de retorno: el programa sale con 0 | 0 | `void main\r\n` |
 | `70-string-length-field` | `s.length` sobre un string es un `load_field` que da su largo (`strlen`, 0 si es nulo), en un bucle y en una comparación | 42 | `length\r\n` |
 
-Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
-fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la
+Los pares son manuales y anteriores al emisor; el pin incluye el emisor
+(`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los
+primeros cinco ejemplos fueron aceptados para IRv1; los casos 06-70 amplían la
 validación del backend nativo usando semántica observada en el pin. Estado
 medido: los veintiséis primeros pares, ya en el formato de la spec, pasan
 diferencial en Windows x86-64 desde el 2026-10-15 con exit/stdout idénticos a
@@ -103,6 +104,8 @@ D-M1-19/D-M1-20/D-M1-21/D-M1-22/D-M1-23/D-M1-24/D-M1-25/D-M1-26/
 D-M1-27/D-M1-28/D-M1-29/D-M1-30/D-M1-31/D-M1-32/D-M1-33 y
 `../../M1_REPORT.md`). El par 26 se retiró del diferencial en D-F0-13 (el pin
 `17ed624` rechaza un extern como valor); el resto de los pares sigue medido.
+Los pares 44-70 entran con las decisiones posteriores a D-M1-33; cada
+decisión de `../../DECISIONS.md` nombra su par.
 
 La familia `map_*` queda cerrada con evidencia y sin fixture propio (D-M1-10):
 `map_create`/`map_set`/`map_get` no tienen productor en el builder (spec
@@ -195,7 +198,9 @@ quedan cerrados como rechazos con evidencia en D-M1-16 (casos
 `x-list-get-kind-ref`, `x-list-create-kind-opaque` y `x-print-two-args`): sin
 accesor untyped/ref dentro del modelo de registros y sin productor del print
 multicarácter (la sema del pin lo rechaza con E1003; el lowering es solo el
-comentario `/* print */`, U-17).
+comentario `/* print */`, U-17). D-M1-57 admite después `elemKind 5` y D-M1-58
+`elemKind 0` en lecturas y escrituras; esos controles se reorientaron a los
+tipos que siguen afuera.
 
 La resolución del target de `call` sigue la spec §3.1 paso 2 dentro del
 subconjunto medido (D-M1-18): `operand1` `String`/`Sym` es una llamada

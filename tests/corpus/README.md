@@ -1,12 +1,11 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16; re-pin 2026-10-21 (D-F0-13) y 2026-10-22 (D-F0-14, los
-mismos bytes). Decisión:
-`docs/DECISIONS.md` D-M1-17. Corpus: los 97+1 documentos IRv1 que el lenguaje
-emite sobre `tests/suite` (74 programas + `imports.support.orb`) y `tests/std`
-(23 programas) - el corpus designado por `orbit-lang/docs/IR_SPEC.md` §5.5 y
-reconciliado con el árbol en D-F0-10; regenerado sin cambio en D-F0-11, movido
-en D-F0-13 y sin cambio en D-F0-14 - pineados por hash en `manifest.json`.
+Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-27 (D-F0-17).
+Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 136 documentos IRv1 que el
+lenguaje emite sobre `tests/suite` (112 programas + `imports.support.orb`) y
+`tests/std` (23 programas), el corpus designado por
+`orbit-lang/docs/IR_SPEC.md` §5.5. Están pineados por hash en `manifest.json`;
+cada re-pin está al final de este archivo.
 
 ```powershell
 python tests/corpus/run_corpus.py `
@@ -17,11 +16,11 @@ python tests/corpus/run_corpus.py `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- `manifest.json` - el pin: 98 entradas (`path`, `kind`, `ir`, `bytes`,
+- `manifest.json` - el pin: 136 entradas (`path`, `kind`, `ir`, `bytes`,
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `33abf7a`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `0cfce74`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,

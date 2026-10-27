@@ -5,7 +5,10 @@ loader suite on every push and pull request. It does not run the differential or
 the corpus ratchet by default. The gates below are the contract, and a
 contribution runs them locally before it is sent.
 
-`AGENTS.md` holds the full working rules; this file does not replace it.
+`AGENTS.md` holds the full working rules; this file does not replace it. The
+pin, the oracle and the fixed point are defined in `README.md` (Status and The
+pin). `.\scripts\ci.ps1` runs the driver build, the drift check and the loader
+suite locally.
 
 ## What a contribution carries
 
@@ -78,7 +81,7 @@ Only corpus drift from the pin and a drop of `r6BuildOk` or `match` below
 `tests/corpus/baseline.json` fail the run. Do not run `--write-baseline` on a
 change you are reviewing.
 
-The compiler-IR census (`tests/compiler-ir/run_census.py`, 0 build over 26
+The compiler-IR census (`tests/compiler-ir/run_census.py`, 2 build over 27
 modules) is also a measurement. Its ratchet forbids `r6BuildOk` going down.
 
 ## Rules for the code

@@ -3082,15 +3082,16 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   105 match**, census **1/27**, all unchanged. Built from orbit-lang `0cfce74`
   (not the pin), `compiler/host/main.orb` emitted by that tree's fixed point
   builds under R6 in 42 s into a 3357756-byte executable. That executable:
-  prints `orbit 0.1.0-rc.2`; emits the same IR for
-  `tests/suite/union_model_payload.orb` as the oracle; translates
-  `compiler/host/main.orb` to C byte-identical to the oracle's (6212022 bytes,
-  sha256 `54f0b797…`, the tree's `PUBLISHED_C`) in 9345 ms against the
-  oracle's 5423 ms; and emits IR for `compiler/host/main.orb` identical to the
-  IR it was built from, which R6 builds into a byte-identical executable
-  (sha256 `2b8cb011…`).
-- Status: **applied**. The census reaches `compiler/host/main.orb` when the pin
-  moves to a tree that carries orbit-lang `typed-ir-2` to `typed-ir-5`.
+  - prints `orbit 0.1.0-rc.2`;
+  - emits the same IR for `tests/suite/union_model_payload.orb` as the oracle;
+  - translates `compiler/host/main.orb` to C byte-identical to the oracle's
+    (6212022 bytes, sha256 `54f0b797…`, the tree's `PUBLISHED_C`), in 9345 ms
+    against the oracle's 5423 ms;
+  - emits IR for `compiler/host/main.orb` identical to the IR it was built
+    from, and R6 builds that IR into a byte-identical executable (sha256
+    `2b8cb011…`).
+- Status: **applied**. The census reaches `compiler/host/main.orb` at the
+  D-F0-17 pin (`0cfce74`).
 
 ## D-F0-17 - Re-pin to 0cfce74: R6 builds the Orbit compiler
 

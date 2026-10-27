@@ -20,9 +20,9 @@
 | Corpus emitter script | `scripts/emit_ir_corpus.py` at `0cfce74` | Committed blob `e7a4dbe438a0621ac0c2c93f49a92916ea92c681`, unchanged since D-F0-15; it discovers its members from the directories (112 suite + 1 support + 23 std at this pin). |
 | Reproducibility of build artifacts | Measured for the emitter binary and for the runtime archive/member | Both embed the absolute path of the directory they were built in, so no SHA-256 of a local binary or `.a` is a stable anchor. What is pinned: the Orbit commit, the canonical C (`PUBLISHED_C`), the recipe and source blobs, the corpus `filesSha256`, and the symbol set. Any hash of a local artifact in this file is an *observation* of one build. |
 | Existing local runtime archive | `.orbit/lib/libruntime_net.a` in the Orbit checkout; untracked | Observed SHA-256 `2ffe2301b75ea86660547de8c2fe4231f740c149be4c43aa93db97877cba22dd` at `862f257` — a different build of the same commit (see the reproducibility row). Untracked and rebuilt by the language's own builds, so this is a historical observation of one build, not a pin. Not used by R6. |
-| Runtime library, Linux x64 | Not yet built/verified | No Linux distribution is installed in WSL and no native Linux x64 compiler is available. Must build with the pinned script/source on a Linux x64 toolchain before enabling that platform. |
+| Runtime library, Linux x64 | Not yet built/verified | No Linux distribution is installed in WSL and no native Linux x64 compiler is available. A Linux x64 build with the pinned script is required before that platform is enabled. |
 | Available GCC | GCC 16.2.0, target `x86_64-w64-mingw32` | Local Windows x64 MinGW toolchain; use `-lws2_32` at final Windows link as the pinned header documents. |
-| Candidate M2 source corpus | 97 executable cases: 74 suite programs + 23 std programs; suite also has 1 `.support.orb` helper excluded by `scripts/test_suite.py:59` | Pinned checkout inventory. No direct `db(...)`, migration, `orbit_db_*` or auth calls found in these source files; thus 0 currently identified DB cases in this specific source inventory. This is not a measured IR/differential result. |
+| Candidate M2 source corpus | 135 executable cases: 112 suite programs + 23 std programs; the suite also has 1 `.support.orb` helper excluded by `scripts/test_suite.py:59` | Pinned checkout inventory; the same 135 programs are the corpus (row "Emitted IR corpus"). |
 
 Changing the Orbit pin requires a dated decision in `DECISIONS.md`, with new
 header/library hashes and corpus inventory. M2 may not silently include tests
@@ -38,7 +38,7 @@ gates can be reproduced from public bytes. The earlier local-only pin
 (D-F0-09: `5c01cea` + the clone) and the merge pin (D-F0-10: `299eb09`) are
 superseded by D-F0-11 (`862f257`), which follows the H-ARENA landing, the
 Oracle removal, the loader fix and the `compiler/` reorg — all verified
-IR-neutral. D-F0-12 moves the pin to `ce87d508`: a runtime + harness tramo that
+IR-neutral. D-F0-12 moves the pin to `ce87d508`: a runtime and harness change that
 leaves `compiler/` untouched, so the fixed-point oracle is byte-identical, the
 canonical is unchanged and a full corpus regeneration still gives
 `filesSha256 0106d531…`; the runtime archive was rebuilt and its 324-symbol set

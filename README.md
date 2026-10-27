@@ -29,9 +29,19 @@ Measured on 2026-10-27 at the pin (`0cfce74`, see below):
 | Corpus (`tests/corpus/run_corpus.py`) | 109 build / 109 match over 135 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 2 build over 27 modules | measurement with a one-way ratchet |
 
+R6 builds the Orbit compiler itself (`compiler/host/main.orb`, 1038
+functions). The compiler it produces translates its own source to C
+byte-identical to the GCC-built compiler, and emits its own IR unchanged, which
+R6 builds into a byte-identical executable (`docs/DECISIONS.md` D-M1-63).
+
 The supported subset is what `docs/M1_REPORT.md` states as measured. Overflow,
-NaN payloads, other list kinds and
-other operating systems are out of evidence.
+NaN payloads and other operating systems are out of evidence.
+
+Three words recur below. The **oracle** is the pinned `orbit` compiler, which
+builds the same program through C and GCC. The **differential** runs a program
+built by the oracle and the same program built by R6, and requires identical
+exit code and stdout bytes. The **fixed point** is the oracle binary built from
+the pinned sources by the language's own bootstrap.
 
 ## Prerequisites
 
@@ -44,11 +54,36 @@ other operating systems are out of evidence.
   lists the recipe and the expected 337-symbol set.
 - MinGW CRT and library directories: `R6_MINGW_ROOT` (default `C:/w64devkit`) and
   `R6_MINGW_GCC_VERSION` (default `16.2.0`). Only `ld.exe` is executed.
-- For the gates: a fixed-point `orbit` compiler built from the pin, and a
-  checkout of `orbit-lang` at the pin.
+- For the differential, the corpus and the census: a checkout of `orbit-lang`
+  at the pin and the fixed point built from it. The driver build and the loader
+  suite need neither.
 
 The absolute paths in this file and in `docs/PIN.md` are observations of one
 machine, not requirements.
+
+## Quick start
+
+```powershell
+git clone https://github.com/joacokhzyx/orbit-r6
+cd orbit-r6
+.\scripts\build-r6.ps1                              # -> .r6-build\r6.exe
+
+# The pinned language tree: runtime archive and oracle.
+git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-0cfce74-git
+git -C C:\Temp\orbit-pin-0cfce74-git checkout 0cfce74
+python C:\Temp\orbit-pin-0cfce74-git\scripts\mklib_runtime.py `
+  --cc C:\w64devkit\bin\gcc.exe `
+  --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
+
+python tests/reject/run_reject.py                    # needs no oracle
+
+cd C:\Temp\orbit-pin-0cfce74-git
+python scripts/dev.py fp --cc C:\w64devkit\bin\gcc.exe  # builds the fixed point
+python scripts/dev.py fp-path                        # prints its path
+```
+
+The fixed point is named `orbit-fp-<10 hex>.exe` after a hash of the checkout
+path, so `dev.py fp-path` gives the name to pass as `--compiler` below.
 
 ## Build
 
@@ -73,7 +108,7 @@ A diagnostic is one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit
 
 ## Gates
 
-The commands below were verified on 2026-10-26 on the machine named in
+The commands below were verified on 2026-10-27 on the machine named in
 `docs/PIN.md`. `--r6-command` must be the last argument.
 
 ```powershell
