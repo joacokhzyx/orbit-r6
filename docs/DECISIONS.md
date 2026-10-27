@@ -3234,3 +3234,39 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   controls), corpus **109 build / 109 match over 135**, ratchet held, census
   **2/27**.
 - Status: **applied**.
+
+## D-M1-66 - A branch on a comparison reads the flags
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `eq`, `ne`, `lt`, `le`, `gt` and `ge` store a 0/1 result with
+  `setcc`, and the `jump_if_false` right after them loaded that slot to
+  compare it with zero: `cmpl $0, -N(%rbp)` and `je`. The slot was just
+  written and the flags of the comparison were still live. In the asm of
+  `compiler/host/main.orb` 7826 of those pairs follow a store.
+- Decision:
+  - When the instruction before a `jump_if_false` is a comparison whose
+    destination is the tested register, the jump is the inverse condition
+    (`jne`, `je`, `jge`, `jg`, `jle`, `jl`) and reads the flags. The
+    comparison still stores its result, so a later read of the register is
+    unchanged.
+  - Float comparisons (parity), string `eq`/`ne` (the result of `strcmp`) and
+    every other producer of the tested register keep the load.
+  - `asm_win64.c` encodes `jl`, `jge` and `jg` and keeps its four existing
+    jumps in one table. The bytes of those four do not change.
+- Fixture `72-compare-branch` (oracle and R6 print `599\r\n` and exit 42): the
+  six comparisons on unequal and equal operands, a stored comparison read
+  after its branch, a branch on a comparison that is not the one before it,
+  and float, string and bool comparisons followed by a branch. Its asm keeps
+  the load for the stored, float and string cases and drops it for the rest.
+- Measured: the asm of `compiler/host/main.orb` goes from 297829 to 294546
+  instructions and `cmpl $0` + `je` pairs from 7826 to 4543. The self-compile
+  of `compiler/host/main.orb` by the R6-built compiler takes a median of 5.02 s
+  against 5.11 s before, nine interleaved runs each, which is inside the run
+  to run spread. The oracle takes 2.31 s. The compiler built this way
+  translates `compiler/host/main.orb` to the C of the oracle (`54f0b797…`),
+  emits IR identical to `main.ir`, and R6 builds that IR into the same
+  executable (sha256 `2eb8a03c…`).
+- Gates: differential **71/71**, loader **265/265** (177 rejections + 88
+  controls), corpus **109 build / 109 match over 135**, ratchet held, census
+  **2/27**.
+- Status: **applied**.

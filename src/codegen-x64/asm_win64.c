@@ -233,6 +233,11 @@ static bool parse_imm(const char *s, uint64_t *v) {
 }
 
 static bool encode(Asm *a, char *line) {
+    /* Near conditional jumps: 0F 8x rel32, signed and unsigned conditions. */
+    static const struct { const char *name; uint8_t opcode; } jcc[] = {
+        {"jae", 0x83}, {"je", 0x84}, {"jne", 0x85}, {"jl", 0x8c},
+        {"jge", 0x8d}, {"jle", 0x8e}, {"jg", 0x8f}};
+    size_t j;
     char *sp = line, *l, *r, *op, *a1, *a2;
     int w1, x1, id1, w2, x2, id2;
     uint64_t imm;
@@ -297,27 +302,10 @@ static bool encode(Asm *a, char *line) {
         return emit(a, (uint8_t)(0x40 | (id1 >> 3))) && emit(a, 0xff) &&
                emit(a, (uint8_t)(0xd0 | (id1 & 7)));
     }
-    if (strcmp(op, "je") == 0) {
+    for (j = 0; j < sizeof jcc / sizeof jcc[0]; ++j) {
         uint32_t off;
-        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x84)) return false;
-        off = (uint32_t)a->sec[a->section].n;
-        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
-    }
-    if (strcmp(op, "jae") == 0) {
-        uint32_t off;
-        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x83)) return false;
-        off = (uint32_t)a->sec[a->section].n;
-        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
-    }
-    if (strcmp(op, "jne") == 0) {
-        uint32_t off;
-        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x85)) return false;
-        off = (uint32_t)a->sec[a->section].n;
-        return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
-    }
-    if (strcmp(op, "jle") == 0) {
-        uint32_t off;
-        if (!a1 || !emit(a, 0x0f) || !emit(a, 0x8e)) return false;
+        if (strcmp(op, jcc[j].name) != 0) continue;
+        if (!a1 || !emit(a, 0x0f) || !emit(a, jcc[j].opcode)) return false;
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
     }

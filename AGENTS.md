@@ -27,7 +27,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 70/70 on 2026-10-27 at the D-F0-17 pin with:
+Primary gate: differential — verified 71/71 on 2026-10-27 at the D-F0-17 pin with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -58,11 +58,11 @@ python tests/diff/run_diff.py `
 
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
 case in `tests/reject/manifest.json` names the decision it pins in its `rule`
-field, and `docs/DECISIONS.md` holds the decisions. Verified 264/264 on
+field, and `docs/DECISIONS.md` holds the decisions. Verified 265/265 on
 2026-10-27:
 
 ```powershell
-python tests/reject/run_reject.py            # 177 rejections + 87 acceptance controls
+python tests/reject/run_reject.py            # 177 rejections + 88 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```

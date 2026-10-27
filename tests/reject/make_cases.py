@@ -2003,6 +2003,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/71-dead-functions.json",
              "run_exit": 42, "run_stdout": "live\r\n", "rule": "D-M1-65",
              "note": "calls, function values and call chains keep a function; unreachable ones are dropped"},
+            {"file": "../../docs/proposed-ir/m1/72-compare-branch.json",
+             "run_exit": 42, "run_stdout": "599\r\n", "rule": "D-M1-66",
+             "note": "a branch on the comparison before it reads the flags; stored, float, string and bool results keep the load"},
         ],
     }
 

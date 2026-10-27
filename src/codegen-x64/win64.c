@@ -2514,6 +2514,36 @@ static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
     fprintf(o, "%s:\n", done);
 }
 
+/* D-M1-66: the jump that leaves when the comparison before a jump_if_false is
+ * false. The comparison already left its flags and stores its result, so the
+ * jump reads the flags instead of loading the stored result and comparing it
+ * with zero. Float and string comparisons are not flag-based (parity,
+ * strcmp), so they keep the load. NULL when the jump follows anything else. */
+static const char *fused_false_jump(const R6Function *f, size_t pc) {
+    const R6Instruction *jump = &f->instructions[pc];
+    const R6Instruction *cmp;
+    const char *t0, *t1;
+    if (pc == 0 || jump->operands[0].kind != R6_VAL_REG) return NULL;
+    cmp = &f->instructions[pc - 1];
+    if (!cmp->has_dest || cmp->dest != jump->operands[0].as.i32) return NULL;
+    if (cmp->opcode != R6_OP_EQ && cmp->opcode != R6_OP_NE && cmp->opcode != R6_OP_LT &&
+        cmp->opcode != R6_OP_LE && cmp->opcode != R6_OP_GT && cmp->opcode != R6_OP_GE)
+        return NULL;
+    t0 = operand_type_of(f, cmp, 0);
+    t1 = operand_type_of(f, cmp, 1);
+    if (is_float(t0) || is_float(t1)) return NULL;
+    if ((cmp->opcode == R6_OP_EQ || cmp->opcode == R6_OP_NE) && is_string(t0) && is_string(t1))
+        return NULL;
+    switch (cmp->opcode) {
+    case R6_OP_EQ: return "jne";
+    case R6_OP_NE: return "je";
+    case R6_OP_LT: return "jge";
+    case R6_OP_LE: return "jg";
+    case R6_OP_GT: return "jle";
+    default: return "jl";
+    }
+}
+
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                           size_t fn_index, R6Diagnostic *d) {
     size_t pc, pending = 0;
@@ -2990,11 +3020,16 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                            "\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             break;
-        case R6_OP_JUMP_IF_FALSE:
-            fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tje .Lr6_f%zu_l%d\n",
-                    (unsigned)(v->as.i32 + 1) * 8, fn_index,
-                    i->operands[1].as.i32);
+        case R6_OP_JUMP_IF_FALSE: {
+            const char *fused = fused_false_jump(f, pc);
+            if (fused)
+                fprintf(o, "\t%s .Lr6_f%zu_l%d\n", fused, fn_index, i->operands[1].as.i32);
+            else
+                fprintf(o, "\tcmpl $0, -%u(%%rbp)\n\tje .Lr6_f%zu_l%d\n",
+                        (unsigned)(v->as.i32 + 1) * 8, fn_index,
+                        i->operands[1].as.i32);
             break;
+        }
         case R6_OP_JUMP:
             fprintf(o, "\tjmp .Lr6_f%zu_l%d\n", fn_index, i->operands[0].as.i32);
             break;

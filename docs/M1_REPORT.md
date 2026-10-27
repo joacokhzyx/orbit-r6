@@ -1509,3 +1509,16 @@ programas del corpus, 21 de 179 ejecutables cambian y suman 142892 bytes menos.
 Diferencial **70/70**; loader **264/264**; corpus **109 build / 109 match
 sobre 135**; censo **2/27**. El compilador así construido se compila a sí
 mismo a un C idéntico al del oráculo y el punto fijo nativo sigue cerrando.
+
+## Actualización de M1 - un salto sobre una comparación lee los flags (2026-10-27)
+
+D-M1-66. Un `jump_if_false` que sigue a `eq`, `ne`, `lt`, `le`, `gt` o `ge` y
+prueba su resultado salta con la condición inversa (`jne`, `je`, `jge`, `jg`,
+`jle`, `jl`) en vez de recargar el slot y compararlo con cero; la comparación
+sigue guardando su resultado. Float (paridad) y `eq`/`ne` de strings
+(`strcmp`) conservan la carga. El par `72-compare-branch` lo mide: oráculo y R6
+imprimen `599\r\n` y salen 42. En el asm del compilador los pares
+`cmpl $0` + `je` bajan de 7826 a 4543 y las instrucciones de 297829 a 294546;
+el tiempo de auto-compilación no se mueve fuera del ruido (mediana 5,02 s
+contra 5,11 s). Diferencial **71/71**; loader **265/265**; corpus **109 build
+/ 109 match sobre 135**; censo **2/27**.

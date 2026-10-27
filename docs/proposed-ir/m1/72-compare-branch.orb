@@ -1,0 +1,53 @@
+// D-M1-66: a branch that tests the comparison right before it reads the flags
+// the comparison left. The six integer comparisons run on unequal and equal
+// operands, a stored comparison is read again after its branch, a branch
+// tests a comparison that is not the one before it, and float, string and
+// bool comparisons keep the stored result.
+fn count(a: int, b: int) -> int {
+    var score = 0
+    if a == b { score = score + 1 }
+    if a != b { score = score + 2 }
+    if a < b { score = score + 4 }
+    if a <= b { score = score + 8 }
+    if a > b { score = score + 16 }
+    if a >= b { score = score + 32 }
+    return score
+}
+
+fn main() -> int {
+    if count(3, 5) != 14 { return 10 }
+    if count(5, 5) != 41 { return 11 }
+    if count(7, 5) != 50 { return 12 }
+    if count(-3, 2) != 14 { return 13 }
+    val a = 3
+    val b = 5
+    val lt = a < b
+    var score = 0
+    if lt { score = score + 1 }
+    if lt { score = score + 2 }
+    val c1 = a < b
+    val c2 = a > b
+    if c1 { score = score + 4 }
+    if c2 { score = score + 8 }
+    val f = 1.5
+    val g = 2.5
+    if f < g { score = score + 16 }
+    if f >= g { score = score + 32 }
+    val s = "ab"
+    if s == "ab" { score = score + 64 }
+    if s != "ab" { score = score + 128 }
+    val t = true
+    val u = false
+    if t == u { score = score + 256 }
+    if t != u { score = score + 512 }
+    var i = 0
+    var steps = 0
+    while i < 10 {
+        if i >= 5 { steps = steps + 1 }
+        i = i + 1
+    }
+    if steps != 5 { return 14 }
+    if score != 599 { return 15 }
+    print(score)
+    return 42
+}

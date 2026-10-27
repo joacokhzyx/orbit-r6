@@ -83,6 +83,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `69-void-main` | `main` sin valor de retorno: el programa sale con 0 | 0 | `void main\r\n` |
 | `70-string-length-field` | `s.length` sobre un string es un `load_field` que da su largo (`strlen`, 0 si es nulo), en un bucle y en una comparación | 42 | `length\r\n` |
 | `71-dead-functions` | solo se emiten las funciones que `main` alcanza: por llamada, por valor de función y por cadena de llamadas; tres funciones inalcanzables se validan y no se emiten | 42 | `live\r\n` |
+| `72-compare-branch` | un salto que prueba la comparación anterior lee sus flags en vez de recargar el resultado; los resultados guardados, de float, string y bool conservan la carga | 42 | `599\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los
