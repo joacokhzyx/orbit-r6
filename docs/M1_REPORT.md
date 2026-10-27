@@ -1535,3 +1535,18 @@ a 4,39 s (mediana de nueve corridas intercaladas), contra 2,31 s del oráculo.
 El C que produce sigue siendo idéntico byte por byte al del oráculo.
 Diferencial **71/71**; loader **265/265**; corpus **109 build / 109 match
 sobre 135**; censo **2/27**.
+
+## Actualización de M1 - los slots más usados viven en registros (2026-10-27)
+
+D-M1-68. `regalloc.c` corre después de `peephole.c` sobre el texto de cada
+función y pasa los slots más referenciados a rbx, rsi, rdi y r12-r15. Un slot
+es candidato si todas sus referencias son formas que el ensamblador codifica
+con un registro; un `leaq`, un `movsd` o las celdas de resultado lo dejan en
+memoria. La función empuja los registros que usa tras fijar el frame pointer, y
+`asm_win64.c` escribe un código `UWOP_PUSH_NONVOL` por cada uno. Las líneas del
+asm del compilador que nombran un slot bajan de 159741 a 58103 y el ejecutable
+de 3234260 a 2926548 bytes. La auto-compilación de `compiler/host/main.orb`
+baja de 3,87 s a 2,60 s (mediana de nueve corridas intercaladas), contra 2,09 s
+del oráculo. El objeto de R6 y el de GAS para el mismo texto tienen las mismas
+311836 instrucciones y los mismos datos de unwind. Diferencial **72/72**; loader
+**266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.

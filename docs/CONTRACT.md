@@ -32,9 +32,10 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - Emisión nativa: el codegen Win64 baja IR a una representación interna
   temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
   No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve
-  símbolos del runtime oficial/CRT. M1 no asigna registros: solo un salto que lee
-  los flags de la comparación anterior (D-M1-66) y `peephole.c`, que quita la
-  recarga de un slot recién guardado (D-M1-67).
+  símbolos del runtime oficial/CRT. Cada registro IR vive en un slot de 8 bytes. Un salto
+  lee los flags de la comparación anterior (D-M1-66), `peephole.c` quita la
+  recarga de un slot recién guardado (D-M1-67) y `regalloc.c` pasa los slots más
+  usados de cada función a rbx, rsi, rdi y r12-r15 (D-M1-68).
 - `load_const` baja literales `Int`/`String`/`Bool`/`Float` y valores de
   función (un `Symbol` que nombra una función del módulo, D-M1-14). Un `Symbol`
   que es `true`/`false`, o un texto numérico con fracción o exponente, es el

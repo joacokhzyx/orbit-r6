@@ -12,8 +12,9 @@ executable.
 
 - R6 does not lower programs through C. GCC never compiles an R6 program.
 - R6 does not use GAS. `src/codegen-x64/win64.c` emits a private assembly text,
-  `peephole.c` drops reloads of a slot just stored, `asm_win64.c` encodes it to
-  bytes and `coff.c` writes an AMD64 COFF object.
+  `peephole.c` drops reloads of a slot just stored, `regalloc.c` moves the
+  hottest slots into callee-saved registers, `asm_win64.c` encodes it to bytes
+  and `coff.c` writes an AMD64 COFF object.
 - GNU `ld` only links. It is the one external tool the program path runs.
 - R6 does not guess. An opcode, type, version or platform outside the supported
   set gets one diagnostic and a nonzero exit.
@@ -25,8 +26,8 @@ Measured on 2026-10-27 at the pin (`0cfce74`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 71/71 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 265/265 (177 rejections, 88 acceptance controls) | gate |
+| Differential (`tests/diff/run_diff.py`) | 72/72 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 266/266 (177 rejections, 89 acceptance controls) | gate |
 | Corpus (`tests/corpus/run_corpus.py`) | 109 build / 109 match over 135 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 2 build over 27 modules | measurement with a one-way ratchet |
 
@@ -172,7 +173,7 @@ and the corpus hash.
 | Path | Content |
 |---|---|
 | `src/loader/` | Strict JSON IRv1 parser and validator; admits opcodes |
-| `src/codegen-x64/` | `win64.c` (IR to private asm text), `peephole.c` (reload removal on the asm text), `asm_win64.c` (encoder), `coff.c` (COFF writer) |
+| `src/codegen-x64/` | `win64.c` (IR to private asm text), `peephole.c` (reload removal on the asm text), `regalloc.c` (registers for hot slots), `asm_win64.c` (encoder), `coff.c` (COFF writer) |
 | `src/driver/r6.c` | CLI, temporaries under `.r6-build`, direct `ld` link |
 | `tests/diff/` | Differential harness |
 | `tests/reject/` | Loader contract suite: `manifest.json` is the truth, `cases/` is rendered from it |

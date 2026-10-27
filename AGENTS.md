@@ -27,7 +27,7 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 71/71 on 2026-10-27 at the D-F0-17 pin with:
+Primary gate: differential — verified 72/72 on 2026-10-27 at the D-F0-17 pin with:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -58,11 +58,11 @@ python tests/diff/run_diff.py `
 
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
 case in `tests/reject/manifest.json` names the decision it pins in its `rule`
-field, and `docs/DECISIONS.md` holds the decisions. Verified 265/265 on
+field, and `docs/DECISIONS.md` holds the decisions. Verified 266/266 on
 2026-10-27:
 
 ```powershell
-python tests/reject/run_reject.py            # 177 rejections + 88 acceptance controls
+python tests/reject/run_reject.py            # 177 rejections + 89 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
@@ -151,8 +151,9 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   gets a diagnostic and nonzero exit. No stubs, invented semantics or fallback.
 - Programs are never lowered through C and never assembled by GAS/GCC:
   `win64.c` emits a private GAS-shaped text, `peephole.c` drops reloads of a
-  slot just stored, `asm_win64.c` encodes it to bytes, `coff.c` writes AMD64
-  COFF; GNU `ld` is only the linker.
+  slot just stored, `regalloc.c` moves the hottest slots into callee-saved
+  registers, `asm_win64.c` encodes it to bytes, `coff.c` writes AMD64 COFF; GNU
+  `ld` is only the linker.
 - Never write to the Orbit checkout; moving the pin requires a dated entry in
   `docs/DECISIONS.md`.
 - Do not generalize semantics that pass in fixtures beyond what
@@ -164,7 +165,8 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 - `src/loader/ir.{h,c}` — strict JSON IRv1 parser/validator, owns `R6Module`;
   also gates which opcodes are admitted (`E_UNSUPPORTED` outside the range).
 - `src/codegen-x64/win64.{c,h}` — IR → private asm text; `peephole.{c,h}` —
-  rewrites that text in place (D-M1-67); `asm_win64.{c,h}` —
+  rewrites that text in place (D-M1-67); `regalloc.{c,h}` — assigns registers to
+  slots on that text (D-M1-68); `asm_win64.{c,h}` —
   encodes only the selector's instruction subset; `coff.{c,h}` — AMD64 COFF
   writer (sections, symbols, REL32/ADDR32NB relocations, unwind data).
 - `src/driver/r6.c` — CLI, temporaries under `.r6-build`, direct `ld` link.

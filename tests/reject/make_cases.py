@@ -2006,6 +2006,11 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/72-compare-branch.json",
              "run_exit": 42, "run_stdout": "599\r\n", "rule": "D-M1-66",
              "note": "a branch on the comparison before it reads the flags; stored, float, string and bool results keep the load"},
+            {"file": "../../docs/proposed-ir/m1/73-register-slots.json",
+             "run_exit": 42,
+             "run_stdout": "8304\r\n610\r\n4356\r\n47\r\n25\r\n-1\r\n9\r\n240\r\n17\r\n" ,
+             "rule": "D-M1-68",
+             "note": "hot slots live in callee-saved registers; more slots than registers, recursion, nested loops, loop-carried values, early return and address-taken slots"},
         ],
     }
 

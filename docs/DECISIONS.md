@@ -3307,3 +3307,70 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **71/71**, loader **265/265**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
 - Status: **applied**.
+
+## D-M1-68 - The hottest frame slots live in callee-saved registers
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: every IR register lives in an 8-byte frame slot, and D-M1-67
+  removed only the reload on the line after a store. In the asm of
+  `compiler/host/main.orb` 159741 lines still name a slot. Loop counters,
+  parameters and literal scratch slots are stored and loaded on every
+  iteration.
+- Decision:
+  - A new stage, `regalloc.c`, runs after `peephole.c` on the text of each
+    function. It gives slots to rbx, rsi, rdi and r12-r15, which every callee
+    preserves, and rewrites the slot operand of each reference.
+  - `win64.c` writes `# r6.slots A B C` after `.seh_endprologue`: the end of
+    the plain 8-byte slots and the first and last byte of the literal and
+    spread scratch slots. `regalloc.c` removes the line. A slot outside those
+    ranges, such as a result cell or the list scratch, stays in memory.
+  - A slot is a candidate when every reference to it is `movq`, `movl`,
+    `cmpl`, `cmpb`, `cmpq`, `addl`, `subl`, `imull`, `addq`, `subq`, `imulq`,
+    `movzbl`, `movslq`, `idivl` or `idivq` with the slot as the memory
+    operand. A `leaq` of the slot, a `movsd` or any other form keeps it in
+    memory.
+  - A slot holds its register from its first to its last reference in text
+    order. A slot whose first reference is a read is live from the start of
+    the function. A slot that is live where a backward jump lands stays live
+    to that jump, so a loop keeps the values it reads again. Two slots whose
+    intervals do not overlap share a register.
+  - A linear scan hands out the seven registers in order of first reference.
+    When all are busy, the slot with the smaller weight loses. A reference
+    weighs 8 to the power of its loop depth, up to depth 4. A register is kept
+    only when the slots on it weigh at least 6, because it costs a push and a
+    reload.
+  - A function pushes the registers it uses after `movq %rsp, %rbp`, so
+    every other slot moves down by 8 bytes per register and the frame grows
+    by 8 when the count is odd. Each `leave` is preceded by `movq` reloads
+    from the push area. A function that names one of the seven registers,
+    returns without `leave`, or jumps to a label it does not define is left
+    as it is.
+  - `asm_win64.c` accepts a register where a memory operand may stand for the
+    forms above, `pushq` of the seven registers, `movq $imm, %reg`, and the
+    REX prefix of `%sil`, `%dil` and `%r8b` to `%r15b`. It records each push
+    and writes a `UWOP_PUSH_NONVOL` code for it between the allocation and the
+    frame-pointer codes. `setcc` now rejects a byte register above `%bl`,
+    which it encoded as `%ah` to `%bh`.
+- Fixture `73-register-slots` (oracle and R6 print nine integer lines and exit
+  42): nine accumulators and nine parameters live across a loop, recursion
+  with two live results, nested loops, a value written late in the previous
+  iteration, a return from inside a loop, a float and a bool beside integers,
+  and the address of slots passed by `list_push`.
+- Measured: the lines of the asm of `compiler/host/main.orb` that name a slot
+  go from 159741 to 58103. Instructions go from 285322 to 310835, because of
+  4800 pushes and the reloads before each `leave`. The executable shrinks from
+  3234260 to 2926548 bytes. The self-compile of `compiler/host/main.orb` by
+  the R6-built compiler takes a median of 2.60 s against 3.87 s, nine
+  interleaved runs each (minimum 2.57 s against 3.78 s). The oracle takes
+  2.09 s. A minimum weight of 3 gives 2.64 s and 24 gives 2.79 s against
+  2.58 s at 6, five and seven runs.
+- Encoding check: `objdump -d` of the object R6 writes for the asm of the
+  compiler matches the object GAS writes for the same text, 311836
+  instructions, and the unwind data (`.xdata`, 1427 lines) is identical.
+- The compiler built this way translates `compiler/host/main.orb` to the C of
+  the oracle (`54f0b797…`), emits IR identical to `main.ir`, and R6 builds
+  that IR into the same executable (sha256 `59fbfe5d…`).
+- Gates: differential **72/72**, loader **266/266** (177 rejections + 89
+  controls), corpus **109 build / 109 match over 135**, ratchet held, census
+  **2/27**.
+- Status: **applied**.

@@ -8,7 +8,16 @@
 
 typedef struct { uint8_t *p; size_t n, cap; } Bytes;
 typedef struct { char name[160]; int sec; uint32_t off; int global; int symbol; } Label;
-typedef struct { char name[160]; uint32_t begin, end, push_end, fp_end, alloc_end, alloc; } Function;
+/* D-M1-68: the callee-saved registers a function pushes after `movq %rsp,
+ * %rbp`, in prologue order, with the offset where each push ends. */
+#define MAX_SAVED_REGS 7
+typedef struct {
+    char name[160];
+    uint32_t begin, end, push_end, fp_end, alloc_end, alloc;
+    uint8_t saved_reg[MAX_SAVED_REGS];
+    uint32_t saved_end[MAX_SAVED_REGS];
+    size_t saved_count;
+} Function;
 typedef struct { char name[160]; int sec; uint32_t off; uint16_t type; } Fixup;
 /* D-M1-63: labels, procedures, fixups and globals grow on the heap, and
  * labels and globals are found through an open-addressing hash of their
@@ -151,12 +160,13 @@ static int reg_id(const char *s, int *width, int *xmm) {
         "%r8","%r9","%r10","%r11","%r12","%r13","%r14","%r15"};
     static const char *const r32[] = {"%eax","%ecx","%edx","%ebx","%esp","%ebp","%esi","%edi",
         "%r8d","%r9d","%r10d","%r11d","%r12d","%r13d","%r14d","%r15d"};
-    static const char *const r8[] = {"%al","%cl","%dl","%bl","%spl","%bpl","%sil","%dil"};
+    static const char *const r8[] = {"%al","%cl","%dl","%bl","%spl","%bpl","%sil","%dil",
+        "%r8b","%r9b","%r10b","%r11b","%r12b","%r13b","%r14b","%r15b"};
     int i;
     *xmm = 0;
     for (i = 0; i < 16; ++i) if (strcmp(s, r64[i]) == 0) { *width = 64; return i; }
     for (i = 0; i < 16; ++i) if (strcmp(s, r32[i]) == 0) { *width = 32; return i; }
-    for (i = 0; i < 8; ++i) if (strcmp(s, r8[i]) == 0) { *width = 8; return i; }
+    for (i = 0; i < 16; ++i) if (strcmp(s, r8[i]) == 0) { *width = 8; return i; }
     if (strncmp(s, "%xmm", 4) == 0) {
         char *end; long n = strtol(s + 4, &end, 10);
         if (!*end && n >= 0 && n < 16) { *width = 128; *xmm = 1; return (int)n; }
@@ -164,7 +174,10 @@ static int reg_id(const char *s, int *width, int *xmm) {
     return -1;
 }
 
-typedef struct { int base, rip; int32_t disp; const char *symbol; } Mem;
+/* `reg` marks a register used where a memory operand may stand (ModRM mod
+ * 11, D-M1-68). `base` then holds the register number and `byte` tells that
+ * it was spelled as an 8-bit register, which needs a REX prefix from %spl on. */
+typedef struct { int base, rip, reg, byte; int32_t disp; const char *symbol; } Mem;
 
 static bool parse_mem(Asm *a, const char *s, Mem *m) {
     char copy[256], *lp, *rp, *end;
@@ -174,13 +187,25 @@ static bool parse_mem(Asm *a, const char *s, Mem *m) {
     if (!lp || !rp || rp[1] || lp > rp) return false;
     *lp++ = 0; *rp = 0;
     if (strcmp(lp, "%rip") == 0) {
-        m->disp = 0; m->symbol = NULL; m->rip = 1; m->base = -1;
+        m->disp = 0; m->symbol = NULL; m->rip = 1; m->base = -1; m->reg = 0; m->byte = 0;
         return true;
     }
     if (*trim(copy)) { errno = 0; d = strtoll(trim(copy), &end, 0); if (errno || *trim(end)) return false; }
     if (d < INT32_MIN || d > INT32_MAX) return bad(a, "memory displacement outside signed 32-bit range");
-    m->disp = (int32_t)d; m->symbol = NULL; m->rip = 0; m->base = -1;
+    m->disp = (int32_t)d; m->symbol = NULL; m->rip = 0; m->base = -1; m->reg = 0; m->byte = 0;
     { int w, x; m->base = reg_id(lp, &w, &x); if (m->base < 0 || x || w != 64) return false; }
+    return true;
+}
+
+/* A memory operand, or a general register of `width` bits where the
+ * instruction accepts either (D-M1-68). */
+static bool parse_rm(Asm *a, const char *s, int width, Mem *m) {
+    int w, x, id;
+    if (*s != '%') return parse_mem(a, s, m);
+    id = reg_id(s, &w, &x);
+    if (id < 0 || x || w != width || id == 4 || id == 5) return false;
+    m->base = id; m->rip = 0; m->reg = 1; m->byte = width == 8;
+    m->disp = 0; m->symbol = NULL;
     return true;
 }
 
@@ -196,6 +221,13 @@ static bool rex_modrm_mem(Asm *a, int width, int reg, Mem m, uint8_t opcode,
                           int prefix_66, int prefix_f2, int opcode2) {
     int mod, rm, rex_r = reg >> 3, rex_b = m.rip ? 0 : m.base >> 3;
     int32_t disp = m.disp;
+    if (m.reg) {
+        int rex = width == 64 || rex_r || rex_b || (m.byte && m.base >= 4);
+        if (prefix_66 && !emit(a, 0x66)) return false;
+        if (rex && !emit(a, (uint8_t)(0x40 | (width == 64 ? 8 : 0) | (rex_r ? 4 : 0) | (rex_b ? 1 : 0)))) return false;
+        if (opcode2 >= 0 && !emit(a, (uint8_t)opcode2)) return false;
+        return emit(a, opcode) && emit(a, (uint8_t)(0xc0 | ((reg & 7) << 3) | (m.base & 7)));
+    }
     if (prefix_66 && !emit(a, 0x66)) return false;
     if (prefix_f2 && !emit(a, 0xf2)) return false;
     if (width == 64 || rex_r || rex_b) {
@@ -232,6 +264,11 @@ static bool parse_imm(const char *s, uint64_t *v) {
     return !errno && end != s + 1 && !*end;
 }
 
+/* The registers the allocator may hold values in: rbx, rsi, rdi, r12-r15. */
+static bool saved_register(int id) {
+    return id == 3 || id == 6 || id == 7 || (id >= 12 && id <= 15);
+}
+
 static bool encode(Asm *a, char *line) {
     /* Near conditional jumps: 0F 8x rel32, signed and unsigned conditions. */
     static const struct { const char *name; uint8_t opcode; } jcc[] = {
@@ -251,6 +288,12 @@ static bool encode(Asm *a, char *line) {
       (void)start; (void)ok; }
     if (!*a1) a1 = NULL;
     if (strcmp(op, "pushq") == 0 && a1 && strcmp(a1, "%rbp") == 0) return emit(a, 0x55);
+    if (strcmp(op, "pushq") == 0 && a1) {
+        id1 = reg_id(a1, &w1, &x1);
+        if (id1 < 0 || x1 || w1 != 64 || !saved_register(id1))
+            return bad(a, "pushq supports %%rbp and the callee-saved registers only");
+        return (id1 < 8 || emit(a, 0x41)) && emit(a, (uint8_t)(0x50 + (id1 & 7)));
+    }
     if (strcmp(op, "leave") == 0) return emit(a, 0xc9);
     if (strcmp(op, "ret") == 0) return emit(a, 0xc3);
     if (strcmp(op, "ud2") == 0) return emit(a, 0x0f) && emit(a, 0x0b);
@@ -267,10 +310,10 @@ static bool encode(Asm *a, char *line) {
         return emit(a, (uint8_t)(0x48 | (id1 >> 3))) && emit(a, 0xf7) &&
                emit(a, (uint8_t)(0xd8 | (id1 & 7)));
     }
-    if (strcmp(op, "idivq") == 0 && a1 && parse_mem(a, a1, &m))
+    if (strcmp(op, "idivq") == 0 && a1 && parse_rm(a, a1, 64, &m))
         return rex_modrm_mem(a, 64, 7, m, 0xf7, 0, 0, -1);
     if (strcmp(op, "cltd") == 0) return emit(a, 0x99);
-    if (strcmp(op, "idivl") == 0 && a1 && parse_mem(a, a1, &m))
+    if (strcmp(op, "idivl") == 0 && a1 && parse_rm(a, a1, 32, &m))
         return rex_modrm_mem(a, 32, 7, m, 0xf7, 0, 0, -1);
     if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0 || strcmp(op, "setp") == 0 ||
          strcmp(op, "setne") == 0 || strcmp(op, "setl") == 0 ||
@@ -279,7 +322,7 @@ static bool encode(Asm *a, char *line) {
          strcmp(op, "setbe") == 0 || strcmp(op, "seta") == 0 ||
          strcmp(op, "setae") == 0) && a1) {
         id1 = reg_id(a1, &w1, &x1);
-        if (id1 < 0 || x1 || w1 != 8) return bad(a, "setcc requires an 8-bit GPR");
+        if (id1 < 0 || x1 || w1 != 8 || id1 > 3) return bad(a, "setcc requires %%al, %%cl, %%dl or %%bl");
         { uint8_t cc = strcmp(op, "sete") == 0 ? 0x94 : strcmp(op, "setne") == 0 ? 0x95 :
                        strcmp(op, "setl") == 0 ? 0x9c : strcmp(op, "setge") == 0 ? 0x9d :
                        strcmp(op, "setle") == 0 ? 0x9e : strcmp(op, "setg") == 0 ? 0x9f :
@@ -362,6 +405,11 @@ static bool encode(Asm *a, char *line) {
     if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2) {
         if (w2 == 32) return (id2 < 8 || emit(a, 0x41)) &&
                          emit(a, (uint8_t)(0xb8 + (id2 & 7))) && emit32(a, (uint32_t)imm);
+        if (w2 == 64 && strcmp(op, "movq") == 0 && (int64_t)(int32_t)(uint32_t)imm == (int64_t)imm) {
+            Mem r = {0};
+            r.base = id2; r.reg = 1;
+            return rex_modrm_mem(a, 64, 0, r, 0xc7, 0, 0, -1) && emit32(a, (uint32_t)imm);
+        }
         if (w2 == 64) return bad(a, "movq immediate to GPR must use movabsq in M1 assembly");
     }
     if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
@@ -374,9 +422,9 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 64, id1, m, 0x89, 0, 0, -1);
     if (strcmp(op, "movq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2)
         return rex_modrm_mem(a, 64, id2, m, 0x8b, 0, 0, -1);
-    if (strcmp(op, "movl") == 0 && id1 >= 0 && !x1 && parse_mem(a, a2, &m))
+    if (strcmp(op, "movl") == 0 && id1 >= 0 && !x1 && w1 == 32 && parse_rm(a, a2, 32, &m))
         return rex_modrm_mem(a, 32, id1, m, 0x89, 0, 0, -1);
-    if (strcmp(op, "movl") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2)
+    if (strcmp(op, "movl") == 0 && parse_rm(a, a1, 32, &m) && id2 >= 0 && !x2 && w2 == 32)
         return rex_modrm_mem(a, 32, id2, m, 0x8b, 0, 0, -1);
     if (strcmp(op, "movslq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x63, 0, 0, -1);
@@ -420,17 +468,15 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 0, id2, m, 0x2e, 1, 0, 0x0f);
     if ((strcmp(op, "andb") == 0 || strcmp(op, "orb") == 0) && id1 >= 0 && id2 >= 0 && !x1 && !x2)
         return emit(a, strcmp(op, "andb") == 0 ? 0x20 : 0x08) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
-    if (strcmp(op, "movzbl") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2)
-        return emit(a, 0x0f) && emit(a, 0xb6) && emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
-    if (strcmp(op, "movzbl") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 32)
+    if (strcmp(op, "movzbl") == 0 && parse_rm(a, a1, 8, &m) && id2 >= 0 && !x2 && w2 == 32)
         return rex_modrm_mem(a, 0, id2, m, 0xb6, 0, 0, 0x0f);
-    if (strcmp(op, "addl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+    if (strcmp(op, "addl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x03, 0, 0, -1);
-    if (strcmp(op, "subl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+    if (strcmp(op, "subl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x2b, 0, 0, -1);
-    if (strcmp(op, "imull") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+    if (strcmp(op, "imull") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0xaf, 0, 0, 0x0f);
-    if (strcmp(op, "cmpl") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2)
+    if (strcmp(op, "cmpl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x3b, 0, 0, -1);
     if (strcmp(op, "addq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x03, 0, 0, -1);
@@ -440,11 +486,11 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 64, id2, m, 0xaf, 0, 0, 0x0f);
     if (strcmp(op, "cmpq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x3b, 0, 0, -1);
-    if (strcmp(op, "cmpl") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
+    if (strcmp(op, "cmpl") == 0 && parse_imm(a1, &imm) && parse_rm(a, a2, 32, &m)) {
         if (imm <= 127) return rex_modrm_mem(a, 32, 7, m, 0x83, 0, 0, -1) && emit(a, (uint8_t)imm);
         return rex_modrm_mem(a, 32, 7, m, 0x81, 0, 0, -1) && emit32(a, (uint32_t)imm);
     }
-    if (strcmp(op, "cmpb") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
+    if (strcmp(op, "cmpb") == 0 && parse_imm(a1, &imm) && parse_rm(a, a2, 8, &m)) {
         if (imm > 127) return bad(a, "cmpb immediate outside signed-byte range");
         return rex_modrm_mem(a, 8, 7, m, 0x80, 0, 0, -1) && emit(a, (uint8_t)imm);
     }
@@ -585,7 +631,7 @@ static bool finalize_object(Asm *a) {
     for (i = 0; i < a->nfuncs; ++i) {
         Function *f = &a->funcs[i];
         char endname[192], uwname[192];
-        uint8_t unwind[12]; size_t count = 0, nslots;
+        uint8_t unwind[40]; size_t count = 0, nslots, k;
         int end_symbol, uw_symbol;
         int fi = find_label(a, f->name);
         if (fi < 0 || a->labels[fi].sec != 0 || f->end < f->begin)
@@ -609,6 +655,13 @@ static bool finalize_object(Asm *a) {
             unwind[count++] = (uint8_t)f->alloc_end; unwind[count++] = 1;
             unwind[count++] = (uint8_t)scaled; unwind[count++] = (uint8_t)(scaled >> 8);
             nslots = 4;
+        }
+        /* Codes run in reverse prologue order: the registers pushed after the
+           frame pointer was set come before the set_fpreg code. */
+        for (k = f->saved_count; k-- > 0;) {
+            unwind[count++] = (uint8_t)f->saved_end[k];
+            unwind[count++] = (uint8_t)((f->saved_reg[k] << 4) | 0);
+            ++nslots;
         }
         unwind[count++] = (uint8_t)f->fp_end; unwind[count++] = 3;
         unwind[count++] = (uint8_t)f->push_end; unwind[count++] = 0x50;
@@ -664,7 +717,7 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
         if (strncmp(s, ".section .data", 14) == 0) { a.section = 4; continue; }
         if (strncmp(s, ".globl ", 7) == 0) { if (!add_global(&a.globals, trim(s + 7), &a)) goto fail; continue; }
         if (strncmp(s, ".def ", 5) == 0 || strcmp(s, ".seh_endprologue") == 0 ||
-            strcmp(s, ".seh_pushreg %rbp") == 0 || strcmp(s, ".seh_setframe %rbp, 0") == 0) continue;
+            strncmp(s, ".seh_pushreg ", 13) == 0 || strcmp(s, ".seh_setframe %rbp, 0") == 0) continue;
         if (strncmp(s, ".seh_proc ", 10) == 0) {
             if (a.active_func >= 0) { bad(&a, "invalid/nested .seh_proc at line %zu", lineno); goto fail; }
             if (!grow_array((void **)&a.funcs, &a.func_cap, a.nfuncs + 1, sizeof *a.funcs)) { bad(&a, "out of memory growing procedures"); goto fail; }
@@ -698,6 +751,12 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
             Function *f = &a.funcs[a.active_func];
             uint32_t off = (uint32_t)a.sec[0].n;
             if (strcmp(original, "pushq %rbp") == 0) f->push_end = off - f->begin;
+            else if (strncmp(original, "pushq %", 7) == 0) {
+                int w, x, id = reg_id(original + 6, &w, &x);
+                if (f->saved_count >= MAX_SAVED_REGS) { bad(&a, "too many callee-saved pushes"); goto fail; }
+                f->saved_reg[f->saved_count] = (uint8_t)id;
+                f->saved_end[f->saved_count++] = off - f->begin;
+            }
             else if (strcmp(original, "movq %rsp, %rbp") == 0) f->fp_end = off - f->begin;
             else if (strncmp(original, "subq $", 6) == 0) f->alloc_end = off - f->begin;
         }

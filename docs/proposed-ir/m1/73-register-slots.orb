@@ -1,0 +1,131 @@
+// D-M1-68: the slots a function reads and writes most live in callee-saved
+// registers. `mix` keeps nine accumulators and nine parameters live across a
+// loop, more than the seven registers hold. `fib` keeps two results live over
+// recursive calls, `grid` nests loops, `carried` reads a value written late in
+// the previous iteration, `early` returns from inside a loop, `mixed` holds a
+// float and a bool beside integers, and `collect` takes the address of slots
+// through list_push. `main` keeps its loop state across every call.
+fn mix(a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int) -> int {
+    var s1 = a + 1
+    var s2 = b + 2
+    var s3 = c + 3
+    var s4 = d + 4
+    var s5 = e + 5
+    var s6 = f + 6
+    var s7 = g + 7
+    var s8 = h + 8
+    var s9 = i + 9
+    var k = 0
+    while k < 4 {
+        s1 = s1 + s2
+        s2 = s2 + s3
+        s3 = s3 + s4
+        s4 = s4 + s5
+        s5 = s5 + s6
+        s6 = s6 + s7
+        s7 = s7 + s8
+        s8 = s8 + s9
+        s9 = s9 + k
+        k = k + 1
+    }
+    return s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s9
+}
+
+fn fib(n: int) -> int {
+    if n < 2 { return n }
+    val x = fib(n - 1)
+    val y = fib(n - 2)
+    return x + y
+}
+
+fn grid(n: int) -> int {
+    var total = 0
+    var i = 0
+    while i < n {
+        var j = 0
+        var row = 0
+        while j < n {
+            row = row + i * j
+            if row > 1000 { row = row - 1000 }
+            j = j + 1
+        }
+        total = total + row
+        i = i + 1
+    }
+    return total
+}
+
+fn carried(n: int) -> int {
+    var prev = 0
+    var cur = 1
+    var count = 0
+    while count < n {
+        val next = prev + cur
+        prev = cur
+        cur = next % 1000
+        count = count + 1
+    }
+    return cur / 3
+}
+
+fn early(n: int) -> int {
+    var i = 0
+    var acc = 0
+    while i < 100 {
+        acc = acc + i
+        if acc > n { return i }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+fn mixed(n: int) -> int {
+    var x = 0.5
+    var count = 0
+    var flag = false
+    var i = 0
+    while i < n {
+        x = x * 2.0
+        if x > 10.0 { x = x - 10.0 }
+        if i % 3 == 0 { flag = flag == false }
+        if flag { count = count + 1 }
+        i = i + 1
+    }
+    if x < 0.0 { return 0 - 1 }
+    return count
+}
+
+fn collect(n: int) -> int {
+    val xs: list<int> = []
+    var i = 0
+    while i < n {
+        xs.push(i * i)
+        i = i + 1
+    }
+    var total = 0
+    for x, k in xs {
+        total = total + x + k
+    }
+    return total
+}
+
+fn main() -> int {
+    val base = 5
+    val limit = 6
+    var acc = 0
+    var round = 0
+    while round < limit {
+        acc = acc + mix(1, 2, 3, 4, 5, 6, 7, 8, 9 + round) + base
+        round = round + 1
+    }
+    print(acc)
+    print(fib(15))
+    print(grid(12))
+    print(carried(40))
+    print(early(300))
+    print(early(100000))
+    print(mixed(17))
+    print(collect(9))
+    print(round + limit + base)
+    return 42
+}

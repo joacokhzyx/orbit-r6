@@ -2567,6 +2567,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
     if (frame) fprintf(o, "\tsubq $%zu, %%rsp\n\t.seh_stackalloc %zu\n", frame, frame);
     fputs("\t.seh_endprologue\n", o);
+    /* D-M1-68: where the plain 8-byte slots end and where the literal and
+       spread scratch slots lie, for regalloc.c; it removes the line. */
+    fprintf(o, "\t# r6.slots %zu %zu %zu\n", slots * 8, slots * 8 + result_area_bytes(f) + 8, used);
     if (!is_main && is_result(f->return_type))
         fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", (unsigned)(f->register_count + 1) * 8);
     if (is_main) {
