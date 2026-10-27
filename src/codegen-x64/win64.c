@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* M1 deliberately uses memory-backed IR registers. No register allocation or
- * semantic fallback is performed here. The only rewrites are D-M1-66, which
- * lets a branch read the flags of the comparison before it, and the text
- * stage of D-M1-67 (peephole.c). */
+/* Each IR register lives in an 8-byte frame slot here. D-M1-66 lets a branch
+ * read the flags of the comparison before it. The later text stages,
+ * `peephole.c` (D-M1-67) and `regalloc.c` (D-M1-68), rewrite the finished
+ * asm. No semantic fallback is performed. */
 
 static bool fail(R6Diagnostic *d, const R6Instruction *ins, const char *code,
                  const char *fmt, ...) {

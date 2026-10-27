@@ -20,8 +20,8 @@
 
 #define REG_COUNT 7
 #define MAX_REFS 4
-/* A register costs a push and a reload; it is kept when the references it
- * absorbs, weighted by loop depth, outnumber them by this much. */
+/* A register costs a push and a reload; it is kept when the weights of its
+ * slots sum to at least this much. */
 #define MIN_REGISTER_WEIGHT 6
 
 static const char *const REG_NAMES[REG_COUNT][3] = {
