@@ -3091,3 +3091,39 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (sha256 `2b8cb011…`).
 - Status: **applied**. The census reaches `compiler/host/main.orb` when the pin
   moves to a tree that carries orbit-lang `typed-ir-2` to `typed-ir-5`.
+
+## D-F0-17 - Re-pin to 0cfce74: R6 builds the Orbit compiler
+
+- Date: 2026-10-27. Moves the pin from `ca3eb91` (D-F0-16) to orbit-lang
+  `main` `0cfce745cd8f3b566a58e5ce9f8fc3c51194ca84`, 22 commits, pushed to
+  `https://github.com/joacokhzyx/orbit-lang` (`ca3eb91..0cfce74`).
+- What moved, in four merges:
+  - `typed-ir-3`: model and union payload reads, union and list fields,
+    `orbit_string_len`/`indexOf` calls and string concatenation are typed.
+  - `typed-ir-4`: the compiler's own lists declare `list<T>`; the IR of
+    `compiler/host/main.orb` has 0 `unknown` register destinations (3446 at
+    `ca3eb91`).
+  - `typed-ir-5`: a local re-declared with another type gets a new name, so
+    every local has one type; `ScheduleDeclNode.handler` is an `ASTNode`; and
+    three emitter defects found by R6 fixtures are fixed with regression tests
+    (a variant named `Tag`, a local ending in `id` cast through `orbit_int`, a
+    constant fold that dropped a call returning `NULL`).
+  - `sema-upper-check`: `checkNode` no longer compares two string addresses
+    with `>=`.
+- The serializer changed by one parameter annotation (`ir_emit.orb` blob
+  `b52333e7`); the IR format is unchanged. `runtime/` and the corpus script did
+  not move, so the runtime archive is kept.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-5d5aa27fa7.exe`, built from `C:\Temp\orbit-pin-0cfce74-git`,
+  converges to `PUBLISHED_C 54F0B797.`; with it the pinned tree passes
+  `tests/suite` 112/112 and `tests/std` 23/23. The corpus regenerates to 136
+  documents, 6829729 bytes, `filesSha256 0f96a33f.`.
+- Ratchets: the corpus baseline is written by `--write-baseline` at the pin and
+  a `--check` run holds at 109 -> 109. The census baseline is re-taken.
+- Measured: differential **69/69** against the new oracle; loader **261/261**;
+  corpus **105 build / 105 match over 132 -> 109 build / 109 match over 135
+  programs**, none differing; census **1 -> 2 build over 27 modules**: both
+  entry points build, `compiler/host/main.orb` (the whole compiler) and
+  `compiler/selfhost/lexer_trace.orb`. The other 25 modules are libraries whose
+  only refusal is `module must define one non-extern main`.
+- Status: **applied**.

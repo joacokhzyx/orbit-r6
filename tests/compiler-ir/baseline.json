@@ -1,14 +1,13 @@
 {
   "schema": 1,
-  "languageCommit": "ca3eb9103dfcff03f11831eddb8be98bc521b787",
-  "irFilesSha256": "dfd37c4f39b778849333a7304dedcace83dee14147935fd5de17905540ec0bda",
+  "languageCommit": "0cfce745cd8f3b566a58e5ce9f8fc3c51194ca84",
+  "irFilesSha256": "6bc6c9b24cf6ec427e9392fd43cd29cf258098543cb45cf138096e79e6c7ee09",
   "summary": {
     "modules": 27,
     "emitted": 27,
-    "r6BuildOk": 1
+    "r6BuildOk": 2
   },
   "refusals": {
-    "error[CGEN]: register type unknown is unsupported in M1": 17,
-    "error[CGEN]: module must define one non-extern main": 9
+    "error[CGEN]: module must define one non-extern main": 25
   }
 }

@@ -1469,3 +1469,12 @@ un C idéntico byte por byte al del oráculo (6212022 bytes, el `PUBLISHED_C` de
 árbol), en 9345 ms contra 5423 ms. Su IR del compilador es idéntico al IR del
 que salió, y R6 lo vuelve a construir en un ejecutable idéntico: el punto fijo
 nativo cierra sin pasar por C.
+
+## Re-pin a `0cfce74`: el censo construye el compilador (2026-10-27)
+
+D-F0-17. Con el pin en `0cfce74` el censo construye las dos entradas del
+compilador: `compiler/host/main.orb` (el compilador completo) y
+`compiler/selfhost/lexer_trace.orb`. Los otros 25 módulos son bibliotecas sin
+`main`, y ninguna de sus funciones es rechazada. Diferencial **69/69**; loader
+**261/261**; corpus **109 build / 109 match sobre 135 programas**, ninguno
+difiere; censo **2/27**.

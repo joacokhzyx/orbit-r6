@@ -8,7 +8,7 @@ on:
 env:
   # Must equal the commit in docs/PIN.md. A pin move edits this line in the
   # same commit as PIN.md.
-  ORBIT_PIN: ca3eb9103dfcff03f11831eddb8be98bc521b787
+  ORBIT_PIN: 0cfce745cd8f3b566a58e5ce9f8fc3c51194ca84
   # The measured toolchain: w64devkit 2.10.0 ships GCC 16.2.0 (docs/PIN.md).
   W64DEVKIT_URL: https://github.com/skeeto/w64devkit/releases/download/v2.10.0/w64devkit-x64-2.10.0.7z.exe
   W64DEVKIT_SHA256: 18d0a4c71a166f8401ab6305781bec5882b40b5e06ba9807c61cb5f3b3c6325e

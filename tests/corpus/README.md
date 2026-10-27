@@ -10,9 +10,9 @@ en D-F0-13 y sin cambio en D-F0-14 - pineados por hash en `manifest.json`.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-33ea94e9ec.exe `
+  --compiler C:\Temp\orbit-fp-5d5aa27fa7.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-ca3eb91-git `
+  --orbit-root C:\Temp\orbit-pin-0cfce74-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -581,3 +581,10 @@ Los mismos 133 documentos, 6 808 178 bytes, `filesSha256 3f20ced0…`, emitidos
 con `C:\Temp\orbit-fp-33ea94e9ec.exe` desde `C:\Temp\orbit-pin-ca3eb91-git`.
 Cambian los `registerTypes`: 341 destinos `unknown` (antes 425). R6 construye y
 coincide en 95 de 132 programas, ninguno difiere.
+
+## Re-pin 2026-10-27 (D-F0-17, emisor `0cfce74`, corpus `0f96a33f`)
+
+136 documentos (112 programas de suite, `imports.support.orb` y 23 de std),
+6 829 729 bytes, `filesSha256 0f96a33f…`, emitidos con
+`C:\Temp\orbit-fp-5d5aa27fa7.exe` desde `C:\Temp\orbit-pin-0cfce74-git`. R6
+construye y coincide en 109 de 135 programas, ninguno difiere.
