@@ -3441,3 +3441,34 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **73/73**, loader **266/266**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
 - Status: **applied**.
+
+## D-M1-71 - A string comparison read only by its branch tests strcmp directly
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: a string `eq` or `ne` called `strcmp`, stored the result,
+  compared the slot with zero, stored the 0/1 and the `jump_if_false` loaded
+  it again. The asm of `compiler/host/main.orb` holds 2901 `call strcmp`, and
+  the lookup loops of the compiler run them.
+- Decision:
+  - When D-M1-70 finds that no other instruction names the register of a
+    string `eq` or `ne`, the comparison ends with `call strcmp` and
+    `cmpl $0, %eax`, and `fused_false_jump` returns `jne` for `eq` and `je`
+    for `ne`. Otherwise the comparison and the jump are unchanged.
+  - `register_named_elsewhere` is the scan of D-M1-70, now shared by both.
+- Fixture `75-string-compare-branch` (oracle and R6 print `135\r\n` and exit
+  42): `==` and `!=` that only branch, in a function and in a `while` over a
+  `list<string>`, and the same two comparisons kept in a `val` read by three
+  branches. The asm of `grade` holds two `strcmp` followed by `cmpl $0, %eax`
+  and two followed by the stored `sete` and `setne`.
+- Measured: the asm of the compiler goes from 296419 to 287746 instructions,
+  1723 of the 2901 `strcmp` calls now end in `cmpl $0, %eax`, and the
+  executable goes from 2878420 to 2851796 bytes. The self-compile of
+  `compiler/host/main.orb` takes a median of 2.52 s against 2.57 s before and
+  2.13 s for the oracle, nine interleaved runs each (minimum 2.47 s against
+  2.53 s).
+- The compiler built this way translates `compiler/host/main.orb` to the C of
+  the oracle (`54f0b797…`), emits IR identical to `main.ir`, and R6 builds
+  that IR into the same executable (sha256 `90f0341a…`).
+- Gates: differential **74/74**, loader **266/266**, corpus **109 build / 109
+  match over 135**, ratchet held, census **2/27**.
+- Status: **applied**.

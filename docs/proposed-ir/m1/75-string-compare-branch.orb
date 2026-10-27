@@ -1,0 +1,34 @@
+// D-M1-70: a string `==` or `!=` that only the branch after it reads tests
+// the result of strcmp directly. One that another instruction reads keeps the
+// stored bool.
+fn grade(a: string, b: string) -> int {
+    var n = 0
+    if a == b { n = n + 1 }
+    if a != b { n = n + 2 }
+    val same = a == b
+    val differ = a != b
+    if same { n = n + 10 }
+    if differ { n = n + 20 }
+    if same { n = n + 100 }
+    return n
+}
+
+fn find(words: list<string>, key: string) -> int {
+    var i = 0
+    while i < words.len() {
+        if words.get(i) == key { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn main() -> int {
+    if grade("orbit", "orbit") != 111 { return 10 }
+    if grade("orbit", "r6") != 22 { return 11 }
+    val words = ["a", "bb", "ccc"]
+    if find(words, "ccc") != 2 { return 12 }
+    if find(words, "bb") != 1 { return 13 }
+    if find(words, "zz") != -1 { return 14 }
+    print(grade("x", "x") + grade("x", "y") + find(words, "ccc"))
+    return 42
+}

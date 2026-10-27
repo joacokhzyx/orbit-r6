@@ -1577,3 +1577,18 @@ compilador baja de 306303 a 296419 instrucciones y el ejecutable de 2908116 a
 2878420 bytes; la auto-compilación queda en la mediana de 2,57 s contra 2,60 s
 (dentro del ruido), con 2,13 s del oráculo. Diferencial **73/73**; loader
 **266/266**; corpus **109 build / 109 match sobre 135**; censo **2/27**.
+
+## Actualización de M1 - una comparación de strings que solo lee su salto prueba strcmp (2026-10-27)
+
+D-M1-71. Un `eq` o `ne` de strings llamaba a `strcmp`, guardaba el resultado,
+lo comparaba con cero, guardaba el 0/1 y el `jump_if_false` lo recargaba. Si
+ninguna otra instrucción nombra su registro (la regla de D-M1-70), la
+comparación termina en `call strcmp` y `cmpl $0, %eax`, y el salto es `jne`
+para `eq` y `je` para `ne`. El par `75-string-compare-branch` lo mide: oráculo y
+R6 imprimen `135\r\n` y salen 42, y el asm de `grade` conserva el resultado
+guardado solo en las dos comparaciones que tres saltos leen. 1723 de las 2901
+llamadas a `strcmp` del compilador quedan así; el asm baja de 296419 a 287746
+instrucciones, el ejecutable de 2878420 a 2851796 bytes y la auto-compilación
+de 2,57 s a 2,52 s (mediana), contra 2,13 s del oráculo. Diferencial
+**74/74**; loader **266/266**; corpus **109 build / 109 match sobre 135**;
+censo **2/27**.

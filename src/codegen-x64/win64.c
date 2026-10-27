@@ -2516,11 +2516,30 @@ static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
     fprintf(o, "%s:\n", done);
 }
 
+/* D-M1-70: true when an instruction other than the comparison at `cmp_pc` and
+ * the jump after it names the comparison's register. */
+static bool register_named_elsewhere(const R6Function *f, size_t cmp_pc) {
+    const R6Instruction *cmp = &f->instructions[cmp_pc];
+    size_t k;
+    int n;
+    for (k = 0; k < f->instruction_count; ++k) {
+        const R6Instruction *other = &f->instructions[k];
+        if (k == cmp_pc || k == cmp_pc + 1) continue;
+        if (other->has_dest && other->dest == cmp->dest) return true;
+        for (n = 0; n < 3; ++n)
+            if (other->operands[n].kind == R6_VAL_REG && other->operands[n].as.i32 == cmp->dest)
+                return true;
+    }
+    return false;
+}
+
 /* D-M1-66: the jump that leaves when the comparison before a jump_if_false is
  * false. The comparison already left its flags and stores its result, so the
  * jump reads the flags instead of loading the stored result and comparing it
- * with zero. Float and string comparisons are not flag-based (parity,
- * strcmp), so they keep the load. NULL when the jump follows anything else. */
+ * with zero. Float comparisons are not flag-based (parity) and keep the load.
+ * A string `eq` or `ne` leaves the flags of `testl` on the `strcmp` result
+ * only when D-M1-70 drops the stored result. NULL when the jump follows
+ * anything else. */
 static const char *fused_false_jump(const R6Function *f, size_t pc) {
     const R6Instruction *jump = &f->instructions[pc];
     const R6Instruction *cmp;
@@ -2534,7 +2553,8 @@ static const char *fused_false_jump(const R6Function *f, size_t pc) {
     t0 = operand_type_of(f, cmp, 0);
     t1 = operand_type_of(f, cmp, 1);
     if (is_float(t0) || is_float(t1)) return NULL;
-    if ((cmp->opcode == R6_OP_EQ || cmp->opcode == R6_OP_NE) && is_string(t0) && is_string(t1))
+    if ((cmp->opcode == R6_OP_EQ || cmp->opcode == R6_OP_NE) && is_string(t0) && is_string(t1) &&
+        register_named_elsewhere(f, pc - 1))
         return NULL;
     switch (cmp->opcode) {
     case R6_OP_EQ: return "jne";
@@ -2550,22 +2570,11 @@ static const char *fused_false_jump(const R6Function *f, size_t pc) {
  * no stored result. True when the instruction after `cmp_pc` is that jump and
  * no other instruction of the function names the comparison's register. */
 static bool flags_only_compare(const R6Function *f, size_t cmp_pc) {
-    const R6Instruction *cmp = &f->instructions[cmp_pc];
-    size_t k;
-    int n;
     if (cmp_pc + 1 >= f->instruction_count) return false;
     if (f->instructions[cmp_pc + 1].opcode != R6_OP_JUMP_IF_FALSE ||
         !fused_false_jump(f, cmp_pc + 1))
         return false;
-    for (k = 0; k < f->instruction_count; ++k) {
-        const R6Instruction *other = &f->instructions[k];
-        if (k == cmp_pc || k == cmp_pc + 1) continue;
-        if (other->has_dest && other->dest == cmp->dest) return false;
-        for (n = 0; n < 3; ++n)
-            if (other->operands[n].kind == R6_VAL_REG && other->operands[n].as.i32 == cmp->dest)
-                return false;
-    }
-    return true;
+    return !register_named_elsewhere(f, cmp_pc);
 }
 
 static void emit_compare_result(FILE *o, const char *setcc, unsigned off, bool flags_only) {
@@ -2955,8 +2964,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             t = operand_type_of(f, i, 0);
             t1 = operand_type_of(f, i, 1);
             if (is_string(t) && is_string(t1)) {
-                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                        aoff, boff, off, off, off);
+                if (flags_only_compare(f, pc))
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tcmpl $0, %%eax\n",
+                            aoff, boff);
+                else
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsete %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                            aoff, boff, off, off, off);
             } else if (is_float(t) || is_float(t1)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tucomisd -%u(%%rbp), %%xmm0\n\tsete %%al\n\tsetnp %%dl\n\tandb %%dl, %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
                         aoff, boff, off);
@@ -2990,8 +3003,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             const char *t1 = operand_type_of(f, i, 1);
             materialize_literals(o, f, i, is_main, &string_id);
             if (i->opcode == R6_OP_NE && is_string(t0) && is_string(t1)) {
-                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
-                        aoff, boff, off, off, off);
+                if (flags_only_compare(f, pc))
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tcmpl $0, %%eax\n",
+                            aoff, boff);
+                else
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n\tcall strcmp\n\tmovl %%eax, -%u(%%rbp)\n\tcmpl $0, -%u(%%rbp)\n\tsetne %%al\n\tmovzbl %%al, %%eax\n\tmovl %%eax, -%u(%%rbp)\n",
+                            aoff, boff, off, off, off);
             } else if (is_float(t0) || is_float(t1)) {
                 setcc = i->opcode == R6_OP_NE ? "setne" :
                         i->opcode == R6_OP_LT ? "setb" :
