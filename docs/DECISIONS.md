@@ -3553,3 +3553,26 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 110 / 110**, census **2/27**, self-host C
   `54f0b797...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-74 - A union variant carries up to four payloads
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `suite/union_nested_match` declares `Bin(Op, int, int)`. The
+  module check refused any variant with more than two payloads
+  (`union Expr variant Bin payload arity is outside the M1 native subset`).
+  The pack layout, the constructor, the match reads and the `Op*` word of a
+  union payload already handle any count; the limit of two was the measured
+  range of D-M1-53, not a layout rule.
+- Decision: the limit is four. The C backend packs the payloads in
+  declaration order with natural alignment (`Expr_Bin { Op* _0; orbit_int _1;
+  orbit_int _2; }`), the layout `union_pack_layout` already computes. Five
+  payloads keep the refusal, since no fixture measures them.
+- Fixture `78-union-wide-pack` (oracle and R6 print `9 5 20 0 wide 41 narrow
+  -23 103 997` one per line and exit 42): `Bin(Op, int, int)`, a four-payload
+  `Cell(int, bool, string, int)` and `Span(bool, int, int, bool)` with padding
+  between the bool and the int, and a nested match on the `Op` payload.
+- The control `x-union-payload-arity` held three ints; it now holds five and
+  cites this decision.
+- Gates: differential **77/77**, loader **271/271**, corpus **110 build / 110 match over 135 -> 111 / 111**, census **2/27**,
+  self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

@@ -89,6 +89,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `75-string-compare-branch` | un `==` o `!=` de strings que solo lee el salto siguiente prueba el resultado de `strcmp`; el que otras instrucciones leen conserva el bool guardado | 42 | `135\r\n` |
 | `76-string-equality-fast-path` | un `==` o `!=` de strings compara el primer byte y los punteros antes de llamar a `strcmp`: mismo puntero, primer byte distinto, contenido igual en dos punteros, prefijo común, dos strings vacíos y uno vacío contra otro con contenido, en la forma que solo lee el salto y en la guardada | 42 | `97\r\n` |
 | `77-int-arg-float-param` | un argumento `int` (literal, registro, expresión, negativo y en la pila) entra a un parámetro `float` con la conversión del cast de C; el resto de los pares sigue refusado | 42 | `1.5\r\n3.5\r\n8.0\r\n-2.5\r\n22.5\r\n27.0\r\n` |
+| `78-union-wide-pack` | variantes de tres y cuatro payloads (`Bin(Op, int, int)`, `Cell(int, bool, string, int)`, `Span(bool, int, int, bool)`): relleno entre bool e int, un payload union leido y comparado; cinco payloads siguen rechazados | 42 | `9\r\n5\r\n20\r\n0\r\nwide\r\n41\r\nnarrow\r\n-23\r\n103\r\n997\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los

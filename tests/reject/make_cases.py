@@ -432,9 +432,9 @@ def build_reject():
         "single float payloads truncate in the pin and stay fail-closed")
 
     mod = MOD([MAIN()])
-    mod["types"] = [utype("Shape", ["Many"], ["int\tint\tint"])]
+    mod["types"] = [utype("Shape", ["Many"], ["int\tint\tint\tint\tint"])]
     add("x-union-payload-arity", jd({"irVersion": "1", "module": mod}),
-        "D-M1-12", "CGEN", "payload arity beyond the measured pack subset")
+        "D-M1-74", "CGEN", "five payloads are beyond the measured pack subset")
 
     mod = MOD([MAIN()])
     mod["types"] = [{"name": "Color", "kind": "sum",
@@ -2037,6 +2037,11 @@ def build_manifest(reject, accept_files):
              "run_stdout": "1.5\r\n3.5\r\n8.0\r\n-2.5\r\n22.5\r\n27.0\r\n",
              "rule": "D-M1-73",
              "note": "an int literal or register widens to a float parameter, in registers and on the stack"},
+            {"file": "../../docs/proposed-ir/m1/78-union-wide-pack.json",
+             "run_exit": 42,
+             "run_stdout": "9\r\n5\r\n20\r\n0\r\nwide\r\n41\r\nnarrow\r\n-23\r\n103\r\n997\r\n",
+             "rule": "D-M1-74",
+             "note": "variants of three and four payloads: a union, int, bool and string parts with padding"},
         ],
     }
 

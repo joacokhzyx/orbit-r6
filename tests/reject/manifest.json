@@ -480,8 +480,8 @@
       "file": "cases/x-union-payload-arity.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-12",
-      "note": "payload arity beyond the measured pack subset"
+      "rule": "D-M1-74",
+      "note": "five payloads are beyond the measured pack subset"
     },
     {
       "file": "cases/x-union-kind-sum.json",
@@ -1869,6 +1869,13 @@
       "run_stdout": "1.5\r\n3.5\r\n8.0\r\n-2.5\r\n22.5\r\n27.0\r\n",
       "rule": "D-M1-73",
       "note": "an int literal or register widens to a float parameter, in registers and on the stack"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/78-union-wide-pack.json",
+      "run_exit": 42,
+      "run_stdout": "9\r\n5\r\n20\r\n0\r\nwide\r\n41\r\nnarrow\r\n-23\r\n103\r\n997\r\n",
+      "rule": "D-M1-74",
+      "note": "variants of three and four payloads: a union, int, bool and string parts with padding"
     }
   ]
 }

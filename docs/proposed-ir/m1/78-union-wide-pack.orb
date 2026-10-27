@@ -1,0 +1,52 @@
+// D-M1-74: a variant with three or four payloads is a pack struct like the
+// two-payload one of 61-union-pack-arm. Alignment padding between a bool and
+// an int, a union payload read back and matched, and a string in the middle of
+// the pack are measured.
+union Op {
+    Add,
+    Mul,
+    Neg
+}
+
+union Expr {
+    Num(int),
+    Bin(Op, int, int),
+    Cell(int, bool, string, int),
+    Span(bool, int, int, bool)
+}
+
+fn eval(e: Expr) -> int {
+    match e {
+        Expr.Num(n) => { return n }
+        Expr.Bin(op, a, b) => {
+            match op {
+                Op.Add => { return a + b }
+                Op.Mul => { return a * b }
+                _ => { return 0 }
+            }
+        }
+        Expr.Cell(n, on, label, w) => {
+            print(label)
+            if on { return n + w + label.len() }
+            return n - w
+        }
+        Expr.Span(lo, a, b, hi) => {
+            var total = a + b
+            if lo { total = total + 100 }
+            if hi { total = total + 1000 }
+            return total
+        }
+    }
+}
+
+fn main() -> int {
+    print(eval(Expr.Num(9)))
+    print(eval(Expr.Bin(Op.Add, 2, 3)))
+    print(eval(Expr.Bin(Op.Mul, 4, 5)))
+    print(eval(Expr.Bin(Op.Neg, 4, 5)))
+    print(eval(Expr.Cell(7, true, "wide", 30)))
+    print(eval(Expr.Cell(7, false, "narrow", 30)))
+    print(eval(Expr.Span(true, 1, 2, false)))
+    print(eval(Expr.Span(false, -1, -2, true)))
+    return 42
+}

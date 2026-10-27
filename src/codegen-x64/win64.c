@@ -3965,7 +3965,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
                                 type->name, type->variants[v]);
                 continue;
             }
-            if (parts > 2)
+            if (parts > 4)
                 return fail(diag, NULL, "CGEN", "union %s variant %s payload arity is outside the M1 native subset",
                             type->name, type->variants[v]);
             for (pi = 0; pi < parts; ++pi) {

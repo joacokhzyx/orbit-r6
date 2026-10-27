@@ -1622,3 +1622,13 @@ R6 imprimen `1.5 3.5 8.0 -2.5 22.5 27.0` y salen 42. Diferencial **76/76**;
 loader **270/270**; corpus **110 build / 110 match sobre 135**; censo **2/27**.
 `suite/assignment_var_store` no es un hueco de R6: el IR no lleva la anotación
 `float` de la variable y el C la declara `orbit_int`.
+
+## Actualizacion de M1 - A union variant carries up to four payloads (2026-10-27)
+
+D-M1-74. `suite/union_nested_match` declara `Bin(Op, int, int)` y el chequeo del modulo
+rechazaba mas de dos payloads. El layout del pack, el constructor y las lecturas
+ya servian para cualquier cantidad; el limite de dos era el rango medido de
+D-M1-53. Ahora el limite es cuatro y cinco payloads siguen rechazados. El par
+`78-union-wide-pack` mide variantes de tres y cuatro payloads con relleno entre
+un bool y un int y un match anidado sobre el payload `Op`: oraculo y R6
+imprimen `9 5 20 0 wide 41 narrow -23 103 997` y salen 42. Diferencial **77/77**; loader **271/271**; corpus **110 build / 110 match over 135 -> 111 / 111**; censo **2/27**.
