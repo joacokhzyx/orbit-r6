@@ -342,6 +342,15 @@ static bool elem_matches(const R6Module *m, int kind, const char *type) {
     return kind_matches_type(kind, type);
 }
 
+/* D-M1-58: an untyped (elemKind 0) element is the bare word the pin moves
+ * through `uintptr_t` (orbit_list_read_word and the `_tmp` of orbit_list_push,
+ * c_backend.orb:605-640). An int is its sign-extended value, which is the R6
+ * slot; a string and a pointer word are the word itself. bool and float keep
+ * out: their conversions through the word are not measured. */
+static bool opaque_word_type(const R6Module *m, const char *type) {
+    return is_int(type) || is_string(type) || ref_elem_type(m, type);
+}
+
 static bool valid_symbol(const char *s) {
     size_t i;
     if (!s || !(s[0] == '_' || (s[0] >= 'A' && s[0] <= 'Z') ||
@@ -1361,7 +1370,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             const char *vt = i->operands[1].kind == R6_VAL_REG ? type_at(f, i->operands[1].as.i32) : NULL;
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
-                !vt || !elem_matches(m, i->elem_kind, vt) ||
+                !vt || !(elem_matches(m, i->elem_kind, vt) ||
+                         (i->elem_kind == 0 && opaque_word_type(m, vt))) ||
                 (i->has_dest && !is_void(type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "list_push requires a list register and a value register matching elemKind 1..5");
             break;
@@ -1380,6 +1390,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_LIST_GET:
             if (!valid_dest(f, i, true, d) ||
                 !(elem_matches(m, i->elem_kind, type_at(f, i->dest)) ||
+                  (i->elem_kind == 0 && opaque_word_type(m, type_at(f, i->dest))) ||
                   (i->elem_kind == 0 &&
                    same_type(opaque_read_type(m, f, pc), type_at(f, i->dest)))) ||
                 i->operands[0].kind != R6_VAL_REG ||
@@ -1392,14 +1403,16 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
                 i->operands[1].kind != R6_VAL_REG || !is_int(type_at(f, i->operands[1].as.i32)) ||
-                !vt || !elem_matches(m, i->elem_kind, vt) ||
+                !vt || !(elem_matches(m, i->elem_kind, vt) ||
+                         (i->elem_kind == 0 && opaque_word_type(m, vt))) ||
                 (i->has_dest && !is_void(type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "list_set requires list/index registers, an elemKind-matching value register, and an optional void destination");
             break;
         }
         case R6_OP_LIST_POP:
             if (!valid_dest(f, i, true, d) ||
-                !elem_matches(m, i->elem_kind, type_at(f, i->dest)) ||
+                !(elem_matches(m, i->elem_kind, type_at(f, i->dest)) ||
+                  (i->elem_kind == 0 && opaque_word_type(m, type_at(f, i->dest)))) ||
                 i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)))
                 return fail(d, i, "CGEN", "list_pop requires a list register and an elemKind matching the destination");
@@ -2465,6 +2478,13 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                                  i->elem_kind == 3 ? "orbit_list_push_float" :
                                  i->elem_kind == 5 ? "orbit_list_push_ref" :
                                                      "orbit_list_push_bool";
+            if (i->elem_kind == 0) {
+                /* D-M1-58: orbit_list_push copies the word at the address. */
+                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+                           "\tleaq -%u(%%rbp), %%r8\n\tcall orbit_list_push\n",
+                        scratch, list_off, value_off);
+                break;
+            }
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n",
                     scratch, list_off);
             if (i->elem_kind == 3)
@@ -2523,7 +2543,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             emit_list_read(o, f, fn_index, pc, list_off, index_off, off,
                            i->elem_kind,
                            i->elem_kind == 5 ? 1 :
-                           i->elem_kind ? i->elem_kind : is_string(type_at(f, i->dest)) ? 1 : 2,
+                           i->elem_kind ? i->elem_kind : is_int(type_at(f, i->dest)) ? 2 : 1,
                            false, where_id, file_id);
             break;
         }
@@ -2540,6 +2560,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
                        "\tmovq -%u(%%rbp), %%r8\n",
                     scratch, list_off, index_off);
+            if (i->elem_kind == 0) {
+                fprintf(o, "\tleaq -%u(%%rbp), %%r9\n\tcall orbit_list_set\n", value_off);
+                break;
+            }
             if (i->elem_kind == 3)
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm3\n", value_off);
             else if (i->elem_kind == 4)
@@ -2556,7 +2580,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             emit_string(o, is_main ? "orbit_main" : f->name, where_id);
             emit_string(o, "<orbit-ir>", file_id);
             emit_list_read(o, f, fn_index, pc, list_off, 0, off,
-                           i->elem_kind, i->elem_kind == 5 ? 1 : i->elem_kind, true, where_id, file_id);
+                           i->elem_kind,
+                           i->elem_kind == 5 ? 1 :
+                           i->elem_kind ? i->elem_kind : is_int(type_at(f, i->dest)) ? 2 : 1,
+                           true, where_id, file_id);
             break;
         }
         case R6_OP_COPY:

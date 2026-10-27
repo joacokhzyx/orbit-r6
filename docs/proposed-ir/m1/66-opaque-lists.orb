@@ -1,0 +1,37 @@
+model Bag {
+    names: list
+    counts: list
+}
+
+fn fill(b: Bag) -> int {
+    b.names.push("first")
+    b.names.push("second")
+    b.counts.push(-3)
+    b.counts.push(9)
+    return b.names.len() + b.counts.len()
+}
+
+fn shout(s: string) -> int {
+    print(s)
+    return s.len()
+}
+
+fn main() -> int {
+    val rows: list<list<int>> = []
+    val r0: list<int> = [1, 2]
+    val r1: list<int> = [3]
+    rows.push(r0)
+    rows.push(r1)
+    val back: list<int> = rows.get(1)
+    if back.len() != 1 { return 10 }
+    val again: list<int> = rows.get(0)
+    if again.len() != 2 { return 11 }
+
+    val b = Bag { names: [], counts: [] }
+    if fill(b) != 4 { return 12 }
+    if shout(b.names.get(1)) != 6 { return 13 }
+    if b.counts.get(0) != -3 { return 14 }
+    b.counts.set(0, 40)
+    if b.counts.get(0) != 40 { return 15 }
+    return 42
+}

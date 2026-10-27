@@ -1406,3 +1406,14 @@ oráculo y R6 imprimen `a\r\n` y salen 42. Diferencial **64/64**; loader
 **247/247** (167 rechazos + 80 controles); corpus **103 build / 103 match sobre
 132 programas** (`list_element_type`, `test_collections_boxed`); censo
 **0/27**. El trinquete se re-toma en 103/103.
+
+## Actualización de M1 - una lista sin tipo mueve palabras (2026-10-27)
+
+D-M1-58. Una lista con `elemKind 0` admite agregar, reemplazar y leer palabras
+`int`, `string`, lista, modelo o `void*`, como hace el pin con
+`orbit_list_push(list, &_tmp)` y `orbit_list_read_word`. `bool` y `float`
+quedan afuera. El par `66-opaque-lists` lo mide: oráculo y R6 imprimen
+`second\r\n` y salen 42. Diferencial **65/65**; loader **248/248** (167
+rechazos + 81 controles); corpus **104 build / 104 match sobre 132 programas**
+(`generic_nested_argument`); censo **0/27**. El trinquete se re-toma en
+104/104.

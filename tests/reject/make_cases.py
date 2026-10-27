@@ -732,31 +732,33 @@ def build_reject():
                       I("list_get", 2, Reg(0), Reg(1), ek=5),
                       I("ret", -1, Reg(2))], ["list", "int", "int"])])),
         "D-M1-57", "CGEN", "a ref read into an int destination is refused")
+    # D-M1-58 admits untyped reads and writes of int, string and pointer
+    # words; a bool or float through the bare word stays refused.
     add("x-list-get-kind-opaque",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
                       I("load_const", 1, Int(0)),
                       I("list_get", 2, Reg(0), Reg(1)),
                       I("ret", -1, Int(0))],
-                     ["list", "int", "int"])])),
-        "D-M1-30", "CGEN",
-        "elemKind 0 is admitted at list_create only; a read has no slot decoder")
+                     ["list", "int", "bool"])])),
+        "D-M1-58", "CGEN",
+        "an untyped read into a bool has no measured conversion")
     add("x-list-set-kind-opaque",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
                       I("load_const", 1, Int(0)),
-                      I("load_const", 2, Int(7)),
+                      I("load_const", 2, Sym("true")),
                       I("list_set", -1, Reg(0), Reg(1), Reg(2)),
                       I("ret", -1, Int(0))],
-                     ["list", "int", "int"])])),
-        "D-M1-30", "CGEN",
-        "elemKind 0 is admitted at list_create only; a write has no slot decoder")
+                     ["list", "int", "bool"])])),
+        "D-M1-58", "CGEN",
+        "an untyped write of a bool has no measured conversion")
     add("x-list-push-kind-opaque",
         jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1)),
-                      I("load_const", 1, Int(7)),
+                      I("load_const", 1, Flt(1.5)),
                       I("list_push", 2, Reg(0), Reg(1)),
                       I("ret", -1, Int(0))],
-                     ["list", "int", "void"])])),
-        "D-M1-30", "CGEN",
-        "elemKind 0 is admitted at list_create only; a push has no slot decoder")
+                     ["list", "float", "void"])])),
+        "D-M1-58", "CGEN",
+        "an untyped push of a float has no measured conversion")
     # D-M1-31 pins the comparison arms (c_backend.orb:2747-2812): a string
     # against a number is the pin's word fallthrough, a bool is a number, but
     # a float still needs both sides typed float and a string has no
@@ -1909,6 +1911,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/65-ref-lists.json",
              "run_exit": 42, "run_stdout": "a\r\n", "rule": "D-M1-57",
              "note": "lists of models and unions push, read, set and pop pointer words"},
+            {"file": "../../docs/proposed-ir/m1/66-opaque-lists.json",
+             "run_exit": 42, "run_stdout": "second\r\n", "rule": "D-M1-58",
+             "note": "untyped lists take int, string and list words through orbit_list_push"},
         ],
     }
 

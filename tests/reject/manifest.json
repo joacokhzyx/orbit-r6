@@ -788,22 +788,22 @@
       "file": "cases/x-list-get-kind-opaque.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-30",
-      "note": "elemKind 0 is admitted at list_create only; a read has no slot decoder"
+      "rule": "D-M1-58",
+      "note": "an untyped read into a bool has no measured conversion"
     },
     {
       "file": "cases/x-list-set-kind-opaque.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-30",
-      "note": "elemKind 0 is admitted at list_create only; a write has no slot decoder"
+      "rule": "D-M1-58",
+      "note": "an untyped write of a bool has no measured conversion"
     },
     {
       "file": "cases/x-list-push-kind-opaque.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-30",
-      "note": "elemKind 0 is admitted at list_create only; a push has no slot decoder"
+      "rule": "D-M1-58",
+      "note": "an untyped push of a float has no measured conversion"
     },
     {
       "file": "cases/x-compare-float-int.json",
@@ -1709,6 +1709,13 @@
       "run_stdout": "a\r\n",
       "rule": "D-M1-57",
       "note": "lists of models and unions push, read, set and pop pointer words"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/66-opaque-lists.json",
+      "run_exit": 42,
+      "run_stdout": "second\r\n",
+      "rule": "D-M1-58",
+      "note": "untyped lists take int, string and list words through orbit_list_push"
     }
   ]
 }

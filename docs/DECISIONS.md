@@ -2917,3 +2917,39 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   differing; census **0/27**, first refusals `register type unknown` 11,
   `list_push` 8, `no non-extern main` 7, `main must have no parameters` 1.
 - Status: **applied**.
+
+## D-M1-58 - An untyped list moves bare words
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: an `elemKind 0` list admitted only its create (D-M1-30) and a
+  read typed from its use (D-M1-38, D-M1-51). A push or set of an untyped
+  element, and a read into a destination the builder already typed, were
+  refused. `generic_nested_argument` stopped at its untyped read into a list,
+  and the compiler's IR has 125 untyped pushes and four untyped sets
+  (`compiler/host/main.orb`), most from model fields declared bare `list`.
+- Reference (pin `ca3eb91`): an untyped push is `uintptr_t _tmp =
+  (uintptr_t)(v); orbit_list_push(list, &_tmp)`, a set the same through
+  `orbit_list_set`, and a read `orbit_list_read_word` converted by
+  `generateRegAssign`: `(orbit_int)(uintptr_t)` for an int, `(orbit_string)` for
+  a string and `(void*)(uintptr_t)` for a pointer (`c_backend.orb:605-640`).
+- Decision: an untyped element is a word of type `int`, `string`, `list`,
+  model or `void*`. A push or set passes the address of the value's slot to
+  `orbit_list_push`/`orbit_list_set`; an R6 int slot already holds the
+  sign-extended value, which is the pin's `(uintptr_t)` of an `orbit_int`. A
+  read or pop into such a destination uses the opaque read of D-M1-38 and
+  decodes an int from the low 32 bits and every other word as itself. `bool`
+  and `float` keep out: their conversions through the word are not measured.
+- Controls: the three D-M1-30 controls `x-list-get-kind-opaque`,
+  `x-list-set-kind-opaque` and `x-list-push-kind-opaque` are retargeted to a
+  bool read, a bool set and a float push, which stay refused.
+- Fixture `66-opaque-lists`: a list of lists pushed and read untyped, and a
+  model with two bare `list` fields filled with strings and ints, read through
+  a string parameter and int comparisons, and rewritten with `set`. Oracle and
+  R6 both print `second\r\n` and exit 42; the driver at D-M1-57 refuses it at
+  the first untyped push.
+- Measured: differential **64/64 -> 65/65**; loader **247/247 -> 248/248**
+  (167 rejections + 81 controls); corpus **103 -> 104 build / 104 match over
+  132 programs** (`generic_nested_argument`), none differing; census **0/27**,
+  first refusals `register type unknown` 17, `no non-extern main` 8,
+  `main must have no parameters` 1, `register type NULL` 1.
+- Status: **applied**.
