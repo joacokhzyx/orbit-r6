@@ -1,0 +1,103 @@
+// D-M1-82: the cleanup after register allocation removes stores nothing reads,
+// copies through scratch registers, constants held in registers, jumps to the
+// next label and code after a return. Each function below reaches one of those
+// forms: a bool kept from a compare and read after another compare, a compare
+// of a copy against a constant, an `add` and `sub` of constants, a loop that
+// returns from inside, `break` and `continue`. The oracle and R6 print the same
+// ten lines and exit 42.
+fn pick(a: int, b: int) -> int {
+    var best = 0
+    var i = 0
+    while i < 50 {
+        val t = a * i + b
+        val big = t > 100
+        val seven = i == 7
+        if big && !seven {
+            best = best + t % 17
+        } else if seven {
+            best = best - 3
+        }
+        if best > 1000 {
+            return best
+        }
+        i = i + 1
+    }
+    return best
+}
+
+fn scan(n: int) -> int {
+    var total = 0
+    var i = 0
+    while i < n {
+        i = i + 1
+        if i % 2 == 0 {
+            continue
+        }
+        if i > 40 {
+            break
+        }
+        total = total + i * 3 - 1
+    }
+    return total
+}
+
+fn flags(a: int, b: int) -> int {
+    val lt = a < b
+    val eq = a == b
+    val gt = a > b
+    var r = 0
+    if lt {
+        r = r + 1
+    }
+    if eq {
+        r = r + 10
+    }
+    if gt {
+        r = r + 100
+    }
+    if lt == gt {
+        r = r + 1000
+    }
+    return r
+}
+
+fn clamp(v: int) -> int {
+    if v < 0 {
+        return 0
+    }
+    if v > 255 {
+        return 255
+    }
+    return v
+}
+
+fn chain(n: int) -> int {
+    var x = n
+    var steps = 0
+    while x != 1 {
+        if x % 2 == 0 {
+            x = x / 2
+        } else {
+            x = x * 3 + 1
+        }
+        steps = steps + 1
+        if steps > 200 {
+            return 0 - 1
+        }
+    }
+    return steps
+}
+
+fn main() -> int {
+    print(pick(3, 5))
+    print(pick(40, 90))
+    print(scan(100))
+    print(flags(1, 2))
+    print(flags(2, 2))
+    print(flags(3, 2))
+    print(clamp(0 - 5) + clamp(300) + clamp(77))
+    print(chain(27))
+    print(chain(97))
+    print(pick(0, 0) + scan(3))
+    return 42
+}

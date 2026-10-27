@@ -3786,3 +3786,65 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-82 - Stores nothing reads and register copies are removed after allocation
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: the generator stores every IR value in a slot and moves every
+  operand through `rax`. The assembler text of `compiler/host/main.orb` has
+  306 941 instructions (`grep -c '^\t[a-z]'`) against 146 418 for gcc -O1, of
+  which 81 000 are `rax` moves.
+- Decision:
+  - `regalloc.c` counts the reads of each slot. A slot that is written and
+    never read is not a register candidate, and its stores are dropped
+    (306 941 -> 288 636 instructions). A slot whose address is taken or whose
+    reference the assembler cannot encode is not touched, as before.
+  - `peephole.c` gains `r6_peephole_final`, run after `r6_regalloc_win64`. For
+    each function it computes, per line, the general registers read and fully
+    written, follows labels and jumps to the fixed
+    point of liveness, and rewrites:
+    - `movq A, %X` + `movq %X, B` into `movq A, B` when X is dead (also
+      `movl`);
+    - `movq A, %X` + `cmpq B, %X` into `cmpq B, A`, and + `testq %X, %X` into
+      `testq A, A`;
+    - `movq $imm, %R` into the one reader of R in the next four lines
+      (`cmpq`, `movq`, `addl`, `subl`, `cmpl`, `imull` against `%eax`) when R
+      is dead after it;
+    - `movq %S, %D` by renaming the readers of D to S in an eight-line window
+      when D is dead after the last one and S is not written meanwhile;
+    - a definition of a register nothing reads, from an immediate, a register,
+      or a frame, stack or symbol operand (a load that can fault, such as
+      `movq 8(%r11), %rax`, stays);
+    - `jmp L` followed by `L:`, and the instructions after `ret`, `jmp` and
+      `ud2` up to the next label.
+    A line the pass does not know reads every register. `ret` reads rax
+    and the callee-saved registers; a call reads rcx, rdx, r8 and r9 and
+    writes the volatile registers.
+  - The assembler gains `cmpq`, `addl` and `subl` with an immediate against a
+    register or memory operand (`83 /ext ib`, `81 /ext id`) and `imull $imm,
+    %eax` (`6B`, `69`).
+- A first version of the copy renaming treated `sete %al` as not writing rax,
+  so a copy of rax was read after the flag byte changed. All 83 fixtures
+  passed and the R6-built compiler stopped with `list element type mismatch`;
+  only the self-host check found it. `writes_register` now marks 8-bit writes,
+  `set*` and read-modify-write operands, and fixture `86-register-cleanup`
+  reaches the forms around it.
+- Fixture `86-register-cleanup` (oracle and R6 print `149 371 1180 1 1010 100
+  332 111 118 7` one per line and exit 42): a bool kept across a second
+  compare, a loop that returns from inside, `break`, `continue`, a clamp with
+  three returns and a Collatz loop.
+- Measured on `compiler/host/main.orb`, before D-M1-79 and after this
+  decision: instructions 306 871 -> 232 557, `.text` 1 413 488 B -> 1 159 600
+  B, image 3 047 590 B -> 2 793 126 B. The R6-built compiler compiling
+  `compiler/host/main.orb` to C (`ORBIT_SKIP_CC=1`, interleaved with the
+  oracle, 7 and 9 runs): median 3.38 s against 3.24 s (ratio 1.042) before,
+  2.33 s against 2.46 s (ratio 0.945) after.
+- Benchmarks, best of 5, before D-M1-79 and after D-M1-82 (these include the
+  float and division decisions): `fib.ir` 0.532 s -> 0.442 s, `ints.ir`
+  10.420 s -> 2.472 s, `floats.ir` 5.228 s -> 1.083 s, `lists.ir` 1.218 s ->
+  0.610 s, `sa.ir` 0.610 s -> 0.541 s, `sb.ir` 0.357 s -> 0.270 s, `sc.ir`
+  2.036 s -> 1.522 s.
+- Gates: differential **85/85**, loader **284/284**, corpus **115 build / 115
+  match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
+  `compiler/host/main.orb`.
+- Status: **applied**.

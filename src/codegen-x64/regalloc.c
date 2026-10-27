@@ -310,7 +310,7 @@ typedef struct {
     bool bad;
     bool gp, fl;
     bool write_first;
-    size_t first, last, refs;
+    size_t first, last, refs, reads;
     unsigned long long weight;
     int reg;
 } Slot;
@@ -552,6 +552,7 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
                     }
                     s->last = i;
                     ++s->refs;
+                    if (!use.write) ++s->reads;
                     s->weight += 1ull << (3 * shift_depth);
                 }
             }
@@ -566,7 +567,7 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
         bool changed;
         for (k = 1; k < nslots; ++k) {
             Slot *s = &w->slots[k];
-            if (s->refs == 0 || s->bad || (s->fl && s->gp)) continue;
+            if (s->refs == 0 || s->bad || s->reads == 0 || (s->fl && s->gp)) continue;
             w->candidates[ncand].fl = s->fl;
             w->candidates[ncand].slot = k;
             w->candidates[ncand].first = s->write_first ? s->first : first;
@@ -711,6 +712,11 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
             if (!emit_line(out, l, i)) return false;
             continue;
         }
+        /* D-M1-82: a store to a slot that nothing reads. */
+        if (nrefs == 1 && refs[0].offset % 8 == 0 && refs[0].offset / 8 < nslots &&
+            w->slots[refs[0].offset / 8].refs > 0 && w->slots[refs[0].offset / 8].reads == 0 &&
+            !w->slots[refs[0].offset / 8].bad)
+            continue;
         for (r = 0; r < nrefs; ++r) {
             unsigned offset = refs[r].offset;
             int reg = -1;

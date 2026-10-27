@@ -1713,3 +1713,19 @@ signo de Hacker's Delight 10-1, o desplazamientos para una potencia de dos; 0,
 parametro y sale 42. `ints.ir`: 10.41 s -> 3.70 s. Diferencial **84/84**;
 loader **284/284**; corpus **115 build / 115 match over 135 -> 115 / 115**;
 self-host C `54f0b797...`.
+
+## Actualizacion de M1 - Stores nothing reads and register copies are removed after allocation (2026-10-27)
+
+D-M1-82. El texto de `compiler/host/main.orb` tenia 306 941 instrucciones contra
+146 418 de gcc -O1, 81 000 de ellas movimientos por `rax`. `regalloc.c` descarta
+los slots que se escriben y no se leen; `r6_peephole_final` calcula la
+vivacidad de los registros generales por funcion y fusiona `movq A,%X` +
+`movq %X,B`, compara A directamente, pliega inmediatos en su unico lector,
+renombra copias, quita definiciones muertas y saltos al siguiente label.
+Instrucciones 306 871 -> 232 557; `.text` 1 413 488 B -> 1 159 600 B. El
+compilador construido por R6 compila `main.orb` a C en 2.33 s contra 2.46 s del
+oraculo (1.042 antes, 0.945 despues). Una primera version de la renombra de
+copias ignoraba que `sete %al` escribe rax: los 83 pares pasaban y solo el
+self-host lo detecto. El par `86-register-cleanup` sale 42. Diferencial
+**85/85**; loader **284/284**; corpus **115 build / 115 match over 135 -> 115 /
+115**; self-host C `54f0b797...`.

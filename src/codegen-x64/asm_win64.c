@@ -534,6 +534,25 @@ static bool encode(Asm *a, char *line) {
         if (imm <= 127) return emit(a, 0x48) && emit(a, 0x83) && emit(a, 0xec) && emit(a, (uint8_t)imm);
         return emit(a, 0x48) && emit(a, 0x81) && emit(a, 0xec) && emit32(a, (uint32_t)imm);
     }
+    if ((strcmp(op, "cmpq") == 0 || strcmp(op, "addl") == 0 || strcmp(op, "subl") == 0) &&
+        parse_imm(a1, &imm) && parse_rm(a, a2, op[3] == 'q' ? 64 : 32, &m)) {
+        /* D-M1-83: 83 /ext ib, or 81 /ext id, on a register or memory operand. */
+        int64_t v = (int64_t)imm;
+        int ext = op[0] == 'c' ? 7 : op[0] == 'a' ? 0 : 5;
+        if (op[3] != 'q') v = (int32_t)(uint32_t)imm;
+        if (v < INT32_MIN || v > INT32_MAX) return bad(a, "%s immediate outside signed 32-bit range", op);
+        if (v >= -128 && v <= 127)
+            return rex_modrm_mem(a, op[3] == 'q' ? 64 : 32, ext, m, 0x83, 0, 0, -1) && emit(a, (uint8_t)v);
+        return rex_modrm_mem(a, op[3] == 'q' ? 64 : 32, ext, m, 0x81, 0, 0, -1) && emit32(a, (uint32_t)v);
+    }
+    if (strcmp(op, "imull") == 0 && parse_imm(a1, &imm) && id2 == 0 && !x2 && w2 == 32) {
+        int64_t v = (int32_t)(uint32_t)imm;
+        Mem r = {0};
+        r.base = 0; r.reg = 1;
+        if (v >= -128 && v <= 127)
+            return rex_modrm_mem(a, 32, 0, r, 0x6b, 0, 0, -1) && emit(a, (uint8_t)v);
+        return rex_modrm_mem(a, 32, 0, r, 0x69, 0, 0, -1) && emit32(a, (uint32_t)v);
+    }
     if ((strcmp(op, "sarl") == 0 || strcmp(op, "shrl") == 0 || strcmp(op, "shll") == 0 ||
          strcmp(op, "sarq") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2 &&
         w2 == (op[3] == 'q' ? 64 : 32) && imm >= 1 && imm < (op[3] == 'q' ? 64u : 32u)) {

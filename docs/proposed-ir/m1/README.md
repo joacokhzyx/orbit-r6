@@ -97,6 +97,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `83-stack-probe` | un frame de 32 000 B (4000 registros) llamado 8 niveles, con el ultimo registro escrito primero; el prologo sondea las paginas con `___chkstk_ms` | 8 | vacío |
 | `84-float-registers` | seis argumentos float, doce floats vivos en un loop, dos floats vivos a traves de una llamada recursiva, comparacion con NaN y negacion; los floats viven en xmm6-xmm14 | 42 | `119.125\r\n204.02347564697266\r\n1336.0\r\n13.375\r\n1.5\r\n0\r\n0\r\n-1.5\r\n1\r\n2.25\r\ninf\r\n` |
 | `85-div-by-constant` | `/` y `%` por 40 constantes (positivas, negativas, potencias de dos, 2147483647) contra la division por un parametro, en valores limite, -300..300 y 3000 pasos de un generador congruencial; el numero magico no difiere de `idivl` | 42 | `0\r\n1300628442\r\n-1507943223\r\n1507943225\r\n-25\r\n` |
+| `86-register-cleanup` | un bool guardado a traves de un segundo compare, un loop que retorna desde dentro, `break`, `continue`, un clamp con tres retornos y un loop de Collatz; ejercita la limpieza posterior a la asignacion de registros | 42 | `149\r\n371\r\n1180\r\n1\r\n1010\r\n100\r\n332\r\n111\r\n118\r\n7\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los

@@ -143,6 +143,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "r6: %s:0:0: error[REGALLOC]: %s\n", input, asm_error);
         goto free_module;
     }
+    if (!r6_peephole_final(asm_path, asm_error, sizeof asm_error)) {
+        fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
+        goto free_module;
+    }
 
     root = getenv("R6_MINGW_ROOT");
     if (!root || !*root) root = "C:/w64devkit";
