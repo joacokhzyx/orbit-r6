@@ -19,6 +19,9 @@
  * it. */
 
 #define REG_COUNT 7
+/* D-M1-80: float slots take xmm6-xmm14, which every callee preserves. The
+ * generator itself uses xmm0-xmm3 and xmm15. */
+#define XMM_COUNT 9
 #define MAX_REFS 4
 /* A register costs a push and a reload; it is kept when the weights of its
  * slots sum to at least this much. */
@@ -29,6 +32,9 @@ static const char *const REG_NAMES[REG_COUNT][3] = {
     {"%rdi", "%edi", "%dil"},   {"%r12", "%r12d", "%r12b"},
     {"%r13", "%r13d", "%r13b"}, {"%r14", "%r14d", "%r14b"},
     {"%r15", "%r15d", "%r15b"}};
+
+static const char *const XMM_NAMES[XMM_COUNT] = {"%xmm6", "%xmm7", "%xmm8", "%xmm9", "%xmm10",
+                                                 "%xmm11", "%xmm12", "%xmm13", "%xmm14"};
 
 typedef struct {
     char *p;
@@ -158,7 +164,12 @@ static bool is_immediate(Span s) {
 typedef struct {
     bool write;
     int width;
+    int cls; /* 0 integer register, 1 xmm register, 2 either (movq with a GPR) */
 } Use;
+
+static bool is_xmm(Span s) {
+    return s.n >= 5 && memcmp(s.p, "%xmm", 4) == 0;
+}
 
 static bool classify_line(const char *line, size_t len, const Ref *refs, size_t nrefs,
                           Use *use) {
@@ -170,10 +181,32 @@ static bool classify_line(const char *line, size_t len, const Ref *refs, size_t 
     slot_b = refs[0].at == (size_t)(b.p - line) && refs[0].len == b.n && b.n > 0;
     if (!slot_a && !slot_b) return false;
     use->write = false;
+    use->cls = 0;
+    if (span_is(mn, "movsd")) {
+        use->width = 64;
+        use->cls = 1;
+        if (slot_a && is_xmm(b)) return true;
+        use->write = true;
+        return slot_b && is_xmm(a);
+    }
+    if (span_is(mn, "addsd") || span_is(mn, "subsd") || span_is(mn, "mulsd") ||
+        span_is(mn, "divsd") || span_is(mn, "ucomisd")) {
+        use->width = 64;
+        use->cls = 1;
+        return slot_a && is_xmm(b);
+    }
+    if (span_is(mn, "cvtsi2sdq")) {
+        use->width = 64;
+        return slot_a && is_xmm(b);
+    }
     if (span_is(mn, "movq")) {
         use->width = 64;
-        if (slot_a && gpr_width(b) == 64) return true;
+        if (slot_a && gpr_width(b) == 64) {
+            use->cls = 2;
+            return true;
+        }
         use->write = true;
+        if (slot_b && gpr_width(a) == 64) use->cls = 2;
         return slot_b && (is_immediate(a) || gpr_width(a) == 64);
     }
     if (span_is(mn, "movl")) {
@@ -233,6 +266,12 @@ static bool mentions_saved_register(const char *line, size_t len) {
         while (k < len && ((line[k] >= 'a' && line[k] <= 'z') || (line[k] >= '0' && line[k] <= '9')))
             ++k;
         n = k - start;
+        if (n >= 4 && memcmp(line + start, "xmm", 3) == 0) {
+            int v = 0;
+            size_t d;
+            for (d = start + 3; d < start + n; ++d) v = v * 10 + (line[d] - '0');
+            if (v >= 6 && v <= 14) return true;
+        }
         if (n >= 3 && line[start] == 'r' && line[start + 1] == '1' && line[start + 2] >= '2' &&
             line[start + 2] <= '5' && (n == 3 || (n == 4 && (line[start + 3] == 'd' ||
                                                               line[start + 3] == 'w' ||
@@ -269,6 +308,7 @@ typedef struct {
 
 typedef struct {
     bool bad;
+    bool gp, fl;
     bool write_first;
     size_t first, last, refs;
     unsigned long long weight;
@@ -278,6 +318,7 @@ typedef struct {
 typedef struct {
     size_t slot, first, last;
     unsigned long long weight;
+    bool fl;
 } Candidate;
 
 static int candidate_compare(const void *x, const void *y) {
@@ -356,19 +397,30 @@ static bool emit_line(Buffer *out, const Lines *l, size_t i) {
 
 /* Rewrites the lines [first, end) of one function; `out` receives them. */
 static bool process_function(Buffer *out, const Lines *l, size_t first, size_t end, Work *w) {
-    size_t i, p_sub = 0, p_alloc = 0, p_end = 0, marker = 0;
+    size_t i, p_sub = 0, p_alloc = 0, p_end = 0, marker = 0, p_fp = 0, p_setframe = 0;
+    bool found_fp = false, found_setframe = false;
     unsigned long long plain_end = 0, lo = 1, hi = 0, frame = 0;
     size_t nlabels = 0, nedges = 0, nslots, ncand = 0, used = 0, k;
     bool found_sub = false, found_alloc = false, found_end = false, found_marker = false;
     bool safe = true;
     unsigned long long reg_weight[REG_COUNT];
     int reg_used[REG_COUNT];
-    int reg_slot_owner[REG_COUNT];
+    unsigned long long xmm_weight[XMM_COUNT];
+    int xmm_used[XMM_COUNT];
+    size_t xused = 0;
+    int cls;
     Candidate *cand;
-    unsigned shift;
+    unsigned shift, area = 0;
     unsigned long long new_frame;
 
     for (i = first; i < end; ++i) {
+        if (!found_fp && line_is(l, i, "\tmovq %rsp, %rbp")) {
+            found_fp = true;
+            p_fp = i;
+        } else if (!found_setframe && line_is(l, i, "\t.seh_setframe %rbp, 0")) {
+            found_setframe = true;
+            p_setframe = i;
+        }
         if (!found_sub && line_starts(l, i, "\tsubq $") && l->length[i] > 8 &&
             memcmp(l->text + l->start[i] + l->length[i] - 6, ", %rsp", 6) == 0) {
             found_sub = true;
@@ -492,6 +544,8 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
                 {
                     Slot *s = &w->slots[index];
                     int shift_depth = depth > 4 ? 4 : (int)depth;
+                    if (use.cls == 1) s->fl = true;
+                    else if (use.cls == 0) s->gp = true;
                     if (s->refs == 0) {
                         s->first = i;
                         s->write_first = use.write;
@@ -512,7 +566,8 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
         bool changed;
         for (k = 1; k < nslots; ++k) {
             Slot *s = &w->slots[k];
-            if (s->refs == 0 || s->bad) continue;
+            if (s->refs == 0 || s->bad || (s->fl && s->gp)) continue;
+            w->candidates[ncand].fl = s->fl;
             w->candidates[ncand].slot = k;
             w->candidates[ncand].first = s->write_first ? s->first : first;
             w->candidates[ncand].last = s->last;
@@ -532,46 +587,63 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
             }
         } while (changed);
         qsort(cand, ncand, sizeof *cand, candidate_compare);
-        for (k = 0; k < REG_COUNT; ++k) reg_slot_owner[k] = -1;
-        for (k = 0; k < ncand; ++k) {
-            int r, free_reg = -1, weakest = -1;
-            for (r = 0; r < REG_COUNT; ++r) {
-                int owner = reg_slot_owner[r];
-                if (owner >= 0 && cand[owner].last < cand[k].first) {
-                    reg_slot_owner[r] = -1;
-                    owner = -1;
+        for (cls = 0; cls < 2; ++cls) {
+            int nregs = cls ? XMM_COUNT : REG_COUNT;
+            int owner_of[XMM_COUNT];
+            for (k = 0; k < (size_t)nregs; ++k) owner_of[k] = -1;
+            for (k = 0; k < ncand; ++k) {
+                int r, free_reg = -1, weakest = -1;
+                if (cand[k].fl != (cls == 1)) continue;
+                for (r = 0; r < nregs; ++r) {
+                    int owner = owner_of[r];
+                    if (owner >= 0 && cand[owner].last < cand[k].first) {
+                        owner_of[r] = -1;
+                        owner = -1;
+                    }
+                    if (owner < 0) {
+                        if (free_reg < 0) free_reg = r;
+                    } else if (weakest < 0 || cand[owner].weight < cand[owner_of[weakest]].weight) {
+                        weakest = r;
+                    }
                 }
-                if (owner < 0) {
-                    if (free_reg < 0) free_reg = r;
-                } else if (weakest < 0 || cand[owner].weight < cand[reg_slot_owner[weakest]].weight) {
-                    weakest = r;
+                if (free_reg >= 0) {
+                    owner_of[free_reg] = (int)k;
+                    w->slots[cand[k].slot].reg = free_reg;
+                } else if (weakest >= 0 && cand[owner_of[weakest]].weight < cand[k].weight) {
+                    w->slots[cand[owner_of[weakest]].slot].reg = -1;
+                    owner_of[weakest] = (int)k;
+                    w->slots[cand[k].slot].reg = weakest;
                 }
-            }
-            if (free_reg >= 0) {
-                reg_slot_owner[free_reg] = (int)k;
-                w->slots[cand[k].slot].reg = free_reg;
-            } else if (weakest >= 0 && cand[reg_slot_owner[weakest]].weight < cand[k].weight) {
-                w->slots[cand[reg_slot_owner[weakest]].slot].reg = -1;
-                reg_slot_owner[weakest] = (int)k;
-                w->slots[cand[k].slot].reg = weakest;
             }
         }
         for (k = 0; k < REG_COUNT; ++k) {
             reg_weight[k] = 0;
             reg_used[k] = -1;
         }
+        for (k = 0; k < XMM_COUNT; ++k) {
+            xmm_weight[k] = 0;
+            xmm_used[k] = -1;
+        }
         for (k = 0; k < ncand; ++k) {
             int r = w->slots[cand[k].slot].reg;
-            if (r >= 0) reg_weight[r] += cand[k].weight;
+            if (r < 0) continue;
+            if (cand[k].fl) xmm_weight[r] += cand[k].weight;
+            else reg_weight[r] += cand[k].weight;
         }
         for (k = 0; k < REG_COUNT; ++k) {
             if (reg_weight[k] >= MIN_REGISTER_WEIGHT) reg_used[k] = (int)used++;
         }
+        if (found_fp && found_setframe) {
+            for (k = 0; k < XMM_COUNT; ++k) {
+                if (xmm_weight[k] >= MIN_REGISTER_WEIGHT) xmm_used[k] = (int)xused++;
+            }
+        }
         for (k = 0; k < ncand; ++k) {
             int r = w->slots[cand[k].slot].reg;
-            if (r >= 0 && reg_used[r] < 0) w->slots[cand[k].slot].reg = -1;
+            if (r < 0) continue;
+            if (cand[k].fl ? xmm_used[r] < 0 : reg_used[r] < 0) w->slots[cand[k].slot].reg = -1;
         }
-        if (used == 0) safe = false;
+        if (used == 0 && xused == 0) safe = false;
     }
 
     if (!safe) {
@@ -580,7 +652,8 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
         return true;
     }
 
-    shift = (unsigned)(used * 8);
+    area = (unsigned)(xused * 16);
+    shift = (unsigned)(used * 8) + area;
     new_frame = frame + ((shift + frame) % 16 ? 8 : 0);
     for (i = first; i < end; ++i) {
         const char *line = l->text + l->start[i];
@@ -588,6 +661,23 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
         Ref refs[MAX_REFS];
         size_t nrefs, r, at = 0;
         if (i == marker) continue;
+        if (xused && i == p_fp) {
+            if (!buffer_format(out, "\tsubq $%u, %%rsp\n\t.seh_xmmarea %u\n", area, area) ||
+                !buffer_format(out, "\tleaq %u(%%rsp), %%rbp\n", area))
+                return false;
+            continue;
+        }
+        if (xused && i == p_setframe) {
+            size_t x;
+            if (!buffer_format(out, "\t.seh_setframe %%rbp, %u\n", area)) return false;
+            for (x = 0; x < XMM_COUNT; ++x) {
+                if (xmm_used[x] < 0) continue;
+                if (!buffer_format(out, "\tmovaps %s, %d(%%rsp)\n\t.seh_savexmm %s, %d\n",
+                                   XMM_NAMES[x], xmm_used[x] * 16, XMM_NAMES[x], xmm_used[x] * 16))
+                    return false;
+            }
+            continue;
+        }
         if (i == p_sub) {
             for (r = 0; r < REG_COUNT; ++r) {
                 if (reg_used[r] < 0) continue;
@@ -603,9 +693,15 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
             continue;
         }
         if (line_is(l, i, "\tleave")) {
+            for (r = 0; r < XMM_COUNT; ++r) {
+                if (xmm_used[r] < 0) continue;
+                if (!buffer_format(out, "\tmovaps -%u(%%rbp), %s\n", area - (unsigned)xmm_used[r] * 16,
+                                   XMM_NAMES[r]))
+                    return false;
+            }
             for (r = 0; r < REG_COUNT; ++r) {
                 if (reg_used[r] < 0) continue;
-                if (!buffer_format(out, "\tmovq -%d(%%rbp), %s\n", (reg_used[r] + 1) * 8,
+                if (!buffer_format(out, "\tmovq -%u(%%rbp), %s\n", area + (unsigned)(reg_used[r] + 1) * 8,
                                    REG_NAMES[r][0]))
                     return false;
             }
@@ -618,14 +714,23 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
         for (r = 0; r < nrefs; ++r) {
             unsigned offset = refs[r].offset;
             int reg = -1;
-            if (offset % 8 == 0 && offset / 8 < nslots) reg = w->slots[offset / 8].reg;
+            bool fl = false;
+            if (offset % 8 == 0 && offset / 8 < nslots) {
+                reg = w->slots[offset / 8].reg;
+                fl = w->slots[offset / 8].fl;
+            }
+            if (reg >= 0 && fl && at == 0 && len > 7 && memcmp(line, "\tmovsd ", 7) == 0) {
+                if (!buffer_add(out, "\tmovaps", 7)) return false;
+                at = 6;
+            }
             if (!buffer_add(out, line + at, refs[r].at - at)) return false;
             if (reg >= 0) {
                 Use use;
+                const char *name;
                 if (!classify_line(line, len, refs, nrefs, &use)) return false;
-                if (!buffer_add(out, REG_NAMES[reg][use.width == 64 ? 0 : use.width == 32 ? 1 : 2],
-                                strlen(REG_NAMES[reg][use.width == 64 ? 0 : use.width == 32 ? 1 : 2])))
-                    return false;
+                name = fl ? XMM_NAMES[reg]
+                          : REG_NAMES[reg][use.width == 64 ? 0 : use.width == 32 ? 1 : 2];
+                if (!buffer_add(out, name, strlen(name))) return false;
             } else if (!buffer_format(out, "-%u(%%rbp)", offset + shift)) {
                 return false;
             }

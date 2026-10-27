@@ -1,0 +1,104 @@
+// D-M1-80: float locals live in xmm registers. The cases that matter are more
+// live floats than registers (twelve in `many`), floats live across a
+// recursive call (`deep`), a fifth and sixth float argument (`mix`), a NaN
+// compare and a negation on a register-held value. The oracle and R6 print the
+// same eleven lines and exit 42.
+fn mix(a: float, b: float, c: float, d: float, e: float, f: float) -> float {
+    var s = a * 2.0 + b
+    var t = c - d
+    var u = e / 4.0
+    var v = f + 0.5
+    var i = 0
+    while i < 3 {
+        s = s + t * u
+        t = t + v
+        u = u - 0.25
+        v = v * 2.0
+        i = i + 1
+    }
+    return s + t + u + v
+}
+
+fn leaf(x: float) -> float {
+    val y = x * 3.0
+    val z = y - 1.0
+    return z * z
+}
+
+fn deep(n: int, acc: float) -> float {
+    val a = acc * 1.5
+    val b = acc + 2.0
+    if n == 0 {
+        return a + b
+    }
+    return deep(n - 1, a - b / 4.0) + a * b + leaf(b)
+}
+
+fn many(n: int) -> float {
+    var a = 1.0
+    var b = 2.0
+    var c = 3.0
+    var d = 4.0
+    var e = 5.0
+    var f = 6.0
+    var g = 7.0
+    var h = 8.0
+    var i = 9.0
+    var j = 10.0
+    var k = 11.0
+    var l = 12.0
+    var m = 0
+    while m < n {
+        a = a + b
+        b = b + c
+        c = c + d
+        d = d + e
+        e = e + f
+        f = f + g
+        g = g + h
+        h = h + i
+        i = i + j
+        j = j + k
+        k = k + l
+        l = l + a
+        m = m + 1
+    }
+    return a + b + c + d + e + f + g + h + i + j + k + l
+}
+
+fn main() -> int {
+    print(mix(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    print(deep(5, 1.0))
+    print(many(4))
+    var keep = 0.5
+    var sum = 0.0
+    var n = 0
+    while n < 4 {
+        sum = sum + leaf(keep)
+        keep = keep + 0.25
+        n = n + 1
+    }
+    print(sum)
+    print(keep)
+    val nan = 0.0 / 0.0
+    if nan == nan {
+        print(1)
+    } else {
+        print(0)
+    }
+    if nan < keep {
+        print(1)
+    } else {
+        print(0)
+    }
+    val neg = -keep
+    print(neg)
+    if neg < keep {
+        print(1)
+    } else {
+        print(0)
+    }
+    print(neg * neg)
+    print(keep / 0.0)
+    return 42
+}

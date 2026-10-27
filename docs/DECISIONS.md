@@ -3698,3 +3698,54 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-80 - Float slots live in xmm6-xmm14
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: every float went through its frame slot. The float benchmark of
+  `C:\Temp\pa\bench\floats.orb` (2e8 iterations of two dependent
+  multiply-add chains, 1e8 calls of a Horner polynomial) ran 5.23 s against
+  0.60 s for the oracle, because each operation stored and reloaded its value
+  through memory. The compiler has 22 `movsd` in 307 000 instructions, so its
+  own code does not change.
+- Decision:
+  - `regalloc.c` classifies each slot by the lines that name it. `movsd`,
+    `addsd`, `subsd`, `mulsd`, `divsd` and `ucomisd` make it a float slot;
+    `movq` against a general register is valid for both classes; `movl`,
+    `cmpl`, `addl` and the other integer forms make it an integer slot. A
+    slot with both kinds of use stays in memory.
+  - A float slot takes xmm6-xmm14 by the same interval scan as the integer
+    slots, and keeps the same weight threshold. xmm0-xmm3 and xmm15 stay the
+    generator's scratch registers; a function that names xmm6-xmm14 is not
+    touched. `movsd slot, %xmmN` becomes `movaps %xmmR, %xmmN`.
+  - The functions that use xmm registers allocate `16 * n` bytes right after
+    `pushq %rbp`, set the frame register to the area's top with
+    `leaq A(%rsp), %rbp`, and save the registers with `movaps` at
+    `0..16n(%rsp)`. The unwind info carries `UWOP_ALLOC_*` for the area,
+    `UWOP_SET_FPREG` with frame offset `A / 16` (at most 240 B, so at most 15
+    registers) and one `UWOP_SAVE_XMM128` per register. The slot area and the
+    callee-saved pushes lie below it; `leave` is preceded by the `movaps`
+    restores.
+  - The assembler gains `movaps` (`0F 28`, `0F 29`), `movq %xmm, %gpr`
+    (`66 REX.W 0F 7E`), xmm register sources for `movsd`, `addsd`..`divsd` and
+    `ucomisd`, REX for xmm8-xmm15, a general register source for `cvtsi2sdq`,
+    and the directives `.seh_xmmarea`, `.seh_savexmm` and
+    `.seh_setframe %rbp, N`.
+- `objdump -p` of the fixture's image decodes the codes as
+  `save xmm6 at rsp + 0x0` ... `FPReg: rbp = rsp + 0x70` for a function that
+  saves seven registers. No test unwinds through an R6 frame, so the restore of
+  xmm registers by the unwinder is read from that decoding and not run.
+- Fixture `84-float-registers` (oracle and R6 print `119.125 204.02347564697266
+  1336.0 13.375 1.5 0 0 -1.5 1 2.25 inf` one per line and exit 42): six float
+  arguments, twelve live floats in one loop, two floats live across a
+  recursive call, a NaN compare and a negation.
+- The oracle has a defect that the fixture avoids: `val r = deep(n - 1, x)`
+  declares `uintptr_t r` in the C for a recursive call that returns a float,
+  and the oracle then truncates the value (202.5 for the same program). R6
+  follows the IR type. The fixture adds the call result in one expression.
+- Benchmark `floats.ir`, best of 5: 5.23 s -> 1.26 s. `fib.ir`: unchanged
+  within noise.
+- Gates: differential **83/83**, loader **284/284**, corpus **115 build / 115
+  match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
+  `compiler/host/main.orb`.
+- Status: **applied**.

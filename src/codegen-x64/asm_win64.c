@@ -11,12 +11,20 @@ typedef struct { char name[160]; int sec; uint32_t off; int global; int symbol; 
 /* D-M1-68: the callee-saved registers a function pushes after `movq %rsp,
  * %rbp`, in prologue order, with the offset where each push ends. */
 #define MAX_SAVED_REGS 7
+/* D-M1-80: xmm6-xmm14 a function saves in an area of `area` bytes allocated
+ * right after `pushq %rbp`; the frame register points at the area's top, so
+ * `frame_off` is area / 16 and each save offset is from the area's base. */
+#define MAX_SAVED_XMM 9
 typedef struct {
     char name[160];
     uint32_t begin, end, push_end, fp_end, alloc_end, alloc;
     uint8_t saved_reg[MAX_SAVED_REGS];
     uint32_t saved_end[MAX_SAVED_REGS];
     size_t saved_count;
+    uint32_t area, area_end, frame_off;
+    uint8_t xmm_reg[MAX_SAVED_XMM];
+    uint32_t xmm_off[MAX_SAVED_XMM], xmm_end[MAX_SAVED_XMM];
+    size_t xmm_count;
 } Function;
 typedef struct { char name[160]; int sec; uint32_t off; uint16_t type; } Fixup;
 /* D-M1-63: labels, procedures, fixups and globals grow on the heap, and
@@ -209,6 +217,18 @@ static bool parse_rm(Asm *a, const char *s, int width, Mem *m) {
     return true;
 }
 
+/* A memory operand, or an xmm register where the instruction accepts either
+ * (D-M1-80). */
+static bool parse_xrm(Asm *a, const char *s, Mem *m) {
+    int w, x, id;
+    if (*s != '%') return parse_mem(a, s, m);
+    id = reg_id(s, &w, &x);
+    if (id < 0 || !x) return false;
+    m->base = id; m->rip = 0; m->reg = 1; m->byte = 0;
+    m->disp = 0; m->symbol = NULL;
+    return true;
+}
+
 static bool add_fixup(Asm *a, const char *name, int section, uint32_t off, uint16_t type) {
     Fixup *f;
     if (!grow_array((void **)&a->relocs, &a->reloc_cap, a->nrelocs + 1, sizeof *a->relocs))
@@ -224,6 +244,7 @@ static bool rex_modrm_mem(Asm *a, int width, int reg, Mem m, uint8_t opcode,
     if (m.reg) {
         int rex = width == 64 || rex_r || rex_b || (m.byte && m.base >= 4);
         if (prefix_66 && !emit(a, 0x66)) return false;
+        if (prefix_f2 && !emit(a, 0xf2)) return false;
         if (rex && !emit(a, (uint8_t)(0x40 | (width == 64 ? 8 : 0) | (rex_r ? 4 : 0) | (rex_b ? 1 : 0)))) return false;
         if (opcode2 >= 0 && !emit(a, (uint8_t)opcode2)) return false;
         return emit(a, opcode) && emit(a, (uint8_t)(0xc0 | ((reg & 7) << 3) | (m.base & 7)));
@@ -450,29 +471,34 @@ static bool encode(Asm *a, char *line) {
             !emit(a, 0x0f) || !emit(a, 0x6e)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
-    if (strcmp(op, "movsd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
+    if (strcmp(op, "movq") == 0 && id1 >= 0 && x1 && id2 >= 0 && !x2 && w2 == 64) {
+        if (!emit(a, 0x66) || !emit(a, (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3))) ||
+            !emit(a, 0x0f) || !emit(a, 0x7e)) return false;
+        return emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
+    }
+    if (strcmp(op, "movsd") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
         return rex_modrm_mem(a, 0, id2, m, 0x10, 0, 1, 0x0f);
     if (strcmp(op, "movsd") == 0 && id1 >= 0 && x1 && parse_mem(a, a2, &m))
         return rex_modrm_mem(a, 0, id1, m, 0x11, 0, 1, 0x0f);
-    if (strcmp(op, "movsd") == 0 && id1 >= 0 && x1 && id2 >= 0 && x2) {
-        if (!emit(a, 0xf2) || !emit(a, 0x0f) || !emit(a, 0x10)) return false;
-        return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
-    }
+    if (strcmp(op, "movaps") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
+        return rex_modrm_mem(a, 0, id2, m, 0x28, 0, 0, 0x0f);
+    if (strcmp(op, "movaps") == 0 && id1 >= 0 && x1 && parse_mem(a, a2, &m))
+        return rex_modrm_mem(a, 0, id1, m, 0x29, 0, 0, 0x0f);
     if (strcmp(op, "xorpd") == 0 && id1 >= 0 && x1 && id2 >= 0 && x2) {
         if (!emit(a, 0x66) || !emit(a, 0x0f) || !emit(a, 0x57)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
     if ((strcmp(op, "addsd") == 0 || strcmp(op, "subsd") == 0 ||
          strcmp(op, "mulsd") == 0 || strcmp(op, "divsd") == 0) &&
-        parse_mem(a, a1, &m) && id2 >= 0 && x2) {
+        id2 >= 0 && x2 && parse_xrm(a, a1, &m)) {
         uint8_t opcode = strcmp(op, "addsd") == 0 ? 0x58 :
                          strcmp(op, "subsd") == 0 ? 0x5c :
                          strcmp(op, "mulsd") == 0 ? 0x59 : 0x5e;
         return rex_modrm_mem(a, 0, id2, m, opcode, 0, 1, 0x0f);
     }
-    if (strcmp(op, "cvtsi2sdq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
+    if (strcmp(op, "cvtsi2sdq") == 0 && id2 >= 0 && x2 && parse_rm(a, a1, 64, &m))
         return rex_modrm_mem(a, 64, id2, m, 0x2a, 0, 1, 0x0f);
-    if (strcmp(op, "ucomisd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
+    if (strcmp(op, "ucomisd") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
         return rex_modrm_mem(a, 0, id2, m, 0x2e, 1, 0, 0x0f);
     if ((strcmp(op, "andb") == 0 || strcmp(op, "orb") == 0) && id1 >= 0 && id2 >= 0 && !x1 && !x2)
         return emit(a, strcmp(op, "andb") == 0 ? 0x20 : 0x08) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
@@ -641,7 +667,7 @@ static bool finalize_object(Asm *a) {
     for (i = 0; i < a->nfuncs; ++i) {
         Function *f = &a->funcs[i];
         char endname[192], uwname[192];
-        uint8_t unwind[40]; size_t count = 0, nslots, k;
+        uint8_t unwind[128]; size_t count = 0, nslots, k;
         int end_symbol, uw_symbol;
         int fi = find_label(a, f->name);
         if (fi < 0 || a->labels[fi].sec != 0 || f->end < f->begin)
@@ -654,8 +680,12 @@ static bool finalize_object(Asm *a) {
         if (!f->push_end || !f->fp_end || !f->alloc_end ||
             f->alloc < 8 || f->alloc > 524280 || (f->alloc & 7))
             return bad(a, "unsupported/invalid Win64 unwind prologue for '%s'", f->name);
+        if (f->area > 240 || (f->area & 15) || f->frame_off != f->area / 16 ||
+            f->xmm_count > MAX_SAVED_XMM || (f->area == 0) != (f->xmm_count == 0) ||
+            f->xmm_count * 16 != f->area || (f->area && !f->area_end))
+            return bad(a, "invalid xmm save area for '%s'", f->name);
         unwind[count++] = 1; unwind[count++] = (uint8_t)f->alloc_end;
-        unwind[count++] = 0; unwind[count++] = 5;
+        unwind[count++] = 0; unwind[count++] = (uint8_t)(5 | (f->frame_off << 4));
         if (f->alloc <= 128) {
             unwind[count++] = (uint8_t)f->alloc_end;
             unwind[count++] = (uint8_t)((((f->alloc - 8) / 8) << 4) | 2);
@@ -673,7 +703,26 @@ static bool finalize_object(Asm *a) {
             unwind[count++] = (uint8_t)((f->saved_reg[k] << 4) | 0);
             ++nslots;
         }
+        for (k = f->xmm_count; k-- > 0;) {
+            unwind[count++] = (uint8_t)f->xmm_end[k];
+            unwind[count++] = (uint8_t)((f->xmm_reg[k] << 4) | 8);
+            unwind[count++] = (uint8_t)(f->xmm_off[k] / 16);
+            unwind[count++] = (uint8_t)((f->xmm_off[k] / 16) >> 8);
+            nslots += 2;
+        }
         unwind[count++] = (uint8_t)f->fp_end; unwind[count++] = 3;
+        if (f->area) {
+            if (f->area <= 128) {
+                unwind[count++] = (uint8_t)f->area_end;
+                unwind[count++] = (uint8_t)((((f->area - 8) / 8) << 4) | 2);
+                ++nslots;
+            } else {
+                uint16_t scaled = (uint16_t)(f->area / 8);
+                unwind[count++] = (uint8_t)f->area_end; unwind[count++] = 1;
+                unwind[count++] = (uint8_t)scaled; unwind[count++] = (uint8_t)(scaled >> 8);
+                nslots += 2;
+            }
+        }
         unwind[count++] = (uint8_t)f->push_end; unwind[count++] = 0x50;
         unwind[2] = (uint8_t)nslots;
         if (nslots & 1) { unwind[count++] = 0; unwind[count++] = 0; }
@@ -726,6 +775,33 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
         if (strncmp(s, ".section .rdata", 15) == 0) { a.section = 1; continue; }
         if (strncmp(s, ".section .data", 14) == 0) { a.section = 4; continue; }
         if (strncmp(s, ".globl ", 7) == 0) { if (!add_global(&a.globals, trim(s + 7), &a)) goto fail; continue; }
+        if (strncmp(s, ".seh_setframe %rbp, ", 20) == 0 && strcmp(s, ".seh_setframe %rbp, 0") != 0) {
+            Function *f;
+            if (a.active_func < 0) { bad(&a, ".seh_setframe outside procedure"); goto fail; }
+            f = &a.funcs[a.active_func];
+            f->frame_off = (uint32_t)strtoul(s + 20, NULL, 10) / 16;
+            f->fp_end = (uint32_t)a.sec[0].n - f->begin; continue;
+        }
+        if (strncmp(s, ".seh_xmmarea ", 13) == 0) {
+            Function *f;
+            if (a.active_func < 0) { bad(&a, ".seh_xmmarea outside procedure"); goto fail; }
+            f = &a.funcs[a.active_func];
+            f->area = (uint32_t)strtoul(s + 13, NULL, 10);
+            f->area_end = (uint32_t)a.sec[0].n - f->begin; continue;
+        }
+        if (strncmp(s, ".seh_savexmm ", 13) == 0) {
+            Function *f;
+            int w, x, id;
+            char *comma = strchr(s + 13, ',');
+            if (a.active_func < 0 || !comma) { bad(&a, "invalid .seh_savexmm"); goto fail; }
+            *comma = 0;
+            id = reg_id(trim(s + 13), &w, &x);
+            f = &a.funcs[a.active_func];
+            if (id < 6 || !x || f->xmm_count >= MAX_SAVED_XMM) { bad(&a, "invalid .seh_savexmm register"); goto fail; }
+            f->xmm_reg[f->xmm_count] = (uint8_t)id;
+            f->xmm_off[f->xmm_count] = (uint32_t)strtoul(comma + 1, NULL, 10);
+            f->xmm_end[f->xmm_count++] = (uint32_t)a.sec[0].n - f->begin; continue;
+        }
         if (strncmp(s, ".def ", 5) == 0 || strcmp(s, ".seh_endprologue") == 0 ||
             strncmp(s, ".seh_pushreg ", 13) == 0 || strcmp(s, ".seh_setframe %rbp, 0") == 0) continue;
         if (strncmp(s, ".seh_proc ", 10) == 0) {

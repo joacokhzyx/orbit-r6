@@ -1682,3 +1682,20 @@ Ahora el prologo llama a `___chkstk_ms` (libgcc) con el frame mas 128 B antes
 del `subq`; sale 8 como el oraculo. Diferencial **82/82**; loader **284/284**;
 corpus **115 build / 115 match over 135 -> 115 / 115**; self-host C
 `54f0b797...`.
+
+## Actualizacion de M1 - Float slots live in xmm6-xmm14 (2026-10-27)
+
+D-M1-80. Cada float pasaba por su slot del frame: el benchmark `floats.orb`
+(2e8 iteraciones de dos cadenas multiplica-suma dependientes y 1e8 llamadas de
+un polinomio de Horner) tarda 5.23 s contra 0.60 s del oraculo. `regalloc.c`
+clasifica cada slot por las lineas que lo nombran (`movsd`, `addsd`..`divsd`,
+`ucomisd` lo hacen float) y asigna xmm6-xmm14 con el mismo escaneo de
+intervalos que los enteros. El prologo reserva el area de guardado tras
+`pushq %rbp`, fija el registro de frame con `leaq A(%rsp), %rbp` y el unwind
+lleva `UWOP_SAVE_XMM128` por registro y `UWOP_SET_FPREG` con offset `A / 16`.
+El par `84-float-registers` imprime once lineas y sale 42. Con el mismo
+benchmark: 5.23 s -> 1.26 s. El oraculo declara `uintptr_t` para `val r =
+deep(...)` cuando la llamada recursiva devuelve float y trunca el valor; el par
+suma la llamada en una expresion. Diferencial **83/83**; loader **284/284**;
+corpus **115 build / 115 match over 135 -> 115 / 115**; self-host C
+`54f0b797...`.
