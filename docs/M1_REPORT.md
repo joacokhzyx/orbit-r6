@@ -1671,3 +1671,14 @@ rechazaba. En C es `OrbitObject*`. Ahora `object` se escribe `void*` como una
 union y solo los 11 getters de `std/json/json.orb` pueden tomarlo o devolverlo
 en un extern. El par `82-json-object` imprime `api 42 1.5 1 7 6 b 9 0` y sale
 42; `std/test_json` construye y coincide. Diferencial **81/81**; loader **284/284**; corpus **114 build / 114 match over 135 -> 115 / 115**; censo **2/27**.
+
+## Actualizacion de M1 - A frame of one page or more is probed before rsp moves (2026-10-27)
+
+D-M1-79. Un frame de 4096 B o mas se reservaba con un `subq` sin sondeo y la
+imagen confirma 4 KB de pila, asi que un acceso a mas de una pagina bajo el
+extremo confirmado salta la pagina de guarda. El par `83-stack-probe` (`deep`
+con 4000 registros, 32 000 B, 8 niveles) sale 139 con el driver de `18b25e7`.
+Ahora el prologo llama a `___chkstk_ms` (libgcc) con el frame mas 128 B antes
+del `subq`; sale 8 como el oraculo. Diferencial **82/82**; loader **284/284**;
+corpus **115 build / 115 match over 135 -> 115 / 115**; self-host C
+`54f0b797...`.

@@ -3671,3 +3671,30 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **81/81**, loader **284/284**, corpus **114 build / 114 match over 135 -> 115 / 115**, census **2/27**,
   self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-79 - A frame of one page or more is probed before rsp moves
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `emit_function` reserved every frame with a plain `subq` and the
+  image commits 4 KB of stack (`SizeOfStackCommit` 0x1000). Windows grows the
+  stack one guard page at a time, so an access more than one page below the
+  committed end is an access violation. The compiler's largest frame is
+  29 544 B. A call pushes its return address at the new `rsp`, which is the far
+  end of the frame.
+- Measured before the change: the fixture `83-stack-probe` (`deep`, 4000
+  registers = 32 000 B, 8 deep) exits 139 with the driver of `18b25e7`. A frame
+  of 1400 registers (11 200 B) did not fault, and 2000 registers (16 000 B)
+  did.
+- Decision: a frame of 4096 B or more is preceded by `movl $<frame+128>, %eax`
+  and `call ___chkstk_ms` (libgcc, already on the link line as `-lgcc`). The
+  routine touches each page from the current `rsp` down and preserves every
+  register and the flags. The 128 bytes cover the callee-saved pushes that
+  `regalloc.c` adds. The call precedes `subq`, so the unwind codes are those of
+  D-M1-68 and the allocation still uses `UWOP_ALLOC_LARGE`.
+- Fixture `83-stack-probe` (hand-written IR, `deep` with `registerCount` 4000;
+  oracle and R6 exit 8): `deep` writes the last register first and recurses 8
+  times.
+- Gates: differential **82/82**, loader **284/284**, corpus **115 build / 115
+  match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
+  `compiler/host/main.orb`.
+- Status: **applied**.

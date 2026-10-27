@@ -2690,6 +2690,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     if (f->is_extern) return true;
     fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
+    /* D-M1-79: a frame of one page or more is touched page by page, top
+       down, before rsp moves; regalloc.c may add up to 14 pushes, so the
+       probe covers 128 bytes more. */
+    if (frame >= 4096) fprintf(o, "\tmovl $%zu, %%eax\n\tcall ___chkstk_ms\n", frame + 128);
     if (frame) fprintf(o, "\tsubq $%zu, %%rsp\n\t.seh_stackalloc %zu\n", frame, frame);
     fputs("\t.seh_endprologue\n", o);
     /* D-M1-68: where the plain 8-byte slots end and where the literal and

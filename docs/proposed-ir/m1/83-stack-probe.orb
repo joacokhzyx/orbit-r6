@@ -1,0 +1,13 @@
+// D-M1-79: a function whose frame is larger than one stack page, called
+// 8 deep. R6 reserves `deep` 32 000 bytes (4000 registers) and writes the
+// last register first. The oracle's frame is small; both exit 8.
+fn deep(n: int) -> int {
+    if n == 0 {
+        return 0
+    }
+    return deep(n - 1) + 1
+}
+
+fn main() -> int {
+    return deep(8)
+}
