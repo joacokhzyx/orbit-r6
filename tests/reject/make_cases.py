@@ -1129,16 +1129,16 @@ def build_reject():
                             ["result", "unknown", "int", "string"])])),
         "D-M1-43", "CGEN", "an unwrap whose local is loaded as two types stays unknown")
 
-    # ---- D-M1-44: a model return is the model pointer ------------------------
-    # The pin returns `Name*` for a model. A union value (a void* cell) as a
-    # return type stays refused.
-    mod = MOD([FN("mk", [I("call", 0, Str("Dot"), Int(0)), I("ret", -1, Reg(0))], ["void*"],
+    # ---- D-M1-55: a union return is its cell word ----------------------------
+    # The pin returns a union as its cell pointer (D-M1-44 refused it). The
+    # returned value must still be a void* word: an int stays refused.
+    mod = MOD([FN("mk", [I("load_const", 0, Int(1)), I("ret", -1, Reg(0))], ["int"],
                   rtype="void*"),
                MAIN()])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
                      "richVariants": [""], "methods": []}]
     add("x-return-union-cell", jd({"irVersion": "1", "module": mod}),
-        "D-M1-44", "CGEN", "a union cell return stays outside the subset")
+        "D-M1-55", "CGEN", "a union function returning an int register is refused")
 
     # ---- D-M1-45: a result local is a 24-byte cell ---------------------------
     # decl_var, store_var and load_var copy the whole OrbitResult; a value of
@@ -1864,6 +1864,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/62-union-named-payload.json",
              "run_exit": 42, "run_stdout": "named\r\n", "rule": "D-M1-54",
              "note": "model and union payloads travel as pointer words, alone and in a pack"},
+            {"file": "../../docs/proposed-ir/m1/63-union-return.json",
+             "run_exit": 42, "run_stdout": "shapes\r\n", "rule": "D-M1-55",
+             "note": "functions return union cells built, matched and passed through"},
         ],
     }
 

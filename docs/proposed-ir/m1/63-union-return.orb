@@ -1,0 +1,35 @@
+union Shape { Circle(int) Rect(int, int) Empty }
+
+fn make(kind: int, size: int) -> Shape {
+    if kind == 0 { return Circle(size) }
+    if kind == 1 { return Rect(size, size + 1) }
+    return Empty()
+}
+
+fn grow(s: Shape) -> Shape {
+    match s {
+        Circle(r) => { return Circle(r * 2) }
+        Rect(w, h) => { return Rect(h, w) }
+        Empty => { return s }
+    }
+    return s
+}
+
+fn area(s: Shape) -> int {
+    match s {
+        Circle(r) => { return r * r * 3 }
+        Rect(w, h) => { return w * h }
+        Empty => { return 0 }
+    }
+    return -1
+}
+
+fn main() -> int {
+    if area(make(0, 2)) != 12 { return 10 }
+    if area(make(1, 3)) != 12 { return 11 }
+    if area(make(2, 9)) != 0 { return 12 }
+    if area(grow(make(0, 1))) != 12 { return 13 }
+    if area(grow(grow(make(1, 4)))) != 20 { return 14 }
+    print("shapes")
+    return 42
+}

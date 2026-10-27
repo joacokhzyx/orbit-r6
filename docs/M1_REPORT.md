@@ -1376,3 +1376,13 @@ Diferencial **61/61**; loader **241/241** (164 rechazos + 77 controles); corpus
 `union_multi_payload`); censo **0/27**, y los 14 módulos de `ASTNode` pasan al
 primer rechazo de un campo de modelo de tipo unión. El trinquete se re-toma en
 97/97.
+
+## Actualización de M1 - una unión se devuelve como su celda (2026-10-27)
+
+D-M1-55. Una función puede devolver una unión: la celda de D-M1-12 vuelve en
+`rax` como cualquier puntero. D-M1-44 lo dejaba rechazado sin una medición que
+lo justificara. El par `63-union-return` lo mide: oráculo y R6 imprimen
+`shapes\r\n` y salen 42. Diferencial **62/62**; loader **242/242** (164
+rechazos + 78 controles); corpus **100 build / 100 match sobre 132 programas**
+(`mini_parser`, `union_bare_variant_pattern`, `union_payload_return`); censo
+**0/27**. El trinquete se re-toma en 100/100.

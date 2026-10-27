@@ -1061,8 +1061,8 @@
       "file": "cases/x-return-union-cell.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-44",
-      "note": "a union cell return stays outside the subset"
+      "rule": "D-M1-55",
+      "note": "a union function returning an int register is refused"
     },
     {
       "file": "cases/x-result-local-store-int.json",
@@ -1667,6 +1667,13 @@
       "run_stdout": "named\r\n",
       "rule": "D-M1-54",
       "note": "model and union payloads travel as pointer words, alone and in a pack"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/63-union-return.json",
+      "run_exit": 42,
+      "run_stdout": "shapes\r\n",
+      "rule": "D-M1-55",
+      "note": "functions return union cells built, matched and passed through"
     }
   ]
 }

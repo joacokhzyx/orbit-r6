@@ -1240,10 +1240,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
               is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc])))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     /* D-M1-44: a model return is the `Name*` the pin returns (mapTypeToC),
-     * one word in rax like any non-float return. A void* (union) return is
-     * still refused. */
-    if (is_void_ptr(f->return_type))
-        return fail(d, NULL, "CGEN", "returning void* values is not supported in M1");
+     * one word in rax like any non-float return. D-M1-55: a void* return (a
+     * union cell, D-M1-47) is the same word. */
     if (is_fn_type(f->return_type))
         return fail(d, NULL, "CGEN", "returning function values is not supported in M1");
     for (pc = 0; pc < f->instruction_count; ++pc) {

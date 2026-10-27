@@ -2829,3 +2829,28 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `IRValue` modules to `model IRInstruction field opcode has unsupported type
   IROpcode`.
 - Status: **applied**.
+
+## D-M1-55 - A union return is its cell word
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: D-M1-44 admitted model returns and kept a `void*` (union cell)
+  return refused, without a measured reason. `returning void* values is not
+  supported in M1` was the first refusal of `mini_parser`,
+  `union_bare_variant_pattern` and `union_payload_return` in the corpus; 41
+  compiler functions return `ASTNode` and 9 return `IRValue`.
+- Reference (pin `ca3eb91`): `mapTypeToC` gives a union `Name*`, a pointer
+  returned in `rax`.
+- Decision: a function may return `void*`, the D-M1-12 cell word of a union.
+  The `ret` of a word register already moves the slot into `rax`, a call
+  already stores `rax` into a `void*` destination, and a bare `ret` returns 0
+  (D-M1-49), the pin's `NULL`. Only the signature check changes.
+- Control: `x-return-union-cell` is retargeted from D-M1-44: a union function
+  whose `ret` returns an `int` register is refused.
+- Fixture `63-union-return`: a factory over three variants, a function that
+  re-builds or returns its argument, nested `grow(grow(make(...)))`. Oracle and
+  R6 both print `shapes\r\n` and exit 42.
+- Measured: differential **61/61 -> 62/62**; loader **241/241 -> 242/242**
+  (164 rejections + 78 controls); corpus **97 -> 100 build / 100 match over
+  132 programs** (`mini_parser`, `union_bare_variant_pattern`,
+  `union_payload_return`), none differing; census **0/27**, ratchet holds.
+- Status: **applied**.
