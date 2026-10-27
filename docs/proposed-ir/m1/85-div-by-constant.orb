@@ -1,0 +1,479 @@
+// D-M1-81: `n / K` and `n % K` for a constant K are a multiply and shifts.
+// Each `t_K` compares them with the same operation on a divisor that arrives
+// as a parameter, which stays a division, for edge values and a 32-bit
+// linear congruential sweep. The oracle and R6 print `0` mismatches, a checksum
+// of the quotients and remainders, and three sums at the edges, then exit 42.
+fn t_p2(n: int, k: int) -> int {
+    if n / 2 != n / k {
+        return 1
+    }
+    if n % 2 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p3(n: int, k: int) -> int {
+    if n / 3 != n / k {
+        return 1
+    }
+    if n % 3 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p5(n: int, k: int) -> int {
+    if n / 5 != n / k {
+        return 1
+    }
+    if n % 5 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p6(n: int, k: int) -> int {
+    if n / 6 != n / k {
+        return 1
+    }
+    if n % 6 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p7(n: int, k: int) -> int {
+    if n / 7 != n / k {
+        return 1
+    }
+    if n % 7 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p9(n: int, k: int) -> int {
+    if n / 9 != n / k {
+        return 1
+    }
+    if n % 9 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p10(n: int, k: int) -> int {
+    if n / 10 != n / k {
+        return 1
+    }
+    if n % 10 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p11(n: int, k: int) -> int {
+    if n / 11 != n / k {
+        return 1
+    }
+    if n % 11 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p12(n: int, k: int) -> int {
+    if n / 12 != n / k {
+        return 1
+    }
+    if n % 12 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p13(n: int, k: int) -> int {
+    if n / 13 != n / k {
+        return 1
+    }
+    if n % 13 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p25(n: int, k: int) -> int {
+    if n / 25 != n / k {
+        return 1
+    }
+    if n % 25 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p60(n: int, k: int) -> int {
+    if n / 60 != n / k {
+        return 1
+    }
+    if n % 60 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p100(n: int, k: int) -> int {
+    if n / 100 != n / k {
+        return 1
+    }
+    if n % 100 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p125(n: int, k: int) -> int {
+    if n / 125 != n / k {
+        return 1
+    }
+    if n % 125 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p641(n: int, k: int) -> int {
+    if n / 641 != n / k {
+        return 1
+    }
+    if n % 641 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p1000(n: int, k: int) -> int {
+    if n / 1000 != n / k {
+        return 1
+    }
+    if n % 1000 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p3600(n: int, k: int) -> int {
+    if n / 3600 != n / k {
+        return 1
+    }
+    if n % 3600 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p65535(n: int, k: int) -> int {
+    if n / 65535 != n / k {
+        return 1
+    }
+    if n % 65535 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p65536(n: int, k: int) -> int {
+    if n / 65536 != n / k {
+        return 1
+    }
+    if n % 65536 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p1000000(n: int, k: int) -> int {
+    if n / 1000000 != n / k {
+        return 1
+    }
+    if n % 1000000 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p1000000007(n: int, k: int) -> int {
+    if n / 1000000007 != n / k {
+        return 1
+    }
+    if n % 1000000007 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p2147483647(n: int, k: int) -> int {
+    if n / 2147483647 != n / k {
+        return 1
+    }
+    if n % 2147483647 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p1073741824(n: int, k: int) -> int {
+    if n / 1073741824 != n / k {
+        return 1
+    }
+    if n % 1073741824 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p1073741825(n: int, k: int) -> int {
+    if n / 1073741825 != n / k {
+        return 1
+    }
+    if n % 1073741825 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n2(n: int, k: int) -> int {
+    if n / -2 != n / k {
+        return 1
+    }
+    if n % -2 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n3(n: int, k: int) -> int {
+    if n / -3 != n / k {
+        return 1
+    }
+    if n % -3 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n5(n: int, k: int) -> int {
+    if n / -5 != n / k {
+        return 1
+    }
+    if n % -5 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n7(n: int, k: int) -> int {
+    if n / -7 != n / k {
+        return 1
+    }
+    if n % -7 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n10(n: int, k: int) -> int {
+    if n / -10 != n / k {
+        return 1
+    }
+    if n % -10 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n100(n: int, k: int) -> int {
+    if n / -100 != n / k {
+        return 1
+    }
+    if n % -100 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n641(n: int, k: int) -> int {
+    if n / -641 != n / k {
+        return 1
+    }
+    if n % -641 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n65536(n: int, k: int) -> int {
+    if n / -65536 != n / k {
+        return 1
+    }
+    if n % -65536 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n2147483647(n: int, k: int) -> int {
+    if n / -2147483647 != n / k {
+        return 1
+    }
+    if n % -2147483647 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p1(n: int, k: int) -> int {
+    if n / 1 != n / k {
+        return 1
+    }
+    if n % 1 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p4(n: int, k: int) -> int {
+    if n / 4 != n / k {
+        return 1
+    }
+    if n % 4 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p8(n: int, k: int) -> int {
+    if n / 8 != n / k {
+        return 1
+    }
+    if n % 8 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_p16(n: int, k: int) -> int {
+    if n / 16 != n / k {
+        return 1
+    }
+    if n % 16 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n4(n: int, k: int) -> int {
+    if n / -4 != n / k {
+        return 1
+    }
+    if n % -4 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n8(n: int, k: int) -> int {
+    if n / -8 != n / k {
+        return 1
+    }
+    if n % -8 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn t_n1073741824(n: int, k: int) -> int {
+    if n / -1073741824 != n / k {
+        return 1
+    }
+    if n % -1073741824 != n % k {
+        return 1
+    }
+    return 0
+}
+
+fn all(n: int) -> int {
+    var bad = 0
+    bad = bad + t_p2(n, 2)
+    bad = bad + t_p3(n, 3)
+    bad = bad + t_p5(n, 5)
+    bad = bad + t_p6(n, 6)
+    bad = bad + t_p7(n, 7)
+    bad = bad + t_p9(n, 9)
+    bad = bad + t_p10(n, 10)
+    bad = bad + t_p11(n, 11)
+    bad = bad + t_p12(n, 12)
+    bad = bad + t_p13(n, 13)
+    bad = bad + t_p25(n, 25)
+    bad = bad + t_p60(n, 60)
+    bad = bad + t_p100(n, 100)
+    bad = bad + t_p125(n, 125)
+    bad = bad + t_p641(n, 641)
+    bad = bad + t_p1000(n, 1000)
+    bad = bad + t_p3600(n, 3600)
+    bad = bad + t_p65535(n, 65535)
+    bad = bad + t_p65536(n, 65536)
+    bad = bad + t_p1000000(n, 1000000)
+    bad = bad + t_p1000000007(n, 1000000007)
+    bad = bad + t_p2147483647(n, 2147483647)
+    bad = bad + t_p1073741824(n, 1073741824)
+    bad = bad + t_p1073741825(n, 1073741825)
+    bad = bad + t_n2(n, -2)
+    bad = bad + t_n3(n, -3)
+    bad = bad + t_n5(n, -5)
+    bad = bad + t_n7(n, -7)
+    bad = bad + t_n10(n, -10)
+    bad = bad + t_n100(n, -100)
+    bad = bad + t_n641(n, -641)
+    bad = bad + t_n65536(n, -65536)
+    bad = bad + t_n2147483647(n, -2147483647)
+    bad = bad + t_p1(n, 1)
+    bad = bad + t_p4(n, 4)
+    bad = bad + t_p8(n, 8)
+    bad = bad + t_p16(n, 16)
+    bad = bad + t_n4(n, -4)
+    bad = bad + t_n8(n, -8)
+    bad = bad + t_n1073741824(n, -1073741824)
+    return bad
+}
+
+fn sum(n: int) -> int {
+    return n / 3 + n % 3 + n / 7 + n % 7 + n / 10 + n % 10 + n / 1000 + n % 1000 + n / 8 + n % 8
+}
+
+fn main() -> int {
+    val top = 2147483647
+    val low = 0 - top - 1
+    var bad = all(0) + all(1) + all(0 - 1) + all(top) + all(low) + all(top - 1) + all(low + 1)
+    var n = 0 - 300
+    while n <= 300 {
+        bad = bad + all(n)
+        n = n + 1
+    }
+    var x = 12345
+    var i = 0
+    var check = 0
+    while i < 3000 {
+        x = x * 1103515245 + 12345
+        bad = bad + all(x)
+        check = check + sum(x)
+        i = i + 1
+    }
+    print(bad)
+    print(check)
+    print(sum(low))
+    print(sum(top))
+    print(sum(0 - 7))
+    return 42
+}

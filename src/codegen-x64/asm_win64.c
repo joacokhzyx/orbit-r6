@@ -534,6 +534,15 @@ static bool encode(Asm *a, char *line) {
         if (imm <= 127) return emit(a, 0x48) && emit(a, 0x83) && emit(a, 0xec) && emit(a, (uint8_t)imm);
         return emit(a, 0x48) && emit(a, 0x81) && emit(a, 0xec) && emit32(a, (uint32_t)imm);
     }
+    if ((strcmp(op, "sarl") == 0 || strcmp(op, "shrl") == 0 || strcmp(op, "shll") == 0 ||
+         strcmp(op, "sarq") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2 &&
+        w2 == (op[3] == 'q' ? 64 : 32) && imm >= 1 && imm < (op[3] == 'q' ? 64u : 32u)) {
+        /* D-M1-81: C1 /7 sar, /5 shr, /4 shl, with an 8-bit count. */
+        Mem r = {0};
+        r.base = id2; r.reg = 1;
+        return rex_modrm_mem(a, op[3] == 'q' ? 64 : 32, op[1] == 'a' ? 7 : op[2] == 'r' ? 5 : 4,
+                             r, 0xc1, 0, 0, -1) && emit(a, (uint8_t)imm);
+    }
     (void)w1; (void)w2; (void)id1; (void)id2; (void)x1; (void)x2; (void)imm; (void)m;
     return bad(a, "unsupported Win64 assembler operands: %s %s, %s", op, a1, a2);
 }

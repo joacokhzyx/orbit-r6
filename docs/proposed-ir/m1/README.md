@@ -96,6 +96,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `82-json-object` | un objeto JSON parseado (`object`) ligado por `try`, pasado, devuelto y leido por cada getter, con el valor por defecto de una clave ausente; un extern fuera de los getters sigue rechazado | 42 | `api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n` |
 | `83-stack-probe` | un frame de 32 000 B (4000 registros) llamado 8 niveles, con el ultimo registro escrito primero; el prologo sondea las paginas con `___chkstk_ms` | 8 | vacío |
 | `84-float-registers` | seis argumentos float, doce floats vivos en un loop, dos floats vivos a traves de una llamada recursiva, comparacion con NaN y negacion; los floats viven en xmm6-xmm14 | 42 | `119.125\r\n204.02347564697266\r\n1336.0\r\n13.375\r\n1.5\r\n0\r\n0\r\n-1.5\r\n1\r\n2.25\r\ninf\r\n` |
+| `85-div-by-constant` | `/` y `%` por 40 constantes (positivas, negativas, potencias de dos, 2147483647) contra la division por un parametro, en valores limite, -300..300 y 3000 pasos de un generador congruencial; el numero magico no difiere de `idivl` | 42 | `0\r\n1300628442\r\n-1507943223\r\n1507943225\r\n-25\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los

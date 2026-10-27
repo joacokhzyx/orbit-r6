@@ -1699,3 +1699,17 @@ deep(...)` cuando la llamada recursiva devuelve float y trunca el valor; el par
 suma la llamada en una expresion. Diferencial **83/83**; loader **284/284**;
 corpus **115 build / 115 match over 135 -> 115 / 115**; self-host C
 `54f0b797...`.
+
+## Actualizacion de M1 - Division and remainder by a constant are a multiply and shifts (2026-10-27)
+
+D-M1-81. Cada `div` y `mod` era `cltd` + `idivl`. El benchmark `ints.orb` (1e9
+iteraciones con `i % 3` y `s % 1000`) tardaba 10.41 s contra 5.16 s del
+oraculo. Ahora un divisor constante (literal inline, o un registro definido por
+`load_const` o `neg` de uno en el mismo bloque recto) usa el numero magico con
+signo de Hacker's Delight 10-1, o desplazamientos para una potencia de dos; 0,
+-1 e INT_MIN siguen con `idivl`. `divtest.c` ejecuta la misma secuencia contra
+`/` y `%` de gcc con 329 divisores y no encuentra discrepancias. El par
+`85-div-by-constant` compara 40 divisores constantes con la division por un
+parametro y sale 42. `ints.ir`: 10.41 s -> 3.70 s. Diferencial **84/84**;
+loader **284/284**; corpus **115 build / 115 match over 135 -> 115 / 115**;
+self-host C `54f0b797...`.

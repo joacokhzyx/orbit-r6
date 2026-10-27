@@ -3749,3 +3749,40 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-81 - Division and remainder by a constant are a multiply and shifts
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: every `div` and `mod` was `cltd` + `idivl`, about 25 cycles. The
+  benchmark `ints.orb` (1e9 iterations with `i % 3` and `s % 1000`) ran 10.41 s
+  against 5.16 s for the oracle, whose gcc replaces the division by a multiply.
+- Decision:
+  - A divisor is constant when it is an inline int, or a register whose nearest
+    earlier definition in the straight-line code (no `label` between) is a
+    `load_const` or a `neg` of one. A divisor of 0, -1 or INT_MIN keeps
+    `idivl`, with its trap on INT_MIN / -1; the oracle's compiler refuses
+    `n / 0` at compile time.
+  - A divisor of 1 is a copy (`div`) or zero (`mod`). A power
+    of two `2^k` is `(n + ((n >> 31) >>> (32 - k))) >> k`, negated for a
+    negative divisor. Any other divisor uses the signed 32-bit magic number and
+    shift of Hacker's Delight 10-1: `imulq` of the sign-extended `n` by the
+    magic, `sarq $32`, a correction by `n` when the magic and the divisor differ
+    in sign, `sarl`, and the sign bit added.
+  - A remainder is `n - q * d` with `imull`, so it keeps the sign of `n`.
+  - The assembler gains `sarl`, `shrl`, `shll` and `sarq` with an 8-bit count
+    (`C1 /7`, `/5`, `/4`).
+- Measured outside R6 with `C:\Temp\r6-w\divtest.c`, which runs the same
+  sequence in C against `/` and `%` of gcc: 329 divisors (31 fixed, 298
+  pseudo-random across all bit lengths), the nine edge values, 200 000 random
+  dividends, the multiples of each divisor and their neighbours: 0
+  disagreements.
+- Fixture `85-div-by-constant` (oracle and R6 print `0`, `1300628442`,
+  `-1507943223`, `1507943225`, `-25` one per line and exit 42): 40 constant
+  divisors, positive and negative, powers of two, 2147483647, 1073741825, each
+  compared with a division whose divisor arrives as a parameter, over the edge
+  values, -300..300 and 3000 steps of a 32-bit linear congruential generator.
+- Benchmark `ints.ir`, best of 5: 10.41 s -> 3.70 s.
+- Gates: differential **84/84**, loader **284/284**, corpus **115 build / 115
+  match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
+  `compiler/host/main.orb`.
+- Status: **applied**.
