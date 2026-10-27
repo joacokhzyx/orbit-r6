@@ -34,6 +34,9 @@ static const char *type_at(const R6Function *f, int32_t reg) {
 
 static bool is_int(const char *t) { return t && strcmp(t, "int") == 0; }
 static bool is_float(const char *t) { return t && strcmp(t, "float") == 0; }
+static bool int_widens_to_float(const char *arg_type, const char *param_type) {
+    return is_int(arg_type) && is_float(param_type);
+}
 static bool is_string(const char *t) { return t && strcmp(t, "string") == 0; }
 static bool is_bool(const char *t) { return t && strcmp(t, "bool") == 0; }
 static bool is_list(const char *t) { return t && strcmp(t, "list") == 0; }
@@ -1928,7 +1931,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 for (k = 0; k < arity; ++k) {
                     const char *t;
                     R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
-                    if (!value_type(f, v, &t) || !same_type(t, callee->param_types[k]))
+                    if (!value_type(f, v, &t) ||
+                        !(same_type(t, callee->param_types[k]) ||
+                          int_widens_to_float(t, callee->param_types[k])))
                         return fail(d, i, "CGEN", "call argument %zu type does not match %s", k, callee->name);
                 }
                 if (is_void(callee->return_type)) {
@@ -2125,6 +2130,35 @@ static void emit_string(FILE *o, const char *s, unsigned long long id) {
         fprintf(o, "%u,", (unsigned)*p++);
     }
     fputs("0\n\t.text\n", o);
+}
+
+static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
+                          const char *type, size_t index, unsigned long long id);
+
+/* An int argument of a float parameter: the C backend casts each argument to
+ * the parameter's C type, so the callee receives `(orbit_float)(x)`. */
+static void emit_load_arg_as(FILE *o, const R6Function *f, const R6Value *v,
+                             const char *type, const char *param_type, size_t index,
+                             unsigned long long id) {
+    static const char *xmm[] = {"%xmm0", "%xmm1", "%xmm2", "%xmm3"};
+    if (!int_widens_to_float(type, param_type)) {
+        emit_load_arg(o, f, v, type, index, id);
+        return;
+    }
+    if (v->kind == R6_VAL_INT) {
+        R6Value w = *v;
+        double x = (double)v->as.i32;
+        w.kind = R6_VAL_FLOAT64;
+        memcpy(&w.as.f64_bits, &x, sizeof x);
+        emit_load_arg(o, f, &w, "float", index, id);
+        return;
+    }
+    if (index >= 4) {
+        fprintf(o, "\tcvtsi2sdq -%u(%%rbp), %%xmm15\n\tmovsd %%xmm15, %u(%%rsp)\n",
+                (unsigned)(v->as.i32 + 1) * 8, (unsigned)(32 + (index - 4) * 8));
+        return;
+    }
+    fprintf(o, "\tcvtsi2sdq -%u(%%rbp), %s\n", (unsigned)(v->as.i32 + 1) * 8, xmm[index]);
 }
 
 static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
@@ -3367,8 +3401,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         const R6Value *av = &args[base + k]->operands[0];
                         const char *at;
                         value_type(f, av, &at);
-                        emit_load_arg(o, f, av, at, k + hidden,
-                                      arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
+                        emit_load_arg_as(o, f, av, at, named->param_types[k], k + hidden,
+                                         arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }
                     fprintf(o, "\tcall %s\n",
                             strcmp(named->name, "main") == 0 ? "orbit_main" :

@@ -1,0 +1,22 @@
+// D-M1-73: an int argument of a float parameter widens at the call, as the C
+// backend casts every argument to the parameter's type. A literal, a register,
+// a negative value and a fifth argument (passed on the stack) are all measured.
+fn half(x: float) -> float {
+    return x / 2.0
+}
+
+fn mix(a: float, b: float, c: float, d: float, e: float) -> float {
+    return a + b + c + d + e
+}
+
+fn main() -> int {
+    val n = 7
+    val m = n + 1
+    print(half(3))
+    print(half(n))
+    print(half(m * 2))
+    print(half(0 - 5))
+    print(mix(1, n, 2.5, m, 4))
+    print(mix(n, 2, m, 3, n))
+    return 42
+}

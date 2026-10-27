@@ -470,6 +470,8 @@ static bool encode(Asm *a, char *line) {
                          strcmp(op, "mulsd") == 0 ? 0x59 : 0x5e;
         return rex_modrm_mem(a, 0, id2, m, opcode, 0, 1, 0x0f);
     }
+    if (strcmp(op, "cvtsi2sdq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
+        return rex_modrm_mem(a, 64, id2, m, 0x2a, 0, 1, 0x0f);
     if (strcmp(op, "ucomisd") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && x2)
         return rex_modrm_mem(a, 0, id2, m, 0x2e, 1, 0, 0x0f);
     if ((strcmp(op, "andb") == 0 || strcmp(op, "orb") == 0) && id1 >= 0 && id2 >= 0 && !x1 && !x2)

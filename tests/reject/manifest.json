@@ -1238,6 +1238,27 @@
       "code": "CGEN",
       "rule": "D-M1-65",
       "note": "a function main never reaches is still validated"
+    },
+    {
+      "file": "cases/x-call-bool-arg-to-float-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-73",
+      "note": "a bool argument does not widen to a float parameter"
+    },
+    {
+      "file": "cases/x-call-string-arg-to-float-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-73",
+      "note": "a string argument does not widen to a float parameter"
+    },
+    {
+      "file": "cases/x-call-float-arg-to-int-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-73",
+      "note": "a float argument does not narrow to an int parameter"
     }
   ],
   "accept": [
@@ -1841,6 +1862,13 @@
       "run_stdout": "8304\r\n610\r\n4356\r\n47\r\n25\r\n-1\r\n9\r\n240\r\n17\r\n",
       "rule": "D-M1-68",
       "note": "hot slots live in callee-saved registers; more slots than registers, recursion, nested loops, loop-carried values, early return and address-taken slots"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/77-int-arg-float-param.json",
+      "run_exit": 42,
+      "run_stdout": "1.5\r\n3.5\r\n8.0\r\n-2.5\r\n22.5\r\n27.0\r\n",
+      "rule": "D-M1-73",
+      "note": "an int literal or register widens to a float parameter, in registers and on the stack"
     }
   ]
 }

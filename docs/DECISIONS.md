@@ -3515,3 +3515,41 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **75/75**, loader **266/266**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
 - Status: **applied**.
+
+## D-M1-73 - An int argument of a float parameter widens at the call
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `suite/call_arg_types` passes `takesFloat(2)`. The call validator
+  required the argument type to equal the parameter type and refused with
+  `call argument 0 type does not match takesFloat`. The C backend casts each
+  argument to the parameter's C type, so the callee receives
+  `(orbit_float)(2)`; the test comment says "an int widens to a float in the
+  C backend".
+- Decision:
+  - A call to a declared function or runtime extern accepts an `int` argument
+    for a `float` parameter. An int literal becomes the double's bits at
+    compile time. An int register is converted with `cvtsi2sdq` into the
+    parameter's xmm register, or into `xmm15` and then the stack slot from the
+    fifth argument.
+  - No other pair widens. A bool, a string or a float argument for another
+    parameter type, and a float for an int parameter, keep the refusal.
+  - The assembler gains `cvtsi2sdq mem, %xmm` (`F2 REX.W 0F 2A /r`).
+- Out of scope: an arithmetic operation on an int and a float register
+  (`add supports matching int or float operands`) and the store of a float into
+  an int local (`suite/assignment_var_store`, see below).
+- Fixture `77-int-arg-float-param` (oracle and R6 print
+  `1.5\r\n3.5\r\n8.0\r\n-2.5\r\n22.5\r\n27.0\r\n` and exit 42): a literal, a
+  register, an expression, a negative value, and a fifth argument on the
+  stack. Negative controls `x-call-bool-arg-to-float-param`,
+  `x-call-string-arg-to-float-param`, `x-call-float-arg-to-int-param`.
+- `suite/assignment_var_store` is not an R6 gap. The source says
+  `var ratio: float = 1`; the IR carries `decl_var ratio Int:1` with no type,
+  and the C hoists `orbit_int ratio`, so `ratio = 2.5` stores 2 and the
+  float register that reads it back is `(orbit_float)(ratio)`. The oracle
+  exits 0 only because `3 > 2.0` still holds. Matching it needs a float to int
+  truncation on `store_var` and an int to float conversion on `load_var`
+  that the IR types contradict. The defect belongs to the emitter.
+- Gates: differential **76/76**, loader **270/270**, corpus **109 build / 109
+  match over 135 -> 110 / 110**, census **2/27**, self-host C
+  `54f0b797...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

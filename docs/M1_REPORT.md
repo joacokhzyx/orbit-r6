@@ -1609,3 +1609,16 @@ cerca del 16 % al 3 % de las muestras. El tiempo que queda en msvcrt es
 `memmove` (10,7 %) y `strlen` (4,6 %), llamados desde el runtime y desde
 `.len()` igual que en el oráculo. Diferencial **75/75**; loader **266/266**;
 corpus **109 build / 109 match sobre 135**; censo **2/27**.
+
+## Actualización de M1 - un argumento int ensancha a un parámetro float (2026-10-27)
+
+D-M1-73. `suite/call_arg_types` llama `takesFloat(2)`. El backend de C castea
+cada argumento al tipo C del parámetro, así que el callee recibe
+`(orbit_float)(2)`; el validador exigía tipos iguales. Ahora un argumento `int`
+(literal o registro) entra a un parámetro `float`: el literal se convierte en
+compilación y el registro con `cvtsi2sdq`. Ningún otro par ensancha. El par
+`77-int-arg-float-param` lo mide, con el quinto argumento en la pila: oráculo y
+R6 imprimen `1.5 3.5 8.0 -2.5 22.5 27.0` y salen 42. Diferencial **76/76**;
+loader **270/270**; corpus **110 build / 110 match sobre 135**; censo **2/27**.
+`suite/assignment_var_store` no es un hueco de R6: el IR no lleva la anotación
+`float` de la variable y el C la declara `orbit_int`.

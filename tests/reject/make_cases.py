@@ -1343,6 +1343,27 @@ def build_reject():
                               I("ret", -1, Reg(1))], ["string", "int"])])),
         "D-M1-65", "CGEN", "a function main never reaches is still validated")
 
+    # ---- D-M1-73: an int argument widens to a float parameter, nothing else --
+    def float_param_fn():
+        return FN("takes", [I("arg", 0, Int(0)), I("ret", -1, Int(0))],
+                  ["float"], params=["a"], ptypes=["float"])
+
+    add("x-call-bool-arg-to-float-param",
+        jd(DOC([float_param_fn(), MAIN([I("arg", -1, Bool(True)),
+                                        I("call", 0, Str("takes"), Int(1)),
+                                        I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-73", "CGEN", "a bool argument does not widen to a float parameter")
+    add("x-call-string-arg-to-float-param",
+        jd(DOC([float_param_fn(), MAIN([I("arg", -1, Str("x")),
+                                        I("call", 0, Str("takes"), Int(1)),
+                                        I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-73", "CGEN", "a string argument does not widen to a float parameter")
+    add("x-call-float-arg-to-int-param",
+        jd(DOC([one_arg_fn(), MAIN([I("arg", -1, Flt(1.5)),
+                                    I("call", 0, Str("one"), Int(1)),
+                                    I("ret", -1, Reg(0))], ["int"])])),
+        "D-M1-73", "CGEN", "a float argument does not narrow to an int parameter")
+
     return cases
 
 
@@ -2011,6 +2032,11 @@ def build_manifest(reject, accept_files):
              "run_stdout": "8304\r\n610\r\n4356\r\n47\r\n25\r\n-1\r\n9\r\n240\r\n17\r\n" ,
              "rule": "D-M1-68",
              "note": "hot slots live in callee-saved registers; more slots than registers, recursion, nested loops, loop-carried values, early return and address-taken slots"},
+            {"file": "../../docs/proposed-ir/m1/77-int-arg-float-param.json",
+             "run_exit": 42,
+             "run_stdout": "1.5\r\n3.5\r\n8.0\r\n-2.5\r\n22.5\r\n27.0\r\n",
+             "rule": "D-M1-73",
+             "note": "an int literal or register widens to a float parameter, in registers and on the stack"},
         ],
     }
 
