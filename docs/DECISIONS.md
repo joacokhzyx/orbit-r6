@@ -3622,3 +3622,28 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **79/79**, loader **278/278**, corpus **113 build / 113 match over 135 -> 114 / 114**, census **2/27**,
   self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-77 - An int pushed into a list<float> converts to a float
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17).
+- Root cause: `suite/list_element_type_annotation` pushes `xs.push(1)` into a
+  `list<float>`. The push carries elemKind 3 and an int register, and R6
+  refused it (`list_push requires a list register and a value register
+  matching elemKind 1..5`). The oracle C is
+  `orbit_list_push_float(list, (orbit_float)(r_2))`.
+- Decision: `list_push` with elemKind 3 accepts an int register and converts it
+  with `cvtsi2sdq` into `xmm2`. A bool or a string for elemKind 3 and a float
+  for elemKind 2 keep the refusal. `list_set` is unchanged.
+- Fixture `81-float-list-int-push` (oracle and R6 print `4 1.0 7.0 2.5 14.0`
+  one per line and exit 42): a literal, a register, an expression and a float
+  pushed into one list.
+- `suite/list_element_type_annotation` still does not build, and the cause is
+  in the emitter. In `rebindingForgetsTheAdoptedType`, after `slot = []`,
+  `slot.push("now a string")` is emitted with elemKind 2 and a string value
+  register, and the oracle C is `orbit_list_push_int(list,
+  (orbit_int)(uintptr_t)(r_10))`: it stores a 32-bit truncation of a string
+  pointer. The test passes only because it reads the length. The element kind
+  of the push should be 1. R6 refuses the pair, as `x-list-push-*` pins.
+- Gates: differential **80/80**, loader **281/281**, corpus **114 build / 114 match over 135 -> 114 / 114**, census **2/27**,
+  self-host C `54f0b797...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

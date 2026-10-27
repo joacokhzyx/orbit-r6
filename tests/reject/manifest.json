@@ -1294,6 +1294,20 @@
       "code": "CGEN",
       "rule": "D-M1-76",
       "note": "a result register does not copy into an int register"
+    },
+    {
+      "file": "cases/x-list-push-bool-into-float.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-77",
+      "note": "a bool does not widen into a float list"
+    },
+    {
+      "file": "cases/x-list-push-float-into-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-77",
+      "note": "a float does not narrow into an int list"
     }
   ],
   "accept": [
@@ -1925,6 +1939,13 @@
       "run_stdout": "41\r\n13\r\n41\r\n13\r\n5\r\n",
       "rule": "D-M1-76",
       "note": "an if used as a value copies the result of the branch that ran, also nested"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/81-float-list-int-push.json",
+      "run_exit": 42,
+      "run_stdout": "4\r\n1.0\r\n7.0\r\n2.5\r\n14.0\r\n",
+      "rule": "D-M1-77",
+      "note": "an int literal or register pushed into a list<float> converts to a float"
     }
   ]
 }

@@ -1,0 +1,17 @@
+// D-M1-77: pushing an int into a list<float> converts it on the way in, as the
+// C backend casts the value to the element type. A literal, a register and a
+// float pushed beside them are measured.
+fn main() -> int {
+    val xs: list<float> = []
+    val n = 7
+    xs.push(1)
+    xs.push(n)
+    xs.push(2.5)
+    xs.push(n * 2)
+    print(xs.len())
+    print(xs.get(0))
+    print(xs.get(1))
+    print(xs.get(2))
+    print(xs.get(3))
+    return 42
+}

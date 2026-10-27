@@ -1651,3 +1651,14 @@ al registro que lee el binding, y el opcode aceptaba solo escalares. Ahora copia
 la celda de 24 bytes. El par `80-result-branch-value` mide dos ramas con llamado
 y una eleccion anidada que termina en `ok(5)`: oraculo y R6 imprimen `41 13 41
 13 5` y salen 42. Diferencial **79/79**; loader **278/278**; corpus **113 build / 113 match over 135 -> 114 / 114**; censo **2/27**.
+
+## Actualizacion de M1 - An int pushed into a list<float> converts to a float (2026-10-27)
+
+D-M1-77. `suite/list_element_type_annotation` empuja `xs.push(1)` en un
+`list<float>`: elemKind 3 con un registro int, que R6 rechazaba. El C del oraculo
+es `orbit_list_push_float(list, (orbit_float)(r_2))`. Ahora el push convierte con
+`cvtsi2sdq`. Un bool o un string para elemKind 3 y un float para elemKind 2
+siguen rechazados. El par `81-float-list-int-push` imprime `4 1.0 7.0 2.5 14.0`.
+El programa del corpus sigue sin construir por un defecto del emisor: tras
+`slot = []`, `slot.push("now a string")` sale con elemKind 2 y el C llama a
+`orbit_list_push_int` con un puntero a string truncado a 32 bits. Diferencial **80/80**; loader **281/281**; corpus **114 build / 114 match over 135 -> 114 / 114**; censo **2/27**.

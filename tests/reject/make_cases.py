@@ -1397,6 +1397,20 @@ def build_reject():
                      ["int", "result", "int"])])),
         "D-M1-76", "CGEN", "a result register does not copy into an int register")
 
+    # ---- D-M1-77: an int widens into a float list, nothing else --------------
+    add("x-list-push-bool-into-float",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=3),
+                      I("load_const", 1, Bool(True)),
+                      I("list_push", -1, Reg(0), Reg(1), ek=3),
+                      I("ret", -1, Int(0))], ["list", "bool"])])),
+        "D-M1-77", "CGEN", "a bool does not widen into a float list")
+    add("x-list-push-float-into-int",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=2),
+                      I("load_const", 1, Flt(1.5)),
+                      I("list_push", -1, Reg(0), Reg(1), ek=2),
+                      I("ret", -1, Int(0))], ["list", "float"])])),
+        "D-M1-77", "CGEN", "a float does not narrow into an int list")
+
     return cases
 
 
@@ -2085,6 +2099,11 @@ def build_manifest(reject, accept_files):
              "run_stdout": "41\r\n13\r\n41\r\n13\r\n5\r\n",
              "rule": "D-M1-76",
              "note": "an if used as a value copies the result of the branch that ran, also nested"},
+            {"file": "../../docs/proposed-ir/m1/81-float-list-int-push.json",
+             "run_exit": 42,
+             "run_stdout": "4\r\n1.0\r\n7.0\r\n2.5\r\n14.0\r\n",
+             "rule": "D-M1-77",
+             "note": "an int literal or register pushed into a list<float> converts to a float"},
         ],
     }
 

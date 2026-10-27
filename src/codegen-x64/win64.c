@@ -1589,6 +1589,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_list(type_at(f, i->operands[0].as.i32)) ||
                 !vt || !(elem_matches(m, i->elem_kind, vt) ||
+                         (i->elem_kind == 3 && is_int(vt)) ||
                          (i->elem_kind == 0 && opaque_word_type(m, vt))) ||
                 (i->has_dest && !is_void(type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "list_push requires a list register and a value register matching elemKind 1..5");
@@ -2861,7 +2862,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n",
                     scratch, list_off);
-            if (i->elem_kind == 3)
+            if (i->elem_kind == 3 && is_int(type_at(f, i->operands[1].as.i32)))
+                fprintf(o, "\tcvtsi2sdq -%u(%%rbp), %%xmm2\n", value_off);
+            else if (i->elem_kind == 3)
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm2\n", value_off);
             else if (i->elem_kind == 4)
                 fprintf(o, "\tmovl -%u(%%rbp), %%r8d\n", value_off);

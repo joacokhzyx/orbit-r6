@@ -92,6 +92,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `78-union-wide-pack` | variantes de tres y cuatro payloads (`Bin(Op, int, int)`, `Cell(int, bool, string, int)`, `Span(bool, int, int, bool)`): relleno entre bool e int, un payload union leido y comparado; cinco payloads siguen rechazados | 42 | `9\r\n5\r\n20\r\n0\r\nwide\r\n41\r\nnarrow\r\n-23\r\n103\r\n997\r\n` |
 | `79-result-parameter` | un `result` como argumento de una funcion Orbit: por puntero a copia en registro y en la pila, leido dos veces y reenviado; un extern o un literal siguen rechazados | 42 | `41\r\n-1\r\n42\r\n102\r\n9\r\n41\r\n51\r\n9\r\n82\r\n8\r\n41\r\n` |
 | `80-result-branch-value` | un `if` usado como valor copia el result de la rama que corrio, tambien anidado; un `copy` entre un result y un int sigue rechazado | 42 | `41\r\n13\r\n41\r\n13\r\n5\r\n` |
+| `81-float-list-int-push` | un `int` (literal, registro, expresion) empujado a un `list<float>` se convierte a float; un bool o un string siguen rechazados | 42 | `4\r\n1.0\r\n7.0\r\n2.5\r\n14.0\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los
