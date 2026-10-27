@@ -1,0 +1,35 @@
+model Node {
+    value: int
+    next: Node
+}
+
+fn none() -> Node {
+    return NULL
+}
+
+fn depth(n: Node) -> int {
+    var count = 0
+    var cur = n
+    while cur != NULL {
+        count = count + 1
+        cur = cur.next
+    }
+    return count
+}
+
+fn same(a: Node, b: Node) -> bool {
+    return a == b
+}
+
+fn main() -> int {
+    val tail = Node { value: 3, next: none() }
+    val second = Node { value: 2, next: tail }
+    val head = Node { value: 1, next: second }
+    if depth(head) != 3 { return 10 }
+    if depth(tail) != 1 { return 11 }
+    if depth(none()) != 0 { return 12 }
+    if !same(head, head) { return 14 }
+    if same(head, second) { return 15 }
+    print("null")
+    return 42
+}

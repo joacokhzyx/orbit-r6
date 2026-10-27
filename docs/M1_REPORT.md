@@ -1417,3 +1417,12 @@ quedan afuera. El par `66-opaque-lists` lo mide: oráculo y R6 imprimen
 rechazos + 81 controles); corpus **104 build / 104 match sobre 132 programas**
 (`generic_nested_argument`); censo **0/27**. El trinquete se re-toma en
 104/104.
+
+## Actualización de M1 - NULL es la palabra cero (2026-10-27)
+
+D-M1-59. El literal `NULL` carga la palabra cero en un registro `void*`; `eq`
+y `ne` entre dos punteros (lista, modelo o celda) comparan las palabras; una
+función de modelo puede devolver `NULL`. El par `67-null-words` lo mide:
+oráculo y R6 imprimen `null\r\n` y salen 42. Diferencial **66/66**; loader
+**252/252** (170 rechazos + 82 controles); corpus **104/104** sin cambios;
+censo **0/27**.

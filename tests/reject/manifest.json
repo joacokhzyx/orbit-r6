@@ -1168,6 +1168,27 @@
       "code": "CGEN",
       "rule": "D-M1-56",
       "note": "an int passed for a union field is refused"
+    },
+    {
+      "file": "cases/x-null-into-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-59",
+      "note": "the NULL literal requires a void* destination"
+    },
+    {
+      "file": "cases/x-eq-word-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-59",
+      "note": "a model compared with an int is refused"
+    },
+    {
+      "file": "cases/x-ret-cell-from-model-fn.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-59",
+      "note": "a model function returns NULL, not any void* word"
     }
   ],
   "accept": [
@@ -1716,6 +1737,13 @@
       "run_stdout": "second\r\n",
       "rule": "D-M1-58",
       "note": "untyped lists take int, string and list words through orbit_list_push"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/67-null-words.json",
+      "run_exit": 42,
+      "run_stdout": "null\r\n",
+      "rule": "D-M1-59",
+      "note": "NULL ends a linked list, models compare as words, a model function returns NULL"
     }
   ]
 }

@@ -78,6 +78,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `64-model-word-fields` | campos de modelo que son un modelo o una unión: una palabra puntero que se construye, se lee y se reescribe | 42 | `ab\r\n` |
 | `65-ref-lists` | listas de referencias (`elemKind 5`): modelos y uniones se agregan, leen, reemplazan y quitan como palabras puntero | 42 | `a\r\n` |
 | `66-opaque-lists` | listas sin tipo (`elemKind 0`): se agregan y reemplazan `int`, `string` y listas como la palabra que copia `orbit_list_push`, y se leen según el destino | 42 | `second\r\n` |
+| `67-null-words` | `NULL` es la palabra cero: termina una lista enlazada, se devuelve desde una función de modelo, y `eq`/`ne` entre modelos compara punteros | 42 | `null\r\n` |
 
 Orbit no incluye emisor IR en el pin. Los primeros cinco ejemplos manuales
 fueron aceptados por el usuario para IRv1; los casos 06-43 amplían la

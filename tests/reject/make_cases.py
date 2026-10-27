@@ -1283,6 +1283,24 @@ def build_reject():
                            I("ret", -1, Int(0))], ["Leaf", "Node"])])),
         "D-M1-56", "CGEN", "an int passed for a union field is refused")
 
+    # ---- D-M1-59: NULL is the zero word; pointer words compare ---------------
+    # NULL only fills a void* register, a word compares only with a word, and
+    # a model function returns only NULL or a value of its type.
+    add("x-null-into-int",
+        jd(DOC([MAIN([I("load_const", 0, Sym("NULL")), I("ret", -1, Int(0))], ["int"])])),
+        "D-M1-59", "CGEN", "the NULL literal requires a void* destination")
+    add("x-eq-word-int",
+        jd(node_mod([MAIN([I("arg", -1, Int(1)), I("call", 0, Str("Leaf"), Int(1)),
+                           I("load_const", 1, Int(0)),
+                           I("eq", 2, Reg(0), Reg(1)),
+                           I("ret", -1, Int(0))], ["Leaf", "int", "bool"])])),
+        "D-M1-59", "CGEN", "a model compared with an int is refused")
+    add("x-ret-cell-from-model-fn",
+        jd(node_mod([FN("mk", [I("call", 0, Str("Hit"), Int(0)), I("ret", -1, Reg(0))],
+                        ["void*"], rtype="Leaf"),
+                     MAIN()])),
+        "D-M1-59", "CGEN", "a model function returns NULL, not any void* word")
+
     return cases
 
 
@@ -1914,6 +1932,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/66-opaque-lists.json",
              "run_exit": 42, "run_stdout": "second\r\n", "rule": "D-M1-58",
              "note": "untyped lists take int, string and list words through orbit_list_push"},
+            {"file": "../../docs/proposed-ir/m1/67-null-words.json",
+             "run_exit": 42, "run_stdout": "null\r\n", "rule": "D-M1-59",
+             "note": "NULL ends a linked list, models compare as words, a model function returns NULL"},
         ],
     }
 

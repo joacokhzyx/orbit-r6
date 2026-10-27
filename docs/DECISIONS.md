@@ -2953,3 +2953,36 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   first refusals `register type unknown` 17, `no non-extern main` 8,
   `main must have no parameters` 1, `register type NULL` 1.
 - Status: **applied**.
+
+## D-M1-59 - NULL is the zero word and pointer words compare
+
+- Date: 2026-10-27. Pin: `ca3eb91` (D-F0-16).
+- Root cause: the builder loads the `NULL` literal as `load_const Sym:"NULL"`
+  into a register typed `"NULL"`. R6 read the symbol as a function value and
+  refused the type. The compiler's IR at orbit-lang `bd60022` has 108 such
+  loads: 101 feed an `eq`/`ne` against a model, a union or a list, 6 a `ret`
+  and one a `list_push`. `eq`/`ne` between two pointer words were refused
+  too; `compiler/ir/cteval.orb` stopped at `register type NULL`.
+- Reference (pin `ca3eb91`): `mapTypeToC` declares `"NULL"` as `void*`
+  (`c_backend.orb:472`), the literal is the C `NULL`, and `eq`/`ne` compare
+  `(uintptr_t)a == (uintptr_t)b` when neither side is a string or a float.
+- Decision: the register spelling `"NULL"` is `void*`, and `load_const NULL`
+  stores the zero word. `eq` and `ne` admit two pointer words (a `list`, a
+  model or a `void*` cell) and lower to the 64-bit `cmpq` the int compare
+  already uses. A function returning a model, a list or a union may return a
+  register whose only definition is `load_const NULL`.
+- Controls: `x-null-into-int` (NULL into an `int` register),
+  `x-eq-word-int` (a model compared with an `int`) and
+  `x-ret-cell-from-model-fn` (a union cell returned from a model function)
+  stay refused.
+- Fixture `67-null-words`: a linked list ended by `NULL` from a model
+  function, walked with `cur != NULL`, and models compared with `==`. Oracle
+  and R6 both print `null\r\n` and exit 42. Building the fixture found an
+  oracle defect: a local named `mid` holding a model is assigned through
+  `(orbit_int)(uintptr_t)` and the walk faults, so the fixture names it
+  `second`.
+- Measured: differential **65/65 -> 66/66**; loader **248/248 -> 252/252**
+  (170 rejections + 82 controls); corpus **104 build / 104 match over 132
+  programs**, no verdict moves; census **0/27**, `compiler/ir/cteval.orb`
+  moves from `register type NULL` to `register type unknown`.
+- Status: **applied**.

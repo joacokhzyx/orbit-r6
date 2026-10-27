@@ -120,15 +120,20 @@ static bool is_enum_type(const R6Module *m, const char *t) {
  * same pointer word D-M1-12 already gives a union value, typed void*. The
  * type table keeps the name, which resolves `Name_TAG_Variant`. */
 static char *canonical_union_spelling(const R6Module *m, char *t) {
-    size_t n;
+    size_t n = 0;
     char *out;
-    if (!m || !t || !m->types) return t;
-    for (n = 0; n < m->type_count; ++n)
-        if (m->types[n].name && m->types[n].kind &&
-            strcmp(m->types[n].kind, "union_type") == 0 &&
-            strcmp(m->types[n].name, t) == 0)
-            break;
-    if (n == m->type_count) return t;
+    if (!m || !t) return t;
+    /* D-M1-59: the builder types the `NULL` literal's register "NULL", which
+       mapTypeToC declares `void*` (c_backend.orb:472). */
+    if (strcmp(t, "NULL") != 0) {
+        if (!m->types) return t;
+        for (n = 0; n < m->type_count; ++n)
+            if (m->types[n].name && m->types[n].kind &&
+                strcmp(m->types[n].kind, "union_type") == 0 &&
+                strcmp(m->types[n].name, t) == 0)
+                break;
+        if (n == m->type_count) return t;
+    }
     out = malloc(sizeof "void*");
     if (!out) return t; /* keep the spelling: the register gate fails closed */
     strcpy(out, "void*");
@@ -224,6 +229,16 @@ static void canonicalize_enum_types(R6Module *m) {
  * word fallthrough (`n == "5"` is false in tests/suite/peephole_folds.orb).
  * Requirement: float still needs both sides typed float, because the emitter
  * has no int-to-double conversion. */
+static bool is_null_symbol(const R6Value *v) {
+    return v->kind == R6_VAL_SYMBOL && v->as.string && strcmp(v->as.string, "NULL") == 0;
+}
+
+/* D-M1-59: eq/ne between two pointer words (a list, a model, a union cell or
+ * NULL) compare the words, `(uintptr_t)a == (uintptr_t)b` in the pin
+ * (c_backend.orb eq/ne arms). The lowering is the 64-bit cmpq already used for
+ * ints. */
+static bool word_compare_ok(const R6Module *m, const char *a, const char *b);
+
 static bool comparison_types_ok(const char *a, const char *b, bool allow_string) {
     bool a_num = is_int(a) || is_bool(a);
     bool b_num = is_int(b) || is_bool(b);
@@ -335,6 +350,25 @@ static bool is_model_type(const R6Module *m, const char *t);
  * orbit_list_push_ref/orbit_list_set_ref (c_backend.orb:605-662). */
 static bool ref_elem_type(const R6Module *m, const char *type) {
     return is_list(type) || is_void_ptr(type) || is_model_type(m, type);
+}
+
+/* D-M1-59: a register whose only definition is `load_const NULL`. The pin
+ * returns it as `NULL` from a function of any pointer type. */
+static bool null_register(const R6Function *f, const R6Value *v) {
+    size_t pc, defs = 0;
+    bool null_def = false;
+    if (v->kind != R6_VAL_REG) return false;
+    for (pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *i = &f->instructions[pc];
+        if (!i->has_dest || i->dest != v->as.i32) continue;
+        ++defs;
+        null_def = i->opcode == R6_OP_LOAD_CONST && is_null_symbol(&i->operands[0]);
+    }
+    return defs == 1 && null_def;
+}
+
+static bool word_compare_ok(const R6Module *m, const char *a, const char *b) {
+    return ref_elem_type(m, a) && ref_elem_type(m, b);
 }
 
 static bool elem_matches(const R6Module *m, int kind, const char *type) {
@@ -1297,6 +1331,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 /* Spec 2.1: a bool or float literal arrives as `Sym` text and
                    must still match the destination register's type. */
                 if (!validate_value_for_register(f, &lit, i->dest, i, d)) return false;
+            } else if (is_null_symbol(&i->operands[0])) {
+                /* D-M1-59: `NULL` is the zero word of a void* register. */
+                if (!is_void_ptr(type_at(f, i->dest)))
+                    return fail(d, i, "CGEN", "the NULL literal requires a void* destination");
             } else if (i->operands[0].kind == R6_VAL_SYMBOL) {
                 /* Function value: the symbol names a module function whose
                    signature spelling must equal the destination's type. */
@@ -1524,14 +1562,15 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
             if (!is_bool(type_at(f, i->dest)) ||
-                !comparison_types_ok(a, b, true))
+                !(comparison_types_ok(a, b, true) || word_compare_ok(m, a, b)))
                 return fail(d, i, "CGEN", "eq and ne require int, float, bool, or string operands and a bool destination; a string is compared with strcmp only against another string");
             break;
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
             if (!is_bool(type_at(f, i->dest)) ||
-                !comparison_types_ok(a, b, i->opcode == R6_OP_NE))
+                !(comparison_types_ok(a, b, i->opcode == R6_OP_NE) ||
+                  (i->opcode == R6_OP_NE && word_compare_ok(m, a, b))))
                 return fail(d, i, "CGEN", "relational ops require int, float, or bool operands and a bool destination; ne also takes strings");
             break;
         case R6_OP_AND_OP: case R6_OP_OR_OP:
@@ -1821,7 +1860,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             }
             if (strcmp(f->return_type, "void") != 0) {
                 if (!i->operands[0].kind || i->operands[0].kind == R6_VAL_NONE ||
-                    !value_type(f, &i->operands[0], &a) || !same_type(a, f->return_type))
+                    !value_type(f, &i->operands[0], &a) ||
+                    !(same_type(a, f->return_type) ||
+                      (ref_elem_type(m, f->return_type) && null_register(f, &i->operands[0]))))
                     return fail(d, i, "CGEN", "ret value does not match function return type");
                 /* D-M1-43: a result is copied through the sret pointer, so
                    only a result register can be returned. */
@@ -2436,7 +2477,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (literal < 0)
                 return fail(d, i, "CGEN", "float literal %s is not finite", v->as.string);
             if (literal > 0) cv = &lit;
-            if (cv->kind == R6_VAL_STRING) {
+            if (is_null_symbol(cv)) {
+                fprintf(o, "\tmovq $0, -%u(%%rbp)\n", off);
+            } else if (cv->kind == R6_VAL_STRING) {
                 emit_string(o, cv->as.string, string_id);
                 fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", string_id++, off);
             } else if (cv->kind == R6_VAL_SYMBOL) {
