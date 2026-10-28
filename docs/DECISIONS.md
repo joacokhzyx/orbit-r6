@@ -4638,3 +4638,58 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   pin's member list reaches R6 through the pin alone.
 - Measured: the script writes a 21-member archive; `90-db-link` and
   `95-db-migrations` pass against it (`run_diff.py --case`, 2/2).
+
+## D-M1-104 - R6 owns the process entry of a program that needs no MinGW start-up
+
+- Date: 2026-10-28. Pin: `bf38b38` (D-F0-20), measured against the runtime
+  archive of `01e31e8` (25 members).
+- Reason: `crt2.o`, `crtbegin.o`, `crtend.o`, `libmingw32` and `libmingwex`
+  start-up code is 6 400 bytes of `.text` in `int main(void){return 0;}`. After
+  D-M1-102 `hello` was 8 064 bytes of `.text` with the arena split of `01e31e8`
+  and the CRT in it. Criterion 4 asks for 8 192 or fewer.
+- Decision, the entry rule: a module has R6's entry `orbit_start` when it has no
+  `orbit_os_argc*`/`orbit_os_argv*` call, no network call or `orbit_db_*` extern
+  (D-M1-102), and no migrations. Any other module keeps `main` and the MinGW
+  start-up objects, as before.
+  - `orbit_start` calls `__set_app_type(1)` (console application, which msvcrt
+    reads to choose where fatal diagnostics go), then the sequence of D-M1-102,
+    `orbit_main`, `orbit_arena_destroy`, and ends in msvcrt `exit(code)`, which
+    flushes stdio and runs the atexit table. `ExitProcess` alone would drop
+    buffered `printf` output.
+  - The driver links with `-e orbit_start --subsystem console
+    --disable-auto-import --disable-runtime-pseudo-reloc` and without the
+    start-up objects, so a runtime member that needed a pseudo-relocation is a
+    link error, not a silent miss. The 16 MiB stack of D-M1-97 is a PE header
+    field and stays.
+  - `atexit` is not in any import library: `crt2.o` defines it, and libmingwex's
+    gdtoa (float formatting) calls it. The driver names `msvcrt.dll` on the ld
+    command line, which imports `atexit` from the DLL; the executable shows
+    `msvcrt.dll` twice in its import directory.
+  - After the link the driver reads the section table of the executable. A
+    `.ctors`, `.dtors`, `.init_array`, `.fini_array` or `.preinit_array` section
+    is `error[LINK]: the runtime needs the MinGW start-up`, and the executable
+    is deleted. Constructors only run in that start-up. Thread-local storage
+    stays: the loader reads the TLS directory, and the arena uses it.
+  - Not done, and why: the MinGW start-up stays for argv (the pin's `os.c`
+    reads `_orbit_argv`, filled by `__getmainargs` in `crt2.o`), for network and
+    database programs, and for a module with migrations. `--gc-sections` was not
+    tried: R6's object has one `.text` section, the pin builds the archive
+    without `-ffunction-sections`, and `hello` is already under the target.
+- Measured (`hello`, `print("hello")`, link against the `01e31e8` archive):
+
+  | | `.text` | `.rdata` | `.data` | `.bss` | DLLs | build ms | run ms |
+  |---|---|---|---|---|---|---|---|
+  | R6 before D-M1-102 | 64 080 | 6 632 | 608 | 11 344 | ADVAPI32, KERNEL32, msvcrt | 62 | 10.5 |
+  | R6 after D-M1-102 | 8 064 | 2 792 | 192 | 8 768 | KERNEL32, msvcrt | 55 | 10.0 |
+  | R6 after D-M1-104 | 1 792 | 400 | 16 | 8 352 | KERNEL32, msvcrt | 45 | 10.0 |
+  | C backend, `-O1 -s` | 7 904 | 2 776 | 192 | 8 704 | KERNEL32, msvcrt | 1 200 | 10.1 |
+
+  Best of 7 for build and run; the run time is the process start of PowerShell
+  around a program that does nothing else.
+- Controls: `46-process-argc` and the two database fixtures keep `main` and the
+  MinGW start-up; every other fixture runs on `orbit_start`. The loader suite
+  keeps `x-db-migrations-no-db-extern` (a migrations module does not take the new
+  entry and is still refused).
+- Measured: corpus 143 build / 143 match over 143 programs (an earlier link
+  without `atexit` printed 135, with eight float programs crashing); `run_diff.py`
+  100/100; `run_reject.py` 341/341.

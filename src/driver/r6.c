@@ -90,6 +90,57 @@ static int run(const char *tool, char *const argv[]) {
 #endif
 }
 
+/* D-M1-104: a module linked without the MinGW start-up must not carry what only
+ * that start-up runs: constructors and destructors. Thread-local storage stays,
+ * because the loader reads the TLS directory itself. Returns the name of the
+ * first such section, or NULL when the image has none or is not a readable PE
+ * file. */
+static const char *pe_startup_section(const char *path, char *name, size_t cap) {
+    static const char *const forbidden[] = {
+        ".ctors", ".dtors", ".init_array", ".fini_array", ".preinit_array", NULL
+    };
+    unsigned char dos[64], coff[24], sec[40];
+    unsigned long pe_off, symtab, nsyms, table_at;
+    unsigned nsec, opt, k, f;
+    FILE *fp = fopen(path, "rb");
+    const char *found = NULL;
+    if (!fp) return NULL;
+    if (fread(dos, 1, sizeof dos, fp) != sizeof dos || dos[0] != 'M' || dos[1] != 'Z') goto out;
+    pe_off = dos[60] | (dos[61] << 8) | (dos[62] << 16) | ((unsigned long)dos[63] << 24);
+    if (fseek(fp, (long)pe_off, SEEK_SET) != 0 || fread(coff, 1, sizeof coff, fp) != sizeof coff ||
+        memcmp(coff, "PE\0\0", 4) != 0) goto out;
+    nsec = coff[6] | (coff[7] << 8);
+    symtab = coff[12] | (coff[13] << 8) | (coff[14] << 16) | ((unsigned long)coff[15] << 24);
+    nsyms = coff[16] | (coff[17] << 8) | (coff[18] << 16) | ((unsigned long)coff[19] << 24);
+    opt = coff[20] | (coff[21] << 8);
+    table_at = pe_off + 24 + opt;
+    for (k = 0; k < nsec; ++k) {
+        char raw[9];
+        if (fseek(fp, (long)(table_at + 40ul * k), SEEK_SET) != 0 ||
+            fread(sec, 1, sizeof sec, fp) != sizeof sec) goto out;
+        memcpy(raw, sec, 8);
+        raw[8] = '\0';
+        if (raw[0] == '/' && symtab) {
+            /* Long name: an offset into the string table after the symbols. */
+            long off = atol(raw + 1);
+            if (fseek(fp, (long)(symtab + 18ul * nsyms) + off, SEEK_SET) != 0 ||
+                !fgets(name, (int)cap, fp)) goto out;
+        } else {
+            snprintf(name, cap, "%s", raw);
+        }
+        for (f = 0; forbidden[f]; ++f) {
+            size_t len = strlen(forbidden[f]);
+            if (strncmp(name, forbidden[f], len) == 0 && (name[len] == '\0' || name[len] == '$')) {
+                found = name;
+                goto out;
+            }
+        }
+    }
+out:
+    fclose(fp);
+    return found;
+}
+
 /* D-M1-100: the line `--version` prints. The protocol number is what the
  * language checks before it hands r6 a module; docs/DECISIONS.md says what
  * bumps it. */
@@ -115,7 +166,9 @@ int main(int argc, char **argv) {
     R6CoffObject object;
     char asm_error[256];
     int argi = 1, rc = 1, stage;
-    bool uses_db = false, uses_net, timings;
+    bool uses_db = false, uses_net, own_entry, timings;
+    char bad_section[64], msvcrt_dll[1024];
+    const char *bad;
     const char *timings_env = getenv("R6_TIMINGS");
     double t0;
     size_t fn;
@@ -198,6 +251,7 @@ int main(int argc, char **argv) {
     /* D-M1-102: ws2_32 only for a module the pin's rule calls a network
      * program; a database program is one. */
     uses_net = r6_module_uses_network(&module);
+    own_entry = r6_module_native_entry(&module);
 
     /* D-M1-98: R6_TMPDIR, else the system temporary directory; never the
      * project of the program being built. */
@@ -326,7 +380,17 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "--stack"; link_argv[link_argc++] = "16777216";
     link_argv[link_argc++] = "-o";
     link_argv[link_argc++] = (char *)output;
-    link_argv[link_argc++] = crt2; link_argv[link_argc++] = crtbegin;
+    if (own_entry) {
+        /* D-M1-104: R6's `orbit_start` is the entry, so the start-up objects
+         * stay out. An import that needs a runtime pseudo-relocation is a link
+         * error instead of a silent miss. */
+        link_argv[link_argc++] = "-e"; link_argv[link_argc++] = "orbit_start";
+        link_argv[link_argc++] = "--subsystem"; link_argv[link_argc++] = "console";
+        link_argv[link_argc++] = "--disable-auto-import";
+        link_argv[link_argc++] = "--disable-runtime-pseudo-reloc";
+    } else {
+        link_argv[link_argc++] = crt2; link_argv[link_argc++] = crtbegin;
+    }
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = libdir;
     link_argv[link_argc++] = obj_path;
@@ -341,13 +405,30 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-lkernel32"; link_argv[link_argc++] = "-lmingw32";
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
-    link_argv[link_argc++] = crtend; link_argv[link_argc] = NULL;
+    if (own_entry) {
+        /* libmingwex's gdtoa calls atexit, which crt2.o defines and no import
+         * library carries. msvcrt.dll exports it, so ld imports it from the
+         * DLL itself. */
+        const char *sysroot = getenv("SystemRoot");
+        snprintf(msvcrt_dll, sizeof msvcrt_dll, "%s/System32/msvcrt.dll",
+                 sysroot && *sysroot ? sysroot : "C:/Windows");
+        link_argv[link_argc++] = msvcrt_dll;
+    } else {
+        link_argv[link_argc++] = crtend;
+    }
+    link_argv[link_argc] = NULL;
     t0 = now_ms();
     if (run(ld_path, link_argv) != 0) {
         fprintf(stderr, "r6: %s:0:0: error[LINK]: linker failed (pinned Win64 runtime required)\n", input);
         goto free_module;
     }
     stage_add(T_LD, t0);
+    if (own_entry && (bad = pe_startup_section(output, bad_section, sizeof bad_section)) != NULL) {
+        remove(output);
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: the runtime needs the MinGW start-up "
+                        "(section %s)\n", input, bad);
+        goto free_module;
+    }
     /* A failed build keeps its .s/.o for inspection; a good one owes nothing. */
     remove(asm_path);
     remove(obj_path);

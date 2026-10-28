@@ -18,4 +18,8 @@ bool r6_codegen_win64(FILE *out, R6Module *module, R6Diagnostic *diag);
 bool r6_module_uses_args(const R6Module *module);
 bool r6_module_uses_network(const R6Module *module);
 
+/* D-M1-104: the module gets R6's own process entry `orbit_start` and is
+ * linked without the MinGW start-up objects. */
+bool r6_module_native_entry(const R6Module *module);
+
 #endif

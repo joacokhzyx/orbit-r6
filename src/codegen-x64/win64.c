@@ -4188,8 +4188,42 @@ bool r6_module_uses_network(const R6Module *m) {
     return module_uses_db(m) || module_calls_startup(m, 2);
 }
 
+/* D-M1-104: a module that reads argv or links the network modules (a database
+ * program does) keeps the MinGW start-up and its `main`. Any other module has
+ * R6's own process entry `orbit_start`, which needs nothing from the CRT. */
+bool r6_module_native_entry(const R6Module *m) {
+    /* Migrations are database work: the module keeps the main that refuses
+     * them without an orbit_db_* extern. */
+    return !m->migration_count && !r6_module_uses_args(m) &&
+           !r6_module_uses_network(m);
+}
+
 static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
     bool db = module_uses_db(m);
+    if (r6_module_native_entry(m)) {
+        /* msvcrt.dll initializes itself when the loader maps it. The entry
+         * only names the application type, which msvcrt reads to choose where
+         * its fatal diagnostics go, and ends in `exit`, which flushes stdio and
+         * runs the atexit table before ExitProcess. */
+        fputs("\t.text\n\t.globl orbit_start\n"
+              "\t.def orbit_start; .scl 2; .type 32; .endef\n"
+              "\t.seh_proc orbit_start\norbit_start:\n"
+              "\tpushq %rbp\n\t.seh_pushreg %rbp\n"
+              "\tmovq %rsp, %rbp\n\t.seh_setframe %rbp, 0\n"
+              "\tsubq $48, %rsp\n\t.seh_stackalloc 48\n"
+              "\t.seh_endprologue\n"
+              "\tmovl $1, %ecx\n\tcall __set_app_type\n"
+              "\tcall orbit_crash_handler_install\n", o);
+        if (module_calls_startup(m, 1)) fputs("\tcall orbit_console_init\n", o);
+        fputs("\tmovl $131072, %ecx\n\tcall orbit_arena_create\n"
+              "\tmovq %rax, -8(%rbp)\n"
+              "\tmovq %rax, %rcx\n\tcall orbit_main\n"
+              "\tmovl %eax, -16(%rbp)\n"
+              "\tmovq -8(%rbp), %rcx\n\tcall orbit_arena_destroy\n"
+              "\tmovl -16(%rbp), %ecx\n\tcall exit\n\tud2\n"
+              "\t.seh_endproc\n", o);
+        return !ferror(o);
+    }
     unsigned long long base = 1ULL << 62, next = base + 1;
     char ddl[8][1024];
     unsigned long long ddl_id[8];
