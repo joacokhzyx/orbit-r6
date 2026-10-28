@@ -4537,3 +4537,49 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   raised: a line limit is what keeps its fixed buffers bounded.
 - Control: `ok-long-string` (a 300-byte literal printed whole). The driver
   without the change fails it with the assembler error above.
+
+## D-F0-20 - Re-pin to bf38b38: 64-bit int, `o_` symbols, native default
+
+- Date: 2026-10-28. Moves the pin from `6a9ddaf` (D-F0-19) to orbit-lang
+  `main` `bf38b38866fa89728d0236c2f17ab7872230d6a4`, 27 commits in seven merges.
+- What moved:
+  - `int64`: `orbit_int` is `int64_t`, `div` and `mod` are checked and read the
+    module `sourceName` and the instruction `line`, and `shl`/`shr` mask the
+    count with 63. R6 lowers this since D-M1-94 to D-M1-97.
+  - `c-mangle`: the C backend emits every user symbol as `o_<name>`. R6 does
+    the same since D-M1-99. `c_names_user_defined` joins the suite.
+  - `security`: `Model.where` binds its parameters, secrets compare in
+    constant time (`orbit_ct_equal` replaces `orbit_streq`) and the HTTP
+    request line, headers and body are capped before allocation.
+  - `native-backend`: `orbit build --backend=native` and `ORBIT_BACKEND` run
+    R6, and native is the default on Windows.
+  - Suite: eight programs join (`c_names_user_defined`, `division_by_zero`,
+    `division_checked_values`, `division_int_min_overflow`,
+    `float_call_result_binding`, `int_wrap_64`, `remainder_by_zero`,
+    `remainder_int_min_overflow`) and two leave (`int_wrap_32`,
+    `namespace_user_names`): 120 suite and 23 std programs.
+- `scripts/mklib_runtime.py` did not move; `runtime/` changed in 20 files. The
+  runtime archive is rebuilt from the pin: `orbit_lib.o` defines 343 symbols
+  (337 before), 145160 bytes.
+- Harness: with native the default, the oracle build of `run_diff.py` and
+  `run_corpus.py` would run r6 and compare R6 with itself. Both set
+  `ORBIT_BACKEND=c` for the oracle. Without it a build against a stale r6 did
+  not finish in 300 s.
+- R6 changes the pin needed: D-M1-101. The usage text of `orbit build` is a
+  280-byte literal and the assembler refused its 1058-byte `.byte` line, which
+  dropped the census from 2 to 1 build.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-099b002148.exe` (sha256 `7c511c23...`, 947200 bytes),
+  built from `C:\Temp\orbit-pin-bf38b38-git`; `PUBLISHED_C 70129F41.` (was
+  `C1176CF4.`). The corpus regenerates to 144 documents, 6992300 bytes,
+  `filesSha256 94025f2e.`; all 136 documents that remain change hash.
+- Ratchets: the corpus baseline is taken at the pin (`r6BuildOk 143`, `match
+  143`; the previous baseline names another corpus), and so are the census
+  baseline (27 modules, 2 build) and `axes-baseline.json` (143 programs, best
+  of 5).
+- Measured: differential **100/100** against the new oracle; loader
+  **341/341** (215 rejections, 126 acceptance controls); corpus **137 build /
+  137 match over 137 -> 143 build / 143 match over 143 programs**, none
+  differing; census **2 build over 27 modules**; self-host C `70129F41...` from
+  the IR of `compiler/host/main.orb`, equal to `PUBLISHED_C`.
+- Status: **applied**.

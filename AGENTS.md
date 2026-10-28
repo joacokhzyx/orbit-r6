@@ -1,16 +1,16 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `6a9ddaf7066d396fe9b25a902e67ca2ee4701872` (D-F0-19,
-11 commits past D-F0-18 `6a9ddaf`: an int copied into a float register converts,
-an object read with no known getter is a compile error, and two suite programs
-join; the corpus is 137+1 documents).
+`orbit-lang` `main` commit `bf38b38866fa89728d0236c2f17ab7872230d6a4` (D-F0-20,
+27 commits past D-F0-19 `bf38b38`: a 64-bit `int` with checked division, user
+symbols under `o_`, the native backend as the Windows default, and the runtime
+security limits; the corpus is 143+1 documents).
 The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 This is a separate repo from the language:
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
 the pin — note the working tree there can be **ahead** of the pin and
 **dirty**; the pin rests on the commit, so read pinned bytes with
-`git cat-file blob 6a9ddaf:<path>`, never from the working tree. Do not write
+`git cat-file blob bf38b38:<path>`, never from the working tree. Do not write
 there.
 
 The `orbit-lang` writing and commit rules apply here, adapted to the pin and
@@ -28,28 +28,30 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 95/95 on 2026-10-28 at the D-F0-19 pin with:
+Primary gate: differential — verified 100/100 on 2026-10-28 at the D-F0-20 pin with:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
+  --compiler C:\Temp\orbit-fp-099b002148.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
+  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
 - `--r6-command` must be the last argument (argparse `REMAINDER`); keep the
   `'{ir}'`/`'{exe}'` quoting in PowerShell.
+- The harnesses set `ORBIT_BACKEND=c` for the oracle build, because the pin
+  makes native the default backend on Windows (D-F0-20).
 - `--case 19-int-list-get` runs one fixture (repeatable). Default = every
   `.json` with a matching `.orb` in `docs/proposed-ir/m1/`.
 - `--orbit-root` is a checkout **at the pinned commit**: the sibling `orbit-lang`
   tree can be ahead of the pin and keeps advancing, and a `C:\Temp` fixed point
   named `orbit-fp-<sha256(checkout path)>.exe` is rebuilt in place when that
   path moves, so it then fails the whole corpus. The pinned fixed point is
-  `C:\Temp\orbit-fp-c41ad248ab.exe` (sha256 in `docs/PIN.md`), built from
-  `C:\Temp\orbit-pin-6a9ddaf-git` with `python scripts/dev.py fp`, which
+  `C:\Temp\orbit-fp-099b002148.exe` (sha256 in `docs/PIN.md`), built from
+  `C:\Temp\orbit-pin-bf38b38-git` with `python scripts/dev.py fp`, which
   rebuilds it in a pinned checkout. Read
-  pinned bytes with `git cat-file blob 6a9ddaf:<path>`, never from the working
+  pinned bytes with `git cat-file blob bf38b38:<path>`, never from the working
   tree.
 - Verdict = identical process exit + stdout bytes vs the gcc/Orbit oracle; a
   build failure counts as a failure. `R6_CC` only affects the driver build —
@@ -59,11 +61,11 @@ python tests/diff/run_diff.py `
 
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
 case in `tests/reject/manifest.json` names the decision it pins in its `rule`
-field, and `docs/DECISIONS.md` holds the decisions. Verified 309/309 on
+field, and `docs/DECISIONS.md` holds the decisions. Verified 341/341 on
 2026-10-28:
 
 ```powershell
-python tests/reject/run_reject.py            # 205 rejections + 104 acceptance controls
+python tests/reject/run_reject.py            # 215 rejections + 126 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
@@ -79,21 +81,21 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   archive path is resolved relative to the CWD).
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **137 build / 137 match over 137
-programs** on 2026-10-28 at the D-F0-19 pin: 138 documents, 6 872 621 bytes,
-`filesSha256 741900ad…`. The rounds that took the count from 2/89 at the
+D-M1-17) — a **measurement, not a gate**. Measured **143 build / 143 match over 143
+programs** on 2026-10-28 at the D-F0-20 pin: 144 documents, 6 992 300 bytes,
+`filesSha256 94025f2e…`. The rounds that took the count from 2/89 at the
 D-M1-17 pin to there are in `docs/M1_REPORT.md`:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
+  --compiler C:\Temp\orbit-fp-099b002148.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
+  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- Regenerates the 137+1 corpus with the pinned compiler (`--orbit-root` is the
+- Regenerates the 143+1 corpus with the pinned compiler (`--orbit-root` is the
   tree carrying the language's `scripts/emit_ir_corpus.py`; `--ir-dir` measures
   an already-emitted one), verifies every `sha256` against
   `tests/corpus/manifest.json`, then builds both sides per program and requires
@@ -126,8 +128,8 @@ Self-host check: R6 builds the pinned compiler, and that compiler's C must
 hash to `PUBLISHED_C` in the pin's `scripts/verify_seed.py` (20 s):
 
 ```powershell
-.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-6a9ddaf-git `
-  -Compiler C:\Temp\orbit-fp-c41ad248ab.exe -R6 $PWD\.r6-build\r6.exe
+.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-bf38b38-git `
+  -Compiler C:\Temp\orbit-fp-099b002148.exe -R6 $PWD\.r6-build\r6.exe
 ```
 
 `scripts\ci.ps1 -Selfhost` runs it as a CI stage. `scripts\bisect.ps1` is the
@@ -384,11 +386,11 @@ Stop and ask rather than push on, when:
 ## Open source
 
 - License: MIT, the same as `orbit-lang` (`LICENSE`).
-- A public R6 cannot pin a commit no remote has. The pin `6a9ddaf` is on
+- A public R6 cannot pin a commit no remote has. The pin `bf38b38` is on
   `https://github.com/joacokhzyx/orbit-lang` (PIN.md), so the corpus is
   reproducible from public bytes. A pin move pushes the language commit first.
 - The runtime archive is not committed and is not byte-reproducible (PIN.md). A
-  fresh clone rebuilds it with the pinned recipe and checks the 337-symbol set.
+  fresh clone rebuilds it with the pinned recipe and checks the 343-symbol set.
   Do not add the archive or any other binary to the repository.
 - CI (`.github/workflows/ci.yml`) builds the driver, the runtime archive and
   the loader suite on every push and pull request through `scripts/ci.ps1`.

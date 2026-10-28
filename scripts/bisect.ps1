@@ -9,7 +9,7 @@
 #
 #   Copy-Item scripts\bisect.ps1, scripts\selfhost.ps1 C:\Temp\r6-bisect\
 #   git bisect run pwsh -NoProfile -File C:\Temp\r6-bisect\bisect.ps1 `
-#       -Compiler C:\Temp\orbit-fp-c41ad248ab.exe -OrbitRoot C:\Temp\orbit-pin-6a9ddaf-git `
+#       -Compiler C:\Temp\orbit-fp-099b002148.exe -OrbitRoot C:\Temp\orbit-pin-bf38b38-git `
 #       -Cc C:\w64devkit\bin\gcc.exe
 #
 # The differential reads .r6-build\oracle-cache.json when the commit's

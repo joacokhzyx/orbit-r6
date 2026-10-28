@@ -1,24 +1,24 @@
 {
   "schema": "r6-corpus-baseline/1",
-  "corpusFilesSha256": "741900ad0a7beab5a1a2e1eb084ea1ac18f86e728c5895eec61012e390497dc8",
+  "corpusFilesSha256": "94025f2e3c3aa67640b8561c4aed8a107b511e46fd9cab66b1cbdf39cfd2236a",
   "summary": {
-    "members": 138,
-    "programs": 137,
-    "oracleOk": 137,
-    "r6BuildOk": 137,
-    "match": 137,
+    "members": 144,
+    "programs": 143,
+    "oracleOk": 143,
+    "r6BuildOk": 143,
+    "match": 143,
     "unknownRegisterTypes": 3
   },
   "byCode": {},
   "byFailingOpcode": {},
   "byOpcode": {
     "add": {
-      "cases": 101,
-      "match": 101
+      "cases": 102,
+      "match": 102
     },
     "arg": {
-      "cases": 105,
-      "match": 105
+      "cases": 111,
+      "match": 111
     },
     "bit_and": {
       "cases": 3,
@@ -37,28 +37,28 @@
       "match": 3
     },
     "call": {
-      "cases": 121,
-      "match": 121
+      "cases": 127,
+      "match": 127
     },
     "copy": {
       "cases": 25,
       "match": 25
     },
     "decl_var": {
-      "cases": 117,
-      "match": 117
+      "cases": 123,
+      "match": 123
     },
     "div": {
-      "cases": 17,
-      "match": 17
+      "cases": 21,
+      "match": 21
     },
     "eq": {
-      "cases": 69,
-      "match": 69
+      "cases": 72,
+      "match": 72
     },
     "ge": {
-      "cases": 22,
-      "match": 22
+      "cases": 23,
+      "match": 23
     },
     "gt": {
       "cases": 41,
@@ -69,72 +69,72 @@
       "match": 88
     },
     "jump_if_false": {
-      "cases": 124,
-      "match": 124
+      "cases": 126,
+      "match": 126
     },
     "label": {
-      "cases": 124,
-      "match": 124
+      "cases": 126,
+      "match": 126
     },
     "le": {
-      "cases": 17,
-      "match": 17
+      "cases": 19,
+      "match": 19
     },
     "list_create": {
-      "cases": 47,
-      "match": 47
+      "cases": 52,
+      "match": 52
     },
     "list_get": {
       "cases": 45,
       "match": 45
     },
     "list_len": {
-      "cases": 52,
-      "match": 52
+      "cases": 57,
+      "match": 57
     },
     "list_pop": {
       "cases": 3,
       "match": 3
     },
     "list_push": {
-      "cases": 47,
-      "match": 47
+      "cases": 52,
+      "match": 52
     },
     "list_set": {
       "cases": 7,
       "match": 7
     },
     "load_const": {
-      "cases": 111,
-      "match": 111
+      "cases": 118,
+      "match": 118
     },
     "load_field": {
       "cases": 42,
       "match": 42
     },
     "load_var": {
-      "cases": 125,
-      "match": 125
+      "cases": 131,
+      "match": 131
     },
     "lt": {
       "cases": 64,
       "match": 64
     },
     "mod": {
-      "cases": 13,
-      "match": 13
+      "cases": 16,
+      "match": 16
     },
     "mul": {
-      "cases": 33,
-      "match": 33
+      "cases": 34,
+      "match": 34
     },
     "ne": {
-      "cases": 110,
-      "match": 110
+      "cases": 112,
+      "match": 112
     },
     "neg": {
-      "cases": 51,
-      "match": 51
+      "cases": 54,
+      "match": 54
     },
     "not_op": {
       "cases": 2,
@@ -161,8 +161,8 @@
       "match": 5
     },
     "ret": {
-      "cases": 138,
-      "match": 137
+      "cases": 144,
+      "match": 143
     },
     "shl": {
       "cases": 3,
@@ -181,8 +181,8 @@
       "match": 59
     },
     "sub": {
-      "cases": 38,
-      "match": 38
+      "cases": 46,
+      "match": 46
     },
     "union_get_data": {
       "cases": 12,
