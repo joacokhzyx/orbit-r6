@@ -1856,3 +1856,20 @@ que orbit-lang `6a9ddaf` guarda un int en un local o campo float. Otro par de
 tipos distintos sigue en `CGEN`. El par `96-int-copy-to-float` imprime `3.5` y
 sale 42 en los dos lados. Diferencial **95/95**; loader **309/309**; corpus
 **135 build / 135 match over 135 -> 135 / 135**; self-host C `80a61b67...`.
+
+## Actualizacion de M1 - Entero de 64 bits y pin bf38b38 (2026-10-28)
+
+D-M1-94 a D-M1-101 y D-F0-20. `int` mide 64 bits en el cargador, en el codigo y
+en el layout (D-M1-94). `div` y `mod` enteros se detienen ante divisor cero y
+`INT64_MIN / -1` con `orbit_div_error` (D-M1-95), la division por una constante
+usa el numero magico de 64 bits (D-M1-96, 11 751 000 pares sin diferencia contra
+gcc) y el IR trae `sourceName` y `line` (D-M1-97). El driver acepta el
+directorio de runtime y el temporal por flag y entorno (D-M1-98), los simbolos de
+usuario salen como `o_<nombre>` (D-M1-99), `r6 --version` imprime la version y el
+protocolo del IR (D-M1-100) y un literal de mas de 64 bytes se parte en varias
+lineas `.byte` (D-M1-101). D-F0-20 mueve el pin de `6a9ddaf` a `bf38b38`.
+Diferencial **100/100**; loader **341/341**; corpus **137 build / 137 match over
+137 -> 143 build / 143 match over 143** (ratchet 137 -> 143); census **2 de 27**;
+self-host C `70129F41...` igual a `PUBLISHED_C`; el archivo de runtime define 343
+simbolos. La unica apertura de D-M1-94, el `int` plano de un extern, se cierra en
+`bf38b38`: el runtime devuelve `orbit_int` y `68-string-index` pasa.

@@ -2,7 +2,7 @@
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
 `orbit-lang` `main` commit `bf38b38866fa89728d0236c2f17ab7872230d6a4` (D-F0-20,
-27 commits past D-F0-19 `bf38b38`: a 64-bit `int` with checked division, user
+27 commits past D-F0-19 `6a9ddaf`: a 64-bit `int` with checked division, user
 symbols under `o_`, the native backend as the Windows default, and the runtime
 security limits; the corpus is 143+1 documents).
 The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.

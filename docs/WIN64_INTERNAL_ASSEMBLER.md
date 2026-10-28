@@ -19,14 +19,19 @@ accepts `.text`, `.section .rdata`, `.globl`,
 unknown instruction/directive forms, unsupported unwind frames, and fixed
 internal table overflow with an error. It is not a general GAS implementation.
 
-D-M1-94 to D-M1-96 add the 64-bit integer forms. `notq %reg`; `andq`, `orq`
-and `xorq` register to register; `shlq %cl, %reg` and `sarq %cl, %reg`
-(`D3 /4`, `D3 /7`); `shrq` and `shlq` with an 8-bit immediate (`C1 /5`,
-`C1 /4`, count 1 to 63); and `imulq r/m64` with one operand (`F7 /5`), which
-leaves the 128-bit product in `%rdx:%rax`. `cqto`, `idivq`, `negq`, `movabsq`
-(into `%rax` only), `cmpq $imm, r/m64` and the two-operand `imulq` were already
-encoded. `movabsq` carries an int that does not fit a sign-extended imm32; the
-generator never names another register with it.
+D-M1-94 to D-M1-96 add these encodings:
+
+- `notq %reg`.
+- `andq`, `orq` and `xorq`, register to register.
+- `shlq %cl, %reg` (`D3 /4`) and `sarq %cl, %reg` (`D3 /7`).
+- `shrq` and `shlq` with an 8-bit immediate (`C1 /5`, `C1 /4`), count 1 to 63.
+- `imulq r/m64` with one operand (`F7 /5`), which leaves the 128-bit product in
+  `%rdx:%rax`.
+
+`cqto`, `idivq`, `negq`, `movabsq` (into `%rax` only), `cmpq $imm, r/m64` and
+the two-operand `imulq` were already encoded. `movabsq` carries an int that does
+not fit a sign-extended imm32. The generator never names another register with
+it.
 
 Unwind records are generated from actual encoded prologue offsets relative to
 each function start. The current supported frame shape is the selector's

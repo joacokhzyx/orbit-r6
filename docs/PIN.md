@@ -136,15 +136,15 @@ sources with the same symbol set. The fixed point converges to
 309/309, corpus 137 build / 137 match over 137 programs, none differing, and
 census 2 build over 28 modules.
 
-**D-F0-20 (2026-10-28).** Moves the pin from `6a9ddaf` to `bf38b38`, 27
-commits in seven merges. The move changes the IR of every program: the corpus
-is 144 documents and 6992300 bytes (`filesSha256 94025f2e.`), all 136 documents
-that remain differ in hash, eight suite programs join and two leave. `int` is
-64 bits and checked division reads `sourceName` and `line` (R6 D-M1-94 to
-D-M1-97). User symbols are `o_<name>` (R6 D-M1-99). `runtime/` changed in 20
-files (13 outside the tests), so the runtime archive defines 343 symbols (was 337). The fixed point
-converges to `PUBLISHED_C 70129F41.` (was `C1176CF4.`). The gates print diff
-100/100, loader 341/341, corpus 143 build / 143 match over 143 programs, none
-differing, and census 2 build over 27 modules. The pin makes native the
+**D-F0-20 (2026-10-28).** Moves the pin from `6a9ddaf` to `bf38b38`, 27 commits
+in seven merges. The move changes the IR of every program: the corpus is 144
+documents and 6992300 bytes (`filesSha256 94025f2e.`), all 136 documents that
+remain differ in hash, eight suite programs join and two leave. `int` is 64 bits
+and checked division reads `sourceName` and `line` (R6 D-M1-94 to D-M1-97). User
+symbols are `o_<name>` (R6 D-M1-99). `runtime/` changed in 20 files (13 outside
+the tests), so the runtime archive defines 343 symbols (was 337). The fixed
+point converges to `PUBLISHED_C 70129F41.` (was `C1176CF4.`). The gates print
+diff 100/100, loader 341/341, corpus 143 build / 143 match over 143 programs,
+none differing, and census 2 build over 27 modules. The pin makes native the
 default backend on Windows, so `run_diff.py` and `run_corpus.py` set
 `ORBIT_BACKEND=c` for the oracle build.

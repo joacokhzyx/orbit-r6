@@ -4338,12 +4338,13 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   4-byte enumeration field of D-M1-35.
 - Not changed: the union tag stays a 4-byte write and read at offset 0 of the
   16-byte cell; `list_len` keeps its 64-bit store; a bool keeps its 32-bit write.
-- Open: an extern whose C runtime function returns a plain `int` and whose IR
-  entry says `int` now reads a garbage upper half. The language branch has to
-  type those entries by the C return type, or the runtime has to return
-  `orbit_int`. The `int` fixtures `06`, `45`, `47`, `59`, `60`, `85` and `88`
-  and the controls of `tests/reject/` that encode INT32 limits change with this
+- Closed at `bf38b38` (D-F0-20): the runtime returns `orbit_int`;
+  `68-string-index` passes.
+- The `int` fixtures `06`, `45`, `47`, `59`, `60`, `85` and `88` and the
+  controls of `tests/reject/` that encode INT32 limits change with this
   decision.
+- Verified at the pin `bf38b38` by D-F0-20: run_diff.py 100/100, run_reject.py
+  341/341.
 
 ## D-M1-95 - Division by zero and INT64_MIN / -1 stop the program
 
@@ -4379,6 +4380,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   on stderr, which the differential does not compare).
 - Closed by D-M1-97: the line travels in the IR, the runtime exports
   `orbit_div_error`, and `mod` shares the messages of `div`.
+- Verified at the pin `bf38b38` by D-F0-20: run_diff.py 100/100, run_reject.py
+  341/341.
 
 ## D-M1-96 - Division and remainder by a constant at 64 bits
 
@@ -4409,6 +4412,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   pairs, 0 disagreements.
 - Fixture: `99-div-by-constant-64` (constant divisors against a divisor that
   arrives as a parameter, over 64-bit edge values).
+- Verified at the pin `bf38b38` by D-F0-20: run_diff.py 100/100, run_reject.py
+  341/341.
 
 ## D-M1-97 - Source name and line in the IR, and the stack reserve
 
@@ -4437,6 +4442,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `orbit: division by zero at remainder_by_zero.orb:11` and
   `orbit: integer overflow in division at remainder_int_min_overflow.orb:10`,
   exit 2. The fix is a user-symbol prefix in the C backend (Phase 4).
+  Closed at `bf38b38` by `c-mangle` and D-M1-99; all 143 programs match.
 - Controls: `v20-line-on-add`, `v20-line-zero`, `v20-line-negative`,
   `v20-line-string`, `v20-line-fraction`, `v20-sourcename-number` (rejected);
   `ok-div-trap-line`, `ok-mod-trap-line`, `ok-div-trap-no-source` (stderr
@@ -4444,7 +4450,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Measured: `run_diff.py` 99/99, `run_reject.py` 332/332, `make_cases.py
   --check` clean, self-host `DD649139...`. The corpus emitted by the branch has
   143 programs: 140 match, 3 fail in the oracle for the collision above.
-
+- Verified at the pin `bf38b38` by D-F0-20: run_diff.py 100/100, run_reject.py
+  341/341.
 
 ## D-M1-98 - Runtime directory and temporary directory of the driver
 
