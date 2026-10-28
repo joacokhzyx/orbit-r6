@@ -4016,3 +4016,44 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 126 / 126**, census 2 build over 28 modules, self-host C
   `80A61B67...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-86 - Object literals and keyed object reads
+
+- Date: 2026-10-27. Pin: `e34833a` (D-F0-18).
+- Root cause: four corpus programs (`object_literals`,
+  `object_literal_cross_function`, `object_literal_missing_key`,
+  `model_literal_fields`) stopped at `load_field requires a register receiver
+  of a declared model type`. The IR builds an object with a `call` of the extern
+  `orbit_object_create`, fills it with `orbit_object_set_<kind>` calls and reads
+  it with `load_field` (`docs/IR_SPEC.md` sections 1.4 and 3.3).
+- Decision:
+  - The loader's canonical spelling already turns the IR type `object` into
+    `void*`, the `OrbitObject*` word. The creator and the six setters are the
+    only externs outside the scalar set that may declare a `void*` (or, for
+    `orbit_object_set_list`, a list) parameter and a `void*` return.
+  - A `load_field` whose receiver is a `void*` register and whose reference is
+    not a `<Union>_<Variant>._i` pack reference is a keyed read. The key is the
+    text of the `Sym` or `String` operand; an empty key or one with a NUL is
+    `CGEN`. The destination type names the getter: `int` is
+    `orbit_object_get_int` (result sign-extended from `eax`), `float`
+    `orbit_object_get_float` (`xmm0`), `bool` `orbit_object_get_bool` (`al`
+    zero-extended), `string` `orbit_object_get_string`, `void*`
+    `orbit_object_get_object` and `list` `orbit_object_get_list` (`rax`). Any
+    other destination type is `CGEN`; the untyped `orbit_object_get_raw` form
+    has no corpus program and stays refused.
+  - A key never stored reads as the zero of the getter, which is the runtime's
+    behaviour and not R6's.
+- Fixture `89-object-literals` (oracle and R6 print the same 17 lines and exit
+  42): four value kinds, bool keys named `ok` and `err`, a nested object, a
+  list value read back with a declared type, three missing-key reads, an object
+  passed to and returned from a function, and a model whose field names equal
+  object keys. Controls in `tests/reject/`: `ok-object-set-get` (exit 5);
+  `x-object-read-result-destination`, `x-object-read-empty-key` and
+  `x-object-extern-other-symbol` stay `CGEN`.
+- Oracle note: reading a missing `float` key into a typed local
+  (`val x: float = o.get("k")`) segfaults in the oracle's binary, so the
+  fixture does not read one. It is a language-side defect, not an R6 one.
+- Gates: differential **88/88**, loader **298/298**, corpus **126 build / 126
+  match over 135 -> 130 / 130**, census 2 build over 28 modules, self-host C
+  `80A61B67...`.
+- Status: **applied**.

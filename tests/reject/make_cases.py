@@ -761,6 +761,35 @@ def build_reject():
         "D-M1-85", "CGEN",
         "bit_not takes an int operand; a string is refused")
 
+    # ---- D-M1-86: object literals and keyed reads (IR_SPEC 1.4, 3.3) ---------
+    def OBJ_EXTERNS():
+        return [FN("orbit_object_create", [], [], rtype="object", extern=True),
+                FN("orbit_object_set_int", [], [], rtype="void", extern=True,
+                   params=["o", "key", "v"], ptypes=["object", "string", "int"])]
+
+    def OBJ_MAIN(read, types):
+        return MAIN([I("call", 0, Str("orbit_object_create"), Int(0)),
+                     I("arg", -1, Reg(0)), I("arg", -1, Str("n")), I("arg", -1, Int(5)),
+                     I("call", -1, Str("orbit_object_set_int"), Int(3)),
+                     read, I("ret", -1, Int(0))], types)
+
+    add("x-object-read-result-destination",
+        jd(DOC(OBJ_EXTERNS() + [OBJ_MAIN(I("load_field", 1, Reg(0), Str("n")),
+                                         ["object", "result"])])),
+        "D-M1-86", "CGEN",
+        "no getter returns a result; the destination type names the getter")
+    add("x-object-read-empty-key",
+        jd(DOC(OBJ_EXTERNS() + [OBJ_MAIN(I("load_field", 1, Reg(0), Str("")),
+                                         ["object", "int"])])),
+        "D-M1-86", "CGEN",
+        "a key without text has no spelling the getter can take")
+    add("x-object-extern-other-symbol",
+        jd(DOC([FN("orbit_object_other", [], [], rtype="void", extern=True,
+                   params=["o"], ptypes=["object"]),
+                MAIN()])),
+        "D-M1-86", "CGEN",
+        "an object-typed extern parameter is admitted for the creator and setters only")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -1651,6 +1680,18 @@ def build_accept_files():
                                 I("add", 6, Reg(5), Reg(4)),
                                 I("ret", -1, Reg(6))],
                                ["int", "int", "int", "int", "int", "int", "int"])]))))
+    files.append(("ok-object-set-get",
+                  jd(DOC([FN("orbit_object_create", [], [], rtype="object", extern=True),
+                          FN("orbit_object_set_int", [], [], rtype="void", extern=True,
+                             params=["o", "key", "v"], ptypes=["object", "string", "int"]),
+                          MAIN([I("call", 0, Str("orbit_object_create"), Int(0)),
+                                I("arg", -1, Reg(0)), I("arg", -1, Str("n")), I("arg", -1, Int(5)),
+                                I("call", -1, Str("orbit_object_set_int"), Int(3)),
+                                I("load_field", 1, Reg(0), Str("n")),
+                                I("load_field", 2, Reg(0), Str("missing")),
+                                I("add", 3, Reg(1), Reg(2)),
+                                I("ret", -1, Reg(3))],
+                               ["object", "int", "int", "int"])]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -1989,6 +2030,8 @@ def build_manifest(reject, accept_files):
              "note": "a void* return lands in an int register as the sign-extended low 32 bits"},
             {"file": "cases/ok-bitwise-literal-operands.json", "run_exit": 14, "rule": "D-M1-85",
              "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"},
+            {"file": "cases/ok-object-set-get.json", "run_exit": 5, "rule": "D-M1-86",
+             "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",

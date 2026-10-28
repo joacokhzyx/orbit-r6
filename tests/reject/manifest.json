@@ -806,6 +806,27 @@
       "note": "bit_not takes an int operand; a string is refused"
     },
     {
+      "file": "cases/x-object-read-result-destination.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-86",
+      "note": "no getter returns a result; the destination type names the getter"
+    },
+    {
+      "file": "cases/x-object-read-empty-key.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-86",
+      "note": "a key without text has no spelling the getter can take"
+    },
+    {
+      "file": "cases/x-object-extern-other-symbol.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-86",
+      "note": "an object-typed extern parameter is admitted for the creator and setters only"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -1526,6 +1547,12 @@
       "run_exit": 14,
       "rule": "D-M1-85",
       "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"
+    },
+    {
+      "file": "cases/ok-object-set-get.json",
+      "run_exit": 5,
+      "rule": "D-M1-86",
+      "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"
     },
     {
       "file": "cases/ok-infer-union-tag.json",

@@ -1,0 +1,58 @@
+// D-M1-86: an object literal is an OrbitObject made by orbit_object_create and
+// filled by one orbit_object_set_<kind> call per key. A read of a key is a
+// call to the getter of the destination's type (IR_SPEC 1.4), so a key the
+// object never stored gives the zero of that kind. The object travels as a
+// parameter and a return value, nests in another object and holds a list.
+// expect-exit 42
+
+model Named {
+    name: string
+    count: int
+}
+
+fn make() -> object {
+    return { a: 1, b: "two" }
+}
+
+fn count_of(o: object) -> int {
+    val n: int = o.get("count")
+    return n
+}
+
+fn main() -> int {
+    val o = { name: "orbit", count: 42, ratio: 0.5, healthy: true }
+    print(o.name)
+    print(o.count)
+    print(o.ratio)
+    print(o.healthy)
+    print(count_of(o))
+
+    val flags = { ok: true, err: false }
+    print(flags.ok)
+    print(flags.err)
+
+    val inner = { deep: { deeper: 7 } }
+    print(inner.deep.deeper)
+
+    val config = { label: "x", tags: ["a", "b"] }
+    val tags: list < string > = config.get("tags")
+    print(tags.len())
+    print(tags.get(1))
+
+    val missing = { present: 1 }
+    val absent_int: int = missing.get("nothing")
+    val absent_str: string = missing.get("nothing")
+    val absent_bool: bool = missing.get("nothing")
+    print(absent_int)
+    print(absent_str)
+    print(absent_bool)
+
+    val made = make()
+    print(count_of(made))
+
+    val named = Named("from-model", 7)
+    print(named.name)
+    print(named.count)
+    print(o.name)
+    return 42
+}

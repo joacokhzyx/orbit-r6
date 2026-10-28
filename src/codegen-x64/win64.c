@@ -279,6 +279,32 @@ static bool extern_takes_object(const char *name) {
     return false;
 }
 
+/* D-M1-86: the creator and the six setters of IR_SPEC 3.3. The loader
+ * canonicalises the IR type `object` to `void*` (the `OrbitObject*` word), so
+ * these externs declare `void*` and, for set_list, a list. */
+static bool extern_object_symbol(const char *name) {
+    static const char *const names[] = {
+        "orbit_object_create", "orbit_object_set_int", "orbit_object_set_float",
+        "orbit_object_set_bool", "orbit_object_set_string", "orbit_object_set_object",
+        "orbit_object_set_list"
+    };
+    size_t n;
+    for (n = 0; name && n < sizeof names / sizeof names[0]; ++n)
+        if (strcmp(name, names[n]) == 0) return true;
+    return false;
+}
+
+/* IR_SPEC 1.4: the destination type names the getter. */
+static const char *object_getter(const char *dest_type) {
+    if (is_int(dest_type)) return "orbit_object_get_int";
+    if (is_float(dest_type)) return "orbit_object_get_float";
+    if (is_bool(dest_type)) return "orbit_object_get_bool";
+    if (is_string(dest_type)) return "orbit_object_get_string";
+    if (is_void_ptr(dest_type)) return "orbit_object_get_object";
+    if (is_list(dest_type)) return "orbit_object_get_list";
+    return NULL;
+}
+
 static bool extern_needs_arena(const char *name) {
     static const char *const names[] = {
         "orbit_file_read", "orbit_file_list_dir", "orbit_response_header_line",
@@ -1500,13 +1526,16 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             return fail(d, NULL, "CGEN", "extern function %s has unsupported parameter metadata", f->name);
         for (pc = 0; pc < f->param_count; ++pc)
             if (!is_scalar(f->param_types[pc]) &&
-                !(is_void_ptr(f->param_types[pc]) && extern_takes_object(f->name)))
+                !(is_void_ptr(f->param_types[pc]) &&
+                  (extern_takes_object(f->name) || extern_object_symbol(f->name))) &&
+                !(is_list(f->param_types[pc]) && extern_object_symbol(f->name)))
                 return fail(d, NULL, "CGEN", "extern parameter type is unsupported in M1");
         /* D-M1-48: a runtime extern may also return an OrbitList* word or an
            OrbitResult through the sret pointer. */
         if (strcmp(f->return_type, "void") != 0 && !is_scalar(f->return_type) &&
             !is_list(f->return_type) && !is_result(f->return_type) &&
-            !(is_void_ptr(f->return_type) && extern_takes_object(f->name)))
+            !(is_void_ptr(f->return_type) &&
+              (extern_takes_object(f->name) || extern_object_symbol(f->name))))
             return fail(d, NULL, "CGEN", "extern return type is unsupported in M1");
         return true;
     }
@@ -1690,6 +1719,17 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!resolve_pack_field(m, f, i, &is_pack, &pack, &pack_variant, &pack_index,
                                     &offset, &total, d))
                 return false;
+            if (!is_pack && i->operands[0].kind == R6_VAL_REG &&
+                is_void_ptr(type_at(f, i->operands[0].as.i32))) {
+                /* D-M1-86: a keyed lookup on an OrbitObject word, IR_SPEC 1.4.
+                   A key without text has no spelling the getter can take. */
+                const R6Value *key = &i->operands[1];
+                if (!key->as.string || !*key->as.string || key->string_len != strlen(key->as.string))
+                    return fail(d, i, "CGEN", "an object field read requires a non-empty key without NUL");
+                if (!object_getter(type_at(f, i->dest)))
+                    return fail(d, i, "CGEN", "an object field read requires an int, float, bool, string, object or list destination");
+                break;
+            }
             if (is_pack) {
                 if (!union_payload_part(pack->rich_variants[pack_variant], pack_index, part, sizeof part) ||
                     !same_type(type_at(f, i->dest), payload_reg_type(m, part)))
@@ -3410,6 +3450,23 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (!resolve_pack_field(m, f, i, &is_pack, &pack, &pack_variant, &pack_index,
                                     &offset, &total, d))
                 return false;
+            if (!is_pack && i->operands[0].kind == R6_VAL_REG &&
+                is_void_ptr(type_at(f, i->operands[0].as.i32))) {
+                unsigned long long key_id = string_id++;
+                const char *dt = type_at(f, i->dest);
+                emit_string(o, i->operands[1].as.string, key_id);
+                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tleaq .LCr6_%llu(%%rip), %%rdx\n\tcall %s\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, key_id, object_getter(dt));
+                if (is_float(dt))
+                    fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
+                else if (is_int(dt))
+                    fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
+                else if (is_bool(dt))
+                    fprintf(o, "\tmovzbl %%al, %%eax\n\tmovq %%rax, -%u(%%rbp)\n", off);
+                else
+                    fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
+                break;
+            }
             if (is_pack) {
                 if (!union_payload_part(pack->rich_variants[pack_variant], pack_index, part, sizeof part))
                     return fail(d, i, "CGEN", "union %s variant %s payloads are outside the M1 native subset",

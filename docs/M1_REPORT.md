@@ -1768,3 +1768,16 @@ otros rechazos (un `result_unwrap` a `list` y un `list_get` de
 `list<list<int>>`). Diferencial **87/87**; loader **294/294**; corpus **125
 build / 125 match over 135 -> 126 / 126**; self-host C `80a61b67...`; census 2
 de 28.
+
+## Actualizacion de M1 - Object literals and keyed object reads (2026-10-27)
+
+D-M1-86. Un literal de objeto llega como `call orbit_object_create`, una
+llamada `orbit_object_set_<tipo>` por clave y `load_field` con receptor
+`object` (el cargador ya escribe `object` como `void*`). El `load_field` sobre
+un `void*` que no es una referencia de pack de union es una lectura por clave:
+el tipo del destino elige el getter (`int`, `float`, `bool`, `string`, `object`,
+`list`) y cualquier otro tipo, una clave vacia o con NUL siguen en `CGEN`. El
+par `89-object-literals` imprime 17 lineas iguales a las del oraculo y sale 42.
+Los cuatro programas de objetos coinciden. Diferencial **88/88**; loader
+**298/298**; corpus **126 build / 126 match over 135 -> 130 / 130**; self-host
+C `80a61b67...`; census 2 de 28.
