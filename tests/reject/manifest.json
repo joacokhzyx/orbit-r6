@@ -22,6 +22,13 @@
       }
     },
     {
+      "file": "cases/cgen-user-name-too-long.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-99",
+      "note": "a function name over 140 bytes does not fit the prefixed assembler label"
+    },
+    {
       "file": "cases/v01-no-trailing-lf.json",
       "exit": 1,
       "code": "E_JSON",
@@ -1811,6 +1818,19 @@
       "run_stdout": "-9223372036854775808\r\n9223372036854775807\r\n-2\r\n0\r\n-9223372036709301616\r\n-9223372036854775808\r\n4611686018427387904\r\n-9223372036854775808\r\n1\r\n2\r\n-9223372036854775808\r\n-9223372036854775808\r\n-1\r\n1\r\n-1\r\n-4611686018427387904\r\n0\r\n-1\r\n-9223372036854775808\r\n-9223372036854775808\r\n9223372036854775807\r\n9007199254740993\r\n9007199254740994\r\n-6289078614652622815\r\n",
       "rule": "D-M1-94",
       "note": "wrap at 2^63, shifts with count & 63, bitwise on the whole word and 64-bit literals"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/101-user-symbol-prefix.json",
+      "run_exit": 42,
+      "run_stdout": "[a]\r\n2\r\n8\r\n",
+      "rule": "D-M1-99",
+      "note": "user functions named printf, remainder, system_uptime and current_lease build, run and bind as values"
+    },
+    {
+      "file": "cases/ok-user-name-max.json",
+      "run_exit": 5,
+      "rule": "D-M1-99",
+      "note": "a 140-byte function name is accepted"
     },
     {
       "file": "cases/ok-link-runtime-dir.json",

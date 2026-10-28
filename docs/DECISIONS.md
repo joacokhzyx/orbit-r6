@@ -4469,3 +4469,28 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   three builds of `ok-link-runtime-dir` through the flag, the variable and the
   flag over a wrong variable. `run_reject.py` cases carry optional `args` and
   `env`.
+
+## D-M1-99 - User symbols are emitted as `o_<name>`
+
+- Date: 2026-10-28.
+- Reason: the language's C backend emits every user function as `o_<name>`
+  (orbit-lang `tests/suite/c_names_user_defined.orb`). R6 emitted the IR name,
+  so a user function named `system_uptime` or `current_lease` met the runtime
+  archive's unprefixed export and the link reported a multiple definition. The
+  same collision held for any libc, CRT or Win32 name (`printf`, `remainder`).
+- Decision:
+  - Every non-extern function is defined, called and bound as a value under
+    `o_<name>`. The runtime's own names start with `orbit_`, which `o_`
+    cannot spell, and `o_` is the prefix of the C backend.
+  - The entry stays `orbit_main`, called by the wrapper `main` that the CRT
+    link needs. Externs keep their names.
+  - Models, unions and globals emit no symbol in the object, so they need no
+    prefix. The `where` strings of runtime errors keep the IR name.
+  - A function name over 140 bytes is `error[CGEN]`: the assembler label is 160
+    bytes and carries `__r6_unwind_` and `o_`, and truncation would merge two
+    names.
+- Controls: `101-user-symbol-prefix` (user functions `printf`, `remainder`,
+  `system_uptime`, `current_lease`, `orbit_main_like`, one bound as a value;
+  differential against the oracle; the unprefixed driver fails it with
+  `multiple definition of system_uptime`), `ok-user-name-max` (140 bytes
+  accepted) and `cgen-user-name-too-long` (141 bytes rejected).

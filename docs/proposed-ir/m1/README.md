@@ -112,6 +112,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `98-div-overflow` | `INT64_MIN / 2`, `INT64_MIN % 3`, `INT64_MAX / -1` e `INT64_MAX % -1` no se detienen; `INT64_MIN % -1` termina con `integer overflow in division` y salida 2 (D-M1-95) | 2 | `-4611686018427387904\r\n-2\r\n-9223372036854775807\r\n0\r\n` |
 | `99-div-by-constant-64` | `/` y `%` por 44 constantes de 64 bits (potencias de dos hasta 2^62, divisores mayores que 2^32, `INT64_MAX`, negativos) contra la division por un parametro, en `INT64_MIN`, `INT64_MAX`, 2^32, -300..300 y 1500 pasos de un generador congruencial de 64 bits (D-M1-96). La salida es la de R6 y coincide con un modelo en Python | 42 | `0\r\n-7835353680425529040\r\n-6476564002640978153\r\n6476564002640978155\r\n-25\r\n` |
 | `100-int64-wrap` | desborde en 2^63 de `+`, `-`, `*` y `-`, desplazamientos con conteo `& 63` (64, 65, -1), `>>` aritmético, and/or/xor/not sobre la palabra completa, literales de 64 bits como argumento y `print`, y 3^40 envuelto (D-M1-94) | 42 | 24 líneas, en `tests/reject/manifest.json` (`INT64_WRAP_STDOUT`) |
+| `101-user-symbol-prefix` | funciones de usuario llamadas `printf`, `remainder`, `system_uptime`, `current_lease` y `orbit_main_like`, una enlazada como valor; el sufijo `o_` (D-M1-99) evita la colision con el runtime y la libc | 42 | `[a]\r\n2\r\n8\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los

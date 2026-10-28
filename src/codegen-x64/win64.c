@@ -717,6 +717,22 @@ static const R6Function *find_function(const R6Module *m, const char *name) {
     return NULL;
 }
 
+/* D-M1-99: every function the module defines is emitted as `o_<name>`, the
+ * spelling the language's C backend gives it, so that no user name meets a
+ * runtime, CRT or Win32 symbol. The entry keeps `orbit_main`, which the
+ * wrapper `main` calls. Externs keep their own names. The assembler's label
+ * is 160 bytes and prefixes `__r6_unwind_` to it, so a name over
+ * R6_USER_NAME_MAX is refused instead of truncated. */
+#define R6_USER_NAME_MAX 140
+#define R6_SYMBOL_CAP (R6_USER_NAME_MAX + 8)
+static const char *user_symbol(const R6Module *m, const char *name, char *buf, size_t cap) {
+    const R6Function *fn = find_function(m, name);
+    if (!fn || fn->is_extern) return name;
+    if (strcmp(name, "main") == 0) return "orbit_main";
+    snprintf(buf, cap, "o_%s", name);
+    return buf;
+}
+
 /* D-M1-65: a function is emitted when main reaches it. Roots are the
  * non-extern main and any route handler. An edge is a call target or a
  * Symbol operand that names a function, which is how a function value is
@@ -1549,6 +1565,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     const R6Instruction *arg_values[256];
     if (!valid_symbol(f->name))
         return fail(d, NULL, "CGEN", "function name is not a supported native symbol");
+    if (!f->is_extern && strlen(f->name) > R6_USER_NAME_MAX)
+        return fail(d, NULL, "CGEN", "function name %.24s... is longer than %d bytes",
+                    f->name, R6_USER_NAME_MAX);
     if (!f->return_type)
         return fail(d, NULL, "CGEN", "function %s has no return type", f->name);
     if (f->is_extern) {
@@ -2980,7 +2999,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     unsigned long long arg_string_ids[256];
     unsigned long long string_id = ((unsigned long long)fn_index) << 32;
     bool is_main = strcmp(f->name, "main") == 0;
-    const char *native_name = is_main ? "orbit_main" : f->name;
+    char symbuf[R6_SYMBOL_CAP];
+    const char *native_name = user_symbol(m, f->name, symbuf, sizeof symbuf);
     size_t outgoing = max_outgoing_args(m, f);
     size_t slots = (size_t)f->register_count + hidden_slots(f, is_main) +
                    f->param_count + local_count(f);
@@ -3049,7 +3069,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (i->operands[1].kind == R6_VAL_SYMBOL)
                 /* `val f = inc`: the local word is the function address. */
                 fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                        i->operands[1].as.string, local_off);
+                        user_symbol(m, i->operands[1].as.string, symbuf, sizeof symbuf),
+                        local_off);
             else if (i->operands[1].kind == R6_VAL_REG && is_result(local_type)) {
                 unsigned from = result_cell_offset(f, is_main, i->operands[1].as.i32);
                 unsigned to = result_cell_offset(f, is_main,
@@ -3143,7 +3164,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             } else if (cv->kind == R6_VAL_SYMBOL) {
                 /* Function value: the loaded word is the function address. */
                 fprintf(o, "\tleaq %s(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                        cv->as.string, off);
+                        user_symbol(m, cv->as.string, symbuf, sizeof symbuf), off);
             } else if (cv->kind == R6_VAL_FLOAT64) {
                 fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", (unsigned long long)cv->as.f64_bits, off);
             } else if (cv->kind == R6_VAL_INT) emit_int_slot(o, cv->as.i64, off);
@@ -3843,9 +3864,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                                          arg_string_ids[base + k] == ULLONG_MAX ? 0 : arg_string_ids[base + k]);
                     }
                     fprintf(o, "\tcall %s\n",
-                            strcmp(named->name, "main") == 0 ? "orbit_main" :
-                            find_function(m, named->name) ? named->name :
-                            intrinsic_symbol(named->name));
+                            find_function(m, named->name)
+                                ? user_symbol(m, named->name, symbuf, sizeof symbuf)
+                                : intrinsic_symbol(named->name));
                     if (i->has_dest && !is_void(type_at(f, i->dest)) && !sret_first) {
                         if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
                         else if (is_bool(type_at(f, i->dest)))

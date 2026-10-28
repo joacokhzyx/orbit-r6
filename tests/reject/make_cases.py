@@ -177,6 +177,12 @@ def build_reject():
         "R6_RUNTIME_DIR at a directory without the archive fails the link",
         env={"R6_RUNTIME_DIR": "{empty}"})
 
+    # ---- D-M1-99: user symbols are emitted as o_<name> -----------------------
+    long_name = DOC([MAIN([I("ret", -1, Int(0))], ["int"]),
+                     FN("f" * 141, [I("ret", -1, Int(0))], ["int"])])
+    add("cgen-user-name-too-long", jd(long_name), "D-M1-99", "CGEN",
+        "a function name over 140 bytes does not fit the prefixed assembler label")
+
     # ---- V-01: JSON envelope -------------------------------------------------
     add("v01-no-trailing-lf", jd(DOC())[:-1], "V-01", "E_JSON",
         "document must end with LF")
@@ -1858,6 +1864,9 @@ def build_accept_files():
                                 I("add", 3, Reg(1), Reg(2)),
                                 I("ret", -1, Reg(3))],
                                ["object", "int", "int", "int"])]))))
+    files.append(("ok-user-name-max", jd(DOC([
+        MAIN([I("call", 0, Str("g" * 140), Int(0)), I("ret", -1, Reg(0))], ["int"]),
+        FN("g" * 140, [I("load_const", 0, Int(5)), I("ret", -1, Reg(0))], ["int"])]))))
     files.append(("ok-link-runtime-dir", jd(DOC([MAIN([I("ret", -1, Int(0))], ["int"])]))))
     files.append(("ok-db-link",
                   jd(DOC([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
@@ -2376,6 +2385,11 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/100-int64-wrap.json", "run_exit": 42,
              "run_stdout": INT64_WRAP_STDOUT, "rule": "D-M1-94",
              "note": "wrap at 2^63, shifts with count & 63, bitwise on the whole word and 64-bit literals"},
+            {"file": "../../docs/proposed-ir/m1/101-user-symbol-prefix.json", "run_exit": 42,
+             "run_stdout": "[a]\r\n2\r\n8\r\n", "rule": "D-M1-99",
+             "note": "user functions named printf, remainder, system_uptime and current_lease build, run and bind as values"},
+            {"file": "cases/ok-user-name-max.json", "run_exit": 5, "rule": "D-M1-99",
+             "note": "a 140-byte function name is accepted"},
             {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
              "args": ["--runtime-dir", "{runtime}"],
              "note": "--runtime-dir at a directory holding the archive links"},

@@ -1,0 +1,32 @@
+// D-M1-99: a user function may carry the name of a libc, CRT or runtime symbol.
+fn printf(text: string) -> string {
+    return "[" + text + "]"
+}
+
+fn remainder(a: int, b: int) -> int {
+    return a - (a / b) * b
+}
+
+fn system_uptime() -> int {
+    return 7
+}
+
+fn current_lease() -> int {
+    return 35
+}
+
+fn orbit_main_like() -> int {
+    return 1
+}
+
+fn bump(v: int) -> int {
+    return v + 1
+}
+
+fn main() -> int {
+    print(printf("a"))
+    print(remainder(17, 5))
+    val g = bump
+    print(g(system_uptime()))
+    return system_uptime() + current_lease() + orbit_main_like() - 1
+}
