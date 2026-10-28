@@ -3897,3 +3897,43 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 115 / 115**, self-host C `54f0b797...` from the IR of
   `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-84 - A void* register is recovered like an unknown one and a call converts through the word
+
+- Date: 2026-10-27. Pin: `0cfce74` (D-F0-17). The decision lands before the
+  pin move it prepares: orbit-lang `e34833a` (branch `ir-complete`,
+  `docs/IR_SPEC.md` section 2.3) writes `void*` where the emitter wrote
+  `unknown`, because that is what `mapTypeToC` declares for a value the
+  compiler cannot type.
+- Root cause: the corpus emitted at `e34833a` has 292 `void*` register types.
+  R6 recovers an `unknown` slot from its defining instruction (D-M1-20,
+  D-M1-47, D-M1-53, D-M1-57) and treated a `void*` slot as typed, so every
+  recovery stopped. `r6 build` of that corpus built 108 of 135 programs, and 11
+  programs that build at `0cfce74` stopped: `test_bytes`, `test_crypto`,
+  `test_io`, `test_json`, `test_string` (a `list_get` of elemKind 0 passed to a
+  string parameter) and the six `union_*` programs (a payload read into a
+  `void*` destination). The C passes such a value to a parameter or stores it
+  with a cast through `uintptr_t`.
+- Decision:
+  - `infer_register_types` recovers a `void*` destination by the same rules as
+    an `unknown` one and keeps the slot when no rule yields another type.
+  - A named call converts each argument to the parameter type with the casts the
+    C backend writes: an `int`, a `string`, a `list`, a model or a union passes
+    to a `void*` parameter unchanged, because an `int` slot already holds the
+    sign-extended word; a `void*` word passes to an `int` parameter as its low
+    32 bits sign-extended (`movslq`), and to a `string`, `list`, model or union
+    parameter unchanged.
+  - A call whose callee returns `void*` stores into an `int` destination with
+    the same truncation, and a call whose callee returns `int` stores into a
+    `void*` destination sign-extended.
+  - A `bool`, a `float` and a `result` have no measured conversion to or from a
+    `void*` and stay refused.
+- Controls in `tests/reject/`: `ok-voidptr-retype-load-var` (exit 3),
+  `ok-voidptr-call-roundtrip` (42), `ok-voidptr-call-dest-int` (9);
+  `x-voidptr-retype-unresolved`, `x-voidptr-arg-bool-param` and
+  `x-bool-arg-voidptr-param` stay `CGEN`.
+- Measured: `r6 build` of the corpus emitted at `e34833a` builds 108 -> 125 of
+  135 programs. The differential of that corpus matches every program that
+  builds. At `0cfce74`: differential **86/86**, loader **290/290**, corpus **115
+  build / 115 match over 135 -> 115 / 115**, self-host C `54f0b797...`, census 2 of 27.
+- Status: **applied**.

@@ -764,6 +764,27 @@
       "note": "an unwrap read by anything but a local's decl_var stays unknown (D-M1-43)"
     },
     {
+      "file": "cases/x-voidptr-retype-unresolved.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-84",
+      "note": "a void* load_var of an undeclared name has no type to take and stays refused"
+    },
+    {
+      "file": "cases/x-voidptr-arg-bool-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-84",
+      "note": "a void* word is not converted to a bool parameter"
+    },
+    {
+      "file": "cases/x-bool-arg-voidptr-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-84",
+      "note": "a bool register is not converted to a void* parameter"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -1460,6 +1481,24 @@
       "run_exit": 8,
       "rule": "D-M1-20",
       "note": "an unknown list_create destination is recovered as list"
+    },
+    {
+      "file": "cases/ok-voidptr-retype-load-var.json",
+      "run_exit": 3,
+      "rule": "D-M1-84",
+      "note": "a void* load_var destination takes the local's declared type"
+    },
+    {
+      "file": "cases/ok-voidptr-call-roundtrip.json",
+      "run_exit": 42,
+      "rule": "D-M1-84",
+      "note": "an int goes into a void* parameter and a void* word into an int parameter"
+    },
+    {
+      "file": "cases/ok-voidptr-call-dest-int.json",
+      "run_exit": 9,
+      "rule": "D-M1-84",
+      "note": "a void* return lands in an int register as the sign-extended low 32 bits"
     },
     {
       "file": "cases/ok-infer-union-tag.json",

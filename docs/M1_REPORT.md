@@ -1740,3 +1740,17 @@ operacion aritmetica como operando de memoria, fusiona `movaps A,%X` + `OP B,%X`
 + `movaps %X,D` y renombra copias xmm. `floats.ir`: 1.26 s -> 0.82 s. El par
 `87-float-cleanup` sale 42. Diferencial **86/86**; loader **284/284**; corpus
 **115 build / 115 match over 135 -> 115 / 115**; self-host C `54f0b797...`.
+
+## Actualizacion de M1 - A void* register is recovered like an unknown one (2026-10-27)
+
+D-M1-84. El corpus que emite `e34833a` escribe `void*` donde el pin escribia
+`unknown` (292 tipos de registro). R6 trataba el `void*` como tipado y la
+recuperacion de D-M1-20 no corria: 11 programas que compilan en `0cfce74`
+dejaban de compilar (`test_bytes`, `test_crypto`, `test_io`, `test_json`,
+`test_string` y seis `union_*`). `infer_register_types` recupera ahora un
+destino `void*` con las mismas reglas, y una llamada nombrada convierte cada
+argumento y el retorno entre `int` y palabra con los casts del backend C. Un
+`bool`, un `float` y un `result` no tienen conversion medida y siguen
+rechazados. `r6 build` del corpus de `e34833a`: 108 -> 125 de 135 programas.
+Diferencial **86/86**; loader **290/290**; corpus **115 build / 115 match over
+135 -> 115 / 115**; self-host C `54f0b797...`; census 2 de 27.

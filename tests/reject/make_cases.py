@@ -704,6 +704,41 @@ def build_reject():
         "D-M1-20", "CGEN",
         "an unwrap read by anything but a local's decl_var stays unknown (D-M1-43)")
 
+    # ---- D-M1-84: a `void*` slot is recovered like an `unknown` one ----------
+    # Since D-F0-18 the emitter writes `void*` where it wrote `unknown`, and
+    # the C backend converts at the use with casts through uintptr_t. A word
+    # moves between an int and a pointer; a bool, float or result does not.
+    def ID_PTR():
+        return FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
+                  rtype="void*", params=["x"], ptypes=["void*"])
+
+    def TAKES(name, ptype, rtype, reg_type):
+        return FN(name, [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], [reg_type],
+                  rtype=rtype, params=["x"], ptypes=[ptype])
+
+    add("x-voidptr-retype-unresolved",
+        jd(DOC([MAIN([I("load_var", 0, Sym("nosuchlocal")),
+                      I("ret", -1, Int(0))], ["void*"])])),
+        "D-M1-84", "CGEN",
+        "a void* load_var of an undeclared name has no type to take and stays refused")
+    add("x-voidptr-arg-bool-param",
+        jd(DOC([ID_PTR(), TAKES("takes_bool", "bool", "bool", "bool"),
+                MAIN([I("arg", -1, Int(1)),
+                      I("call", 0, Str("id"), Int(1)),
+                      I("arg", -1, Reg(0)),
+                      I("call", 1, Str("takes_bool"), Int(1)),
+                      I("ret", -1, Int(0))], ["void*", "bool"])])),
+        "D-M1-84", "CGEN",
+        "a void* word is not converted to a bool parameter")
+    add("x-bool-arg-voidptr-param",
+        jd(DOC([ID_PTR(),
+                MAIN([I("load_const", 0, Bool(True)),
+                      I("arg", -1, Reg(0)),
+                      I("call", 1, Str("id"), Int(1)),
+                      I("ret", -1, Int(0))], ["bool", "void*"])])),
+        "D-M1-84", "CGEN",
+        "a bool register is not converted to a void* parameter")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -1559,6 +1594,31 @@ def build_accept_files():
     files.append(("ok-infer-list-create",
                   jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=1),
                                 I("ret", -1, Int(8))], ["unknown"])]))))
+    files.append(("ok-voidptr-retype-load-var",
+                  jd(DOC([MAIN([I("decl_var", -1, Sym("a"), Int(3)),
+                                I("load_var", 0, Sym("a")),
+                                I("ret", -1, Reg(0))], ["void*"])]))))
+    files.append(("ok-voidptr-call-roundtrip",
+                  jd(DOC([FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
+                             rtype="void*", params=["x"], ptypes=["void*"]),
+                          FN("takes_int", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["int"],
+                             params=["n"], ptypes=["int"]),
+                          MAIN([I("arg", -1, Int(42)),
+                                I("call", 0, Str("id"), Int(1)),
+                                I("arg", -1, Reg(0)),
+                                I("call", 1, Str("takes_int"), Int(1)),
+                                I("ret", -1, Reg(1))], ["void*", "int"])]))))
+    files.append(("ok-voidptr-call-dest-int",
+                  jd(DOC([FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
+                             rtype="void*", params=["x"], ptypes=["void*"]),
+                          MAIN([I("arg", -1, Int(-5)),
+                                I("call", 0, Str("id"), Int(1)),
+                                I("load_const", 1, Int(-5)),
+                                I("eq", 2, Reg(0), Reg(1)),
+                                I("jump_if_false", -1, Reg(2), Lab(1)),
+                                I("ret", -1, Int(9)),
+                                I("label", -1, Lab(1)),
+                                I("ret", -1, Int(1))], ["int", "int", "bool"])]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -1889,6 +1949,12 @@ def build_manifest(reject, accept_files):
              "note": "an unknown arg binding takes the parameter's declared type"},
             {"file": "cases/ok-infer-list-create.json", "run_exit": 8, "rule": "D-M1-20",
              "note": "an unknown list_create destination is recovered as list"},
+            {"file": "cases/ok-voidptr-retype-load-var.json", "run_exit": 3, "rule": "D-M1-84",
+             "note": "a void* load_var destination takes the local's declared type"},
+            {"file": "cases/ok-voidptr-call-roundtrip.json", "run_exit": 42, "rule": "D-M1-84",
+             "note": "an int goes into a void* parameter and a void* word into an int parameter"},
+            {"file": "cases/ok-voidptr-call-dest-int.json", "run_exit": 9, "rule": "D-M1-84",
+             "note": "a void* return lands in an int register as the sign-extended low 32 bits"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",

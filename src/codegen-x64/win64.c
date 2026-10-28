@@ -952,6 +952,26 @@ static bool field_is_word(const R6Module *m, const char *t) {
     return is_list(t) || is_void_ptr(t) || is_model_type(m, t);
 }
 
+/* D-M1-84: the C backend declares a register it cannot type as `void*` and
+ * converts at the use with casts through `uintptr_t`. A word in R6 is the
+ * sign-extended 64 bits of an `orbit_int` or a pointer, so the conversions
+ * that need no instruction are int to pointer and pointer to pointer; a
+ * pointer to int truncates to 32 bits. A bool, float or result is not a
+ * pointer word and has no measured conversion. */
+static bool is_union_name(const R6Module *m, const char *t);
+static bool pointer_word_type(const R6Module *m, const char *t) {
+    return is_string(t) || is_list(t) || is_void_ptr(t) || is_model_type(m, t) ||
+           is_union_name(m, t);
+}
+
+static bool word_convertible(const R6Module *m, const char *from, const char *to) {
+    if (!from || !to) return false;
+    if (same_type(from, to) || int_widens_to_float(from, to)) return true;
+    if (is_void_ptr(to)) return is_int(from) || pointer_word_type(m, from);
+    if (is_void_ptr(from)) return is_int(to) || pointer_word_type(m, to);
+    return false;
+}
+
 static bool model_field_size(const R6Module *m, const char *t, size_t *size, size_t *align) {
     if (is_int(t)) { *size = 4; *align = 4; return true; }
     if (is_bool(t)) { *size = 1; *align = 1; return true; }
@@ -1955,8 +1975,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     const char *t;
                     R6Value *v = (R6Value *)&arg_values[base + k]->operands[0];
                     if (!value_type(f, v, &t) ||
-                        !(same_type(t, callee->param_types[k]) ||
-                          int_widens_to_float(t, callee->param_types[k])))
+                        !word_convertible(m, t, callee->param_types[k]))
                         return fail(d, i, "CGEN", "call argument %zu type does not match %s", k, callee->name);
                     if (is_result(t) && (callee != find_function(m, callee->name) || callee->is_extern))
                         return fail(d, i, "CGEN", "a result argument of %s is outside the subset: only a declared Orbit function takes one",
@@ -1969,7 +1988,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                        nobody may read). */
                     if (i->has_dest && !is_void(type_at(f, i->dest)))
                         return fail(d, i, "CGEN", "void call destination must be a void register");
-                } else if (!i->has_dest || !same_type(type_at(f, i->dest), callee->return_type))
+                } else if (!i->has_dest ||
+                           !(same_type(type_at(f, i->dest), callee->return_type) ||
+                             ((is_void_ptr(callee->return_type) || is_void_ptr(type_at(f, i->dest))) &&
+                              word_convertible(m, callee->return_type, type_at(f, i->dest)))))
                     return fail(d, i, "CGEN", "call destination does not match return type of %s", callee->name);
                 if (is_result(callee->return_type) &&
                     (callee != find_function(m, callee->name) ||
@@ -2167,6 +2189,19 @@ static void emit_load_arg_as(FILE *o, const R6Function *f, const R6Value *v,
                              const char *type, const char *param_type, size_t index,
                              unsigned long long id) {
     static const char *xmm[] = {"%xmm0", "%xmm1", "%xmm2", "%xmm3"};
+    if (is_void_ptr(type) && is_int(param_type) && v->kind == R6_VAL_REG) {
+        /* (orbit_int)(uintptr_t)(word): the low 32 bits, sign-extended. */
+        static const char *gp32[] = {"%ecx", "%edx", "%r8d", "%r9d"};
+        static const char *gp[] = {"%rcx", "%rdx", "%r8", "%r9"};
+        unsigned slot = (unsigned)(v->as.i32 + 1) * 8;
+        if (index >= 4)
+            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tmovslq %%eax, %%rax\n\tmovq %%rax, %u(%%rsp)\n",
+                    slot, (unsigned)(32 + (index - 4) * 8));
+        else
+            fprintf(o, "\tmovl -%u(%%rbp), %s\n\tmovslq %s, %s\n", slot, gp32[index],
+                    gp32[index], gp[index]);
+        return;
+    }
     if (!int_widens_to_float(type, param_type)) {
         emit_load_arg(o, f, v, type, index, id);
         return;
@@ -3593,7 +3628,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                             intrinsic_symbol(named->name));
                     if (i->has_dest && !is_void(type_at(f, i->dest)) && !sret_first) {
                         if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
-                        else if (is_int(type_at(f, i->dest)))
+                        else if (is_int(type_at(f, i->dest)) || is_int(named->return_type))
                             /* D-M1-36: a C int returns in eax; the slot keeps
                                the sign-extended 32-bit value. */
                             fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
@@ -4050,10 +4085,12 @@ static void infer_register_types(const R6Module *m, R6Function *f) {
                 (size_t)i->dest >= f->register_type_count)
                 continue;
             if (!f->register_types[i->dest] ||
-                strcmp(f->register_types[i->dest], "unknown") != 0)
+                !(strcmp(f->register_types[i->dest], "unknown") == 0 ||
+                  strcmp(f->register_types[i->dest], "void*") == 0))
                 continue;
             type = infer_dest_type(m, f, i, buf, sizeof buf);
-            if (!type || strcmp(type, "unknown") == 0) continue;
+            if (!type || strcmp(type, "unknown") == 0 ||
+                strcmp(type, f->register_types[i->dest]) == 0) continue;
             copy = dup_type_text(type);
             if (!copy) return;     /* out of memory: keep the fail-closed state */
             free(f->register_types[i->dest]);
