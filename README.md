@@ -26,9 +26,9 @@ Measured on 2026-10-27 at the pin (`e34833a`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 86/86 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 290/290 (192 rejections, 98 acceptance controls) | gate |
-| Corpus (`tests/corpus/run_corpus.py`) | 125 build / 125 match over 135 programs | measurement with a one-way ratchet |
+| Differential (`tests/diff/run_diff.py`) | 92/92 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 303/303 (202 rejections, 101 acceptance controls) | gate |
+| Corpus (`tests/corpus/run_corpus.py`) | 135 build / 135 match over 135 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 2 build over 28 modules | measurement with a one-way ratchet |
 
 R6 builds the Orbit compiler itself (`compiler/host/main.orb`, 1038

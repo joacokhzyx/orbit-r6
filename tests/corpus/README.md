@@ -597,4 +597,5 @@ IR llega completo y tipado: seis opcodes de bits, un extern por cada símbolo de
 runtime que el módulo llama y `void*` donde antes iba `unknown` (3 documentos
 conservan `unknown` dentro de `list<unknown>`). R6 construye y coincide en 125
 de 135 programas, ninguno difiere. Los 10 restantes: tres con opcodes de bits,
-cuatro con objetos, dos con base de datos y `test_random`.
+cuatro con objetos, dos con base de datos y `test_random`. D-M1-85 a D-M1-90
+los cierran: R6 construye y coincide en 135 de 135 programas.
