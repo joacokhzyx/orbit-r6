@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
     R6CoffObject object;
     char asm_error[256];
     int argi = 1, rc = 1, stage;
-    bool uses_db = false, timings;
+    bool uses_db = false, uses_net, timings;
     const char *timings_env = getenv("R6_TIMINGS");
     double t0;
     size_t fn;
@@ -195,6 +195,9 @@ int main(int argc, char **argv) {
         if (module.functions[fn].is_extern && module.functions[fn].name &&
             strncmp(module.functions[fn].name, "orbit_db_", 9) == 0)
             uses_db = true;
+    /* D-M1-102: ws2_32 only for a module the pin's rule calls a network
+     * program; a database program is one. */
+    uses_net = r6_module_uses_network(&module);
 
     /* D-M1-98: R6_TMPDIR, else the system temporary directory; never the
      * project of the program being built. */
@@ -329,7 +332,8 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = obj_path;
     link_argv[link_argc++] = runtime_a;
     if (uses_db) link_argv[link_argc++] = sqlite_lib;
-    link_argv[link_argc++] = "-lws2_32"; link_argv[link_argc++] = "-lmingw32";
+    if (uses_net) link_argv[link_argc++] = "-lws2_32";
+    link_argv[link_argc++] = "-lmingw32";
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
     link_argv[link_argc++] = "-lpthread"; link_argv[link_argc++] = "-ladvapi32";

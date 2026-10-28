@@ -3776,9 +3776,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     unsigned long long fmt;
                     value_type(f, av, &at);
                     if (is_string(at)) {
-                        fmt = string_id++;
-                        emit_string(o, "%s\n", fmt);
-                        emit_load_arg(o, f, av, "string", 1, arg_string_ids[base]);
+                        /* D-M1-102: the pin's `orbit_print_string(s)` (string,
+                         * newline, flush) in place of printf("%s\n", s). */
+                        emit_load_arg(o, f, av, "string", 0, arg_string_ids[base]);
+                        fputs("\tcall orbit_print_string\n", o);
+                        pending = base;
+                        break;
                     } else if (is_float(at)) {
                         /* printf("%s\n", orbit_float_to_string(arena, v)) */
                         emit_load_arena(o, f, is_main, "%rcx");
@@ -4140,6 +4143,51 @@ static void emit_db_text(FILE *o, const char *text, unsigned long long id) {
     emit_string(o, text, id);
 }
 
+/* D-M1-102: the start-up pieces of docs/STARTUP.md in the pin, decided from
+ * the callee names of the module as c_backend.orb `moduleCallsStartup` does. */
+static bool callee_has_prefix(const char *name, const char *prefix) {
+    return strncmp(name, prefix, strlen(prefix)) == 0;
+}
+
+static bool module_calls_startup(const R6Module *m, int what) {
+    size_t n, pc;
+    for (n = 0; n < m->function_count; ++n) {
+        const R6Function *f = &m->functions[n];
+        for (pc = 0; pc < f->instruction_count; ++pc) {
+            const R6Instruction *i = &f->instructions[pc];
+            const char *name;
+            if (i->opcode != R6_OP_CALL) continue;
+            if (i->operands[0].kind != R6_VAL_STRING && i->operands[0].kind != R6_VAL_SYMBOL) continue;
+            name = i->operands[0].as.string;
+            if (!name) continue;
+            if (what == 0 && (callee_has_prefix(name, "orbit_os_argc") ||
+                              callee_has_prefix(name, "orbit_os_argv")))
+                return true;
+            if (what == 1 && (strcmp(name, "print") == 0 ||
+                              callee_has_prefix(name, "orbit_os_write_std")))
+                return true;
+            if (what == 2 && (strcmp(name, "orbit_file_upload_save") == 0 ||
+                              callee_has_prefix(name, "orbit_http_") ||
+                              callee_has_prefix(name, "orbit_response_") ||
+                              callee_has_prefix(name, "orbit_route_") ||
+                              callee_has_prefix(name, "orbit_send_") ||
+                              callee_has_prefix(name, "orbit_kynx_") ||
+                              callee_has_prefix(name, "orbit_pulse_") ||
+                              callee_has_prefix(name, "orbit_ledger_")))
+                return true;
+        }
+    }
+    return false;
+}
+
+bool r6_module_uses_args(const R6Module *m) { return module_calls_startup(m, 0); }
+
+/* A database program counts as a network program: the SQLite progress handler
+ * lives in kynx.c. */
+bool r6_module_uses_network(const R6Module *m) {
+    return module_uses_db(m) || module_calls_startup(m, 2);
+}
+
 static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
     bool db = module_uses_db(m);
     unsigned long long base = 1ULL << 62, next = base + 1;
@@ -4202,10 +4250,14 @@ static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
           "\tmovq %rsp, %rbp\n\t.seh_setframe %rbp, 0\n"
           "\tsubq $48, %rsp\n\t.seh_stackalloc 48\n"
           "\t.seh_endprologue\n"
-          /* D-M1-37: the pinned main stores argc/argv for orbit_os_argc and
-           * orbit_os_argv before anything else runs. */
-          "\tleaq _orbit_argc(%rip), %rax\n\tmovl %ecx, 0(%rax)\n"
-          "\tleaq _orbit_argv(%rip), %rax\n\tmovq %rdx, 0(%rax)\n", o);
+          , o);
+    /* D-M1-37, D-M1-102: the pinned main stores argc/argv only when the module
+     * reads them; an unconditional reference links os.o. */
+    if (r6_module_uses_args(m))
+        fputs("\tleaq _orbit_argc(%rip), %rax\n\tmovl %ecx, 0(%rax)\n"
+              "\tleaq _orbit_argv(%rip), %rax\n\tmovq %rdx, 0(%rax)\n", o);
+    fputs("\tcall orbit_crash_handler_install\n", o);
+    if (module_calls_startup(m, 1)) fputs("\tcall orbit_console_init\n", o);
     if (db) {
         fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tcall orbit_db_init\n", base);
         for (k = 0; k < ddl_count; ++k)

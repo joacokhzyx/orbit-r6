@@ -4590,3 +4590,35 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   differing; census **2 build over 27 modules**; self-host C `70129F41...` from
   the IR of `compiler/host/main.orb`, equal to `PUBLISHED_C`.
 - Status: **applied**.
+
+## D-M1-102 - Start-up per program, as docs/STARTUP.md of the pin
+
+- Date: 2026-10-28. Pin: `bf38b38` (D-F0-20), measured against the runtime
+  archive of `cc6b167` built with `scripts/mklib_runtime.py` (19 members).
+- Reason: the pin splits the runtime archive into one member per module and
+  states in `docs/STARTUP.md` what the entry of a program must do. R6 emitted
+  `_orbit_argv` and `_orbit_argc` in every `main` and lowered `print` of a string
+  to `printf`. The first reference links `os.o`, `collections.o` and `advapi32`;
+  the second links `__mingw_pformat`. `hello` (`print("hello")`) was 66 512 bytes
+  of `.text` and imported ADVAPI32.
+- Decision:
+  - The names come from the `call` instructions of every function, with the
+    prefixes of `moduleCallsStartup` in `compiler/emit/c_backend.orb`.
+  - `main` stores `_orbit_argc` and `_orbit_argv` only when a call starts with
+    `orbit_os_argc` or `orbit_os_argv`.
+  - `main` calls `orbit_crash_handler_install` first, always.
+  - `main` calls `orbit_console_init` when the module calls `print` or
+    `orbit_os_write_std*`.
+  - `print` of a string is `orbit_print_string(s)`. Int, bool and float keep
+    `printf`, as the pin does.
+  - The driver passes `-lws2_32` only for a module with a call that starts with
+    `orbit_http_`, `orbit_response_`, `orbit_route_`, `orbit_send_`,
+    `orbit_kynx_`, `orbit_pulse_` or `orbit_ledger_`, a call to
+    `orbit_file_upload_save`, or an `orbit_db_*` extern. A database program is a
+    network program because the progress handler lives in `kynx.c`.
+- Measured: `hello` `.text` 66 512 -> 13 216 bytes, `.rdata` 6 632 -> 3 080,
+  `.bss` 11 376 -> 8 768, DLLs ADVAPI32, KERNEL32, msvcrt -> KERNEL32, msvcrt.
+  The C backend at `cc6b167` prints 13 072 / 3 064 / 8 736 for the same program.
+  `run_diff.py` 100/100 and `run_reject.py` 341/341 with the new archives.
+- Fixtures: `46-process-argc` is the positive control for the argv rule; every
+  other fixture builds without the reference.
