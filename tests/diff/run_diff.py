@@ -20,6 +20,10 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 FIXTURES = REPO / "docs" / "proposed-ir" / "m1"
+ORACLE_CACHE = REPO / ".r6-build" / "oracle-cache.json"
+
+sys.path.insert(0, str(HERE.parent))
+from oracle_cache import OracleCache, sha256_bytes, sha256_file  # noqa: E402
 
 
 def show_bytes(data: bytes) -> str:
@@ -47,6 +51,8 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--case", action="append", dest="cases",
                         help="fixture basename without extension; repeatable, default: all five")
+    parser.add_argument("--no-oracle-cache", action="store_true",
+                        help=f"rebuild and rerun every oracle instead of reading {ORACLE_CACHE}")
     args = parser.parse_args()
 
     orbit_root = args.orbit_root.resolve()
@@ -79,6 +85,8 @@ def main() -> int:
         env["PATH"] = str(vendor) + os.pathsep + env.get("PATH", "")
     suffix = ".exe" if os.name == "nt" else ""
     failures = 0
+    cache = OracleCache(ORACLE_CACHE, enabled=not args.no_oracle_cache)
+    compiler_sha = sha256_file(Path(compiler)) if Path(compiler).is_file() else compiler
 
     build_root = REPO / ".r6-build"
     build_root.mkdir(exist_ok=True)
@@ -92,22 +100,25 @@ def main() -> int:
             source = FIXTURES / f"{name}.orb"
             ir = FIXTURES / f"{name}.json"
             case_env = dict(env, TEMP=str(case_dir), TMP=str(case_dir), TMPDIR=str(case_dir))
+            key = "diff:" + sha256_bytes(source.read_bytes(), ir.read_bytes()) + ":" + compiler_sha
+            cached = cache.get(key)
 
-            try:
-                build = subprocess.run(
-                    [compiler, "build", str(source), "-o", str(oracle_exe)],
-                    cwd=orbit_root, env=case_env, capture_output=True,
-                    timeout=args.timeout,
-                )
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                print(f"FAIL {name}: gcc oracle build failed: {exc}", file=sys.stderr)
-                failures += 1
-                continue
-            if build.returncode != 0:
-                detail = (build.stderr or build.stdout).decode("utf-8", errors="replace")
-                print(f"FAIL {name}: gcc oracle did not build (rc={build.returncode})\n{detail}", file=sys.stderr)
-                failures += 1
-                continue
+            if cached is None:
+                try:
+                    build = subprocess.run(
+                        [compiler, "build", str(source), "-o", str(oracle_exe)],
+                        cwd=orbit_root, env=case_env, capture_output=True,
+                        timeout=args.timeout,
+                    )
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    print(f"FAIL {name}: gcc oracle build failed: {exc}", file=sys.stderr)
+                    failures += 1
+                    continue
+                if build.returncode != 0:
+                    detail = (build.stderr or build.stdout).decode("utf-8", errors="replace")
+                    print(f"FAIL {name}: gcc oracle did not build (rc={build.returncode})\n{detail}", file=sys.stderr)
+                    failures += 1
+                    continue
 
             command = [part.replace("{ir}", str(ir)).replace("{exe}", str(r6_exe))
                        for part in args.r6_command]
@@ -125,8 +136,12 @@ def main() -> int:
                 continue
 
             try:
-                oracle = subprocess.run([str(oracle_exe)], cwd=case_dir, env=case_env,
-                                        capture_output=True, timeout=args.timeout)
+                if cached is None:
+                    oracle = subprocess.run([str(oracle_exe)], cwd=case_dir, env=case_env,
+                                            capture_output=True, timeout=args.timeout)
+                    cached = (oracle.returncode, oracle.stdout, oracle.stderr)
+                    cache.put(key, *cached)
+                oracle_exit, oracle_stdout, oracle_stderr = cached
                 native = subprocess.run([str(r6_exe)], cwd=case_dir, env=case_env,
                                         capture_output=True, timeout=args.timeout)
             except (OSError, subprocess.TimeoutExpired) as exc:
@@ -134,19 +149,21 @@ def main() -> int:
                 failures += 1
                 continue
 
-            if oracle.returncode != native.returncode or oracle.stdout != native.stdout:
-                print(f"FAIL {name}: gcc exit={oracle.returncode}, r6 exit={native.returncode}", file=sys.stderr)
-                if oracle.stdout != native.stdout:
-                    print(f"  stdout gcc={show_bytes(oracle.stdout)}", file=sys.stderr)
+            if oracle_exit != native.returncode or oracle_stdout != native.stdout:
+                print(f"FAIL {name}: gcc exit={oracle_exit}, r6 exit={native.returncode}", file=sys.stderr)
+                if oracle_stdout != native.stdout:
+                    print(f"  stdout gcc={show_bytes(oracle_stdout)}", file=sys.stderr)
                     print(f"  stdout r6 ={show_bytes(native.stdout)}", file=sys.stderr)
-                    print(f"  {first_difference(oracle.stdout, native.stdout)}", file=sys.stderr)
-                if oracle.stderr != native.stderr:
-                    print(f"  stderr gcc={show_bytes(oracle.stderr)}", file=sys.stderr)
+                    print(f"  {first_difference(oracle_stdout, native.stdout)}", file=sys.stderr)
+                if oracle_stderr != native.stderr:
+                    print(f"  stderr gcc={show_bytes(oracle_stderr)}", file=sys.stderr)
                     print(f"  stderr r6 ={show_bytes(native.stderr)}", file=sys.stderr)
                 failures += 1
                 continue
-            print(f"PASS {name}: exit={oracle.returncode}, stdout={show_bytes(oracle.stdout)}")
+            print(f"PASS {name}: exit={oracle_exit}, stdout={show_bytes(oracle_stdout)}")
 
+    cache.save()
+    print(cache.summary())
     print(f"Differential: {len(names) - failures}/{len(names)} passed")
     return 1 if failures else 0
 

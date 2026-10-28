@@ -51,6 +51,10 @@ PINNED_MANIFEST = HERE / "manifest.json"
 BASELINE = HERE / "baseline.json"
 CORPUS_DIR = REPO / ".r6-build" / "corpus-ir"
 DEFAULT_ORBIT = REPO.parent / "orbit-lang"
+ORACLE_CACHE = REPO / ".r6-build" / "oracle-cache.json"
+
+sys.path.insert(0, str(HERE.parent))
+from oracle_cache import OracleCache, sha256_file  # noqa: E402
 
 # One line, the loader/codegen diagnostic grammar from AGENTS.md.
 DIAGNOSTIC = re.compile(r"^r6: .*?:(\d+):(\d+): error\[([A-Z_]+)\]: (.*)$")
@@ -191,6 +195,8 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--verbose", action="store_true",
                         help="print one line per case, not just the summary")
+    parser.add_argument("--no-oracle-cache", action="store_true",
+                        help=f"rebuild and rerun every oracle instead of reading {ORACLE_CACHE}")
     args = parser.parse_args()
 
     orbit_root = args.orbit_root.resolve()
@@ -245,6 +251,11 @@ def main() -> int:
     if vendor.is_dir():
         env["PATH"] = str(vendor) + os.pathsep + env.get("PATH", "")
     suffix = ".exe" if os.name == "nt" else ""
+    cache = OracleCache(ORACLE_CACHE, enabled=not args.no_oracle_cache)
+    # The pinned manifest names every program by hash and the fixed point
+    # builds the oracle, so the pair keys a result that a rebuild reproduces.
+    cache_prefix = (f"corpus:{sha256_file(args.manifest)}:"
+                    f"{sha256_file(Path(compiler))}:")
 
     cases = {}
     by_opcode = {}
@@ -284,19 +295,25 @@ def main() -> int:
             oracle_exe = case_dir / f"oracle{suffix}"
             r6_exe = case_dir / f"r6{suffix}"
 
-            code, _, stderr, timed_out, error = run(
-                [compiler, "build", str(source), "-o", str(oracle_exe)],
-                orbit_root, case_env, args.timeout)
-            if code != 0 or not oracle_exe.is_file():
-                case["verdict"] = "oracle-timeout" if timed_out else "oracle-fail"
-                case["detail"] = (stderr or error or f"rc={code}").strip()[-400:]
-                continue
-            code, oracle_out, _, timed_out, error = run(
-                [str(oracle_exe)], case_dir, case_env, args.timeout)
-            if timed_out or error or code is None:
-                case["verdict"] = "oracle-timeout" if timed_out else "oracle-run-fail"
-                case["detail"] = (error or "").strip()
-                continue
+            key = cache_prefix + rel
+            cached = cache.get(key)
+            if cached is None:
+                code, _, stderr, timed_out, error = run(
+                    [compiler, "build", str(source), "-o", str(oracle_exe)],
+                    orbit_root, case_env, args.timeout)
+                if code != 0 or not oracle_exe.is_file():
+                    case["verdict"] = "oracle-timeout" if timed_out else "oracle-fail"
+                    case["detail"] = (stderr or error or f"rc={code}").strip()[-400:]
+                    continue
+                code, oracle_out, oracle_err, timed_out, error = run(
+                    [str(oracle_exe)], case_dir, case_env, args.timeout)
+                if timed_out or error or code is None:
+                    case["verdict"] = "oracle-timeout" if timed_out else "oracle-run-fail"
+                    case["detail"] = (error or "").strip()
+                    continue
+                cache.put(key, code, oracle_out, oracle_err.encode("utf-8"))
+            else:
+                code, oracle_out, _ = cached
             oracle_exit = code
 
             command = [part.replace("{ir}", str(corpus_dir / Path(ir_rel)))
@@ -337,6 +354,9 @@ def main() -> int:
             case["exit"] = oracle_exit
             for opcode in opcodes:
                 by_opcode[opcode]["match"] += 1
+
+    cache.save()
+    print(cache.summary())
 
     if args.verbose:
         for rel, case in cases.items():
