@@ -3937,3 +3937,46 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   builds. At `0cfce74`: differential **86/86**, loader **290/290**, corpus **115
   build / 115 match over 135 -> 115 / 115**, self-host C `54f0b797...`, census 2 of 27.
 - Status: **applied**.
+
+## D-F0-18 - Re-pin to e34833a: complete, typed IR
+
+- Date: 2026-10-27. Moves the pin from `0cfce74` (D-F0-17) to orbit-lang
+  `main` `e34833af5a8fae76bd12c1fdb1ac65be6b002659`, 26 commits, pushed to
+  `https://github.com/joacokhzyx/orbit-lang`.
+- What moved, in four merges:
+  - `ir-complete`: six bitwise opcodes (`bit_and`, `bit_or`, `bit_xor`, `shl`,
+    `shr`, `bit_not`; `docs/IR_SPEC.md` section 1.3: a 32-bit `orbit_int`
+    result, a shift count `& 31`, `shr` arithmetic); an extern entry for every
+    runtime symbol a module calls (`system_*`, `orbit_db_*`, `orbit_object_*`,
+    `orbit_string_*`; section 3.3); object field reads typed by their getter
+    (section 1.4); `unknown` written as `void*`; `string_raw` written as
+    `string`; fixes for `var x: float = 1` and for a rebound list.
+  - `slim-compiler`: functions no entry point reaches are pruned before the C
+    step.
+  - `fast-builds` and `ship-archive`: the compiler links the prebuilt runtime
+    archive by default and the release ships it.
+- `runtime/` did not move; `scripts/mklib_runtime.py` adds a stamp file the
+  language reads. The runtime archive is rebuilt from the pin and its symbol
+  listing is identical to the previous one. The R6 driver does not change.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-c9c04bc393.exe` (sha256 `60862644...`), built from
+  `C:\Temp\orbit-pin-e34833a-git`; `PUBLISHED_C 80A61B67.`. The corpus
+  regenerates to 136 documents, 6850719 bytes, `filesSha256 1f2c44a4.`. The C
+  that the R6-built compiler writes for `compiler/host/main.orb` has the sha256
+  `80A61B67A236903FA4894A6159363889C8D332B9BA7FF0022A90E02B5558D713`.
+- The pin move commit carries D-M1-84 (the driver at the previous commit).
+  Ten programs of the 135 stay refused at this pin, each with its first
+  refusal: `bitwise_operators`, `test_bitwise`, `test_imports` (`E_OPCODE`, the
+  six bitwise opcodes); `object_literals`, `object_literal_cross_function`,
+  `object_literal_missing_key`, `model_literal_fields` (`load_field requires a
+  register receiver of a declared model type`); `arena_sink_scope`,
+  `peephole_no_fold_side_effects` (`LINK`, `orbit_db_query_all` undefined);
+  `test_random` (a `result_unwrap` into a `list`).
+- Ratchets: the corpus baseline is taken at the pin (`r6BuildOk 125`, `match
+  125`; the previous baseline names another corpus, so `--check` cannot hold it
+  across the move) and so is the census baseline.
+- Measured: differential **86/86** against the new oracle; loader **290/290**;
+  corpus **115 build / 115 match over 135 -> 125 build / 125 match over 135
+  programs**, none differing; census **2 build over 27 -> 2 build over 28
+  modules**; self-host C `80A61B67...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

@@ -1,6 +1,6 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-27 (D-F0-17).
+Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-27 (D-F0-18).
 Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 136 documentos IRv1 que el
 lenguaje emite sobre `tests/suite` (112 programas + `imports.support.orb`) y
 `tests/std` (23 programas), el corpus designado por
@@ -9,9 +9,9 @@ cada re-pin está al final de este archivo.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-5d5aa27fa7.exe `
+  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-0cfce74-git `
+  --orbit-root C:\Temp\orbit-pin-e34833a-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -20,7 +20,7 @@ python tests/corpus/run_corpus.py `
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `0cfce74`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `e34833a`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
@@ -587,3 +587,14 @@ coincide en 95 de 132 programas, ninguno difiere.
 6 829 729 bytes, `filesSha256 0f96a33f…`, emitidos con
 `C:\Temp\orbit-fp-5d5aa27fa7.exe` desde `C:\Temp\orbit-pin-0cfce74-git`. R6
 construye y coincide en 109 de 135 programas, ninguno difiere.
+
+## Re-pin 2026-10-27 (D-F0-18, emisor `e34833a`, corpus `1f2c44a4`)
+
+136 documentos (112 programas de suite, `imports.support.orb` y 23 de std),
+6 850 719 bytes, `filesSha256 1f2c44a4…`, emitidos con
+`C:\Temp\orbit-fp-c9c04bc393.exe` desde `C:\Temp\orbit-pin-e34833a-git`. El
+IR llega completo y tipado: seis opcodes de bits, un extern por cada símbolo de
+runtime que el módulo llama y `void*` donde antes iba `unknown` (3 documentos
+conservan `unknown` dentro de `list<unknown>`). R6 construye y coincide en 125
+de 135 programas, ninguno difiere. Los 10 restantes: tres con opcodes de bits,
+cuatro con objetos, dos con base de datos y `test_random`.
