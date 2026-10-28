@@ -1827,6 +1827,13 @@
       "note": "user functions named printf, remainder, system_uptime and current_lease build, run and bind as values"
     },
     {
+      "file": "cases/ok-long-string.json",
+      "run_exit": 0,
+      "rule": "D-M1-101",
+      "run_stdout": "ahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgnubipwdkryfmtahovcjqxelszgn\r\n",
+      "note": "a 300-byte string literal splits over several .byte lines and prints whole"
+    },
+    {
       "file": "cases/ok-user-name-max.json",
       "run_exit": 5,
       "rule": "D-M1-99",

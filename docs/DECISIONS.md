@@ -4523,3 +4523,17 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   name and line (D-M1-97), the runtime directory (D-M1-98) and `o_` symbols
   (D-M1-99).
 - The language refuses an r6 whose protocol it does not know.
+
+## D-M1-101 - String literals over 64 bytes span several `.byte` lines
+
+- Date: 2026-10-28.
+- Reason: at the pin `bf38b38` the compiler's usage text for `orbit build` is
+  a 280-byte string literal. `emit_string` wrote it as one `.byte` line of 1058
+  bytes and the assembler refuses lines over 1023 bytes, so
+  `compiler/host/main.orb` stopped building (`error[ASSEMBLER]: assembler line
+  305047 exceeds 1023 bytes`) and the census ratchet fell from 2 to 1 build.
+- Decision: `emit_string` ends the line after 64 bytes and opens a new `.byte`
+  line. The bytes and their order are unchanged. The assembler limit is not
+  raised: a line limit is what keeps its fixed buffers bounded.
+- Control: `ok-long-string` (a 300-byte literal printed whole). The driver
+  without the change fails it with the assembler error above.

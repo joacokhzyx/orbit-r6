@@ -155,6 +155,9 @@ def build_int64_wrap_stdout():
 INT64_WRAP_STDOUT = build_int64_wrap_stdout()
 
 
+LONG_STRING = "".join(chr(97 + (i * 7) % 26) for i in range(300))
+
+
 def build_reject():
     cases = []
 
@@ -1867,6 +1870,11 @@ def build_accept_files():
     files.append(("ok-user-name-max", jd(DOC([
         MAIN([I("call", 0, Str("g" * 140), Int(0)), I("ret", -1, Reg(0))], ["int"]),
         FN("g" * 140, [I("load_const", 0, Int(5)), I("ret", -1, Reg(0))], ["int"])]))))
+    files.append(("ok-long-string", jd(DOC([
+        MAIN([I("load_const", 0, Str(LONG_STRING)),
+              I("arg", -1, Reg(0)),
+              I("call", -1, Str("print"), Int(1)),
+              I("ret", -1, Int(0))], ["string"])]))))
     files.append(("ok-link-runtime-dir", jd(DOC([MAIN([I("ret", -1, Int(0))], ["int"])]))))
     files.append(("ok-db-link",
                   jd(DOC([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
@@ -2388,6 +2396,9 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/101-user-symbol-prefix.json", "run_exit": 42,
              "run_stdout": "[a]\r\n2\r\n8\r\n", "rule": "D-M1-99",
              "note": "user functions named printf, remainder, system_uptime and current_lease build, run and bind as values"},
+            {"file": "cases/ok-long-string.json", "run_exit": 0, "rule": "D-M1-101",
+             "run_stdout": LONG_STRING + "\r\n",
+             "note": "a 300-byte string literal splits over several .byte lines and prints whole"},
             {"file": "cases/ok-user-name-max.json", "run_exit": 5, "rule": "D-M1-99",
              "note": "a 140-byte function name is accepted"},
             {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",

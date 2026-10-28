@@ -2292,9 +2292,17 @@ static bool validate_function(const R6Module *m, const R6Function *f,
 static void emit_string(FILE *o, const char *s, unsigned long long id) {
     const unsigned char *p = (const unsigned char *)s;
     fputs("\t.section .rdata,\"dr\"\n", o);
+    size_t col = 0;
     fprintf(o, ".LCr6_%llu:\n\t.byte ", id);
     while (*p) {
-        fprintf(o, "%u,", (unsigned)*p++);
+        /* D-M1-101: the assembler reads lines of at most 1023 bytes. */
+        fprintf(o, "%u", (unsigned)*p++);
+        if (++col == 64) {
+            fputs("\n\t.byte ", o);
+            col = 0;
+        } else {
+            fputc(',', o);
+        }
     }
     fputs("0\n\t.text\n", o);
 }
