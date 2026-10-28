@@ -1,3 +1,6 @@
+// An int is 64 bits (D-M1-94): nothing wraps at 2^31. The probes cover add,
+// mul and sub past INT32, the call result, a literal argument and a literal
+// argument wider than 32 bits.
 fn bump(x: int) -> int {
     return x + 1
 }
@@ -16,10 +19,11 @@ fn id(v: int) -> int {
 
 fn main() -> int {
     val over = bump(2147483647)
-    if over >= 0 { return 10 }
-    if sq(65536) != 0 { return 13 }
+    if over != 2147483648 { return 10 }
+    if sq(65536) != 4294967296 { return 13 }
     if over - 1 != 2147483647 { return 14 }
     if sum4(1, 2, 3, -4) != 2 { return 15 }
     if id(-1) >= 0 { return 12 }
+    if id(4294967296) != 4294967296 { return 16 }
     return 42
 }

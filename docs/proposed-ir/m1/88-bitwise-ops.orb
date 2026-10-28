@@ -1,7 +1,7 @@
-// Bitwise and shift operators on int (IR_SPEC 1.3): each operand is cast to a
-// 64-bit word, the result is narrowed to a 32-bit int, a shift count is taken
-// & 31 and >> is arithmetic. The values travel through parameters so the
-// operations run at run time.
+// Bitwise and shift operators on a 64-bit int (IR_SPEC 1.3, D-M1-94): the
+// operation is on the whole word, a shift count is taken & 63 and >> is
+// arithmetic. The values travel through parameters so the operations run at
+// run time.
 // expect-exit 42
 
 fn band(x: int, y: int) -> int { return x & y }

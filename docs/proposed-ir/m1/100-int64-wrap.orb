@@ -1,0 +1,52 @@
+// 64-bit wrap, shifts with a count taken & 63, bitwise operators on the whole
+// word and 64-bit literals (D-M1-94). Every value travels through a parameter
+// so the operation runs at run time.
+fn add(a: int, b: int) -> int { return a + b }
+fn sub(a: int, b: int) -> int { return a - b }
+fn mul(a: int, b: int) -> int { return a * b }
+fn neg(a: int) -> int { return -a }
+fn shl(x: int, n: int) -> int { return x << n }
+fn shr(x: int, n: int) -> int { return x >> n }
+fn band(x: int, y: int) -> int { return x & y }
+fn bor(x: int, y: int) -> int { return x | y }
+fn bxor(x: int, y: int) -> int { return x ^ y }
+fn bnot(x: int) -> int { return ~x }
+
+fn main() -> int {
+    val max = 9223372036854775807
+    val min = sub(neg(max), 1)
+    print(add(max, 1))
+    print(sub(min, 1))
+    print(mul(max, 2))
+    print(mul(4294967296, 4294967296))
+    print(mul(3037000500, 3037000500))
+    print(neg(min))
+    print(shl(1, 62))
+    print(shl(1, 63))
+    print(shl(1, 64))
+    print(shl(1, 65))
+    print(shl(3, 63))
+    print(shl(1, -1))
+    print(shr(min, 63))
+    print(shr(max, 62))
+    print(shr(-1, 64))
+    print(shr(min, 1))
+    print(band(min, max))
+    print(bor(min, max))
+    print(bxor(max, -1))
+    print(bnot(max))
+    print(bnot(min))
+    print(9007199254740993)
+    print(add(9007199254740993, 1))
+    val big = 4294967296
+    var i = 0
+    var acc = 1
+    while i < 40 {
+        acc = acc * 3
+        i = i + 1
+    }
+    print(acc)
+    if add(max, 1) >= 0 { return 10 }
+    if mul(big, big) != 0 { return 11 }
+    return 42
+}

@@ -159,7 +159,14 @@
       "exit": 1,
       "code": "E_RANGE",
       "rule": "V-06",
-      "note": "signed 32-bit limit"
+      "note": "signed 64-bit limit (D-M1-94)"
+    },
+    {
+      "file": "cases/v06-int-underflow.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-06",
+      "note": "signed 64-bit lower limit (D-M1-94)"
     },
     {
       "file": "cases/v07-dest-below-minus-one.json",
@@ -1013,14 +1020,14 @@
       "exit": 1,
       "code": "CGEN",
       "rule": "D-M1-33",
-      "note": "a decimal text outside int32 is refused, never clamped"
+      "note": "a decimal text outside int64 is refused, never clamped"
     },
     {
       "file": "cases/x-global-int-underflow.json",
       "exit": 1,
       "code": "CGEN",
       "rule": "D-M1-33",
-      "note": "a negative decimal text outside int32 is refused on the same parse"
+      "note": "a negative decimal text outside int64 is refused on the same parse"
     },
     {
       "file": "cases/x-add-spread-dest.json",
@@ -1593,9 +1600,9 @@
     },
     {
       "file": "cases/ok-bitwise-literal-operands.json",
-      "run_exit": 14,
+      "run_exit": 12,
       "rule": "D-M1-85",
-      "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"
+      "note": "inline literal operands of the bitwise and shift opcodes, count & 63 and arithmetic shr; the exit code is the low 32 bits of 8589934604"
     },
     {
       "file": "cases/ok-object-set-get.json",
@@ -1618,7 +1625,7 @@
       "run_exit": 7,
       "run_stdout": "2147483648\r\n",
       "rule": "D-M1-91",
-      "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"
+      "note": "add, sub and mul over void* words and an int destination are the same 64-bit word, and print writes the whole word"
     },
     {
       "file": "cases/ok-copy-int-into-float.json",
@@ -1626,6 +1633,97 @@
       "run_stdout": "-7.0\r\n",
       "rule": "D-M1-93",
       "note": "an int register copied into a float register is converted, as the pin's C assignment does"
+    },
+    {
+      "file": "cases/ok-int64-literal-wrap.json",
+      "run_exit": 3,
+      "run_stdout": "-9223372036854775808\r\n",
+      "rule": "D-M1-94",
+      "note": "INT64_MAX plus one wraps to INT64_MIN and print writes the 64-bit value"
+    },
+    {
+      "file": "cases/ok-int64-wide-arg.json",
+      "run_exit": 1,
+      "run_stdout": "4294967296\r\n",
+      "rule": "D-M1-94",
+      "note": "a literal argument wider than 32 bits crosses a call; the exit code is the low 32 bits"
+    },
+    {
+      "file": "cases/ok-int64-global.json",
+      "run_exit": 0,
+      "run_stdout": "9223372036854775807\r\n",
+      "rule": "D-M1-94",
+      "note": "a decimal global up to INT64_MAX is an int constant"
+    },
+    {
+      "file": "cases/ok-div-zero-trap.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "rule": "D-M1-95",
+      "note": "div by a zero register stops with status 2"
+    },
+    {
+      "file": "cases/ok-mod-zero-trap.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "rule": "D-M1-95",
+      "note": "mod by a zero register stops with status 2"
+    },
+    {
+      "file": "cases/ok-div-overflow-trap.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "rule": "D-M1-95",
+      "note": "INT64_MIN / -1 stops with status 2"
+    },
+    {
+      "file": "cases/ok-mod-overflow-trap.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "rule": "D-M1-95",
+      "note": "INT64_MIN % -1 stops with status 2"
+    },
+    {
+      "file": "cases/ok-div-minus-one.json",
+      "run_exit": 0,
+      "run_stdout": "-9223372036854775807\r\n0\r\n",
+      "rule": "D-M1-95",
+      "note": "INT64_MAX / -1 and INT64_MAX % -1 do not overflow and do not stop"
+    },
+    {
+      "file": "cases/ok-div-const-64.json",
+      "run_exit": 0,
+      "run_stdout": "3074457345618258602\r\n1\r\n1317624576693539401\r\n0\r\n-1317624576693539401\r\n0\r\n922337203685477580\r\n7\r\n9223371972\r\n291172003\r\n2147483647\r\n2147483648\r\n-2147483647\r\n4294967295\r\n1\r\n4611686018427387903\r\n1\r\n0\r\n-1\r\n0\r\n4611686018427387903\r\n1\r\n-4611686018427387903\r\n1\r\n14389035938931007\r\n320\r\n-3074457345618258602\r\n-2\r\n-1317624576693539401\r\n-1\r\n1317624576693539401\r\n-1\r\n-922337203685477580\r\n-8\r\n-9223371972\r\n-291172004\r\n-2147483647\r\n-2147483649\r\n2147483648\r\n0\r\n-2\r\n0\r\n-1\r\n-1\r\n1\r\n-1\r\n-4611686018427387904\r\n0\r\n4611686018427387904\r\n0\r\n-14389035938931007\r\n-321\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n-1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n0\r\n1\r\n4115226300411522\r\n1\r\n1763668414462081\r\n0\r\n-1763668414462081\r\n0\r\n1234567890123456\r\n7\r\n12345678\r\n814814821\r\n2874452\r\n1564438323\r\n-2874452\r\n1567312775\r\n0\r\n12345678901234567\r\n0\r\n12345678901234567\r\n0\r\n12345678901234567\r\n6172839450617283\r\n1\r\n-6172839450617283\r\n1\r\n19260029487105\r\n262\r\n-1431655765\r\n-2\r\n-613566756\r\n-5\r\n613566756\r\n-5\r\n-429496729\r\n-7\r\n-4\r\n-294967269\r\n-1\r\n0\r\n1\r\n-1\r\n0\r\n-4294967297\r\n0\r\n-4294967297\r\n0\r\n-4294967297\r\n-2147483648\r\n-1\r\n2147483648\r\n-1\r\n-6700417\r\n0\r\n",
+      "rule": "D-M1-96",
+      "note": "constant divisors, powers of two, magic numbers and their negatives over 64-bit dividends"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/97-div-zero.json",
+      "run_exit": 2,
+      "run_stdout": "42\r\n",
+      "rule": "D-M1-95",
+      "note": "a division by a zero parameter prints what came before and stops"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/98-div-overflow.json",
+      "run_exit": 2,
+      "run_stdout": "-4611686018427387904\r\n-2\r\n-9223372036854775807\r\n0\r\n",
+      "rule": "D-M1-95",
+      "note": "INT64_MIN % -1 stops after the non-overflowing divisions"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/99-div-by-constant-64.json",
+      "run_exit": 42,
+      "run_stdout": "0\r\n-7835353680425529040\r\n-6476564002640978153\r\n6476564002640978155\r\n-25\r\n",
+      "rule": "D-M1-96",
+      "note": "44 constant divisors against a parameter divisor over 64-bit edge values"
+    },
+    {
+      "file": "../../docs/proposed-ir/m1/100-int64-wrap.json",
+      "run_exit": 42,
+      "run_stdout": "-9223372036854775808\r\n9223372036854775807\r\n-2\r\n0\r\n-9223372036709301616\r\n-9223372036854775808\r\n4611686018427387904\r\n-9223372036854775808\r\n1\r\n2\r\n-9223372036854775808\r\n-9223372036854775808\r\n-1\r\n1\r\n-1\r\n-4611686018427387904\r\n0\r\n-1\r\n-9223372036854775808\r\n-9223372036854775808\r\n9223372036854775807\r\n9007199254740993\r\n9007199254740994\r\n-6289078614652622815\r\n",
+      "rule": "D-M1-94",
+      "note": "wrap at 2^63, shifts with count & 63, bitwise on the whole word and 64-bit literals"
     },
     {
       "file": "cases/ok-infer-union-tag.json",
@@ -1997,9 +2095,9 @@
     {
       "file": "../../docs/proposed-ir/m1/60-int-neg-wrap.json",
       "run_exit": 42,
-      "run_stdout": "-2147483648\r\n",
-      "rule": "D-M1-52",
-      "note": "an int negates at 32 bits, so -INT32_MIN wraps to itself"
+      "run_stdout": "-9223372036854775808\r\n",
+      "rule": "D-M1-94",
+      "note": "-INT64_MIN wraps to itself and INT64_MAX plus one wraps to INT64_MIN"
     },
     {
       "file": "../../docs/proposed-ir/m1/61-union-pack-arm.json",
