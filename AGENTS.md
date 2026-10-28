@@ -284,6 +284,7 @@ the gates; they do not have this session.
 One decision, one commit. A commit is how a change is found again, reviewed and
 undone.
 
+- Branches, merges and releases follow `docs/BRANCHES.md`: work happens on `feature/<topic>`, it merges into `develop` after the full gate, and `main` receives only tagged releases.
 - Commit when the change is small, verified and complete. A correction that
   changes behaviour or a document's claim gets its own commit, even if it is one
   line.
