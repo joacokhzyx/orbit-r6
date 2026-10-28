@@ -1,26 +1,26 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-27 (D-F0-18).
-Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 136 documentos IRv1 que el
-lenguaje emite sobre `tests/suite` (112 programas + `imports.support.orb`) y
+Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-28 (D-F0-19).
+Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 138 documentos IRv1 que el
+lenguaje emite sobre `tests/suite` (114 programas + `imports.support.orb`) y
 `tests/std` (23 programas), el corpus designado por
 `orbit-lang/docs/IR_SPEC.md` §5.5. Están pineados por hash en `manifest.json`;
 cada re-pin está al final de este archivo.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
+  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-e34833a-git `
+  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- `manifest.json` - el pin: 136 entradas (`path`, `kind`, `ir`, `bytes`,
+- `manifest.json` - el pin: 138 entradas (`path`, `kind`, `ir`, `bytes`,
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `e34833a`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `6a9ddaf`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
@@ -599,3 +599,13 @@ conservan `unknown` dentro de `list<unknown>`). R6 construye y coincide en 125
 de 135 programas, ninguno difiere. Los 10 restantes: tres con opcodes de bits,
 cuatro con objetos, dos con base de datos y `test_random`. D-M1-85 a D-M1-90
 los cierran: R6 construye y coincide en 135 de 135 programas.
+
+## Re-pin 2026-10-28 (D-F0-19, emisor `6a9ddaf`, corpus `741900ad`)
+
+138 documentos (114 programas de suite, `imports.support.orb` y 23 de std),
+6 872 621 bytes, `filesSha256 741900ad…`, emitidos con
+`C:\Temp\orbit-fp-c41ad248ab.exe` desde `C:\Temp\orbit-pin-6a9ddaf-git`. Entran
+`float_local_int_assign` y `object_float_missing_key`; cambia
+`user_fn_named_like_compiler_helper` (11675 a 12545 bytes). R6 construye y
+coincide en 137 de 137 programas, ninguno difiere. El trinquete pasa de 135 a
+137 y `axes-baseline.json` se re-toma sobre el corpus nuevo.

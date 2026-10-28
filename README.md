@@ -22,13 +22,13 @@ executable.
 
 ## Status
 
-Measured on 2026-10-27 at the pin (`e34833a`, see below):
+Measured on 2026-10-28 at the pin (`6a9ddaf`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 92/92 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 303/303 (202 rejections, 101 acceptance controls) | gate |
-| Corpus (`tests/corpus/run_corpus.py`) | 135 build / 135 match over 135 programs | measurement with a one-way ratchet |
+| Differential (`tests/diff/run_diff.py`) | 95/95 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 309/309 (205 rejections, 104 acceptance controls) | gate |
+| Corpus (`tests/corpus/run_corpus.py`) | 137 build / 137 match over 137 programs | measurement with a one-way ratchet |
 | Compiler-IR census (`tests/compiler-ir/run_census.py`) | 2 build over 28 modules | measurement with a one-way ratchet |
 
 R6 builds the Orbit compiler itself (`compiler/host/main.orb`, 1038
@@ -75,15 +75,15 @@ cd orbit-r6
 .\scripts\build-r6.ps1                              # -> .r6-build\r6.exe
 
 # The pinned language tree: runtime archive and oracle.
-git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-e34833a-git
-git -C C:\Temp\orbit-pin-e34833a-git checkout e34833a
-python C:\Temp\orbit-pin-e34833a-git\scripts\mklib_runtime.py `
+git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-6a9ddaf-git
+git -C C:\Temp\orbit-pin-6a9ddaf-git checkout 6a9ddaf
+python C:\Temp\orbit-pin-6a9ddaf-git\scripts\mklib_runtime.py `
   --cc C:\w64devkit\bin\gcc.exe `
   --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
 
 python tests/reject/run_reject.py                    # needs no oracle
 
-cd C:\Temp\orbit-pin-e34833a-git
+cd C:\Temp\orbit-pin-6a9ddaf-git
 python scripts/dev.py fp --cc C:\w64devkit\bin\gcc.exe  # builds the fixed point
 python scripts/dev.py fp-path                        # prints its path
 ```
@@ -114,14 +114,14 @@ A diagnostic is one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit
 
 ## Gates
 
-The commands below were verified on 2026-10-27 on the machine named in
+The commands below were verified on 2026-10-28 on the machine named in
 `docs/PIN.md`. `--r6-command` must be the last argument.
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
+  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-e34833a-git `
+  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/reject/run_reject.py
@@ -142,27 +142,27 @@ Corpus and census:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
+  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-e34833a-git `
+  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/compiler-ir/run_census.py `
-  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
-  --tree C:\Temp\orbit-pin-e34833a-git `
+  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
+  --tree C:\Temp\orbit-pin-6a9ddaf-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
 ## The pin
 
-R6 is pinned to one `orbit-lang` commit: `e34833af5a8fae76bd12c1fdb1ac65be6b002659`,
+R6 is pinned to one `orbit-lang` commit: `6a9ddaf7066d396fe9b25a902e67ca2ee4701872`,
 on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 The pin is the Orbit commit and the inputs listed in `docs/PIN.md`: the IR
 emitter, the fixed-point compiler, the runtime recipe, the runtime symbol set
 and the corpus hash.
 
-- Pinned bytes come from `git cat-file blob e34833a:<path>`, never from a
+- Pinned bytes come from `git cat-file blob 6a9ddaf:<path>`, never from a
   working tree that may be ahead of the pin.
 - The corpus and the census regenerate from a tree materialized at the pin.
   `--orbit-root` and `--tree` must point at that tree.

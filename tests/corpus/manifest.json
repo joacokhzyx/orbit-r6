@@ -1,19 +1,19 @@
 {
   "schema": "r6-ir-corpus/1",
   "emitter": {
-    "path": "C:\\Temp\\orbit-fp-c9c04bc393.exe",
-    "sha256": "608626443c7214385e9e09aa3691c1c6aa9e5f6d8ca72ea7182ebd3a18754970",
-    "bytes": 939008,
+    "path": "C:\\Temp\\orbit-fp-c41ad248ab.exe",
+    "sha256": "426dc84eef7d86de136767c642128f4670fc18644d886f4f68fec9f96cafa9fe",
+    "bytes": 2711040,
     "version": "orbit 0.1.0-rc.2",
-    "languageCommit": "e34833af5a8fae76bd12c1fdb1ac65be6b002659"
+    "languageCommit": "6a9ddaf7066d396fe9b25a902e67ca2ee4701872"
   },
   "counts": {
-    "executable": 135,
+    "executable": 137,
     "support": 1,
-    "total": 136
+    "total": 138
   },
-  "totalBytes": 6850719,
-  "filesSha256": "1f2c44a4da301216762483eb3e15453e63ee7b786f382e8478118ef62ecdc828",
+  "totalBytes": 6872621,
+  "filesSha256": "741900ad0a7beab5a1a2e1eb084ea1ac18f86e728c5895eec61012e390497dc8",
   "files": [
     {
       "path": "tests/suite/arena_sink_scope.orb",
@@ -126,6 +126,13 @@
       "ir": "tests/suite/float_literals.ir",
       "bytes": 3827,
       "sha256": "4fa0883114972085095b33fb44c9c720b08d21008a59addd86800ed1892e885e"
+    },
+    {
+      "path": "tests/suite/float_local_int_assign.orb",
+      "kind": "executable",
+      "ir": "tests/suite/float_local_int_assign.ir",
+      "bytes": 7251,
+      "sha256": "0724248fd80e05584399722538239528ac5bfa958f2b0e8c680cf4b6278b9a3b"
     },
     {
       "path": "tests/suite/float_results.orb",
@@ -471,6 +478,13 @@
       "sha256": "f8501d9ede8e8a43d3c090b6b3a3bd5787b87678efaf4ef2a9f3c0ec1b07aaaa"
     },
     {
+      "path": "tests/suite/object_float_missing_key.orb",
+      "kind": "executable",
+      "ir": "tests/suite/object_float_missing_key.ir",
+      "bytes": 13781,
+      "sha256": "e09f6d6bc3c81dea2a1d531ba13861acb872bd4ae0ef92701f833f3857a92deb"
+    },
+    {
       "path": "tests/suite/object_literal_cross_function.orb",
       "kind": "executable",
       "ir": "tests/suite/object_literal_cross_function.ir",
@@ -782,8 +796,8 @@
       "path": "tests/suite/user_fn_named_like_compiler_helper.orb",
       "kind": "executable",
       "ir": "tests/suite/user_fn_named_like_compiler_helper.ir",
-      "bytes": 11675,
-      "sha256": "d468a7c94cd2a086a7b953d4eec935cf5f0ae4d6f4ccaa518e6d56b6a447dd11"
+      "bytes": 12545,
+      "sha256": "df344ef303cf1f1c304aefa069b7413befaf687872de0a927b28fd5955af3d5a"
     },
     {
       "path": "tests/suite/void_return_void_call.orb",

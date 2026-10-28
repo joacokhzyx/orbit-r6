@@ -4258,3 +4258,43 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   (`scripts/selfhost.ps1` prints SELFHOST OK). At the `6a9ddaf` corpus the
   driver builds 137 of 137 programs.
 - Status: **applied**.
+
+## D-F0-19 - Re-pin to 6a9ddaf: the open language bugs closed
+
+- Date: 2026-10-28. Moves the pin from `e34833a` (D-F0-18) to orbit-lang
+  `main` `6a9ddaf7066d396fe9b25a902e67ca2ee4701872`, 11 commits in the merge
+  `pending-fixes`.
+- What moved:
+  - `eb54e08` and `992b12b`: an int stored into a float local or field is
+    copied into a float register and the `copy` converts the value;
+    `docs/IR_SPEC.md` says so in the `copy` row (blob `49aaa478`).
+  - `df18940`: an object read in arithmetic is typed by its getter, and a read
+    with no known getter is a compile error, so no program reads through
+    `orbit_object_get_raw`.
+  - `23908f4`, `16a7b93`, `26ef097`, `f4b706d`: doctor fixes and the suite
+    programs that expected them.
+  - `d783438` and `9bb9dda`: the suite gains `float_local_int_assign` and
+    `object_float_missing_key` (114 programs).
+- `runtime/` and `scripts/mklib_runtime.py` did not move
+  (`git diff e34833a 6a9ddaf -- runtime scripts/mklib_runtime.py` is empty).
+  The runtime archive is rebuilt from the pin: 141360 bytes, 337 symbols as
+  before. The R6 driver does not change; the lowering that the pin needs is
+  D-M1-93, committed before this move.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-c41ad248ab.exe` (sha256 `426dc84e...`, 2711040 bytes),
+  built from `C:\Temp\orbit-pin-6a9ddaf-git`; `PUBLISHED_C C1176CF4.`. The
+  corpus regenerates to 138 documents, 6872621 bytes, `filesSha256 741900ad.`:
+  two documents are new and `user_fn_named_like_compiler_helper` changed
+  (11675 to 12545 bytes). The C that the R6-built compiler writes for
+  `compiler/host/main.orb` has the sha256
+  `C1176CF45FD3B1D72A24956AD873D882CFB97EF6A9E4B0196C7074105E63E7CD`.
+- Ratchets: the corpus baseline is taken at the pin (`r6BuildOk 137`, `match
+  137`; the previous baseline names another corpus, so `--check` cannot hold it
+  across the move), and so are the census baseline and `axes-baseline.json`
+  (137 programs, best of 5).
+- Measured: differential **95/95** against the new oracle; loader **309/309**
+  (205 rejections, 104 acceptance controls); corpus **135 build / 135 match
+  over 135 -> 137 build / 137 match over 137 programs**, none differing;
+  census **2 build over 28 modules**, unchanged; self-host C `C1176CF4...`
+  from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

@@ -34,7 +34,7 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 - Materialize a checkout of `orbit-lang` at the pinned commit and build its
   fixed-point compiler. Do not use a working tree that is ahead of the pin.
 - Never write to the Orbit checkout. Read pinned bytes with
-  `git cat-file blob e34833a:<path>`.
+  `git cat-file blob 6a9ddaf:<path>`.
 
 ## Gates
 
@@ -46,9 +46,9 @@ Differential, the primary gate:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
+  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-e34833a-git `
+  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -70,9 +70,9 @@ Corpus, a measurement with a one-way ratchet:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-c9c04bc393.exe `
+  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-e34833a-git `
+  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -81,7 +81,7 @@ Only corpus drift from the pin and a drop of `r6BuildOk` or `match` below
 `tests/corpus/baseline.json` fail the run. Do not run `--write-baseline` on a
 change you are reviewing.
 
-The compiler-IR census (`tests/compiler-ir/run_census.py`, 2 build over 27
+The compiler-IR census (`tests/compiler-ir/run_census.py`, 2 build over 28
 modules) is also a measurement. Its ratchet forbids `r6BuildOk` going down.
 
 ## Rules for the code
