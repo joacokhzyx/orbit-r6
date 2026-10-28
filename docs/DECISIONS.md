@@ -4298,3 +4298,47 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   census **2 build over 28 modules**, unchanged; self-host C `C1176CF4...`
   from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-94 - An int is 64 bits
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **pending verification**:
+  the language branch `int64` of orbit-lang is not pinned yet, so no
+  differential, corpus or self-host number exists for this decision.
+- Reason: the language makes `orbit_int` an `int64_t` with two's complement
+  arithmetic and defined wrap (Phase 1b). Arithmetic, comparison, negation and
+  the six bitwise opcodes are 64-bit; a shift count is taken `& 63` and `shr`
+  is arithmetic; list elements, result payloads and model fields of type `int`
+  are eight bytes; `print` of an int writes the 64-bit value.
+- Decision:
+  - The loader keeps an `Int` value in `as.i64` and accepts INT64_MIN to
+    INT64_MAX. A value past that range is `E_RANGE`, as past INT32 was.
+  - `add`, `sub`, `mul` and `neg` are `addq`, `subq`, `imulq` and `negq` on the
+    slots. The `movslq` that D-M1-36 and D-M1-52 added after each is gone, and
+    the typed rule and the word rule of D-M1-91 are one rule.
+  - An int immediate that fits a sign-extended 32 bits is `movq $imm`; any other
+    goes through `movabsq` into `%rax` (`emit_int_rax`, `emit_int_slot`). The
+    same holds for an inline argument, a returned literal, a result payload, a
+    field initializer and a global (`global_integer` parses 64 bits).
+  - `bit_and`, `bit_or` and `bit_xor` are `andq`, `orq`, `xorq`; `shl` and `shr`
+    are `shlq %cl` and `sarq %cl`; `bit_not` is `notq`. D-M1-85 keeps its
+    typing rules and loses its 32-bit narrowing.
+  - A call whose destination or callee is `int` stores all of `%rax`; an `int`
+    argument of a `void*` parameter and a `void*` argument of an `int` parameter
+    are the same word, so the truncation of D-M1-84 and the low-32-bit decode of
+    D-M1-89 and D-M1-91 go. An opaque list element decodes with `movq`.
+  - `model_field_size` gives an `int` eight bytes with alignment eight, so the
+    layout of a model and of a union pack follows. An enumeration field is
+    rewritten to `int` before the layout (D-M1-35) and takes eight bytes too.
+  - `cvtsi2sdq` was already 64-bit. The print format `%lld` and its
+    full-register load do not change.
+- Superseded: D-M1-36 (32-bit slot), D-M1-52 (`neg` at 32 bits), the width
+  statement of D-M1-85, the truncations of D-M1-84, D-M1-89 and D-M1-91, and the
+  4-byte enumeration field of D-M1-35.
+- Not changed: the union tag stays a 4-byte write and read at offset 0 of the
+  16-byte cell; `list_len` keeps its 64-bit store; a bool keeps its 32-bit write.
+- Open: an extern whose C runtime function returns a plain `int` and whose IR
+  entry says `int` now reads a garbage upper half. The language branch has to
+  type those entries by the C return type, or the runtime has to return
+  `orbit_int`. The `int` fixtures `06`, `45`, `47`, `59`, `60`, `85` and `88`
+  and the controls of `tests/reject/` that encode INT32 limits change with this
+  decision.

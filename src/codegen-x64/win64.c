@@ -104,7 +104,7 @@ static void canonicalize_list_types(R6Module *m) {
  * `typedef enum { Name_TAG_Vi = i }` in declaration order plus `Name_COUNT`
  * (c_backend.orb:1692-1706), and its verifier does not warn when a comparison
  * mixes an enum with an `int` or another enum (:1362-1363). A field of an enum
- * type is 4 bytes with alignment 4, the size `model_field_size` gives an int.
+ * type is 8 bytes with alignment 8, the size `model_field_size` gives an int.
  * R6 rewrites every *use* of an enumeration name to "int" before any check
  * reads it, and keeps the type table entry, which is what resolves
  * `Name_TAG_V` to its index. The type name itself is not rewritten: it is the
@@ -551,7 +551,7 @@ static bool global_declared_type(const char *t) {
     return t && t[0] && strcmp(t, "unknown") != 0;
 }
 
-static bool global_integer(const R6Global *g, int32_t *value) {
+static bool global_integer(const R6Global *g, int64_t *value) {
     char *end;
     long long parsed;
     const char *p;
@@ -565,15 +565,13 @@ static bool global_integer(const R6Global *g, int32_t *value) {
     if (*p == '-') ++p;
     if (!*p) return false;
     for (; *p; ++p) if (*p < '0' || *p > '9') return false;
-    /* long is 32 bits on this target, so strtol saturates at LONG_MAX/LONG_MIN
-     * without leaving the int32 range: the parse has to be 64 bits wide. */
+    /* long is 32 bits on this target: the parse has to be 64 bits wide. */
     errno = 0;
     parsed = strtoll(g->value.as.string, &end, 10);
-    if (errno == ERANGE || *end || end == g->value.as.string ||
-        parsed < INT32_MIN || parsed > INT32_MAX)
+    if (errno == ERANGE || *end || end == g->value.as.string)
         return false;
     if (is_bool(g->type_name) && parsed != 0 && parsed != 1) return false;
-    *value = (int32_t)parsed;
+    *value = (int64_t)parsed;
     return true;
 }
 
@@ -584,7 +582,7 @@ static bool global_integer(const R6Global *g, int32_t *value) {
  * the same convention as a register type) defers to the text. A declared type
  * wins, and a text that is not a decimal integer stays untyped. */
 static const char *global_type(const R6Global *g) {
-    int32_t ignored;
+    int64_t ignored;
     if (!g) return NULL;
     if (global_declared_type(g->type_name)) return g->type_name;
     return global_integer(g, &ignored) ? "int" : NULL;
@@ -1011,7 +1009,7 @@ static bool word_convertible(const R6Module *m, const char *from, const char *to
 }
 
 static bool model_field_size(const R6Module *m, const char *t, size_t *size, size_t *align) {
-    if (is_int(t)) { *size = 4; *align = 4; return true; }
+    if (is_int(t)) { *size = 8; *align = 8; return true; }
     if (is_bool(t)) { *size = 1; *align = 1; return true; }
     if (is_float(t) || is_string(t)) { *size = 8; *align = 8; return true; }
     if (field_is_word(m, t)) { *size = 8; *align = 8; return true; }
@@ -1133,8 +1131,8 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
             const R6Function *callee;
             const char *name = ir_name(&i->operands[0]), *type;
             size_t arity;
-            if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0) return NULL;
-            arity = (size_t)i->operands[1].as.i32;
+            if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0) return NULL;
+            arity = (size_t)i->operands[1].as.i64;
             if (arity <= above) {
                 above -= arity;
                 continue;
@@ -1652,7 +1650,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_LOAD_VAR: {
             const char *name = ir_name(&i->operands[0]), *lt = NULL;
             const R6Global *global = name ? find_global(m, name) : NULL;
-            int32_t ignored, tag_value = 0;
+            int64_t ignored;
+            int32_t tag_value = 0;
             /* A parameter resolves first, in the backend's order
                (c_backend.orb:788-794), and carries paramTypes[p] (D-M1-22). */
             bool param = param_info(f, name, NULL, &lt);
@@ -1680,7 +1679,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                and a list destination. Kinds 1..4 keep their exact mapping and
                kind 5 is the ref kind of D-M1-57. */
             if (!valid_dest(f, i, true, d) || !is_list(type_at(f, i->dest)) ||
-                i->operands[0].kind != R6_VAL_INT || i->operands[0].as.i32 != 8 ||
+                i->operands[0].kind != R6_VAL_INT || i->operands[0].as.i64 != 8 ||
                 !(i->elem_kind == 0 || i->elem_kind == 5 || elem_kind_type(i->elem_kind)) ||
                 !value_type(f, &i->operands[1], &capacity_type) || !is_int(capacity_type))
                 return fail(d, i, "CGEN", "list_create requires an 8-byte slot size, a kind in 0..5, a list destination, and an int capacity");
@@ -1938,15 +1937,15 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         case R6_OP_ARG:
             if (i->has_dest) {
-                int32_t ix;
+                int64_t ix;
                 if (i->operands[0].kind != R6_VAL_INT)
                     return fail(d, i, "CGEN", "arg parameter binding requires an integer index");
-                ix = i->operands[0].as.i32;
+                ix = i->operands[0].as.i64;
                 if (ix < 0 || (size_t)ix >= f->param_count ||
                     !valid_dest(f, i, true, d))
                     return fail(d, i, "CGEN", "arg parameter index/destination is invalid");
                 if (!same_type(type_at(f, i->dest), f->param_types[ix]))
-                    return fail(d, i, "CGEN", "arg binding type does not match parameter %d", ix);
+                    return fail(d, i, "CGEN", "arg binding type does not match parameter %d", (int)ix);
             } else {
                 const char *t;
                 if (arg_count == sizeof arg_values / sizeof arg_values[0])
@@ -1977,9 +1976,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                    target is a String value (ir_string(instance)) carrying the
                    field values as already-emitted args; a named call carries
                    the callee name in the same String form (spec 3.1 step 2). */
-                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
-                arity = (size_t)i->operands[1].as.i32;
+                arity = (size_t)i->operands[1].as.i64;
                 if (arity > arg_count)
                     return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
                 base = arg_count - arity;
@@ -2017,9 +2016,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                valid destination register is accepted here. */
             if (i->operands[0].kind == R6_VAL_STRING &&
                 strcmp(i->operands[0].as.string, "print") == 0) {
-                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
-                arity = (size_t)i->operands[1].as.i32;
+                arity = (size_t)i->operands[1].as.i64;
                 if (arity > arg_count)
                     return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
                 if (i->has_dest && !valid_dest(f, i, true, d)) return false;
@@ -2064,9 +2063,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     return fail(d, i, "CGEN", "main is an entry point and cannot be called from IR");
                 if (callee->param_count && !callee->param_types)
                     return fail(d, i, "CGEN", "call target %s has missing parameter metadata", callee->name);
-                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
-                arity = (size_t)i->operands[1].as.i32;
+                arity = (size_t)i->operands[1].as.i64;
                 if (arity > arg_count)
                     return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
                 if (arity != callee->param_count)
@@ -2118,9 +2117,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 if (!variant_type)
                     return fail(d, i, "CGEN", "call target %s is not a declared function, model, or union variant",
                                 i->operands[0].as.string);
-                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
-                arity = (size_t)i->operands[1].as.i32;
+                arity = (size_t)i->operands[1].as.i64;
                 if (arity > arg_count)
                     return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
                 base = arg_count - arity;
@@ -2157,9 +2156,9 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 if (!ct || !fn_type_ok(ct, fret, sizeof fret, &fparams))
                     return fail(d, i, "CGEN", "call through register %d requires a function value signature",
                                 i->operands[0].as.i32);
-                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i32 < 0)
+                if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
-                arity = (size_t)i->operands[1].as.i32;
+                arity = (size_t)i->operands[1].as.i64;
                 if (arity > arg_count)
                     return fail(d, i, "CGEN", "call arity exceeds the pending argument count");
                 if (arity != fparams)
@@ -2285,32 +2284,40 @@ static void emit_string(FILE *o, const char *s, unsigned long long id) {
 static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
                           const char *type, size_t index, unsigned long long id);
 
+/* D-M1-94: an int is 64 bits. `movq $imm` encodes a sign-extended imm32, so a
+ * value outside that range goes through `movabsq`, which the assembler
+ * encodes into %rax only. */
+static bool fits_imm32(int64_t v) {
+    return v >= INT32_MIN && v <= INT32_MAX;
+}
+
+static void emit_int_rax(FILE *o, int64_t v) {
+    fprintf(o, fits_imm32(v) ? "\tmovq $%lld, %%rax\n" : "\tmovabsq $%lld, %%rax\n",
+            (long long)v);
+}
+
+static void emit_int_slot(FILE *o, int64_t v, unsigned slot) {
+    if (fits_imm32(v)) {
+        fprintf(o, "\tmovq $%lld, -%u(%%rbp)\n", (long long)v, slot);
+        return;
+    }
+    emit_int_rax(o, v);
+    fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", slot);
+}
+
 /* An int argument of a float parameter: the C backend casts each argument to
  * the parameter's C type, so the callee receives `(orbit_float)(x)`. */
 static void emit_load_arg_as(FILE *o, const R6Function *f, const R6Value *v,
                              const char *type, const char *param_type, size_t index,
                              unsigned long long id) {
     static const char *xmm[] = {"%xmm0", "%xmm1", "%xmm2", "%xmm3"};
-    if (is_void_ptr(type) && is_int(param_type) && v->kind == R6_VAL_REG) {
-        /* (orbit_int)(uintptr_t)(word): the low 32 bits, sign-extended. */
-        static const char *gp32[] = {"%ecx", "%edx", "%r8d", "%r9d"};
-        static const char *gp[] = {"%rcx", "%rdx", "%r8", "%r9"};
-        unsigned slot = (unsigned)(v->as.i32 + 1) * 8;
-        if (index >= 4)
-            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tmovslq %%eax, %%rax\n\tmovq %%rax, %u(%%rsp)\n",
-                    slot, (unsigned)(32 + (index - 4) * 8));
-        else
-            fprintf(o, "\tmovl -%u(%%rbp), %s\n\tmovslq %s, %s\n", slot, gp32[index],
-                    gp32[index], gp[index]);
-        return;
-    }
     if (!int_widens_to_float(type, param_type)) {
         emit_load_arg(o, f, v, type, index, id);
         return;
     }
     if (v->kind == R6_VAL_INT) {
         R6Value w = *v;
-        double x = (double)v->as.i32;
+        double x = (double)v->as.i64;
         w.kind = R6_VAL_FLOAT64;
         memcpy(&w.as.f64_bits, &x, sizeof x);
         emit_load_arg(o, f, &w, "float", index, id);
@@ -2338,7 +2345,7 @@ static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
         } else {
             if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
             else if (v->kind == R6_VAL_STRING) fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", id);
-            else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovl $%d, %%eax\n\tmovslq %%eax, %%rax\n", v->as.i32);
+            else if (v->kind == R6_VAL_INT) emit_int_rax(o, v->as.i64);
             else fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
             fprintf(o, "\tmovq %%rax, %u(%%rsp)\n", off);
         }
@@ -2350,11 +2357,14 @@ static void emit_load_arg(FILE *o, const R6Function *f, const R6Value *v,
     } else {
         if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %s\n", (unsigned)(v->as.i32 + 1) * 8, gp[index]);
         else if (v->kind == R6_VAL_STRING) fprintf(o, "\tleaq .LCr6_%llu(%%rip), %s\n", id, gp[index]);
-        else if (v->kind == R6_VAL_INT)
-            fprintf(o, "\tmovl $%d, %s\n\tmovslq %s, %s\n", v->as.i32,
-                    index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d",
-                    index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d",
-                    gp[index]);
+        else if (v->kind == R6_VAL_INT) {
+            if (fits_imm32(v->as.i64))
+                fprintf(o, "\tmovq $%lld, %s\n", (long long)v->as.i64, gp[index]);
+            else {
+                emit_int_rax(o, v->as.i64);
+                fprintf(o, "\tmovq %%rax, %s\n", gp[index]);
+            }
+        }
         else fprintf(o, "\tmovl $%d, %s\n", v->as.boolean ? 1 : 0, index == 0 ? "%ecx" : index == 1 ? "%edx" : index == 2 ? "%r8d" : "%r9d");
     }
 }
@@ -2365,8 +2375,8 @@ static size_t max_outgoing_args(const R6Module *m, const R6Function *f) {
         const R6Instruction *i = &f->instructions[pc];
         if (i->opcode == R6_OP_ARG && !i->has_dest) ++pending;
         else if (i->opcode == R6_OP_CALL) {
-            size_t arity = i->operands[1].kind == R6_VAL_INT && i->operands[1].as.i32 >= 0
-                               ? (size_t)i->operands[1].as.i32 : pending;
+            size_t arity = i->operands[1].kind == R6_VAL_INT && i->operands[1].as.i64 >= 0
+                               ? (size_t)i->operands[1].as.i64 : pending;
             /* D-M1-27: an arena-taking extern carries the arena first, so its
                outgoing tail is one slot longer than the IR arity. The IR arity
                is still what is consumed from the pending list. */
@@ -2563,7 +2573,7 @@ static void materialize_literals(FILE *o, const R6Function *f,
             fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                     (*string_id)++, slot);
         } else if (v->kind == R6_VAL_INT)
-            fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", v->as.i32, slot);
+            emit_int_slot(o, v->as.i64, slot);
         else
             fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", v->as.boolean ? 1 : 0, slot);
     }
@@ -2702,8 +2712,8 @@ static void emit_list_read(FILE *o, const R6Function *f, size_t fn_index,
         fprintf(o, "\ttestq %%rax, %%rax\n\tsetne %%al\n\tmovzbl %%al, %%eax\n"
                    "\tmovq %%rax, -%u(%%rbp)\n", dest_off);
         break;
-    default: /* int: (orbit_int)(intptr_t)word. */
-        fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", dest_off);
+    default: /* int: the slot word is the value (D-M1-94). */
+        fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", dest_off);
         break;
     }
     fprintf(o, "\tjmp %s\n", is_pop ? pop : done);
@@ -3011,7 +3021,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned long long)i->operands[1].as.f64_bits, local_off);
             else if (i->operands[1].kind == R6_VAL_INT)
-                fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", i->operands[1].as.i32, local_off);
+                emit_int_slot(o, i->operands[1].as.i64, local_off);
             else
                 fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", i->operands[1].as.boolean ? 1 : 0, local_off);
             break;
@@ -3051,12 +3061,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                             local_off, off);
             } else if (global) {
-                int32_t value;
+                int64_t value;
                 global_integer(global, &value);
                 if (is_bool(global->type_name))
-                    fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", value, off);
+                    fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", (int)value, off);
                 else
-                    fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", value, off);
+                    emit_int_slot(o, value, off);
             } else {
                 int32_t tag_value = 0;
                 tag_constant(m, name, &tag_value);
@@ -3084,7 +3094,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         cv->as.string, off);
             } else if (cv->kind == R6_VAL_FLOAT64) {
                 fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", (unsigned long long)cv->as.f64_bits, off);
-            } else if (cv->kind == R6_VAL_INT) fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", cv->as.i32, off);
+            } else if (cv->kind == R6_VAL_INT) emit_int_slot(o, cv->as.i64, off);
             else fprintf(o, "\tmovl $%d, -%u(%%rbp)\n", cv->as.boolean ? 1 : 0, off);
             break;
         }
@@ -3244,7 +3254,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             else if (i->operands[0].kind == R6_VAL_BOOL)
                 fprintf(o, "\tmovl $%u, -%u(%%rbp)\n", i->operands[0].as.boolean ? 1u : 0u, off);
             else if (i->operands[0].kind == R6_VAL_INT)
-                fprintf(o, "\tmovq $%d, -%u(%%rbp)\n", i->operands[0].as.i32, off);
+                emit_int_slot(o, i->operands[0].as.i64, off);
             else if (i->operands[0].kind == R6_VAL_FLOAT64)
                 fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned long long)i->operands[0].as.f64_bits, off);
@@ -3280,12 +3290,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\taddsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, boff, off);
-            } else if (is_void_ptr(t)) {
+            } else {
+                /* D-M1-94: an int and a word are both 64 bits. */
                 fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\taddq -%u(%%rbp), %%rax\n"
                            "\tmovq %%rax, -%u(%%rbp)\n", aoff, boff, off);
-            } else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\taddl -%u(%%rbp), %%eax\n"
-                               "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                           aoff, boff, off);
+            }
             break;
         }
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD: {
@@ -3299,8 +3308,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                                   i->opcode == R6_OP_MUL ? "mulsd" : "divsd";
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\t%s -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, ins, boff, off);
-            } else if (is_void_ptr(type_at(f, i->dest)) &&
-                       (i->opcode == R6_OP_SUB || i->opcode == R6_OP_MUL)) {
+            } else if (i->opcode == R6_OP_SUB || i->opcode == R6_OP_MUL) {
                 fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\t%s -%u(%%rbp), %%rax\n"
                            "\tmovq %%rax, -%u(%%rbp)\n",
                         aoff, i->opcode == R6_OP_SUB ? "subq" : "imulq", boff, off);
@@ -3309,19 +3317,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                        divisor != INT32_MIN) {
                 emit_division_by_constant(o, i->opcode == R6_OP_MOD, divisor, aoff);
                 fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
-            } else if (i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) {
-                fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tcltd\n\tidivl -%u(%%rbp)\n", aoff, boff);
-                fprintf(o, "\tmovslq %s, %s\n\tmovq %s, -%u(%%rbp)\n",
-                        i->opcode == R6_OP_DIV ? "%eax" : "%edx",
-                        i->opcode == R6_OP_DIV ? "%rax" : "%rdx",
-                        i->opcode == R6_OP_DIV ? "%rax" : "%rdx", off);
             } else {
-                /* D-M1-36: `orbit_int` is a C int, so the operation is 32
-                   bits and the slot keeps the sign-extended result. A 64-bit
-                   `subq`/`imulq` let the overflow escape the slot. */
-                fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", aoff);
-                fprintf(o, "\t%s -%u(%%rbp), %%eax\n", i->opcode == R6_OP_SUB ? "subl" : "imull", boff);
-                fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcqto\n\tidivq -%u(%%rbp)\n", aoff, boff);
+                fprintf(o, "\tmovq %s, -%u(%%rbp)\n",
+                        i->opcode == R6_OP_DIV ? "%rax" : "%rdx", off);
             }
             break;
         }
@@ -3425,42 +3424,38 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovabsq $-9223372036854775808, %%rax\n\tmovq %%rax, %%xmm1\n\txorpd %%xmm1, %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             else
-                /* D-M1-52: an int negates at 32 bits, as add/sub/mul do since
-                   D-M1-36, so -INT32_MIN wraps to itself as in the oracle. */
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tnegl %%eax\n\tmovslq %%eax, %%rax\n"
+                /* D-M1-94: -INT64_MIN wraps to itself. */
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tnegq %%rax\n"
                            "\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             break;
         case R6_OP_BIT_AND: case R6_OP_BIT_OR: case R6_OP_BIT_XOR: {
-            /* D-M1-85: IR_SPEC 1.3 casts each operand to uintptr_t and the
-               result to orbit_int, so the 32-bit operation on the low halves
-               and a sign extension give the same word. */
+            /* D-M1-85, D-M1-94: the operation is on the 64-bit words. */
             unsigned aoff = operand_slot(f, is_main, i, 0);
             unsigned boff = operand_slot(f, is_main, i, 1);
             materialize_literals(o, f, i, is_main, &string_id);
-            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\t%s -%u(%%rbp), %%eax\n"
-                       "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                    aoff, i->opcode == R6_OP_BIT_AND ? "andl" :
-                          i->opcode == R6_OP_BIT_OR ? "orl" : "xorl", boff, off);
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\t%s %%rcx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    aoff, boff, i->opcode == R6_OP_BIT_AND ? "andq" :
+                                i->opcode == R6_OP_BIT_OR ? "orq" : "xorq", off);
             break;
         }
         case R6_OP_SHL: case R6_OP_SHR: {
-            /* The count is `& 31`, which the hardware applies to a 32-bit
-               shift; shr is arithmetic because the C shifts the sign-extended
-               64-bit pattern and keeps the low 32 bits. */
+            /* The count is `& 63`, which the hardware applies to a 64-bit
+               shift; shr is arithmetic (D-M1-94). */
             unsigned aoff = operand_slot(f, is_main, i, 0);
             unsigned boff = operand_slot(f, is_main, i, 1);
             materialize_literals(o, f, i, is_main, &string_id);
-            fprintf(o, "\tmovl -%u(%%rbp), %%ecx\n\tmovl -%u(%%rbp), %%eax\n"
-                       "\t%s %%cl, %%eax\n\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
-                    boff, aoff, i->opcode == R6_OP_SHL ? "shll" : "sarl", off);
+            fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rax\n"
+                       "\t%s %%cl, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    boff, aoff, i->opcode == R6_OP_SHL ? "shlq" : "sarq", off);
             break;
         }
         case R6_OP_BIT_NOT: {
             unsigned aoff = operand_slot(f, is_main, i, 0);
             materialize_literals(o, f, i, is_main, &string_id);
-            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tnotl %%eax\n"
-                       "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", aoff, off);
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tnotq %%rax\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n", aoff, off);
             break;
         }
         case R6_OP_JUMP_IF_FALSE: {
@@ -3520,8 +3515,6 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, key_id, object_getter(dt));
                 if (is_float(dt))
                     fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
-                else if (is_int(dt))
-                    fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                 else if (is_bool(dt))
                     fprintf(o, "\tmovzbl %%al, %%eax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                 else
@@ -3535,10 +3528,8 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
                 if (is_bool(part))
                     fprintf(o, "\tmovzbl %zu(%%r11), %%eax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
-                else if (is_string(part) || payload_is_word(m, part))
-                    fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
                 else
-                    fprintf(o, "\tmovslq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
+                    fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
                 break;
             }
             if (!resolve_field(m, f, i, &model, &index, d)) return false;
@@ -3549,12 +3540,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             fprintf(o, "\tmovq -%u(%%rbp), %%r11\n", (unsigned)(i->operands[0].as.i32 + 1) * 8);
             if (is_float(field->type_name))
                 fprintf(o, "\tmovsd %zu(%%r11), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n", offset, off);
-            else if (is_string(field->type_name) || field_is_word(m, field->type_name))
-                fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
             else if (is_bool(field->type_name))
                 fprintf(o, "\tmovzbl %zu(%%r11), %%eax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
             else
-                fprintf(o, "\tmovslq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
+                fprintf(o, "\tmovq %zu(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", offset, off);
             break;
         }
         case R6_OP_STORE_FIELD: {
@@ -3594,10 +3583,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tmovb $%d, %zu(%%r11)\n", val->as.boolean ? 1 : 0, offset);
             } else {
                 if (val->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(val->as.i32 + 1) * 8);
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(val->as.i32 + 1) * 8);
                 else
-                    fprintf(o, "\tmovl $%d, %%eax\n", val->as.i32);
-                fprintf(o, "\tmovl %%eax, %zu(%%r11)\n", offset);
+                    emit_int_rax(o, val->as.i64);
+                fprintf(o, "\tmovq %%rax, %zu(%%r11)\n", offset);
             }
             break;
         }
@@ -3614,7 +3603,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         case R6_OP_CALL: {
             const R6Model *model = i->operands[0].kind == R6_VAL_STRING
                                        ? find_model(m, i->operands[0].as.string) : NULL;
-            size_t k, arity = (size_t)i->operands[1].as.i32, base = pending - arity;
+            size_t k, arity = (size_t)i->operands[1].as.i64, base = pending - arity;
             for (k = 0; k < arity; ++k) {
                 const R6Value *av = &args[base + k]->operands[0];
                 if (av->kind == R6_VAL_STRING) {
@@ -3665,10 +3654,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                             fprintf(o, "\tmovb $%d, %zu(%%r10)\n", av->as.boolean ? 1 : 0, offset);
                     } else {
                         if (av->kind == R6_VAL_REG)
-                            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(av->as.i32 + 1) * 8);
+                            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(av->as.i32 + 1) * 8);
                         else
-                            fprintf(o, "\tmovl $%d, %%eax\n", av->as.i32);
-                        fprintf(o, "\tmovl %%eax, %zu(%%r10)\n", offset);
+                            emit_int_rax(o, av->as.i64);
+                        fprintf(o, "\tmovq %%rax, %zu(%%r10)\n", offset);
                     }
                 }
                 fprintf(o, "\tmovq %%r10, -%u(%%rbp)\n", off);
@@ -3795,10 +3784,6 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                             intrinsic_symbol(named->name));
                     if (i->has_dest && !is_void(type_at(f, i->dest)) && !sret_first) {
                         if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
-                        else if (is_int(type_at(f, i->dest)) || is_int(named->return_type))
-                            /* D-M1-36: a C int returns in eax; the slot keeps
-                               the sign-extended 32-bit value. */
-                            fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                         else if (is_bool(type_at(f, i->dest)))
                             /* D-M1-42: a C bool returns in al only; the
                                rest of rax is whatever the callee left. */
@@ -3856,10 +3841,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                                 fprintf(o, "\tmovb $%d, %zu(%%r10)\n", av->as.boolean ? 1 : 0, offset);
                         } else {
                             if (av->kind == R6_VAL_REG)
-                                fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(av->as.i32 + 1) * 8);
+                                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(av->as.i32 + 1) * 8);
                             else
-                                fprintf(o, "\tmovl $%d, %%eax\n", av->as.i32);
-                            fprintf(o, "\tmovl %%eax, %zu(%%r10)\n", offset);
+                                emit_int_rax(o, av->as.i64);
+                            fprintf(o, "\tmovq %%rax, %zu(%%r10)\n", offset);
                         }
                     }
                 }
@@ -3878,8 +3863,15 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(av->as.i32 + 1) * 8);
                     else if (is_string(part))
                         fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rdx\n", arg_string_ids[base]);
-                    else if (av->kind == R6_VAL_INT)
-                        fprintf(o, "\tmovl $%d, %%edx\n", av->as.i32);
+                    else if (av->kind == R6_VAL_INT && fits_imm32(av->as.i64))
+                        fprintf(o, "\tmovq $%lld, %%rdx\n", (long long)av->as.i64);
+                    else if (av->kind == R6_VAL_INT) {
+                        /* %rax holds the cell: park it while the wide value
+                           goes through movabsq. */
+                        fputs("\tmovq %rax, %r10\n", o);
+                        emit_int_rax(o, av->as.i64);
+                        fputs("\tmovq %rax, %rdx\n\tmovq %r10, %rax\n", o);
+                    }
                     else
                         fprintf(o, "\tmovl $%d, %%edx\n", av->as.boolean ? 1 : 0);
                 } else if (parts == 0) {
@@ -3906,8 +3898,6 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq -%u(%%rbp), %%r10\n\tcallq *%%r10\n", callee_off);
                 if (i->has_dest) {
                     if (is_float(type_at(f, i->dest))) fprintf(o, "\tmovsd %%xmm0, -%u(%%rbp)\n", off);
-                    else if (is_int(type_at(f, i->dest)))
-                        fprintf(o, "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", off);
                     else fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
                 }
                 pending = base;
@@ -3929,7 +3919,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 value_type(f, v, &t);
                 if (v->kind == R6_VAL_REG && is_float(t)) fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n", (unsigned)(v->as.i32 + 1) * 8);
                 else if (v->kind == R6_VAL_REG) fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
-                else if (v->kind == R6_VAL_INT) fprintf(o, "\tmovl $%d, %%eax\n", v->as.i32);
+                else if (v->kind == R6_VAL_INT) emit_int_rax(o, v->as.i64);
                 else if (v->kind == R6_VAL_BOOL) fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
                 else if (v->kind == R6_VAL_FLOAT64) fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm0\n", (unsigned long long)v->as.f64_bits);
                 else return fail(d, i, "CGEN", "returning string literals is unsupported");
@@ -3962,7 +3952,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     emit_string(o, v->as.string, string_id);
                     fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rdx\n", string_id++);
                 } else if (v->kind == R6_VAL_INT) {
-                    fprintf(o, "\tmovabsq $%lld, %%rax\n\tmovq %%rax, %%rdx\n", (long long)v->as.i32);
+                    fprintf(o, "\tmovabsq $%lld, %%rax\n\tmovq %%rax, %%rdx\n", (long long)v->as.i64);
                 } else {
                     fprintf(o, "\tmovl $%d, %%edx\n", v->as.boolean ? 1 : 0);
                 }
@@ -3975,9 +3965,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (i->operands[1].kind == R6_VAL_NONE) {
                 /* Single-argument form: O1 is the error code, message NULL. */
                 if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovl -%u(%%rbp), %%edx\n", (unsigned)(v->as.i32 + 1) * 8);
-                else
-                    fprintf(o, "\tmovl $%d, %%edx\n", v->as.i32);
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(v->as.i32 + 1) * 8);
+                else {
+                    emit_int_rax(o, v->as.i64);
+                    fputs("\tmovq %rax, %rdx\n", o);
+                }
                 fputs("\tmovl $0, %r8d\n", o);
             } else {
                 if (v->kind == R6_VAL_REG)
@@ -3987,9 +3979,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%r8\n", string_id++);
                 }
                 if (i->operands[1].kind == R6_VAL_REG)
-                    fprintf(o, "\tmovl -%u(%%rbp), %%edx\n", (unsigned)(i->operands[1].as.i32 + 1) * 8);
-                else
-                    fprintf(o, "\tmovl $%d, %%edx\n", i->operands[1].as.i32);
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(i->operands[1].as.i32 + 1) * 8);
+                else {
+                    emit_int_rax(o, i->operands[1].as.i64);
+                    fputs("\tmovq %rax, %rdx\n", o);
+                }
             }
             fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_err\n", cell);
             break;
@@ -4263,9 +4257,9 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     case R6_OP_COPY:
         return infer_value_type(f, o1);
     case R6_OP_ARG:
-        if (o1->kind == R6_VAL_INT && o1->as.i32 >= 0 &&
-            (size_t)o1->as.i32 < f->param_count)
-            return f->param_types[o1->as.i32];
+        if (o1->kind == R6_VAL_INT && o1->as.i64 >= 0 &&
+            (size_t)o1->as.i64 < f->param_count)
+            return f->param_types[o1->as.i64];
         return NULL;
     case R6_OP_CALL: {
         const char *name = ir_name(o1);
@@ -4402,7 +4396,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
     canonicalize_result_types(module);
     for (n = 0; n < module->global_count; ++n) {
         size_t prior;
-        int32_t ignored;
+        int64_t ignored;
         if (!global_integer(&module->globals[n], &ignored))
             return fail(diag, NULL, "CGEN", "global %s is outside M1 literal int/bool support",
                         module->globals[n].name ? module->globals[n].name : "<unnamed>");
