@@ -1075,6 +1075,19 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
         const char *bound = bound_local_type(f, at);
         return is_int(bound) || is_string(bound) ? bound : NULL;
     }
+    /* D-M1-90: the word is the receiver of a list read (the C casts it to
+     * `const OrbitList*`) or an operand of int arithmetic whose result is an
+     * int (the C adds `uintptr_t` words and narrows to `orbit_int`; the low
+     * 32 bits of the word are the int). */
+    {
+        const R6Instruction *u = &f->instructions[use];
+        if ((u->opcode == R6_OP_LIST_GET || u->opcode == R6_OP_LIST_LEN) &&
+            u->operands[0].kind == R6_VAL_REG && u->operands[0].as.i32 == reg)
+            return "list";
+        if ((u->opcode == R6_OP_ADD || u->opcode == R6_OP_SUB || u->opcode == R6_OP_MUL) &&
+            u->has_dest && is_int(type_at(f, u->dest)))
+            return "int";
+    }
     /* D-M1-51: a comparison with an int. The pin compares the word as
      * uintptr_t (eq/ne) or intptr_t (lt/le/gt/ge), and an int element is
      * stored sign-extended, so the low 32 bits sign-extended compare the same

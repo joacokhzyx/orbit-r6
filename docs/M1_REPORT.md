@@ -1816,3 +1816,14 @@ rechaza. El par `92-opaque-local` sale 42 con salida igual a la del oraculo.
 `test_random` coincide. Diferencial **91/91**; loader **302/302**; corpus **133
 build / 133 match over 135 -> 134 / 134**; self-host C `80a61b67...`; census 2
 de 28.
+
+## Actualizacion de M1 - Elements of nested lists (2026-10-27)
+
+D-M1-90. El builder tipa `xs[0]` como `list` y las lecturas siguientes como
+`void*`. La unica lectura de un elemento sin tipo lo decide: receptor de
+`list_get`/`list_len` es `list`; operando de `add`/`sub`/`mul` con destino `int`
+es `int`. Una suma de tres terminos o un `print` de la palabra siguen
+rechazados. El par `93-nested-lists` sale 42 con salida igual a la del oraculo.
+`bitwise_operators` coincide: el corpus llega a **135 / 135**. Diferencial
+**92/92**; loader **303/303**; corpus **134 build / 134 match over 135 -> 135 /
+135**; self-host C `80a61b67...`; census 2 de 28.

@@ -826,6 +826,17 @@ def build_reject():
         "D-M1-89", "CGEN",
         "loads of the bound local that disagree leave the word untyped and refused")
 
+    # ---- D-M1-90: an untyped element used as a list or in int arithmetic -----
+    add("x-opaque-word-add-string-destination",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=0),
+                      I("load_const", 1, Int(0)),
+                      I("list_get", 2, Reg(0), Reg(1), ek=0),
+                      I("add", 3, Reg(2), Str("x")),
+                      I("ret", -1, Int(0))],
+                     ["list", "int", "void*", "string"])])),
+        "D-M1-90", "CGEN",
+        "a word added into a string is not int arithmetic and keeps its void* type")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]

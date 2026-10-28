@@ -4144,3 +4144,31 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 134 / 134**, census 2 build over 28 modules, self-host C
   `80A61B67...`.
 - Status: **applied**.
+
+## D-M1-90 - Elements of nested lists
+
+- Date: 2026-10-27. Pin: `e34833a` (D-F0-18).
+- Root cause: `bitwise_operators` reads `xs[0][0]` of a `list<list<int>>` and
+  `ys[0][0][0]` of a `list<list<list<int>>>`. The builder types the first read
+  `list` and every read below it `void*` (a `list_get` of elemKind 0), and the
+  word is then the receiver of the next read or an operand of an `add` whose
+  destination is `int`. R6 recovered a `void*` element from a comparison, an
+  argument or a bound local only, so the first refusal was `list_get requires
+  a list register`.
+- Decision: the only use of an untyped element decides its type.
+  - A `list_get` or `list_len` that takes it as receiver makes it a `list`; the
+    C casts the word to `const OrbitList*`.
+  - An `add`, `sub` or `mul` with an `int` destination makes it an `int`; the C
+    operates on `uintptr_t` words and narrows to `orbit_int`, and the 32-bit
+    instruction on the low halves gives the same slot.
+  - A word that feeds another word-typed `add` (a chain of three terms) or a
+    `print` stays `void*` and refused: the C prints the word as `%lld`, which
+    has no measured lowering here.
+- Fixture `93-nested-lists` (oracle and R6 print `3` and exit 42): reads at
+  depth two and three, sums, a difference and a product, and a length of an
+  inner list. Control: `x-opaque-word-add-string-destination` stays `CGEN`.
+- Corpus: `bitwise_operators` builds and matches; the corpus is complete.
+- Gates: differential **92/92**, loader **303/303**, corpus **134 build / 134
+  match over 135 -> 135 / 135**, census 2 build over 28 modules, self-host C
+  `80A61B67...`.
+- Status: **applied**.

@@ -848,6 +848,13 @@
       "note": "loads of the bound local that disagree leave the word untyped and refused"
     },
     {
+      "file": "cases/x-opaque-word-add-string-destination.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-90",
+      "note": "a word added into a string is not int arithmetic and keeps its void* type"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
