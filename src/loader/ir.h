@@ -31,7 +31,7 @@ typedef enum { R6_VAL_NONE, R6_VAL_INT, R6_VAL_FLOAT64, R6_VAL_STRING,
 typedef struct {
     R6ValueKind kind;
     size_t string_len;
-    union { int32_t i32; uint64_t f64_bits; char *string; bool boolean; } as;
+    union { int64_t i64; int32_t i32; uint64_t f64_bits; char *string; bool boolean; } as;
 } R6Value;
 
 typedef struct {
