@@ -4622,3 +4622,19 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `run_diff.py` 100/100 and `run_reject.py` 341/341 with the new archives.
 - Fixtures: `46-process-argc` is the positive control for the argv rule; every
   other fixture builds without the reference.
+
+## D-M1-103 - The database archive is the pin's per-module archive
+
+- Date: 2026-10-28. Pin: `bf38b38` (D-F0-20); the runtime of `cc6b167` is the
+  first one to need it.
+- Reason: `scripts/build-runtime-db.py` compiled `LIB_TU`, the one translation
+  unit of `scripts/mklib_runtime.py`, with `-DORBIT_WITH_DB`. The language at
+  `cc6b167` has no `LIB_TU`: each module is `runtime/<m>.h` and `<m>.c`, compiled
+  with `-DORBIT_RUNTIME_MODULE`, and `mklib_runtime.py --db` writes the archive
+  of 21 members (19 plain, plus `database` and `auth`).
+- Decision: the script runs `mklib_runtime.py --db --quiet --cc <cc> --out
+  <absolute path>` from the checkout and copies `sqlite3.lib` from
+  `runtime/vendor/win-x64`. R6 keeps no copy of the recipe. A change of the
+  pin's member list reaches R6 through the pin alone.
+- Measured: the script writes a 21-member archive; `90-db-link` and
+  `95-db-migrations` pass against it (`run_diff.py --case`, 2/2).
