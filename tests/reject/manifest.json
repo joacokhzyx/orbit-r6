@@ -1605,6 +1605,104 @@
       "args": [
         "--object"
       ]
+    },
+    {
+      "file": "cases/rt-str-len-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "str_len outside a runtime module"
+    },
+    {
+      "file": "cases/rt-byte-load-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "byte_load outside a runtime module"
+    },
+    {
+      "file": "cases/rt-byte-store-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "byte_store outside a runtime module"
+    },
+    {
+      "file": "cases/rt-bytes-alloc-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "bytes_alloc outside a runtime module"
+    },
+    {
+      "file": "cases/rt-byte-store-with-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-106",
+      "note": "byte_store has no destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-load-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-106",
+      "note": "byte_load requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-len-int-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "str_len reads a string register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-load-string-index.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "byte_load indexes with an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-load-literal-index.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "an inline literal is not an operand of byte_load",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-store-string-value.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "byte_store writes an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "bytes_alloc produces a string register",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -2479,6 +2577,14 @@
         "--object"
       ],
       "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"
+    },
+    {
+      "file": "cases/ok-runtime-module-bytes.json",
+      "rule": "D-M1-106",
+      "args": [
+        "--object"
+      ],
+      "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"
     }
   ]
 }

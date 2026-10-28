@@ -1739,6 +1739,63 @@ def build_reject():
         "D-M1-105", "CGEN",
         "the executable arena is not available to an archive member", args=["--object"])
 
+    # ---- D-M1-106: the byte opcodes exist in runtime modules only -------------
+    def ordinary(instrs, types):
+        return jd(DOC([MAIN(instrs + [I("ret", -1, Int(0))], types)]))
+
+    def rt_fn(instrs, types, params=None, ptypes=None):
+        return jd(RTDOC([FN("rtmod_bytes", instrs, types, params=params, ptypes=ptypes,
+                            export=True)]))
+
+    add("rt-str-len-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("str_len", 1, Reg(0))],
+                 ["string", "int"]),
+        "D-M1-106", "E_UNSUPPORTED", "str_len outside a runtime module")
+    add("rt-byte-load-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("byte_load", 2, Reg(0), Reg(1))], ["string", "int", "int"]),
+        "D-M1-106", "E_UNSUPPORTED", "byte_load outside a runtime module")
+    add("rt-byte-store-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("byte_store", -1, Reg(0), Reg(1), Reg(1))], ["string", "int"]),
+        "D-M1-106", "E_UNSUPPORTED", "byte_store outside a runtime module")
+    add("rt-bytes-alloc-ordinary-module",
+        ordinary([I("load_const", 0, Int(4)), I("bytes_alloc", 1, Reg(0))],
+                 ["int", "string"]),
+        "D-M1-106", "E_UNSUPPORTED", "bytes_alloc outside a runtime module")
+    add("rt-byte-store-with-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("byte_store", 2, Reg(0), Reg(1), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "E_SCHEMA", "byte_store has no destination", args=["--object"])
+    add("rt-byte-load-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("byte_load", -1, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "E_SCHEMA", "byte_load requires a destination", args=["--object"])
+    add("rt-str-len-int-operand",
+        rt_fn([I("load_const", 0, Int(1)), I("str_len", 1, Reg(0)), I("ret", -1, Reg(1))],
+              ["int", "int"]),
+        "D-M1-106", "CGEN", "str_len reads a string register", args=["--object"])
+    add("rt-byte-load-string-index",
+        rt_fn([I("arg", 0, Int(0)), I("byte_load", 1, Reg(0), Reg(0)),
+               I("ret", -1, Reg(1))], ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "CGEN", "byte_load indexes with an int register", args=["--object"])
+    add("rt-byte-load-literal-index",
+        rt_fn([I("arg", 0, Int(0)), I("byte_load", 1, Reg(0), Int(0)),
+               I("ret", -1, Reg(1))], ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "CGEN", "an inline literal is not an operand of byte_load",
+        args=["--object"])
+    add("rt-byte-store-string-value",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("byte_store", -1, Reg(0), Reg(1), Reg(0)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "CGEN", "byte_store writes an int register", args=["--object"])
+    add("rt-bytes-alloc-int-dest",
+        rt_fn([I("load_const", 0, Int(4)), I("bytes_alloc", 1, Reg(0)), I("ret", -1, Reg(1))],
+              ["int", "int"]),
+        "D-M1-106", "CGEN", "bytes_alloc produces a string register", args=["--object"])
+
     return cases
 
 
@@ -2336,6 +2393,15 @@ def build_accept_files():
               I("call", 3, Sym("rtmod_twice"), Int(1)), I("ret", -1, Reg(3))],
              Types(4), params=["a", "b"], ptypes=["int", "int"], export=True)
     files.append(("ok-runtime-module-object", jd(RTDOC([twice, via, RT_ADD()]))))
+    files.append(("ok-runtime-module-bytes",
+                  jd(RTDOC([FN("rtmod_bytes_copy_first",
+                               [I("arg", 0, Int(0)), I("str_len", 1, Reg(0)),
+                                I("bytes_alloc", 2, Reg(1)), I("load_const", 3, Int(0)),
+                                I("byte_load", 4, Reg(0), Reg(3)),
+                                I("byte_store", -1, Reg(2), Reg(3), Reg(4)),
+                                I("byte_load", 5, Reg(2), Reg(3)), I("ret", -1, Reg(5))],
+                               ["string", "int", "string", "int", "int", "int"],
+                               params=["s"], ptypes=["string"], export=True)]))))
     return files
 
 
@@ -2709,6 +2775,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-object.json", "rule": "D-M1-105",
              "args": ["--object"],
              "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"},
+            {"file": "cases/ok-runtime-module-bytes.json", "rule": "D-M1-106",
+             "args": ["--object"],
+             "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"},
         ],
     }
 

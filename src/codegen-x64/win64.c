@@ -1560,6 +1560,14 @@ static bool validate_value_for_register(const R6Function *f, const R6Value *v,
     return true;
 }
 
+static bool is_string_reg(const R6Function *f, const R6Value *v) {
+    return v->kind == R6_VAL_REG && is_string(type_at(f, v->as.i32));
+}
+
+static bool is_int_reg(const R6Function *f, const R6Value *v) {
+    return v->kind == R6_VAL_REG && is_int(type_at(f, v->as.i32));
+}
+
 static bool validate_function(const R6Module *m, const R6Function *f,
                               R6Diagnostic *d) {
     size_t pc, arg_count = 0;
@@ -1932,6 +1940,31 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d)) return false;
             if (!is_int(a) || !is_int(type_at(f, i->dest)))
                 return fail(d, i, "CGEN", "bit_not requires an int operand and an int destination");
+            break;
+        /* D-M1-106: the byte opcodes of a runtime module. Every operand is a
+           register: an inline literal has no scratch slot here. */
+        case R6_OP_STR_LEN:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_int(type_at(f, i->dest)) ||
+                !is_string_reg(f, &i->operands[0]))
+                return fail(d, i, "CGEN", "str_len requires a string register and an int destination");
+            break;
+        case R6_OP_BYTE_LOAD:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_int(type_at(f, i->dest)) ||
+                !is_string_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]))
+                return fail(d, i, "CGEN", "byte_load requires a string register, an int index register and an int destination");
+            break;
+        case R6_OP_BYTE_STORE:
+            if (!m->runtime_module || i->has_dest ||
+                !is_string_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]) ||
+                !is_int_reg(f, &i->operands[2]))
+                return fail(d, i, "CGEN", "byte_store requires a string register, an int index register and an int value register, and no destination");
+            break;
+        case R6_OP_BYTES_ALLOC:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_string(type_at(f, i->dest)) || !is_int_reg(f, &i->operands[0]))
+                return fail(d, i, "CGEN", "bytes_alloc requires an int length register and a string destination");
             break;
         case R6_OP_JUMP_IF_FALSE:
             if (i->operands[0].kind != R6_VAL_REG ||
@@ -3557,6 +3590,40 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                        "\tmovq %%rax, -%u(%%rbp)\n", aoff, off);
             break;
         }
+        /* D-M1-106. str_len keeps the null test of orbit_string_len (a NULL
+           string has length 0); the byte accesses do not test anything. */
+        case R6_OP_STR_LEN:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovl $0, %%eax\n"
+                       "\ttestq %%rcx, %%rcx\n\tje .Lr6_f%zu_str_len_%zu\n"
+                       "\tcall strlen\n.Lr6_f%zu_str_len_%zu:\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), fn_index, pc, fn_index, pc, off);
+            break;
+        case R6_OP_BYTE_LOAD:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\tmovzbl (%%rax), %%eax\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1), off);
+            break;
+        case R6_OP_BYTE_STORE:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\tmovb %%dl, (%%rax)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
+                    operand_slot(f, is_main, i, 2));
+            break;
+        case R6_OP_BYTES_ALLOC:
+            /* The global arena, not r6_arena: the object may be linked into a
+               program the C backend built. The terminating byte is written
+               before the destination store, so a destination that shares
+               the length slot cannot corrupt the address. */
+            fprintf(o, "\tcall orbit_arena_get_global\n\tmovq %%rax, %%rcx\n"
+                       "\tmovq -%u(%%rbp), %%rdx\n\tleaq 1(%%rdx), %%rdx\n"
+                       "\tcall orbit_alloc\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rax, %%rcx\n\tmovb $0, (%%rcx)\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 0), off);
+            break;
         case R6_OP_JUMP_IF_FALSE: {
             const char *fused = fused_false_jump(f, pc);
             if (fused)
@@ -4484,6 +4551,8 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         return model->fields[index].type_name;
     }
     case R6_OP_LIST_CREATE: return "list";
+    case R6_OP_STR_LEN: case R6_OP_BYTE_LOAD: return "int";
+    case R6_OP_BYTES_ALLOC: return "string";
     case R6_OP_LIST_LEN: return "int";
     case R6_OP_LIST_GET:
     case R6_OP_LIST_POP:

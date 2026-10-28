@@ -4769,3 +4769,55 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   object's symbols were read with `nm`: `rtmod_probe_add` and
   `rtmod_probe_twice_sum` are `T`, `o_rtmod_twice` is `t`.
 - Status: **applied**.
+
+## D-M1-106 - Byte opcodes of a runtime module: `str_len`, `byte_load`, `byte_store`, `bytes_alloc`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: a runtime module written in Orbit reads and writes the bytes of a
+  string. The IR has no opcode for that, and a C-string runtime function such as
+  an upper-casing helper needs all four.
+- Decision, admission: the four opcodes are admitted only when
+  `module.runtimeModule` is true. In an ordinary module they are
+  `E_UNSUPPORTED: opcode is admitted only in a runtime module`, so a module the
+  pin emits today cannot reach them.
+- Decision, semantics (`src/codegen-x64/win64.c`). Every operand is a register:
+  an inline literal is `error[CGEN]`, because these opcodes have no scratch slot
+  for one.
+
+  | Opcode | dest | operands | Lowering |
+  |---|---|---|---|
+  | `str_len` | int | string | `strlen`; a NULL string is 0, as `orbit_string_len` of the pin |
+  | `byte_load` | int | string, int index | `movzbl (s+i)`: zero-extended, no bounds check |
+  | `byte_store` | none (`-1`) | string, int index, int value | `movb %dl, (s+i)`: the low 8 bits of the value |
+  | `bytes_alloc` | string | int n | `orbit_alloc(orbit_arena_get_global(), n + 1)`, byte `n` set to 0 |
+
+  - `byte_store` with a destination is `E_SCHEMA`; the other three without one
+    are `E_SCHEMA` too.
+  - `bytes_alloc` calls the global arena and not `r6_arena`: the object may be
+    linked into a program built by the C backend (D-M1-105). Both symbols are
+    declared in `runtime/arena.h` of the pin (`void* orbit_alloc(OrbitArena*,
+    size_t)`, `OrbitArena* orbit_arena_get_global(void)`) and live in the
+    `arena_alloc` and `arena_global` members of the archive. The byte after the
+    allocation is written, and nothing else is cleared.
+  - The assembler gets no new instruction: the lowering uses `movzbl (%rax)`,
+    `movb %dl, (%rax)`, `movb $0, (%rcx)`, `leaq 1(%rdx), %rdx` and the address
+    `addq %rcx, %rax`, which `asm_win64.c` already encodes.
+- Controls: `rt-*-ordinary-module` (four opcodes refused outside a runtime
+  module), `rt-byte-store-with-dest`, `rt-byte-load-missing-dest`,
+  `rt-str-len-int-operand`, `rt-byte-load-string-index`,
+  `rt-byte-load-literal-index`, `rt-byte-store-string-value` and
+  `rt-bytes-alloc-int-dest` refuse the wrong operand or destination;
+  `ok-runtime-module-bytes` builds all four in a runtime module.
+- End to end (`python tests/runtime-module/run_runtime_module.py`): the runtime
+  module `probe-rt.json` exports `rtmod_probe_upper(s: string) -> string` and
+  `rtmod_probe_sum(s: string) -> int`. The script builds it with `--object`,
+  checks with `nm` that both are `T` and that no `main`, `orbit_main` or
+  `orbit_start` exists, shows that `probe-main.json` fails with `error[LINK]`
+  while the member is missing, adds the object to a temporary copy of
+  `libruntime_net.a` with `ar`, links the program and compares its output. It
+  printed `HELLO, ORBIT 42!`, an empty line and `468` (the byte sum of `h` and
+  the two bytes of `é`, 104 + 195 + 169, which a sign-extending load would turn
+  into 104 - 61 - 87 = -44), exit 0.
+- Not done: a literal operand, a bounds check, a `bytes_alloc` that clears the
+  bytes, and any other string operation. A new opcode is a new decision.
+- Status: **applied**.
