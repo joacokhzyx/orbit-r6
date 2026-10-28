@@ -792,18 +792,17 @@ def build_reject():
 
     # ---- D-M1-87: the database variant of the runtime ------------------------
     # A module that declares an orbit_db_* extern links the DB archive and opens
-    # the database in main. Migrations have no measured lowering.
+    # the database in main. D-M1-92: its migrations run after the model tables;
+    # a module with migrations and no orbit_db_* extern stays refused.
     def DB_COUNT():
         return FN("orbit_db_count_all", [], [], rtype="int", extern=True,
                   params=["table"], ptypes=["string"])
 
-    mod = MOD([DB_COUNT(), MAIN([I("arg", -1, Str("items")),
-                                 I("call", 0, Str("orbit_db_count_all"), Int(1)),
-                                 I("ret", -1, Int(0))], ["int"])])
+    mod = MOD([MAIN()])
     mod["migrations"] = ["CREATE TABLE t (id TEXT)"]
-    add("x-db-migrations", jd({"irVersion": "1", "module": mod}),
-        "D-M1-87", "CGEN",
-        "a database module with migrations is refused: the pin's migration runner has no lowering here")
+    add("x-db-migrations-no-db-extern", jd({"irVersion": "1", "module": mod}),
+        "D-M1-92", "CGEN",
+        "migrations without an orbit_db_* extern have no measured link of the DB archive")
 
     # ---- D-M1-88: a result unwrapped into a list -----------------------------
     add("x-result-unwrap-bool-destination",
@@ -836,6 +835,33 @@ def build_reject():
                      ["list", "int", "void*", "string"])])),
         "D-M1-90", "CGEN",
         "a word added into a string is not int arithmetic and keeps its void* type")
+
+    # ---- D-M1-91: word arithmetic and a printed word -------------------------
+    def ID_VOIDPTR():
+        return FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
+                  rtype="void*", params=["x"], ptypes=["void*"])
+
+    add("x-word-arith-bool-operand",
+        jd(DOC([ID_VOIDPTR(),
+                MAIN([I("arg", -1, Int(1)),
+                      I("call", 0, Str("id"), Int(1)),
+                      I("load_const", 1, Bool(True)),
+                      I("add", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))],
+                     ["void*", "bool", "void*"])])),
+        "D-M1-91", "CGEN",
+        "a bool is neither an int nor a word: the sum keeps no measured conversion")
+    add("x-word-div-word-destination",
+        jd(DOC([ID_VOIDPTR(),
+                MAIN([I("arg", -1, Int(8)),
+                      I("call", 0, Str("id"), Int(1)),
+                      I("arg", -1, Int(2)),
+                      I("call", 1, Str("id"), Int(1)),
+                      I("div", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))],
+                     ["void*", "void*", "void*"])])),
+        "D-M1-91", "CGEN",
+        "div and mod over words are not admitted: the pin divides signed ints, not words")
 
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
@@ -1745,6 +1771,33 @@ def build_accept_files():
                           MAIN([I("arg", -1, Str("items")),
                                 I("call", 0, Str("orbit_db_count_all"), Int(1)),
                                 I("ret", -1, Int(0))], ["int"])]))))
+    mod = MOD([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
+                                       params=["table"], ptypes=["string"]), MAIN([I("arg", -1, Str("items")),
+                                        I("call", 0, Str("orbit_db_count_all"), Int(1)),
+                                        I("ret", -1, Int(0))], ["int"])])
+    mod["migrations"] = ["CREATE TABLE IF NOT EXISTS audit (id INTEGER)",
+                         "ALTER TABLE audit ADD COLUMN note TEXT"]
+    files.append(("ok-db-migrations", jd({"irVersion": "1", "module": mod})))
+    files.append(("ok-word-arith-print",
+                  jd(DOC([FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
+                             rtype="void*", params=["x"], ptypes=["void*"]),
+                          MAIN([I("arg", -1, Int(2147483647)),
+                                I("call", 0, Str("id"), Int(1)),
+                                I("arg", -1, Int(1)),
+                                I("call", 1, Str("id"), Int(1)),
+                                I("add", 2, Reg(0), Reg(1)),
+                                I("arg", -1, Reg(2)),
+                                I("call", 3, Str("print"), Int(1)),
+                                I("sub", 4, Reg(2), Reg(1)),
+                                I("mul", 5, Reg(4), Reg(1)),
+                                I("add", 6, Reg(5), Reg(1)),
+                                I("eq", 7, Reg(6), Int(-2147483648)),
+                                I("jump_if_false", -1, Reg(7), Lab(1)),
+                                I("ret", -1, Int(7)),
+                                I("label", -1, Lab(1)),
+                                I("ret", -1, Int(1))],
+                               ["void*", "void*", "void*", "void", "void*", "void*",
+                                "int", "bool"])]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -2087,6 +2140,11 @@ def build_manifest(reject, accept_files):
              "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"},
             {"file": "cases/ok-db-link.json", "rule": "D-M1-87",
              "note": "a module with an orbit_db_* extern links the DB archive and the SQLite import library (build only: the run needs sqlite3.dll on PATH)"},
+            {"file": "cases/ok-db-migrations.json", "rule": "D-M1-92",
+             "note": "a module with an orbit_db_* extern and two migrations links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"},
+            {"file": "cases/ok-word-arith-print.json", "run_exit": 7,
+             "run_stdout": "2147483648\r\n", "rule": "D-M1-91",
+             "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",

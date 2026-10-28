@@ -255,6 +255,18 @@ static bool comparison_types_ok(const char *a, const char *b, bool allow_string)
     return a_num && b_num;
 }
 
+/* D-M1-91: add, sub and mul over words. The pin computes them as
+ * `(uintptr_t)a OP (uintptr_t)b` and stores the result with the cast of the
+ * destination register: an `int` destination keeps the low 32 bits, a `void*`
+ * destination keeps the whole 64-bit word. An operand is an `int` (a
+ * sign-extended slot) or a `void*` word, and at least one is a word, so the
+ * all-int case stays with the typed rule. */
+static bool word_arith_ok(const char *a, const char *b, const char *dest) {
+    return (is_void_ptr(a) || is_void_ptr(b)) &&
+           (is_int(a) || is_void_ptr(a)) && (is_int(b) || is_void_ptr(b)) &&
+           (is_int(dest) || is_void_ptr(dest));
+}
+
 static const R6Function *find_function(const R6Module *m, const char *name);
 
 /* D-M1-27: the runtime functions whose C signature carries the arena as an
@@ -1835,15 +1847,18 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                                 "string add requires a string destination");
                 break;
             }
-            if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
-                !(is_int(a) || is_float(a)))
+            if (!word_arith_ok(a, b, type_at(f, i->dest)) &&
+                (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
+                 !(is_int(a) || is_float(a))))
                 return fail(d, i, "CGEN", "add supports matching int or float operands");
             break;
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
-            if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
-                !(is_int(a) || (i->opcode != R6_OP_MOD && is_float(a))))
+            if (!((i->opcode == R6_OP_SUB || i->opcode == R6_OP_MUL) &&
+                  word_arith_ok(a, b, type_at(f, i->dest))) &&
+                (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
+                 !(is_int(a) || (i->opcode != R6_OP_MOD && is_float(a)))))
                 return fail(d, i, "CGEN", "sub/mul/div require matching int/float operands; mod requires int");
             break;
         case R6_OP_EQ:
@@ -2002,12 +2017,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     /* The single argument selects the reduction, so its type
                        must be one the lowering measures: a string through
                        "%s", a float through the runtime formatter, and
-                       int/bool through "%lld". An untyped register or any
+                       int/bool through "%lld". D-M1-91: a void* register
+                       prints as `(long long)word`, the whole 64-bit word. Any
                        other class fails here rather than reaching the
                        emitter. */
                     const char *at = NULL;
                     if (!value_type(f, &arg_values[arg_count - 1]->operands[0], &at) ||
-                        !(is_int(at) || is_bool(at) || is_string(at) || is_float(at)))
+                        !(is_int(at) || is_bool(at) || is_string(at) || is_float(at) ||
+                          (is_void_ptr(at) && arg_values[arg_count - 1]->operands[0].kind == R6_VAL_REG)))
                         return fail(d, i, "CGEN",
                                     "print argument has no measured printable type");
                     arg_count -= 1;
@@ -3249,6 +3266,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\taddsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, boff, off);
+            } else if (is_void_ptr(t)) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\taddq -%u(%%rbp), %%rax\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n", aoff, boff, off);
             } else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\taddl -%u(%%rbp), %%eax\n"
                                "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                            aoff, boff, off);
@@ -3265,6 +3285,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                                   i->opcode == R6_OP_MUL ? "mulsd" : "divsd";
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\t%s -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, ins, boff, off);
+            } else if (is_void_ptr(type_at(f, i->dest)) &&
+                       (i->opcode == R6_OP_SUB || i->opcode == R6_OP_MUL)) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\t%s -%u(%%rbp), %%rax\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n",
+                        aoff, i->opcode == R6_OP_SUB ? "subq" : "imulq", boff, off);
             } else if ((i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) &&
                        constant_divisor(f, pc, &divisor) && divisor != 0 && divisor != -1 &&
                        divisor != INT32_MIN) {
@@ -3997,7 +4022,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
 /* D-M1-87: the pin's main opens the database and creates one table per model
  * with fields when the module calls a database builtin (c_backend.orb,
  * generateModelDDL: `<lowercased name>s`, int and bool INTEGER, float REAL,
- * the rest TEXT, `id` the primary key). */
+ * the rest TEXT, `id` the primary key). D-M1-92: the same function then runs
+ * the module's migrations, `orbit_run_migrations(_orbit_migs, N)`, and exits 1
+ * when it answers false. */
 static bool module_uses_db(const R6Module *m) {
     size_t n;
     for (n = 0; n < m->function_count; ++n)
@@ -4016,10 +4043,14 @@ static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
     unsigned long long base = 1ULL << 62, next = base + 1;
     char ddl[8][1024];
     unsigned long long ddl_id[8];
+    unsigned long long mig_id = 0;
     size_t ddl_count = 0, k, j;
+    /* The pin opens the database for migrations alone too, but the driver
+       links the DB archive by the orbit_db_* externs, so a migration-only
+       module has no measured link and stays refused. */
+    if (m->migration_count && !db)
+        return fail(d, NULL, "CGEN", "a module with migrations that calls no orbit_db_* builtin is outside the M1 native subset");
     if (db) {
-        if (m->migration_count)
-            return fail(d, NULL, "CGEN", "a database module with migrations is outside the M1 native subset");
         emit_db_text(o, ".orbit/data/app.db", base);
         for (k = 0; k < m->model_count; ++k) {
             const R6Model *model = &m->models[k];
@@ -4047,6 +4078,20 @@ static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
             emit_db_text(o, ddl[ddl_count], ddl_id[ddl_count]);
             ++ddl_count;
         }
+        if (m->migration_count) {
+            /* The array `_orbit_migs` of the pin's block: one pointer slot per
+               migration in .data, filled by main before the call. */
+            mig_id = next;
+            for (k = 0; k < m->migration_count; ++k) {
+                if (!m->migrations[k])
+                    return fail(d, NULL, "CGEN", "migration %zu has no text", k);
+                emit_db_text(o, m->migrations[k], next++);
+            }
+            fputs("\t.section .data,\"dw\"\n", o);
+            for (k = 0; k < m->migration_count; ++k)
+                fprintf(o, "r6_migration_%zu:\n\t.byte 0,0,0,0,0,0,0,0\n", k);
+            fputs("\t.text\n", o);
+        }
     }
     fputs("\t.text\n\t.globl main\n"
           "\t.def main; .scl 2; .type 32; .endef\n"
@@ -4063,6 +4108,19 @@ static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
         fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tcall orbit_db_init\n", base);
         for (k = 0; k < ddl_count; ++k)
             fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tcall orbit_db_exec_ddl\n", ddl_id[k]);
+        if (m->migration_count) {
+            for (k = 0; k < m->migration_count; ++k)
+                fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n"
+                           "\tleaq r6_migration_%zu(%%rip), %%rcx\n"
+                           "\tmovq %%rax, 0(%%rcx)\n", mig_id + k, k);
+            /* `if (!orbit_run_migrations(...)) exit(1)`; the C writes the
+               message to stderr first, which the verdict does not compare. */
+            fprintf(o, "\tleaq r6_migration_0(%%rip), %%rcx\n"
+                       "\tmovl $%zu, %%edx\n\tcall orbit_run_migrations\n"
+                       "\tcmpb $0, %%al\n\tjne .Lr6_migrations_ok\n"
+                       "\tmovl $1, %%ecx\n\tcall exit\n"
+                       ".Lr6_migrations_ok:\n", m->migration_count);
+        }
     }
     fputs("\tmovl $131072, %ecx\n\tcall orbit_arena_create\n"
           "\tmovq %rax, -8(%rbp)\n"
@@ -4338,8 +4396,6 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
             if (strcmp(module->globals[n].name, module->globals[prior].name) == 0)
                 return fail(diag, NULL, "CGEN", "duplicate global %s", module->globals[n].name);
     }
-    if (module->migration_count)
-        return fail(diag, NULL, "CGEN", "M1 codegen does not support migrations");
     if (module->type_count && !module->types)
         return fail(diag, NULL, "CGEN", "module has missing type storage");
     for (n = 0; n < module->type_count; ++n) {

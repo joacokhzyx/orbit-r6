@@ -1,0 +1,22 @@
+// D-M1-92: a module with migrations runs them after the model tables, as the
+// pin's main does: orbit_run_migrations over the declared statements, and
+// exit 1 when it answers false. The fixture runs where no .orbit/data
+// directory exists, so the open fails, the runner answers false and both
+// sides exit 1 before orbit_main prints anything. A run with the directory
+// present (applied once, then a rerun that is a no-op) was
+// compared by hand when the decision was taken.
+// expect-exit 1
+
+model Note {
+    id: string
+    title: string
+}
+
+migrations "ALTER TABLE notes ADD COLUMN rank INTEGER"
+migrations "CREATE INDEX IF NOT EXISTS ix_notes_rank ON notes(rank)"
+
+fn main() -> int {
+    val all = Note.all()
+    print(all.len())
+    return 42
+}

@@ -1827,3 +1827,23 @@ rechazados. El par `93-nested-lists` sale 42 con salida igual a la del oraculo.
 `bitwise_operators` coincide: el corpus llega a **135 / 135**. Diferencial
 **92/92**; loader **303/303**; corpus **134 build / 134 match over 135 -> 135 /
 135**; self-host C `80a61b67...`; census 2 de 28.
+
+## Actualizacion de M1 - Arithmetic over words and a printed word (2026-10-28)
+
+D-M1-91. `add`, `sub` y `mul` aceptan operandos `int` o `void*` (al menos uno
+`void*`) con destino `int` o `void*`; el destino `void*` conserva los 64 bits.
+`print` acepta un registro `void*` y escribe la palabra con `%lld`. `div` y
+`mod` sobre palabras siguen rechazados. Sin medir: no se ejecuto ningun gate.
+Falta correr `run_diff.py` (par `94-word-chain`), `make_cases.py` y
+`run_reject.py`.
+
+## Actualizacion de M1 - Migrations of a database module (2026-10-28)
+
+D-M1-92. El `main` de un modulo DB con `migrations` guarda los textos en un
+arreglo, llama `orbit_run_migrations(arreglo, N)` despues de las tablas de los
+modelos y sale con 1 si responde falso. Sin una extern `orbit_db_*` las
+migraciones siguen en `CGEN`. El par `95-db-migrations` sale 1 con salida vacia
+en los dos lados (sin `.orbit/data` la apertura falla); con el directorio
+presente, oraculo y R6 imprimen `466` y salen 42 en la primera corrida y en la
+segunda. Diferencial **94/94**; loader **307/307**; corpus **135 build / 135 match over 135 -> 135 /
+135**; self-host C `80a61b67...`.
