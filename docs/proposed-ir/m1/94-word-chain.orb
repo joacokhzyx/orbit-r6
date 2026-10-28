@@ -1,0 +1,15 @@
+// D-M1-91: a word that feeds a word-typed add, and a word that is printed.
+// The pin adds and prints the untyped elements of a nested list as uintptr_t
+// words: the sum of two words keeps the whole 64-bit word, the next add narrows
+// to int, and print writes `(long long)word`. The module is hand-written IR:
+// the emitter types the intermediate sum int, so the void* sum is the form the
+// lowering has to accept and no corpus program reaches it.
+// expect-exit 42
+
+fn main() -> int {
+    val xs: list < list < int >> = [[5, 6], [7, 8, 9]]
+    val ys: list < list < list < int >> > = [[[7, 1], [2]], [[3]]]
+    if xs[0][0] + ys[0][0][0] + xs[1][2] != 21 { return 1 }
+    print(xs[1][1])
+    return 42
+}

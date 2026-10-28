@@ -255,6 +255,18 @@ static bool comparison_types_ok(const char *a, const char *b, bool allow_string)
     return a_num && b_num;
 }
 
+/* D-M1-91: add, sub and mul over words. The pin computes them as
+ * `(uintptr_t)a OP (uintptr_t)b` and stores the result with the cast of the
+ * destination register: an `int` destination keeps the low 32 bits, a `void*`
+ * destination keeps the whole 64-bit word. An operand is an `int` (a
+ * sign-extended slot) or a `void*` word, and at least one is a word, so the
+ * all-int case stays with the typed rule. */
+static bool word_arith_ok(const char *a, const char *b, const char *dest) {
+    return (is_void_ptr(a) || is_void_ptr(b)) &&
+           (is_int(a) || is_void_ptr(a)) && (is_int(b) || is_void_ptr(b)) &&
+           (is_int(dest) || is_void_ptr(dest));
+}
+
 static const R6Function *find_function(const R6Module *m, const char *name);
 
 /* D-M1-27: the runtime functions whose C signature carries the arena as an
@@ -1835,15 +1847,18 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                                 "string add requires a string destination");
                 break;
             }
-            if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
-                !(is_int(a) || is_float(a)))
+            if (!word_arith_ok(a, b, type_at(f, i->dest)) &&
+                (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
+                 !(is_int(a) || is_float(a))))
                 return fail(d, i, "CGEN", "add supports matching int or float operands");
             break;
         case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV: case R6_OP_MOD:
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
-            if (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
-                !(is_int(a) || (i->opcode != R6_OP_MOD && is_float(a))))
+            if (!((i->opcode == R6_OP_SUB || i->opcode == R6_OP_MUL) &&
+                  word_arith_ok(a, b, type_at(f, i->dest))) &&
+                (!same_type(a, b) || !same_type(a, type_at(f, i->dest)) ||
+                 !(is_int(a) || (i->opcode != R6_OP_MOD && is_float(a)))))
                 return fail(d, i, "CGEN", "sub/mul/div require matching int/float operands; mod requires int");
             break;
         case R6_OP_EQ:
@@ -2002,12 +2017,14 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     /* The single argument selects the reduction, so its type
                        must be one the lowering measures: a string through
                        "%s", a float through the runtime formatter, and
-                       int/bool through "%lld". An untyped register or any
+                       int/bool through "%lld". D-M1-91: a void* register
+                       prints as `(long long)word`, the whole 64-bit word. Any
                        other class fails here rather than reaching the
                        emitter. */
                     const char *at = NULL;
                     if (!value_type(f, &arg_values[arg_count - 1]->operands[0], &at) ||
-                        !(is_int(at) || is_bool(at) || is_string(at) || is_float(at)))
+                        !(is_int(at) || is_bool(at) || is_string(at) || is_float(at) ||
+                          (is_void_ptr(at) && arg_values[arg_count - 1]->operands[0].kind == R6_VAL_REG)))
                         return fail(d, i, "CGEN",
                                     "print argument has no measured printable type");
                     arg_count -= 1;
@@ -3249,6 +3266,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (is_float(t)) {
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\taddsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, boff, off);
+            } else if (is_void_ptr(t)) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\taddq -%u(%%rbp), %%rax\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n", aoff, boff, off);
             } else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\taddl -%u(%%rbp), %%eax\n"
                                "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                            aoff, boff, off);
@@ -3265,6 +3285,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                                   i->opcode == R6_OP_MUL ? "mulsd" : "divsd";
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\t%s -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         aoff, ins, boff, off);
+            } else if (is_void_ptr(type_at(f, i->dest)) &&
+                       (i->opcode == R6_OP_SUB || i->opcode == R6_OP_MUL)) {
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\t%s -%u(%%rbp), %%rax\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n",
+                        aoff, i->opcode == R6_OP_SUB ? "subq" : "imulq", boff, off);
             } else if ((i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) &&
                        constant_divisor(f, pc, &divisor) && divisor != 0 && divisor != -1 &&
                        divisor != INT32_MIN) {

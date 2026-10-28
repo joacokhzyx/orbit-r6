@@ -105,6 +105,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `91-result-list` | `orbit_random_bytes` devuelve un result cuyo valor es una lista; se desenvuelve a un local `list` (16 bytes y vacia), se recorre y un conteo negativo se rechaza | 42 | `16\r\n16\r\n0\r\n1\r\n` |
 | `92-opaque-local` | elemento de una lista sin tipo (`orbit_random_bytes`) ligado con `val b = bs.get(i)` y leido como int; rango y umbral sobre 64 bytes | 42 | `64\r\n1\r\n` |
 | `93-nested-lists` | lecturas de `list<list<int>>` y `list<list<list<int>>>`; el elemento sin tipo es receptor de otra lectura u operando de suma, resta y producto con destino int | 42 | `3\r\n` |
+| `94-word-chain` | suma de tres terminos sobre elementos sin tipo con una suma intermedia `void*`, y `print` de una palabra (IR escrito a mano: el emisor tipa la suma intermedia int) | 42 | `8\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los

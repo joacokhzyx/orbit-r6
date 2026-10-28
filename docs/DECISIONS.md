@@ -4172,3 +4172,36 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 135 / 135**, census 2 build over 28 modules, self-host C
   `80A61B67...`.
 - Status: **applied**.
+
+## D-M1-91 - Arithmetic over words and a printed word
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18).
+- Root cause: D-M1-90 left two uses of an untyped element refused: a word that
+  feeds a second word-typed `add` (a sum of three terms whose intermediate
+  register is `void*`) and a word passed to `print`. No corpus program reaches
+  either. The pin's C is clear for both: `add`, `sub` and `mul` compute
+  `(uintptr_t)a OP (uintptr_t)b` and store it with the cast of the destination
+  register (`c_backend.orb`, `IROpcode.add`/`sub`/`mul`; `generateRegAssign`),
+  and `print` of a register that is neither a string nor a float writes
+  `printf("%lld\n", (long long)(r))`.
+- Decision:
+  - `add`, `sub` and `mul` accept operands that are `int` or `void*`, at least
+    one of them `void*`, with an `int` or `void*` destination. A `void*`
+    destination keeps the 64-bit result (`addq`, `subq`, `imulq` on the slots).
+    An `int` destination keeps the low 32 bits, which is the 32-bit instruction
+    of the typed rule. `div` and `mod` over words stay refused: the pin divides
+    `(orbit_int)` casts, not words.
+  - `print` accepts a `void*` register and writes its 64-bit word with `%lld`.
+  - The untyped-element recovery of D-M1-89 and D-M1-90 reads an `int` as the
+    low 32 bits, sign-extended: `emit_list_read` decodes an `int` destination
+    with `movslq`, which is the C cast `(orbit_int)(uintptr_t)`. No change.
+- Fixture `94-word-chain` (hand-written IR; oracle and R6 print `8` and exit
+  42): a sum of three elements whose intermediate register is `void*`, and a
+  printed element. Controls in `tests/reject/`: `ok-word-arith-print` (exit 7,
+  prints `2147483648`: a 64-bit sum, a 64-bit difference and product, an `int`
+  destination that wraps to `-2147483648`); `x-word-arith-bool-operand` and
+  `x-word-div-word-destination` stay `CGEN`.
+- Not verified when written: no gate was run. The `94-word-chain` IR is not
+  emitter output, and `tests/reject/cases/` needs `make_cases.py` to be
+  re-run.
+- Status: **pending verification**.

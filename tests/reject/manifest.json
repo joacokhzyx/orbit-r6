@@ -855,6 +855,20 @@
       "note": "a word added into a string is not int arithmetic and keeps its void* type"
     },
     {
+      "file": "cases/x-word-arith-bool-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-91",
+      "note": "a bool is neither an int nor a word: the sum keeps no measured conversion"
+    },
+    {
+      "file": "cases/x-word-div-word-destination.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-91",
+      "note": "div and mod over words are not admitted: the pin divides signed ints, not words"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -1586,6 +1600,13 @@
       "file": "cases/ok-db-link.json",
       "rule": "D-M1-87",
       "note": "a module with an orbit_db_* extern links the DB archive and the SQLite import library (build only: the run needs sqlite3.dll on PATH)"
+    },
+    {
+      "file": "cases/ok-word-arith-print.json",
+      "run_exit": 7,
+      "run_stdout": "2147483648\r\n",
+      "rule": "D-M1-91",
+      "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"
     },
     {
       "file": "cases/ok-infer-union-tag.json",
