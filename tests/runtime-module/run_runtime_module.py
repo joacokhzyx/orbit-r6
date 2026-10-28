@@ -21,7 +21,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 
-EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\n"
+EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\n"
 EXPORTS = ["rtmod_probe_lower", "rtmod_probe_sum", "rtmod_probe_upper"]
 
 
@@ -71,6 +71,18 @@ def main():
     check("no entry symbol",
           not any(n in symbols for n in ("main", "orbit_main", "orbit_start")))
 
+    # The IR the language emits for tests/runtime_module in orbit-lang
+    # (REBUILD.txt): parameters travel through load_var, as for any program.
+    emitted = {}
+    for stem in ("arena", "upper"):
+        eo = out / ("emitted-" + stem + ".o")
+        p = run([args.r6, "build", "--object", HERE / "emitted" / (stem + ".json"), "-o", eo])
+        check("emitted " + stem + ".json builds", p.returncode == 0, p.stderr.strip())
+        emitted[stem] = eo
+    if failures:
+        return 1
+    obj_arena = emitted["arena"]
+
     for name in ("libruntime_net.a",):
         shutil.copy(Path(args.runtime_dir) / name, runtime / name)
 
@@ -80,7 +92,7 @@ def main():
     check("link without the member is refused",
           p.returncode != 0 and "error[LINK]" in p.stderr, p.stderr.strip()[:120])
 
-    p = run([ar, "r", runtime / "libruntime_net.a", obj])
+    p = run([ar, "r", runtime / "libruntime_net.a", obj, obj_arena])
     check("object added to the archive", p.returncode == 0, p.stderr.strip())
     p = run([args.r6, "build", HERE / "probe-main.json", "-o", exe,
              "--runtime-dir", runtime])

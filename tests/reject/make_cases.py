@@ -1826,6 +1826,17 @@ def build_reject():
                I("ret", -1, Reg(1))], ["int", "string"]),
         "D-M1-108", "CGEN", "bytes_alloc operand2 is a literal, not an RtArena register",
         args=["--object"])
+    add("rt-rtarena-copy-from-int",
+        rt_fn([I("load_const", 0, Int(1)), I("copy", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "RtArena"]),
+        "D-M1-109", "CGEN", "an int register does not copy into an RtArena register",
+        args=["--object"])
+    add("rt-rtarena-decl-int-local-load-as-rtarena",
+        rt_fn([I("load_const", 0, Int(1)), I("decl_var", -1, Sym("v"), Reg(0)),
+               I("load_var", 1, Sym("v")), I("ret", -1, Int(0))],
+              ["int", "RtArena"]),
+        "D-M1-109", "CGEN", "an int local does not load into an RtArena register",
+        args=["--object"])
 
     return cases
 
@@ -2424,6 +2435,20 @@ def build_accept_files():
               I("call", 3, Sym("rtmod_twice"), Int(1)), I("ret", -1, Reg(3))],
              Types(4), params=["a", "b"], ptypes=["int", "int"], export=True)
     files.append(("ok-runtime-module-object", jd(RTDOC([twice, via, RT_ADD()]))))
+    files.append(("ok-runtime-module-arena-var",
+                  jd(RTDOC([FN("rtmod_arena_var",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("decl_var", -1, Sym("a"), Reg(0)),
+                                I("load_var", 2, Sym("a")), I("copy", 3, Reg(2)),
+                                I("decl_var", -1, Sym("b"), Reg(3)),
+                                I("load_var", 4, Sym("b")), I("store_var", -1, Sym("b"), Reg(4)),
+                                I("load_var", 5, Sym("b")),
+                                I("str_len", 6, Reg(1)), I("bytes_alloc", 7, Reg(6), Reg(5)),
+                                I("ret", -1, Reg(7))],
+                               ["RtArena", "string", "RtArena", "RtArena", "RtArena",
+                                "RtArena", "int", "string"], rtype="string",
+                               params=["a", "s"], ptypes=["RtArena", "string"],
+                               export=True)]))))
     files.append(("ok-runtime-module-arena",
                   jd(RTDOC([FN("rtmod_bytes_in",
                                [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
@@ -2814,6 +2839,15 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-object.json", "rule": "D-M1-105",
              "args": ["--object"],
              "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"},
+            {"file": "cases/ok-runtime-module-arena-var.json", "rule": "D-M1-109",
+             "args": ["--object"],
+             "note": "an RtArena parameter is declared, loaded, copied and stored through locals"},
+            {"file": "../runtime-module/emitted/arena.json", "rule": "D-M1-109",
+             "args": ["--object"],
+             "note": "the IR the language emits for an arena-first export loads its RtArena parameter with load_var"},
+            {"file": "../runtime-module/emitted/upper.json", "rule": "D-M1-109",
+             "args": ["--object"],
+             "note": "the IR the language emits for an upper-casing export builds as a runtime module"},
             {"file": "cases/ok-runtime-module-arena.json", "rule": "D-M1-108",
              "args": ["--object"],
              "note": "an RtArena parameter is the arena operand of bytes_alloc (the end-to-end run is tests/runtime-module)"},

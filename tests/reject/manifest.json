@@ -1754,6 +1754,26 @@
       "args": [
         "--object"
       ]
+    },
+    {
+      "file": "cases/rt-rtarena-copy-from-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-109",
+      "note": "an int register does not copy into an RtArena register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtarena-decl-int-local-load-as-rtarena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-109",
+      "note": "an int local does not load into an RtArena register",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -2628,6 +2648,30 @@
         "--object"
       ],
       "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"
+    },
+    {
+      "file": "cases/ok-runtime-module-arena-var.json",
+      "rule": "D-M1-109",
+      "args": [
+        "--object"
+      ],
+      "note": "an RtArena parameter is declared, loaded, copied and stored through locals"
+    },
+    {
+      "file": "../runtime-module/emitted/arena.json",
+      "rule": "D-M1-109",
+      "args": [
+        "--object"
+      ],
+      "note": "the IR the language emits for an arena-first export loads its RtArena parameter with load_var"
+    },
+    {
+      "file": "../runtime-module/emitted/upper.json",
+      "rule": "D-M1-109",
+      "args": [
+        "--object"
+      ],
+      "note": "the IR the language emits for an upper-casing export builds as a runtime module"
     },
     {
       "file": "cases/ok-runtime-module-arena.json",

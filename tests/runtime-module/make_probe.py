@@ -138,6 +138,8 @@ def program():
                  params=["s"], ptypes=["string"])
     ext_lower = FN("rtmod_probe_lower", [], [], rtype="string", extern=True,
                    params=["s"], ptypes=["string"])
+    ext_copy = FN("rtmod_probe_copy_in", [], [], rtype="string", extern=True,
+                  params=["s"], ptypes=["string"])
     main = MAIN([
         I("arg", -1, Str("hello, Orbit 42!")),
         I("call", 0, Str("rtmod_probe_upper"), Int(1)),
@@ -155,9 +157,13 @@ def program():
         I("call", 6, Str("rtmod_probe_lower"), Int(1)),
         I("arg", -1, Reg(6)),
         I("call", 7, Str("print"), Int(1)),
+        I("arg", -1, Str("copy me")),
+        I("call", 8, Str("rtmod_probe_copy_in"), Int(1)),
+        I("arg", -1, Reg(8)),
+        I("call", 9, Str("print"), Int(1)),
         I("ret", -1, Int(0)),
-    ], ["string", "void", "string", "void", "int", "void", "string", "void"])
-    return DOC([ext_upper, ext_sum, ext_lower, main])
+    ], ["string", "void", "string", "void", "int", "void", "string", "void", "string", "void"])
+    return DOC([ext_upper, ext_sum, ext_lower, ext_copy, main])
 
 
 def render():

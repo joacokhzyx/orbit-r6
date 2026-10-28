@@ -340,7 +340,7 @@ static bool extern_needs_arena(const char *name) {
         "orbit_sha256_hex", "orbit_hmac_sha256_base64url",
         /* D-M1-108: the arena-first export of tests/runtime-module, the only way
            an ordinary program obtains an RtArena. */
-        "rtmod_probe_lower"
+        "rtmod_probe_lower", "rtmod_probe_copy_in"
     };
     size_t n;
     for (n = 0; n < sizeof names / sizeof names[0]; ++n)
@@ -1674,8 +1674,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             } else if (!value_type(f, &i->operands[1], &vt)) {
                 return fail(d, i, "CGEN", "%s has an unsupported value operand", r6_opcode_name(i->opcode));
             }
-            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_model_type(m, vt) ||
-                  is_fn_type(vt) || (is_result(vt) && i->operands[1].kind == R6_VAL_REG)) ||
+            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_rtarena(vt) ||
+                  is_model_type(m, vt) || is_fn_type(vt) || (is_result(vt) && i->operands[1].kind == R6_VAL_REG)) ||
                 !local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf) || !same_type(vt, lt))
                 return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, void*, model, or function value register",
                             r6_opcode_name(i->opcode));
@@ -1695,8 +1695,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !name ||
                 (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
                 ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
-                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_model_type(m, lt) ||
-                            is_fn_type(lt) || is_result(lt))) :
+                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_rtarena(lt) ||
+                            is_model_type(m, lt) || is_fn_type(lt) || is_result(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global_type(global), type_at(f, i->dest))))
                 return fail(d, i, "CGEN", "load_var requires a supported local, parameter, declared global, or tag constant");
@@ -1858,7 +1858,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             }
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
-            if (!is_scalar(type_at(f, i->dest)) &&
+            if (!is_scalar(type_at(f, i->dest)) && !is_rtarena(type_at(f, i->dest)) &&
                 !(is_result(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG))
                 return fail(d, i, "CGEN", "copy currently supports scalar and result registers only");
             if (i->operands[0].kind == R6_VAL_STRING &&

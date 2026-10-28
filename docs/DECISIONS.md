@@ -4879,3 +4879,31 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Not measured: the NULL branch of `a ? a : global`, because no IR value of
   type `RtArena` is NULL.
 - Status: **applied**.
+
+## D-M1-109 - `RtArena` through locals: `load_var`, `decl_var`, `store_var`, `copy`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the language does not reference a parameter register. It emits
+  `arg`, then `load_var` of the parameter name wherever the body reads it
+  (`tests/runtime-module/emitted/arena.json`, emitted by the runtime-module
+  branch of orbit-lang). D-M1-108 admitted `RtArena` in parameters, registers
+  and call arguments only, so that IR was `error[CGEN]: load_var requires a
+  supported local, parameter, ...`.
+- Decision: an `RtArena` is a 64-bit reference like a list or a model pointer in
+  `load_var` of a parameter or a local, `decl_var`, `store_var` and `copy`. The
+  types must match as for the other references: an int register does not copy
+  into an `RtArena` register and an int local does not load into one. The
+  loader still admits the spelling in runtime modules only (D-M1-108), so an
+  ordinary module has no way to reach these paths.
+- Test hook: `rtmod_probe_copy_in` joins `rtmod_probe_lower` in
+  `extern_needs_arena`, for the same reason (D-M1-108).
+- Inputs: `tests/runtime-module/emitted/arena.json` and `upper.json` are the
+  IR of the fixed point `1769474c12` of orbit-lang `runtime-module` for
+  `tests/runtime_module/arena.orb` and `upper.orb`; `REBUILD.txt` there gives the
+  command. They are committed inputs, not regenerated here.
+- Controls: `rt-rtarena-copy-from-int` and
+  `rt-rtarena-decl-int-local-load-as-rtarena` refuse the mismatch;
+  `ok-runtime-module-arena-var`, `emitted/arena.json` and `emitted/upper.json`
+  build. The end-to-end script builds both emitted files, adds the arena one to
+  the archive, and the ordinary program prints `copy me` through it.
+- Status: **applied**.
