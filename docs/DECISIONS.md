@@ -3980,3 +3980,39 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   programs**, none differing; census **2 build over 27 -> 2 build over 28
   modules**; self-host C `80A61B67...` from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-85 - The six bitwise opcodes
+
+- Date: 2026-10-27. Pin: `e34833a` (D-F0-18).
+- Root cause: the loader stopped at `E_OPCODE` on `bit_and`, `bit_or`,
+  `bit_xor`, `shl`, `shr` and `bit_not` (indexes 60-65, `docs/IR_SPEC.md`
+  section 1.3). Three corpus programs carry them: `bitwise_operators`,
+  `test_bitwise` and `test_imports`.
+- Decision:
+  - The loader admits the six names. Each needs a destination.
+  - Operands and destination are `int`; a float, bool, string or `void*`
+    operand and a non-int destination stay `CGEN`. An inline `Int` literal is
+    admitted as an operand, like the arithmetic opcodes (D-M1-21).
+  - The C casts each operand to `uintptr_t` and the result to `orbit_int`, so
+    the low 32 bits of the operation, sign-extended, are the slot. `bit_and`,
+    `bit_or` and `bit_xor` are `andl`/`orl`/`xorl` on `%eax` with a slot
+    operand; `bit_not` is `notl`; `shl` and `shr` load the count into `%ecx`
+    and run `shll %cl` or `sarl %cl`, whose hardware mask is the `& 31` of the
+    spec. `shr` is arithmetic because the C shifts the sign-extended 64-bit
+    word and keeps the low 32 bits.
+  - The assembler encodes `andl`, `orl`, `xorl` (slot or register to `%eax`),
+    `notl %reg` and `shll`/`sarl %cl, %reg`; `regalloc.c` treats `andl`,
+    `orl` and `xorl` like `addl`.
+- Fixture `88-bitwise-ops` (oracle and R6 print the same 30 lines and exit 42):
+  and/or/xor/not on 0, -1, `INT_MIN` and `INT_MAX`; counts 0, 31, 32, 33, -1
+  and -31; `-8 >> 1`, `-1 >> 31`; literal and register operands; C precedence.
+  Controls in `tests/reject/`: `ok-bitwise-literal-operands` (exit 14),
+  `x-bitwise-float-operand`, `x-shift-bool-destination` and
+  `x-bit-not-string-operand` stay `CGEN`.
+- Corpus: `test_bitwise` builds and matches. `test_imports` stops at a
+  `result_unwrap` into a `list` (next refusal) and `bitwise_operators` stops at
+  a `list_get` of a `list<list<int>>`. Each is a separate decision.
+- Gates: differential **87/87**, loader **294/294**, corpus **125 build / 125
+  match over 135 -> 126 / 126**, census 2 build over 28 modules, self-host C
+  `80A61B67...` from the IR of `compiler/host/main.orb`.
+- Status: **applied**.

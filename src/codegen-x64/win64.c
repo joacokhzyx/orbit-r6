@@ -1815,6 +1815,19 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!(is_int(a) || is_float(a)) || !same_type(a, type_at(f, i->dest)))
                 return fail(d, i, "CGEN", "neg requires matching int or float operand and destination");
             break;
+        case R6_OP_BIT_AND: case R6_OP_BIT_OR: case R6_OP_BIT_XOR:
+        case R6_OP_SHL: case R6_OP_SHR:
+            if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
+                !operand_value(f, i, 1, &b, d)) return false;
+            if (!is_int(a) || !is_int(b) || !is_int(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "%s requires int operands and an int destination",
+                            r6_opcode_name(i->opcode));
+            break;
+        case R6_OP_BIT_NOT:
+            if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d)) return false;
+            if (!is_int(a) || !is_int(type_at(f, i->dest)))
+                return fail(d, i, "CGEN", "bit_not requires an int operand and an int destination");
+            break;
         case R6_OP_JUMP_IF_FALSE:
             if (i->operands[0].kind != R6_VAL_REG ||
                 !is_bool(type_at(f, i->operands[0].as.i32)))
@@ -2371,7 +2384,11 @@ static unsigned value_operand_count(R6Opcode op) {
     case R6_OP_ADD: case R6_OP_SUB: case R6_OP_MUL: case R6_OP_DIV:
     case R6_OP_MOD: case R6_OP_EQ: case R6_OP_NE: case R6_OP_LT:
     case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
+    case R6_OP_BIT_AND: case R6_OP_BIT_OR: case R6_OP_BIT_XOR:
+    case R6_OP_SHL: case R6_OP_SHR:
         return 2;
+    case R6_OP_BIT_NOT:
+        return 1;
     default:
         return 0;
     }
@@ -3313,6 +3330,38 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                            "\tmovq %%rax, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             break;
+        case R6_OP_BIT_AND: case R6_OP_BIT_OR: case R6_OP_BIT_XOR: {
+            /* D-M1-85: IR_SPEC 1.3 casts each operand to uintptr_t and the
+               result to orbit_int, so the 32-bit operation on the low halves
+               and a sign extension give the same word. */
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            unsigned boff = operand_slot(f, is_main, i, 1);
+            materialize_literals(o, f, i, is_main, &string_id);
+            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\t%s -%u(%%rbp), %%eax\n"
+                       "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    aoff, i->opcode == R6_OP_BIT_AND ? "andl" :
+                          i->opcode == R6_OP_BIT_OR ? "orl" : "xorl", boff, off);
+            break;
+        }
+        case R6_OP_SHL: case R6_OP_SHR: {
+            /* The count is `& 31`, which the hardware applies to a 32-bit
+               shift; shr is arithmetic because the C shifts the sign-extended
+               64-bit pattern and keeps the low 32 bits. */
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            unsigned boff = operand_slot(f, is_main, i, 1);
+            materialize_literals(o, f, i, is_main, &string_id);
+            fprintf(o, "\tmovl -%u(%%rbp), %%ecx\n\tmovl -%u(%%rbp), %%eax\n"
+                       "\t%s %%cl, %%eax\n\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    boff, aoff, i->opcode == R6_OP_SHL ? "shll" : "sarl", off);
+            break;
+        }
+        case R6_OP_BIT_NOT: {
+            unsigned aoff = operand_slot(f, is_main, i, 0);
+            materialize_literals(o, f, i, is_main, &string_id);
+            fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tnotl %%eax\n"
+                       "\tmovslq %%eax, %%rax\n\tmovq %%rax, -%u(%%rbp)\n", aoff, off);
+            break;
+        }
         case R6_OP_JUMP_IF_FALSE: {
             const char *fused = fused_false_jump(f, pc);
             if (fused)

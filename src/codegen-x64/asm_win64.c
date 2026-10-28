@@ -335,6 +335,12 @@ static bool encode(Asm *a, char *line) {
         return (id1 < 8 || emit(a, 0x41)) && emit(a, 0xf7) &&
                emit(a, (uint8_t)(0xd8 | (id1 & 7)));
     }
+    if (strcmp(op, "notl") == 0 && a1) {
+        id1 = reg_id(a1, &w1, &x1);
+        if (id1 < 0 || x1 || w1 != 32) return bad(a, "notl requires a 32-bit GPR");
+        return (id1 < 8 || emit(a, 0x41)) && emit(a, 0xf7) &&
+               emit(a, (uint8_t)(0xd0 | (id1 & 7)));
+    }
     if (strcmp(op, "negq") == 0 && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64) return bad(a, "negq requires a 64-bit GPR");
@@ -522,6 +528,16 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 32, 0, m, 0x2b, 0, 0, -1);
     if (strcmp(op, "imull") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0xaf, 0, 0, 0x0f);
+    if ((strcmp(op, "andl") == 0 || strcmp(op, "orl") == 0 || strcmp(op, "xorl") == 0) &&
+        parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
+        return rex_modrm_mem(a, 32, 0, m, strcmp(op, "andl") == 0 ? 0x23 :
+                                          strcmp(op, "orl") == 0 ? 0x0b : 0x33, 0, 0, -1);
+    if ((strcmp(op, "shll") == 0 || strcmp(op, "sarl") == 0) && a1 && strcmp(a1, "%cl") == 0 &&
+        id2 >= 0 && !x2 && w2 == 32) {
+        Mem r = {0};
+        r.base = id2; r.reg = 1;
+        return rex_modrm_mem(a, 32, strcmp(op, "shll") == 0 ? 4 : 7, r, 0xd3, 0, 0, -1);
+    }
     if (strcmp(op, "cmpl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x3b, 0, 0, -1);
     if (strcmp(op, "addq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)

@@ -1754,3 +1754,17 @@ argumento y el retorno entre `int` y palabra con los casts del backend C. Un
 rechazados. `r6 build` del corpus de `e34833a`: 108 -> 125 de 135 programas.
 Diferencial **86/86**; loader **290/290**; corpus **115 build / 115 match over
 135 -> 115 / 115**; self-host C `54f0b797...`; census 2 de 27.
+
+## Actualizacion de M1 - The six bitwise opcodes (2026-10-27)
+
+D-M1-85. `bit_and`, `bit_or`, `bit_xor`, `shl`, `shr` y `bit_not` (indices
+60-65 de `IR_SPEC.md` 1.3) llegaban como `E_OPCODE`. El loader los admite con
+operandos y destino `int`; la generacion usa `andl`/`orl`/`xorl`/`notl` sobre
+`%eax` y `shll`/`sarl %cl` con el conteo en `%ecx`, cuya mascara por hardware es
+el `& 31` de la especificacion, y extiende el signo del resultado de 32 bits.
+El par `88-bitwise-ops` imprime 30 lineas iguales a las del oraculo y sale 42.
+`test_bitwise` compila y coincide; `test_imports` y `bitwise_operators` pasan a
+otros rechazos (un `result_unwrap` a `list` y un `list_get` de
+`list<list<int>>`). Diferencial **87/87**; loader **294/294**; corpus **125
+build / 125 match over 135 -> 126 / 126**; self-host C `80a61b67...`; census 2
+de 28.

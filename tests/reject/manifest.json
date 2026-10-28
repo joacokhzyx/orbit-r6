@@ -785,6 +785,27 @@
       "note": "a bool register is not converted to a void* parameter"
     },
     {
+      "file": "cases/x-bitwise-float-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-85",
+      "note": "bit_and takes int operands; a float is refused"
+    },
+    {
+      "file": "cases/x-shift-bool-destination.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-85",
+      "note": "a shift writes an int; a bool destination is refused"
+    },
+    {
+      "file": "cases/x-bit-not-string-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-85",
+      "note": "bit_not takes an int operand; a string is refused"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -1499,6 +1520,12 @@
       "run_exit": 9,
       "rule": "D-M1-84",
       "note": "a void* return lands in an int register as the sign-extended low 32 bits"
+    },
+    {
+      "file": "cases/ok-bitwise-literal-operands.json",
+      "run_exit": 14,
+      "rule": "D-M1-85",
+      "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"
     },
     {
       "file": "cases/ok-infer-union-tag.json",

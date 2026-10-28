@@ -224,7 +224,8 @@ static bool classify_line(const char *line, size_t len, const Ref *refs, size_t 
         use->width = 8;
         return slot_b && is_immediate(a);
     }
-    if (span_is(mn, "addl") || span_is(mn, "subl") || span_is(mn, "imull")) {
+    if (span_is(mn, "addl") || span_is(mn, "subl") || span_is(mn, "imull") ||
+        span_is(mn, "andl") || span_is(mn, "orl") || span_is(mn, "xorl")) {
         use->width = 32;
         return slot_a && span_is(b, "%eax");
     }

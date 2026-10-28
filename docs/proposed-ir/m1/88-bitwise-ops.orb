@@ -1,0 +1,47 @@
+// Bitwise and shift operators on int (IR_SPEC 1.3): each operand is cast to a
+// 64-bit word, the result is narrowed to a 32-bit int, a shift count is taken
+// & 31 and >> is arithmetic. The values travel through parameters so the
+// operations run at run time.
+// expect-exit 42
+
+fn band(x: int, y: int) -> int { return x & y }
+fn bor(x: int, y: int) -> int { return x | y }
+fn bxor(x: int, y: int) -> int { return x ^ y }
+fn bnot(x: int) -> int { return ~x }
+fn shl(x: int, n: int) -> int { return x << n }
+fn shr(x: int, n: int) -> int { return x >> n }
+
+fn main() -> int {
+    print(band(12, 10))
+    print(band(-1, 2147483647))
+    print(band(-2147483647, -3))
+    print(bor(12, 10))
+    print(bor(-2147483648, 1))
+    print(bxor(12, 10))
+    print(bxor(-1, 2147483647))
+    print(bnot(0))
+    print(bnot(5))
+    print(bnot(-2147483648))
+    print(bnot(2147483647))
+    print(shl(1, 0))
+    print(shl(1, 10))
+    print(shl(1, 31))
+    print(shl(1, 32))
+    print(shl(1, 33))
+    print(shl(3, 31))
+    print(shl(1, -1))
+    print(shl(-1, 4))
+    print(shr(255, 2))
+    print(shr(-8, 1))
+    print(shr(-1, 31))
+    print(shr(-2147483648, 31))
+    print(shr(-2147483648, 32))
+    print(shr(1024, 33))
+    print(shr(1024, -31))
+    val k = 5
+    print(k & 3 | 8)
+    print((k << 2) ^ (k >> 1))
+    print(1 << 2 + 1)
+    print(~k & 255)
+    return 42
+}

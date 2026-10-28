@@ -739,6 +739,28 @@ def build_reject():
         "D-M1-84", "CGEN",
         "a bool register is not converted to a void* parameter")
 
+    # ---- D-M1-85: the six bitwise opcodes (IR_SPEC 1.3) ----------------------
+    # Operands and destination are int. Anything else is a type the C casts
+    # through uintptr_t would accept and R6 has no measured lowering for.
+    add("x-bitwise-float-operand",
+        jd(DOC([MAIN([I("load_const", 0, Sym("1.5")),
+                      I("load_const", 1, Sym("2.5")),
+                      I("bit_and", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))], ["float", "float", "int"])])),
+        "D-M1-85", "CGEN",
+        "bit_and takes int operands; a float is refused")
+    add("x-shift-bool-destination",
+        jd(DOC([MAIN([I("shl", 0, Int(1), Int(2)),
+                      I("ret", -1, Int(0))], ["bool"])])),
+        "D-M1-85", "CGEN",
+        "a shift writes an int; a bool destination is refused")
+    add("x-bit-not-string-operand",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")),
+                      I("bit_not", 1, Reg(0)),
+                      I("ret", -1, Int(0))], ["string", "int"])])),
+        "D-M1-85", "CGEN",
+        "bit_not takes an int operand; a string is refused")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -1619,6 +1641,16 @@ def build_accept_files():
                                 I("ret", -1, Int(9)),
                                 I("label", -1, Lab(1)),
                                 I("ret", -1, Int(1))], ["int", "int", "bool"])]))))
+    files.append(("ok-bitwise-literal-operands",
+                  jd(DOC([MAIN([I("bit_and", 0, Int(12), Int(10)),
+                                I("bit_xor", 1, Reg(0), Int(1)),
+                                I("shl", 2, Int(1), Int(33)),
+                                I("shr", 3, Int(-8), Int(1)),
+                                I("bit_not", 4, Reg(3)),
+                                I("add", 5, Reg(1), Reg(2)),
+                                I("add", 6, Reg(5), Reg(4)),
+                                I("ret", -1, Reg(6))],
+                               ["int", "int", "int", "int", "int", "int", "int"])]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -1955,6 +1987,8 @@ def build_manifest(reject, accept_files):
              "note": "an int goes into a void* parameter and a void* word into an int parameter"},
             {"file": "cases/ok-voidptr-call-dest-int.json", "run_exit": 9, "rule": "D-M1-84",
              "note": "a void* return lands in an int register as the sign-extended low 32 bits"},
+            {"file": "cases/ok-bitwise-literal-operands.json", "run_exit": 14, "rule": "D-M1-85",
+             "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",
