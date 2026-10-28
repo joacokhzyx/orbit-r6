@@ -257,10 +257,9 @@ static bool comparison_types_ok(const char *a, const char *b, bool allow_string)
 
 /* D-M1-91: add, sub and mul over words. The pin computes them as
  * `(uintptr_t)a OP (uintptr_t)b` and stores the result with the cast of the
- * destination register: an `int` destination keeps the low 32 bits, a `void*`
- * destination keeps the whole 64-bit word. An operand is an `int` (a
- * sign-extended slot) or a `void*` word, and at least one is a word, so the
- * all-int case stays with the typed rule. */
+ * destination register. An `int` and a `void*` are both 64 bits (D-M1-94), so
+ * the result is the whole word either way. At least one operand is a word, so
+ * the all-int case stays with the typed rule. */
 static bool word_arith_ok(const char *a, const char *b, const char *dest) {
     return (is_void_ptr(a) || is_void_ptr(b)) &&
            (is_int(a) || is_void_ptr(a)) && (is_int(b) || is_void_ptr(b)) &&
@@ -990,9 +989,9 @@ static bool field_is_word(const R6Module *m, const char *t) {
 
 /* D-M1-84: the C backend declares a register it cannot type as `void*` and
  * converts at the use with casts through `uintptr_t`. A word in R6 is the
- * sign-extended 64 bits of an `orbit_int` or a pointer, so the conversions
- * that need no instruction are int to pointer and pointer to pointer; a
- * pointer to int truncates to 32 bits. A bool, float or result is not a
+ * 64 bits of an `orbit_int` or a pointer, so the conversions that need no
+ * instruction are int to pointer, pointer to int and pointer to pointer
+ * (D-M1-94). A bool, float or result is not a
  * pointer word and has no measured conversion. */
 static bool is_union_name(const R6Module *m, const char *t);
 static bool pointer_word_type(const R6Module *m, const char *t) {
@@ -1060,8 +1059,8 @@ static const R6Type *find_union_variant(const R6Module *m, const char *variant,
  * used. R6 needs the type at the read, so it takes it from the one use the
  * conversion is a C parameter conversion: the word is the only reader of an
  * `arg` that a direct call to a declared function consumes, with no label or
- * jump in between. Only string (the pointer bits) and int (the low 32 bits)
- * are measured; every other use leaves the read untyped. */
+ * jump in between. Only string (the pointer bits) and int (the word) are
+ * measured; every other use leaves the read untyped. */
 static const char *bound_local_type(const R6Function *f, size_t at);
 
 static const char *opaque_read_type(const R6Module *m, const R6Function *f, size_t at) {
@@ -1087,8 +1086,8 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
     }
     /* D-M1-90: the word is the receiver of a list read (the C casts it to
      * `const OrbitList*`) or an operand of int arithmetic whose result is an
-     * int (the C adds `uintptr_t` words and narrows to `orbit_int`; the low
-     * 32 bits of the word are the int). */
+     * int (the C adds `uintptr_t` words and casts to `orbit_int`; the
+     * word is the int). */
     {
         const R6Instruction *u = &f->instructions[use];
         if ((u->opcode == R6_OP_LIST_GET || u->opcode == R6_OP_LIST_LEN) &&
@@ -1100,8 +1099,8 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
     }
     /* D-M1-51: a comparison with an int. The pin compares the word as
      * uintptr_t (eq/ne) or intptr_t (lt/le/gt/ge), and an int element is
-     * stored sign-extended, so the low 32 bits sign-extended compare the same
-     * way. A comparison with a string compares pointers in the pin and stays
+     * stored as the 64-bit value, so the word compares the same way. A
+     * comparison with a string compares pointers in the pin and stays
      * unknown. */
     switch (f->instructions[use].opcode) {
     case R6_OP_EQ: case R6_OP_NE: case R6_OP_LT: case R6_OP_LE:
