@@ -4693,3 +4693,35 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Measured: corpus 143 build / 143 match over 143 programs (an earlier link
   without `atexit` printed 135, with eight float programs crashing); `run_diff.py`
   100/100; `run_reject.py` 341/341.
+
+## D-F0-21 - Re-pin to 01e31e8: per-module runtime and per-program start-up
+
+- Date: 2026-10-28. Moves the pin from `bf38b38` (D-F0-20) to orbit-lang `main`
+  `01e31e882610cea21fbfbf4fe02fee00051fab2e`, 8 commits in two merges.
+- What moved:
+  - `lean-runtime` (`cc6b167`): each runtime module is `runtime/<m>.h` plus
+    `<m>.c`, compiled with `-DORBIT_RUNTIME_MODULE`. `scripts/mklib_runtime.py`
+    writes one archive member per module and `LIB_TU` is gone. `docs/STARTUP.md`
+    states the entry rules R6 mirrors (D-M1-102).
+  - `arena-split` (`01e31e8`): `arena` is a core member of 1 144 bytes of
+    `.text` and seven extensions (`arena_alloc`, `arena_oom`, `arena_reset`,
+    `arena_checkpoint`, `arena_child`, `arena_stats`, `arena_global`);
+    `string_pool` leaves the member list.
+  - The archive has 25 members (27 with `--db`).
+- R6 changes the pin needed: D-M1-102 (start-up per program), D-M1-103 (the
+  database archive from the pin's recipe) and D-M1-104 (R6's own process entry).
+  All three are committed before this one.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-ee60c8af43.exe` (sha256 `9de8324a...`, 2 720 256 bytes),
+  built from `C:\Temp\orbit-pin-01e31e8-git`; `PUBLISHED_C E794E2DB.` (was
+  `70129F41.`). The corpus regenerates to 144 documents, 6 992 633 bytes,
+  `filesSha256 a533ace1.`; the program list is the one of D-F0-20.
+- Ratchets: the corpus baseline stays at `r6BuildOk 143`, `match 143`; the
+  census baseline is re-taken (27 modules, 2 build, `irFilesSha256 61e61734.`)
+  and so is `axes-baseline.json` (143 programs, best of 5).
+- Measured: differential **100/100** against the new oracle; loader **341/341**;
+  corpus **143 build / 143 match over 143 programs**, none differing; census
+  **2 build over 27 modules**; self-host C `E794E2DB...` from the IR of
+  `compiler/host/main.orb`, equal to `PUBLISHED_C`. `hello` is 1 792 bytes of
+  `.text` in R6 and 7 904 in the C backend (D-M1-104).
+- Status: **applied**.

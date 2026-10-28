@@ -1,6 +1,6 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-28 (D-F0-20).
+Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-28 (D-F0-21).
 Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 144 documentos IRv1 que el
 lenguaje emite sobre `tests/suite` (120 programas + `imports.support.orb`) y
 `tests/std` (23 programas), el corpus designado por
@@ -9,9 +9,9 @@ cada re-pin está al final de este archivo.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-099b002148.exe `
+  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
+  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -20,7 +20,7 @@ python tests/corpus/run_corpus.py `
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `bf38b38`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `01e31e8`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
@@ -614,7 +614,7 @@ coincide en 137 de 137 programas, ninguno difiere. El trinquete pasa de 135 a
 
 144 documentos (120 programas de suite, `imports.support.orb` y 23 de std),
 6 992 300 bytes, `filesSha256 94025f2e…`, emitidos con
-`C:\Temp\orbit-fp-099b002148.exe` desde `C:\Temp\orbit-pin-bf38b38-git`.
+`C:\Temp\orbit-fp-ee60c8af43.exe` desde `C:\Temp\orbit-pin-01e31e8-git`.
 Entran `c_names_user_defined`, `division_by_zero`, `division_checked_values`,
 `division_int_min_overflow`, `float_call_result_binding`, `int_wrap_64`,
 `remainder_by_zero` y `remainder_int_min_overflow`; salen `int_wrap_32` y
@@ -624,3 +624,13 @@ construye y coincide en 143 de 143 programas, ninguno difiere. El trinquete
 pasa de 137 a 143 y `axes-baseline.json` se re-toma sobre el corpus nuevo.
 El oráculo se construye con `ORBIT_BACKEND=c`: el pin hace nativo el backend
 por defecto en Windows (D-F0-20).
+
+## Re-pin 2026-10-28 (D-F0-21, emisor `01e31e8`, corpus `a533ace1`)
+
+144 documentos, 6 992 633 bytes, `filesSha256 a533ace1…`, emitidos con
+`C:\Temp\orbit-fp-ee60c8af43.exe` desde `C:\Temp\orbit-pin-01e31e8-git`. La
+lista de programas no cambia (143 ejecutables y `imports.support.orb`); cambian
+el binario emisor, el recuento de bytes y el hash de los documentos que el
+emisor escribe distinto. R6 construye y coincide en 143 de 143 programas, ninguno
+difiere; el trinquete queda en 143 y `axes-baseline.json` se re-toma sobre el
+corpus nuevo.

@@ -1,16 +1,17 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `bf38b38866fa89728d0236c2f17ab7872230d6a4` (D-F0-20,
-27 commits past D-F0-19 `6a9ddaf`: a 64-bit `int` with checked division, user
-symbols under `o_`, the native backend as the Windows default, and the runtime
-security limits; the corpus is 143+1 documents).
+`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21,
+8 commits past D-F0-20 `bf38b38`: the runtime archive is one member per module
+(25, and 27 with the database), a program starts only what it uses
+(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions; the
+corpus is 143+1 documents).
 The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 This is a separate repo from the language:
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
 the pin — note the working tree there can be **ahead** of the pin and
 **dirty**; the pin rests on the commit, so read pinned bytes with
-`git cat-file blob bf38b38:<path>`, never from the working tree. Do not write
+`git cat-file blob 01e31e8:<path>`, never from the working tree. Do not write
 there.
 
 The `orbit-lang` writing and commit rules apply here, adapted to the pin and
@@ -28,13 +29,13 @@ Driver build (GCC is used only here, never for R6 programs):
 Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
 -Wextra -Werror`. This is the only build step in the repo.
 
-Primary gate: differential — verified 100/100 on 2026-10-28 at the D-F0-20 pin with:
+Primary gate: differential — verified 100/100 on 2026-10-28 at the D-F0-21 pin with:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-099b002148.exe `
+  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
+  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -48,10 +49,10 @@ python tests/diff/run_diff.py `
   tree can be ahead of the pin and keeps advancing, and a `C:\Temp` fixed point
   named `orbit-fp-<sha256(checkout path)>.exe` is rebuilt in place when that
   path moves, so it then fails the whole corpus. The pinned fixed point is
-  `C:\Temp\orbit-fp-099b002148.exe` (sha256 in `docs/PIN.md`), built from
-  `C:\Temp\orbit-pin-bf38b38-git` with `python scripts/dev.py fp`, which
+  `C:\Temp\orbit-fp-ee60c8af43.exe` (sha256 in `docs/PIN.md`), built from
+  `C:\Temp\orbit-pin-01e31e8-git` with `python scripts/dev.py fp`, which
   rebuilds it in a pinned checkout. Read
-  pinned bytes with `git cat-file blob bf38b38:<path>`, never from the working
+  pinned bytes with `git cat-file blob 01e31e8:<path>`, never from the working
   tree.
 - Verdict = identical process exit + stdout bytes vs the gcc/Orbit oracle; a
   build failure counts as a failure. `R6_CC` only affects the driver build —
@@ -82,15 +83,15 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
 D-M1-17) — a **measurement, not a gate**. Measured **143 build / 143 match over 143
-programs** on 2026-10-28 at the D-F0-20 pin: 144 documents, 6 992 300 bytes,
-`filesSha256 94025f2e…`. The rounds that took the count from 2/89 at the
+programs** on 2026-10-28 at the D-F0-21 pin: 144 documents, 6 992 633 bytes,
+`filesSha256 a533ace1…`. The rounds that took the count from 2/89 at the
 D-M1-17 pin to there are in `docs/M1_REPORT.md`:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-099b002148.exe `
+  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
+  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -128,8 +129,8 @@ Self-host check: R6 builds the pinned compiler, and that compiler's C must
 hash to `PUBLISHED_C` in the pin's `scripts/verify_seed.py` (20 s):
 
 ```powershell
-.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-bf38b38-git `
-  -Compiler C:\Temp\orbit-fp-099b002148.exe -R6 $PWD\.r6-build\r6.exe
+.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-01e31e8-git `
+  -Compiler C:\Temp\orbit-fp-ee60c8af43.exe -R6 $PWD\.r6-build\r6.exe
 ```
 
 `scripts\ci.ps1 -Selfhost` runs it as a CI stage. `scripts\bisect.ps1` is the
@@ -173,6 +174,10 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   `sqlite3.lib` from the same directory, built by `python
   scripts/build-runtime-db.py --orbit-root <pin checkout>` (D-M1-87); the
   executable finds `sqlite3.dll` on `PATH` (`runtime/vendor/win-x64`).
+- Entry point (D-M1-104): a module with no argv, network, database or
+  migrations has R6's own `orbit_start` and links without the MinGW start-up
+  objects; any other module keeps `main` and `crt2.o`. The driver deletes an
+  executable that carries `.ctors` or `.dtors` and reports `error[LINK]`.
 - MinGW CRT/lib dirs come from `R6_MINGW_ROOT` (default `C:/w64devkit`) and
   `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging paths only; just
   `ld.exe` is executed.
@@ -386,11 +391,11 @@ Stop and ask rather than push on, when:
 ## Open source
 
 - License: MIT, the same as `orbit-lang` (`LICENSE`).
-- A public R6 cannot pin a commit no remote has. The pin `bf38b38` is on
+- A public R6 cannot pin a commit no remote has. The pin `01e31e8` is on
   `https://github.com/joacokhzyx/orbit-lang` (PIN.md), so the corpus is
   reproducible from public bytes. A pin move pushes the language commit first.
 - The runtime archive is not committed and is not byte-reproducible (PIN.md). A
-  fresh clone rebuilds it with the pinned recipe and checks the 343-symbol set.
+  fresh clone rebuilds it with the pinned recipe and checks the 268-symbol set.
   Do not add the archive or any other binary to the repository.
 - CI (`.github/workflows/ci.yml`) builds the driver, the runtime archive and
   the loader suite on every push and pull request through `scripts/ci.ps1`.

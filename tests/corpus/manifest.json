@@ -1,19 +1,19 @@
 {
   "schema": "r6-ir-corpus/1",
   "emitter": {
-    "path": "C:\\Temp\\orbit-fp-099b002148.exe",
-    "sha256": "7c511c230cce2dc87fa280da875d899b83ce3c59153a5c7e3da1dca96a573525",
-    "bytes": 947200,
+    "path": "C:\\Temp\\orbit-fp-ee60c8af43.exe",
+    "sha256": "9de8324a82b638ecc864a00ab9490efe80bb8c3c1d5170bc5c55ea59a5c344ea",
+    "bytes": 2720256,
     "version": "orbit 0.1.0-rc.2",
-    "languageCommit": "bf38b38866fa89728d0236c2f17ab7872230d6a4"
+    "languageCommit": "01e31e882610cea21fbfbf4fe02fee00051fab2e"
   },
   "counts": {
     "executable": 143,
     "support": 1,
     "total": 144
   },
-  "totalBytes": 6992300,
-  "filesSha256": "94025f2e3c3aa67640b8561c4aed8a107b511e46fd9cab66b1cbdf39cfd2236a",
+  "totalBytes": 6992633,
+  "filesSha256": "a533ace164a28bed32dba3d3df900c3e8811b69ce8d6829d8503e132c0f71e03",
   "files": [
     {
       "path": "tests/suite/arena_sink_scope.orb",
@@ -40,8 +40,8 @@
       "path": "tests/suite/ast_function_body_is_a_block.orb",
       "kind": "executable",
       "ir": "tests/suite/ast_function_body_is_a_block.ir",
-      "bytes": 1651393,
-      "sha256": "593b6577bd5f65b8f8a59fe6ee3292b9d8ac504e587933e23a35de0976a20ff7"
+      "bytes": 1651726,
+      "sha256": "dac2572ad021669934f38be1d4198fbdc814aa005cfa142a447b1a706778f668"
     },
     {
       "path": "tests/suite/bitwise_operators.orb",
@@ -76,7 +76,7 @@
       "kind": "executable",
       "ir": "tests/suite/c_names_user_defined.ir",
       "bytes": 21536,
-      "sha256": "978e9738626fa296078be836d7159e7e99a5462b8baa3772c147acc4afc5b877"
+      "sha256": "0a061feeae27f7df8e0149cfec45bd9eda235293665809ce207d2fae8634fe85"
     },
     {
       "path": "tests/suite/call_arg_types.orb",

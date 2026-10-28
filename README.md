@@ -22,7 +22,7 @@ executable.
 
 ## Status
 
-Measured on 2026-10-28 at the pin (`bf38b38`, see below):
+Measured on 2026-10-28 at the pin (`01e31e8`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
@@ -53,7 +53,7 @@ the pinned sources by the language's own bootstrap.
 - The runtime archive `.r6-build\runtime-win64\libruntime_net.a`. It is not in
   the repository and is not byte-reproducible. Rebuild it from the pinned Orbit
   checkout with `scripts/mklib_runtime.py --out <absolute path>`. `docs/PIN.md`
-  lists the recipe and the expected 343-symbol set.
+  lists the recipe and the expected 268-symbol set.
 - For programs that call the database: `python scripts/build-runtime-db.py
   --orbit-root <pinned checkout> --cc C:\w64devkit\bin\gcc.exe`, which writes
   `libruntime_net_db.a` and `sqlite3.lib` beside the archive (D-M1-87). The
@@ -75,15 +75,15 @@ cd orbit-r6
 .\scripts\build-r6.ps1                              # -> .r6-build\r6.exe
 
 # The pinned language tree: runtime archive and oracle.
-git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-bf38b38-git
-git -C C:\Temp\orbit-pin-bf38b38-git checkout bf38b38
-python C:\Temp\orbit-pin-bf38b38-git\scripts\mklib_runtime.py `
+git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-01e31e8-git
+git -C C:\Temp\orbit-pin-01e31e8-git checkout 01e31e8
+python C:\Temp\orbit-pin-01e31e8-git\scripts\mklib_runtime.py `
   --cc C:\w64devkit\bin\gcc.exe `
   --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
 
 python tests/reject/run_reject.py                    # needs no oracle
 
-cd C:\Temp\orbit-pin-bf38b38-git
+cd C:\Temp\orbit-pin-01e31e8-git
 python scripts/dev.py fp --cc C:\w64devkit\bin\gcc.exe  # builds the fixed point
 python scripts/dev.py fp-path                        # prints its path
 ```
@@ -130,9 +130,9 @@ The commands below were verified on 2026-10-28 on the machine named in
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-099b002148.exe `
+  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
+  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/reject/run_reject.py
@@ -153,27 +153,27 @@ Corpus and census:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-099b002148.exe `
+  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
+  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/compiler-ir/run_census.py `
-  --compiler C:\Temp\orbit-fp-099b002148.exe `
-  --tree C:\Temp\orbit-pin-bf38b38-git `
+  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
+  --tree C:\Temp\orbit-pin-01e31e8-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
 ## The pin
 
-R6 is pinned to one `orbit-lang` commit: `bf38b38866fa89728d0236c2f17ab7872230d6a4`,
+R6 is pinned to one `orbit-lang` commit: `01e31e882610cea21fbfbf4fe02fee00051fab2e`,
 on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 The pin is the Orbit commit and the inputs listed in `docs/PIN.md`: the IR
 emitter, the fixed-point compiler, the runtime recipe, the runtime symbol set
 and the corpus hash.
 
-- Pinned bytes come from `git cat-file blob bf38b38:<path>`, never from a
+- Pinned bytes come from `git cat-file blob 01e31e8:<path>`, never from a
   working tree that may be ahead of the pin.
 - The corpus and the census regenerate from a tree materialized at the pin.
   `--orbit-root` and `--tree` must point at that tree.
