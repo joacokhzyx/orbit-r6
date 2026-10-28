@@ -4342,3 +4342,40 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `orbit_int`. The `int` fixtures `06`, `45`, `47`, `59`, `60`, `85` and `88`
   and the controls of `tests/reject/` that encode INT32 limits change with this
   decision.
+
+## D-M1-95 - Division by zero and INT64_MIN / -1 stop the program
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **pending verification**:
+  the language branch `int64` is not pinned yet, and its IR contract for the
+  source line of a division is not decided.
+- Reason: the language makes an integer `/` or `%` by zero, and `INT64_MIN` by
+  `-1`, a runtime stop: `orbit: division by zero at <file>:<line>` or `orbit:
+  integer overflow in division at <file>:<line>` on stderr, exit status 2.
+  Float division stays IEEE. Before this decision `idivl` raised a hardware
+  exception (STATUS_INTEGER_DIVIDE_BY_ZERO) in R6 programs.
+- Decision:
+  - An integer `div` or `mod` whose divisor is not a constant other than 0 or -1
+    is `cqto` and `idivq` preceded by two checks. `testq` of the divisor and
+    `je` to the zero block; `cmpq $-1` of the divisor and, when equal, a
+    `cmpq` of the dividend against `INT64_MIN` and `je` to the overflow block.
+  - The two blocks follow the function body, after the last `ret`. Each one is:
+
+        leaq .LCr6_<id>(%rip), %rcx    # "<orbit-ir>"
+        movq $<line>, %rdx
+        movq $<kind>, %r8              # 0 division by zero, 1 overflow
+        call orbit_div_error
+        ud2
+
+    The runtime function `void orbit_div_error(const char *file, int64_t line,
+    int64_t kind)` does not return. It belongs to the language branch; a module
+    that divides and links an archive without it fails with `error[LINK]`.
+  - The line is `div_trap_line(i)`, one function in `win64.c`. IR v1 carries no
+    source line, so it returns 0 and the message reads `<orbit-ir>:0`. The
+    function changes when the contract adds an optional `line` field on
+    `div` and `mod`, or when the division becomes a call to a runtime helper.
+  - A constant divisor of 0 or -1 keeps this path, so the trap fires at run
+    time; the multiply path of D-M1-96 never sees them.
+- Fixtures: `97-div-zero` and `98-div-overflow` (exit 2, empty stdout, message
+  on stderr, which the differential does not compare).
+- Open: whether the line travels in the IR, which symbol the runtime exports,
+  and whether `mod` by zero has a message of its own.

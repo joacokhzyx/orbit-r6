@@ -2305,6 +2305,56 @@ static void emit_int_slot(FILE *o, int64_t v, unsigned slot) {
     fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", slot);
 }
 
+/* D-M1-95: a division or remainder with a divisor that is not a constant
+ * tests for a zero divisor and for INT64_MIN / -1, and branches to a block
+ * after the function body. The block loads the file, the line and the kind
+ * (0 division by zero, 1 overflow) into %rcx, %rdx and %r8 and calls
+ * `orbit_div_error`, which prints the message and exits with status 2. */
+typedef struct {
+    size_t pc;
+    unsigned long long file_id;
+    int64_t line;
+} DivTrap;
+
+static DivTrap *div_traps;
+static size_t div_trap_count, div_trap_cap;
+
+/* IR v1 carries no source line for an operation, so the trap reports 0. This
+ * is the one place that changes when the contract adds a `line` field. */
+static int64_t div_trap_line(const R6Instruction *i) {
+    (void)i;
+    return 0;
+}
+
+static bool defer_div_trap(size_t pc, unsigned long long file_id, int64_t line) {
+    if (div_trap_count == div_trap_cap) {
+        size_t cap = div_trap_cap ? div_trap_cap * 2 : 16;
+        DivTrap *grown = (DivTrap *)realloc(div_traps, cap * sizeof *grown);
+        if (!grown) return false;
+        div_traps = grown;
+        div_trap_cap = cap;
+    }
+    div_traps[div_trap_count].pc = pc;
+    div_traps[div_trap_count].file_id = file_id;
+    div_traps[div_trap_count].line = line;
+    ++div_trap_count;
+    return true;
+}
+
+static void emit_div_traps(FILE *o, size_t fn_index) {
+    size_t k;
+    for (k = 0; k < div_trap_count; ++k) {
+        const DivTrap *t = &div_traps[k];
+        int kind;
+        for (kind = 0; kind < 2; ++kind)
+            fprintf(o, ".Lr6_f%zu_%s_%zu:\n\tleaq .LCr6_%llu(%%rip), %%rcx\n"
+                       "\tmovq $%lld, %%rdx\n\tmovq $%d, %%r8\n"
+                       "\tcall orbit_div_error\n\tud2\n",
+                    fn_index, kind ? "dov" : "dz", t->pc, t->file_id,
+                    (long long)t->line, kind);
+    }
+}
+
 /* An int argument of a float parameter: the C backend casts each argument to
  * the parameter's C type, so the callee receives `(orbit_float)(x)`. */
 static void emit_load_arg_as(FILE *o, const R6Function *f, const R6Value *v,
@@ -2979,6 +3029,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq %u(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", kk, cell - kk);
         }
     }
+    div_trap_count = 0;
     for (pc = 0; pc < f->instruction_count; ++pc) {
         const R6Instruction *i = &f->instructions[pc];
         const R6Value *v = &i->operands[0];
@@ -3318,8 +3369,20 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 emit_division_by_constant(o, i->opcode == R6_OP_MOD, divisor, aoff);
                 fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
             } else {
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tcqto\n\tidivq -%u(%%rbp)\n", aoff, boff);
-                fprintf(o, "\tmovq %s, -%u(%%rbp)\n",
+                unsigned long long file_id = string_id++;
+                emit_string(o, "<orbit-ir>", file_id);
+                if (!defer_div_trap(pc, file_id, div_trap_line(i)))
+                    return fail(d, i, "CGEN", "out of memory");
+                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\ttestq %%rcx, %%rcx\n"
+                           "\tje .Lr6_f%zu_dz_%zu\n\tcmpq $-1, %%rcx\n"
+                           "\tjne .Lr6_f%zu_dok_%zu\n"
+                           "\tmovabsq $-9223372036854775808, %%rax\n"
+                           "\tcmpq -%u(%%rbp), %%rax\n\tje .Lr6_f%zu_dov_%zu\n"
+                           ".Lr6_f%zu_dok_%zu:\n"
+                           "\tmovq -%u(%%rbp), %%rax\n\tcqto\n\tidivq %%rcx\n"
+                           "\tmovq %s, -%u(%%rbp)\n",
+                        boff, fn_index, pc, fn_index, pc, aoff, fn_index, pc,
+                        fn_index, pc, aoff,
                         i->opcode == R6_OP_DIV ? "%rax" : "%rdx", off);
             }
             break;
@@ -4023,6 +4086,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             return fail(d, i, "CGEN", "unsupported opcode %s", r6_opcode_name(i->opcode));
         }
     }
+    emit_div_traps(o, fn_index);
     fprintf(o, "\t.seh_endproc\n");
     return !ferror(o);
 }
