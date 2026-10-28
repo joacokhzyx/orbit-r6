@@ -110,6 +110,30 @@ python tests/corpus/run_corpus.py `
   multi-token `ORBIT_CC` the pinned fixed point cannot spawn:
   `ERROR_INVALID_NAME`); `ORBIT_CCACHE=0`, the harness's own escape hatch,
   takes the wrapper out of one run and is what the D-M1-21 round used.
+- The oracle's exit, stdout and stderr are cached in
+  `.r6-build\oracle-cache.json`, shared with `run_diff.py`. The corpus keys
+  an entry by the manifest sha256, the fixed point sha256 and the program
+  path; the differential keys it by the `.orb`+`.json` pair and the fixed
+  point. `--no-oracle-cache` rebuilds every oracle. On 2026-10-28 the corpus
+  took 120 s without the cache and 37 s with it; run_diff.py took 66 s and
+  18 s.
+- `--axes` adds six axes per matching program: correctness, section bytes,
+  best-of-5 wall ms, best-of-5 R6 build ms, peak working set, and a CPU-time
+  energy proxy. `--check-axes` compares them with
+  `tests/corpus/axes-baseline.json`; `--write-axes-baseline` re-takes it.
+
+Self-host check: R6 builds the pinned compiler, and that compiler's C must
+hash to `PUBLISHED_C` in the pin's `scripts/verify_seed.py` (20 s):
+
+```powershell
+.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-e34833a-git `
+  -Compiler C:\Temp\orbit-fp-c9c04bc393.exe -R6 $PWD\.r6-build\r6.exe
+```
+
+`scripts\ci.ps1 -Selfhost` runs it as a CI stage. `scripts\bisect.ps1` is the
+`git bisect run` verdict: driver build (125 when it does not compile),
+`run_reject.py`, `run_diff.py` and the self-host (1 at the first failure).
+Copy it with `selfhost.ps1` outside the tree first; older commits lack both.
 
 Compiler-IR census (D-M1-34) — a measurement, not a gate. It emits every
 `compiler/**/*.orb` at the pin and records R6's first refusal on each; the
@@ -134,7 +158,10 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 
 - `r6 [build] <input.ir> -o <output.exe>`. Run it from the repo root: temp
   `.r6-build\r6-<pid>.s/.o` files and the runtime archive path are resolved
-  relative to the CWD (and the temps are left behind, not cleaned up).
+  relative to the CWD. A successful build deletes the temps; a failed one
+  keeps them.
+- `--timings` or `R6_TIMINGS=1` prints one stderr line per stage: load,
+  codegen, peephole, regalloc, asm, coff, ld.
 - Needs `.r6-build\runtime-win64\libruntime_net.a`, which is **gitignored and
   not in the repo**. A fresh clone must rebuild it from the pinned checkout
   with its `scripts/mklib_runtime.py --out ...` (expected hash/symbols in

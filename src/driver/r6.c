@@ -12,6 +12,8 @@
 #include <string.h>
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <direct.h>
 #include <process.h>
 #define R6_PID _getpid
@@ -20,6 +22,7 @@
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 #define R6_PID getpid
 #define R6_SPAWN _spawnvp
@@ -32,6 +35,31 @@ static void print_error(const char *path, const R6Diagnostic *d) {
             d->message[0] ? d->message : "operation failed");
 }
 
+enum { T_LOAD, T_CODEGEN, T_PEEPHOLE, T_REGALLOC, T_ASM, T_COFF, T_LD, T_COUNT };
+static const char *const stage_names[T_COUNT] = {
+    "load", "codegen", "peephole", "regalloc", "asm", "coff", "ld"
+};
+static double stage_ms[T_COUNT];
+static bool stage_ran[T_COUNT];
+
+static double now_ms(void) {
+#ifdef _WIN32
+    LARGE_INTEGER freq, count;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&count);
+    return (double)count.QuadPart * 1000.0 / (double)freq.QuadPart;
+#else
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+#endif
+}
+
+static void stage_add(int stage, double since) {
+    stage_ms[stage] += now_ms() - since;
+    stage_ran[stage] = true;
+}
+
 static int run(const char *tool, char *const argv[]) {
 #ifdef _WIN32
     intptr_t status = R6_SPAWN(R6_WAIT, tool, (const char *const *)argv);
@@ -42,7 +70,7 @@ static int run(const char *tool, char *const argv[]) {
     }
     return (int)status;
 #else
-    (void)cc; (void)argv;
+    (void)tool; (void)argv;
     return -1;
 #endif
 }
@@ -62,9 +90,13 @@ int main(int argc, char **argv) {
     size_t link_argc = 0;
     R6CoffObject object;
     char asm_error[256];
-    int argi = 1, rc = 1;
-    bool uses_db = false;
+    int argi = 1, rc = 1, stage;
+    bool uses_db = false, timings;
+    const char *timings_env = getenv("R6_TIMINGS");
+    double t0;
     size_t fn;
+
+    timings = timings_env && strcmp(timings_env, "1") == 0;
 
     if (argi < argc && strcmp(argv[argi], "build") == 0) ++argi;
     if (argi >= argc) {
@@ -76,6 +108,9 @@ int main(int argc, char **argv) {
         if (strcmp(argv[argi], "-o") == 0 && argi + 1 < argc && !output) {
             output = argv[argi + 1];
             argi += 2;
+        } else if (strcmp(argv[argi], "--timings") == 0) {
+            timings = true;
+            ++argi;
         } else {
             fprintf(stderr, "r6: error[CLI]: unexpected argument '%s'\n", argv[argi]);
             return 2;
@@ -86,6 +121,7 @@ int main(int argc, char **argv) {
         return 2;
     }
 
+    t0 = now_ms();
     file = fopen(input, "rb");
     if (!file || fseek(file, 0, SEEK_END) != 0 || (file_len = ftell(file)) < 0 ||
         fseek(file, 0, SEEK_SET) != 0) {
@@ -107,6 +143,7 @@ int main(int argc, char **argv) {
         print_error(input, &diag);
         goto done;
     }
+    stage_add(T_LOAD, t0);
 
     /* D-M1-87: a module that declares an orbit_db_* extern links the DB
      * variant of the runtime archive and the SQLite import library, as the
@@ -125,6 +162,7 @@ int main(int argc, char **argv) {
     snprintf(pidbuf, sizeof pidbuf, "%ld", (long)R6_PID());
     snprintf(asm_path, sizeof asm_path, ".r6-build/r6-%s.s", pidbuf);
     snprintf(obj_path, sizeof obj_path, ".r6-build/r6-%s.o", pidbuf);
+    t0 = now_ms();
     asm_file = fopen(asm_path, "wb");
     if (!asm_file) {
         snprintf(diag.code, sizeof diag.code, "OUTPUT");
@@ -146,18 +184,25 @@ int main(int argc, char **argv) {
         goto free_module;
     }
     asm_file = NULL;
+    stage_add(T_CODEGEN, t0);
+    t0 = now_ms();
     if (!r6_peephole_win64(asm_path, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
         goto free_module;
     }
+    stage_add(T_PEEPHOLE, t0);
+    t0 = now_ms();
     if (!r6_regalloc_win64(asm_path, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[REGALLOC]: %s\n", input, asm_error);
         goto free_module;
     }
+    stage_add(T_REGALLOC, t0);
+    t0 = now_ms();
     if (!r6_peephole_final(asm_path, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
         goto free_module;
     }
+    stage_add(T_PEEPHOLE, t0);
 
     root = getenv("R6_MINGW_ROOT");
     if (!root || !*root) root = "C:/w64devkit";
@@ -169,6 +214,7 @@ int main(int argc, char **argv) {
     snprintf(crtend, sizeof crtend, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtend.o", root, version);
     snprintf(libdir, sizeof libdir, "%s/lib", root);
     snprintf(gcclibdir, sizeof gcclibdir, "%s/lib/gcc/x86_64-w64-mingw32/%s", root, version);
+    t0 = now_ms();
     asm_file = fopen(asm_path, "rb");
     if (!asm_file) {
         fprintf(stderr, "r6: %s:0:0: error[INPUT]: cannot reopen generated assembler text\n", input);
@@ -180,6 +226,8 @@ int main(int argc, char **argv) {
         goto free_module;
     }
     fclose(asm_file); asm_file = NULL;
+    stage_add(T_ASM, t0);
+    t0 = now_ms();
     obj_file = fopen(obj_path, "wb");
     if (!obj_file || !r6_coff_write(&object, obj_file)) {
         fprintf(stderr, "r6: %s:0:0: error[OBJECT]: %s\n", input,
@@ -197,6 +245,7 @@ int main(int argc, char **argv) {
     }
     obj_file = NULL;
     r6_coff_free(&object);
+    stage_add(T_COFF, t0);
     link_argv[link_argc++] = ld_path;
     link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
     link_argv[link_argc++] = "-Bdynamic"; link_argv[link_argc++] = "-o";
@@ -217,10 +266,15 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
     link_argv[link_argc++] = crtend; link_argv[link_argc] = NULL;
+    t0 = now_ms();
     if (run(ld_path, link_argv) != 0) {
         fprintf(stderr, "r6: %s:0:0: error[LINK]: linker failed (pinned Win64 runtime required)\n", input);
         goto free_module;
     }
+    stage_add(T_LD, t0);
+    /* A failed build keeps its .s/.o for inspection; a good one owes nothing. */
+    remove(asm_path);
+    remove(obj_path);
     rc = 0;
 
 free_module:
@@ -229,5 +283,10 @@ free_module:
     r6_module_free(&module);
 done:
     free(data);
+    if (timings)
+        for (stage = 0; stage < T_COUNT; ++stage)
+            if (stage_ran[stage])
+                fprintf(stderr, "r6: timing %-8s %10.3f ms\n",
+                        stage_names[stage], stage_ms[stage]);
     return rc;
 }
