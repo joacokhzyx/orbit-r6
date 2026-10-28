@@ -90,6 +90,12 @@ static int run(const char *tool, char *const argv[]) {
 #endif
 }
 
+/* D-M1-100: the line `--version` prints. The protocol number is what the
+ * language checks before it hands r6 a module; docs/DECISIONS.md says what
+ * bumps it. */
+#define R6_VERSION "0.1.0"
+#define R6_IR_PROTOCOL 2
+
 int main(int argc, char **argv) {
     const char *input, *output = NULL, *root, *version;
     FILE *file = NULL, *asm_file = NULL, *obj_file = NULL;
@@ -116,8 +122,13 @@ int main(int argc, char **argv) {
 
     timings = timings_env && strcmp(timings_env, "1") == 0;
 
+    if (argi < argc && (strcmp(argv[argi], "--version") == 0 || strcmp(argv[argi], "-V") == 0)) {
+        printf("r6 %s ir-protocol %d\n", R6_VERSION, R6_IR_PROTOCOL);
+        return 0;
+    }
     if (argi < argc && (strcmp(argv[argi], "--help") == 0 || strcmp(argv[argi], "-h") == 0)) {
         fputs("usage: r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>] [--timings]\n"
+              "       r6 --version   prints `r6 <semver> ir-protocol <N>` and exits 0\n"
               "  --runtime-dir <dir>  directory with libruntime_net.a, libruntime_net_db.a and\n"
               "                       sqlite3.lib (else R6_RUNTIME_DIR, else .r6-build/runtime-win64)\n"
               "  --timings            print per-stage timings (or R6_TIMINGS=1)\n"

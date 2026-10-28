@@ -4494,3 +4494,32 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   differential against the oracle; the unprefixed driver fails it with
   `multiple definition of system_uptime`), `ok-user-name-max` (140 bytes
   accepted) and `cgen-user-name-too-long` (141 bytes rejected).
+
+## D-M1-100 - Version handshake: `r6 --version`
+
+- Date: 2026-10-28.
+- Reason: the language runs `r6.exe` for `--backend=native`. A stale r6 that
+  predates a change of the IR or of the command line hung a build instead of
+  failing. The language needs to read what an executable speaks before it hands
+  it a module.
+- Decision: `r6 --version` (also `-V`) prints exactly one line,
+  `r6 <semver> ir-protocol <N>`, to stdout and exits 0. Currently
+  `r6 0.1.0 ir-protocol 2`. `--help` lists it.
+- The protocol number N covers what the language and r6 agree on:
+  - the command line: `build <ir> -o <exe>`, `--runtime-dir`, the exit codes
+    and the one-line diagnostic;
+  - the IR the language emits and r6 accepts: `irVersion`, the opcode set, the
+    fields r6 reads (`line`, `sourceName`), the width of `int` and the typing
+    of registers;
+  - the runtime archive ABI r6 links against.
+- N bumps when a change makes an executable that lacks it build wrong or fail
+  on a module the other side produces: a new or removed flag, a new field or
+  opcode the language starts to emit, a change of the width or meaning of a
+  type, a runtime symbol r6 starts to call. A fix inside r6 that leaves these
+  untouched changes the semver only.
+- History: 1 is every r6 before this decision (32-bit `int`, no `sourceName`,
+  no `--runtime-dir`, no handshake; such an r6 has no `--version` and exits 2).
+  2 is the 64-bit `int` with the division stop (D-M1-94, D-M1-95), the source
+  name and line (D-M1-97), the runtime directory (D-M1-98) and `o_` symbols
+  (D-M1-99).
+- The language refuses an r6 whose protocol it does not know.

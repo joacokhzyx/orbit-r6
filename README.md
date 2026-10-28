@@ -115,6 +115,11 @@ The `.s` and `.o` temporaries go to `R6_TMPDIR`, else the system temporary
 directory. They are named `r6-<pid>.s` and `r6-<pid>.o` and are deleted after a
 successful link.
 
+`r6 --version` prints `r6 <semver> ir-protocol <N>` and exits 0 (D-M1-100). The language
+refuses an r6 whose protocol it does not know. N bumps when the command line, the
+IR r6 reads, the width of a type or the runtime ABI changes; `docs/DECISIONS.md`
+lists the cases.
+
 A diagnostic is one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit
 2 is CLI misuse. Exit 1 is every other failure.
 
