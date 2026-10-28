@@ -2196,10 +2196,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 i->operands[0].kind != R6_VAL_REG ||
                 !is_result(type_at(f, i->operands[0].as.i32)) ||
                 !(is_int(type_at(f, i->dest)) || is_float(type_at(f, i->dest)) ||
-                  is_string(type_at(f, i->dest)) ||
+                  is_string(type_at(f, i->dest)) || is_list(type_at(f, i->dest)) ||
                   (is_void_ptr(type_at(f, i->dest)) &&
                    same_type(unwrap_use_type(f, pc), "void*"))))
-                return fail(d, i, "CGEN", "result_unwrap requires a result register operand and an int, float, or string destination, or a void* one nothing reads");
+                return fail(d, i, "CGEN", "result_unwrap requires a result register operand and an int, float, string or list destination, or a void* one nothing reads");
             break;
         case R6_OP_RESULT_UNWRAP_ERR:
             if (!valid_dest(f, i, true, d) || !is_string(type_at(f, i->dest)) ||

@@ -1794,3 +1794,14 @@ el `main` del pin. Las migraciones siguen en `CGEN`. El par `90-db-link` sale
 42 con salida igual a la del oraculo. Diferencial **89/89**; loader
 **300/300**; corpus **130 build / 130 match over 135 -> 132 / 132**; self-host C
 `80a61b67...`; census 2 de 28.
+
+## Actualizacion de M1 - A result unwrapped into a list (2026-10-27)
+
+D-M1-88. `result_unwrap` admite ahora un destino `list`: la copia de la palabra
+del valor, igual que para `int` y `string`, porque el C escribe
+`(void*)(uintptr_t)(r.value)` en un registro `OrbitList*`. El par
+`91-result-list` (lista de 16 bytes aleatorios, lista vacia y conteo negativo
+rechazado) imprime lo mismo que el oraculo y sale 42. `test_imports` coincide;
+`test_random` pasa a un `load_var` de un local ligado a `list_get`. Diferencial
+**90/90**; loader **301/301**; corpus **132 build / 132 match over 135 -> 133 /
+133**; self-host C `80a61b67...`; census 2 de 28.

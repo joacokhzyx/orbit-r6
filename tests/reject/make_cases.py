@@ -805,6 +805,14 @@ def build_reject():
         "D-M1-87", "CGEN",
         "a database module with migrations is refused: the pin's migration runner has no lowering here")
 
+    # ---- D-M1-88: a result unwrapped into a list -----------------------------
+    add("x-result-unwrap-bool-destination",
+        jd(DOC([MAIN([I("result_ok", 0, Int(1)),
+                      I("result_unwrap", 1, Reg(0)),
+                      I("ret", -1, Int(0))], ["result", "bool"])])),
+        "D-M1-88", "CGEN",
+        "an unwrap writes int, float, string or list; a bool destination is refused")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]

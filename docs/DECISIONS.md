@@ -4097,3 +4097,26 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 132 / 132**, census 2 build over 28 modules, self-host C
   `80A61B67...`.
 - Status: **applied**.
+
+## D-M1-88 - A result unwrapped into a list
+
+- Date: 2026-10-27. Pin: `e34833a` (D-F0-18).
+- Root cause: `test_random` and `test_imports` unwrap `randomBytes(16)`, whose
+  value is the `OrbitList*` of `orbit_random_bytes`, into a `list` register.
+  `result_unwrap` admitted an int, float or string destination only, and the
+  IR types this destination `list` (it was `unknown` before D-F0-18).
+- Decision: a `list` destination joins the word copy of the int and string
+  unwraps (`movq` of the value cell). The C writes
+  `r_n = (void*)(uintptr_t)(r_m.value)` into an `OrbitList*` register, which is
+  the same word. A bool, a model and a result destination stay `CGEN`.
+- Fixture `91-result-list` (oracle and R6 print `16 16 0 1` and exit 42): a
+  16-entry and an empty list from `orbit_random_bytes`, a walk over the first
+  and a refused negative count.
+  Control: `x-result-unwrap-bool-destination` stays `CGEN`.
+- Corpus: `test_imports` builds and matches. `test_random` moves to its next
+  refusal, a `load_var` of a local bound to an untyped `list_get` read
+  (`val b = bs.get(i)`), which is a separate decision.
+- Gates: differential **90/90**, loader **301/301**, corpus **132 build / 132
+  match over 135 -> 133 / 133**, census 2 build over 28 modules, self-host C
+  `80A61B67...`.
+- Status: **applied**.

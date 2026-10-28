@@ -1,0 +1,29 @@
+// D-M1-88: a result whose value is a list. orbit_random_bytes returns an
+// OrbitResult holding an OrbitList*, and the unwrap into a `list` local is the
+// same word copy as the int and string unwraps. Only values that do not vary
+// between runs are printed: the lengths and a range check.
+// expect-exit 42
+
+extern fn orbit_random_bytes(count: int) -> result
+
+fn randomBytes(n: int) -> result {
+    return orbit_random_bytes(n)
+}
+
+fn main() -> int {
+    val bs: list = try randomBytes(16) catch { return 1 }
+    print(bs.len())
+    var inside = 0
+    var i = 0
+    while i < bs.len() {
+        inside = inside + 1
+        i = i + 1
+    }
+    print(inside)
+    val empty: list = try randomBytes(0) catch { return 2 }
+    print(empty.len())
+    var refused = false
+    try randomBytes(-1) catch { refused = true }
+    if refused { print(1) } else { print(0) }
+    return 42
+}

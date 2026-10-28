@@ -834,6 +834,13 @@
       "note": "a database module with migrations is refused: the pin's migration runner has no lowering here"
     },
     {
+      "file": "cases/x-result-unwrap-bool-destination.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-88",
+      "note": "an unwrap writes int, float, string or list; a bool destination is refused"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
