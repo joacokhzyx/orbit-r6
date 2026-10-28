@@ -4204,3 +4204,30 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Gates: differential **93/93**, loader **306/306** (`make_cases.py --check`
   clean). The `94-word-chain` IR is hand-written, not emitter output.
 - Status: **applied**.
+
+## D-M1-92 - Migrations of a database module
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18).
+- Root cause: D-M1-87 refused every module with `migrations`. The pin's
+  `generateModelDDL` (`c_backend.orb`) appends, after the model tables, a block
+  `const char* _orbit_migs[] = {...}; if (!orbit_run_migrations(_orbit_migs, N))
+  { fprintf(stderr, ...); exit(1); }`. `orbit_run_migrations` (`runtime/database.c`)
+  creates `_orbit_migrations` and runs each statement once, by position, in a
+  transaction.
+- Decision: in `main`, after the model `orbit_db_exec_ddl` calls, R6 stores the
+  address of each migration text in a `.data` array, calls
+  `orbit_run_migrations(array, N)` and calls `exit(1)` when the answer is
+  false. The message on stderr is not part of the verdict. A module with
+  migrations and no `orbit_db_*` extern stays `CGEN`: the driver links the DB
+  archive by those externs (D-M1-87) and the link of a migration-only module
+  has no measurement.
+- Fixture `95-db-migrations` (oracle and R6 exit 1, empty stdout): the harness
+  has no `.orbit/data`, so the open fails, the runner answers false and `main`
+  exits before `orbit_main`. With the directory present and `sqlite3.dll` on
+  `PATH`, the oracle and R6 both print `466` and exit 42 on a first run and on
+  a rerun (compared by hand, 2026-10-28).
+  Controls in `tests/reject/`: `ok-db-migrations` (builds, two migrations and an
+  `orbit_db_*` extern); `x-db-migrations-no-db-extern` stays `CGEN`. The case
+  `x-db-migrations` of D-M1-87 is replaced by these two.
+- Gates: differential **94/94**, loader **307/307**.
+- Status: **applied**.

@@ -1836,3 +1836,13 @@ D-M1-91. `add`, `sub` y `mul` aceptan operandos `int` o `void*` (al menos uno
 `mod` sobre palabras siguen rechazados. Sin medir: no se ejecuto ningun gate.
 Falta correr `run_diff.py` (par `94-word-chain`), `make_cases.py` y
 `run_reject.py`.
+
+## Actualizacion de M1 - Migrations of a database module (2026-10-28)
+
+D-M1-92. El `main` de un modulo DB con `migrations` guarda los textos en un
+arreglo, llama `orbit_run_migrations(arreglo, N)` despues de las tablas de los
+modelos y sale con 1 si responde falso. Sin una extern `orbit_db_*` las
+migraciones siguen en `CGEN`. El par `95-db-migrations` sale 1 con salida vacia
+en los dos lados (sin `.orbit/data` la apertura falla); con el directorio
+presente, oraculo y R6 imprimen `466` y salen 42 en la primera corrida y en la
+segunda. Diferencial **94/94**; loader **307/307**.

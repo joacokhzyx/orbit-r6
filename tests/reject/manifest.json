@@ -827,11 +827,11 @@
       "note": "an object-typed extern parameter is admitted for the creator and setters only"
     },
     {
-      "file": "cases/x-db-migrations.json",
+      "file": "cases/x-db-migrations-no-db-extern.json",
       "exit": 1,
       "code": "CGEN",
-      "rule": "D-M1-87",
-      "note": "a database module with migrations is refused: the pin's migration runner has no lowering here"
+      "rule": "D-M1-92",
+      "note": "migrations without an orbit_db_* extern have no measured link of the DB archive"
     },
     {
       "file": "cases/x-result-unwrap-bool-destination.json",
@@ -1600,6 +1600,11 @@
       "file": "cases/ok-db-link.json",
       "rule": "D-M1-87",
       "note": "a module with an orbit_db_* extern links the DB archive and the SQLite import library (build only: the run needs sqlite3.dll on PATH)"
+    },
+    {
+      "file": "cases/ok-db-migrations.json",
+      "rule": "D-M1-92",
+      "note": "a module with an orbit_db_* extern and two migrations links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"
     },
     {
       "file": "cases/ok-word-arith-print.json",

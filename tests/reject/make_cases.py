@@ -792,18 +792,17 @@ def build_reject():
 
     # ---- D-M1-87: the database variant of the runtime ------------------------
     # A module that declares an orbit_db_* extern links the DB archive and opens
-    # the database in main. Migrations have no measured lowering.
+    # the database in main. D-M1-92: its migrations run after the model tables;
+    # a module with migrations and no orbit_db_* extern stays refused.
     def DB_COUNT():
         return FN("orbit_db_count_all", [], [], rtype="int", extern=True,
                   params=["table"], ptypes=["string"])
 
-    mod = MOD([DB_COUNT(), MAIN([I("arg", -1, Str("items")),
-                                 I("call", 0, Str("orbit_db_count_all"), Int(1)),
-                                 I("ret", -1, Int(0))], ["int"])])
+    mod = MOD([MAIN()])
     mod["migrations"] = ["CREATE TABLE t (id TEXT)"]
-    add("x-db-migrations", jd({"irVersion": "1", "module": mod}),
-        "D-M1-87", "CGEN",
-        "a database module with migrations is refused: the pin's migration runner has no lowering here")
+    add("x-db-migrations-no-db-extern", jd({"irVersion": "1", "module": mod}),
+        "D-M1-92", "CGEN",
+        "migrations without an orbit_db_* extern have no measured link of the DB archive")
 
     # ---- D-M1-88: a result unwrapped into a list -----------------------------
     add("x-result-unwrap-bool-destination",
@@ -1772,6 +1771,13 @@ def build_accept_files():
                           MAIN([I("arg", -1, Str("items")),
                                 I("call", 0, Str("orbit_db_count_all"), Int(1)),
                                 I("ret", -1, Int(0))], ["int"])]))))
+    mod = MOD([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
+                                       params=["table"], ptypes=["string"]), MAIN([I("arg", -1, Str("items")),
+                                        I("call", 0, Str("orbit_db_count_all"), Int(1)),
+                                        I("ret", -1, Int(0))], ["int"])])
+    mod["migrations"] = ["CREATE TABLE IF NOT EXISTS audit (id INTEGER)",
+                         "ALTER TABLE audit ADD COLUMN note TEXT"]
+    files.append(("ok-db-migrations", jd({"irVersion": "1", "module": mod})))
     files.append(("ok-word-arith-print",
                   jd(DOC([FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
                              rtype="void*", params=["x"], ptypes=["void*"]),
@@ -2134,6 +2140,8 @@ def build_manifest(reject, accept_files):
              "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"},
             {"file": "cases/ok-db-link.json", "rule": "D-M1-87",
              "note": "a module with an orbit_db_* extern links the DB archive and the SQLite import library (build only: the run needs sqlite3.dll on PATH)"},
+            {"file": "cases/ok-db-migrations.json", "rule": "D-M1-92",
+             "note": "a module with an orbit_db_* extern and two migrations links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"},
             {"file": "cases/ok-word-arith-print.json", "run_exit": 7,
              "run_stdout": "2147483648\r\n", "rule": "D-M1-91",
              "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"},
