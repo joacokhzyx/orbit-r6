@@ -1,17 +1,17 @@
 # tests/corpus - diferencial sobre el corpus IR del lenguaje (medición, no puerta)
 
-Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-28 (D-F0-19).
-Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 138 documentos IRv1 que el
-lenguaje emite sobre `tests/suite` (114 programas + `imports.support.orb`) y
+Fecha: 2026-10-16; re-pins de 2026-10-21 (D-F0-13) a 2026-10-28 (D-F0-20).
+Decisión: `docs/DECISIONS.md` D-M1-17. Corpus: los 144 documentos IRv1 que el
+lenguaje emite sobre `tests/suite` (120 programas + `imports.support.orb`) y
 `tests/std` (23 programas), el corpus designado por
 `orbit-lang/docs/IR_SPEC.md` §5.5. Están pineados por hash en `manifest.json`;
 cada re-pin está al final de este archivo.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
+  --compiler C:\Temp\orbit-fp-099b002148.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
+  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -20,7 +20,7 @@ python tests/corpus/run_corpus.py `
   `sha256`), `filesSha256` (un solo hash del corpus) y la identidad del emisor
   (versión, commit del lenguaje, sha256 del binario). Lo produce
   `scripts/emit_ir_corpus.py` en el árbol del lenguaje (`main`, pin actual
-  `6a9ddaf`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
+  `bf38b38`): regenerar y comparar es el contrato, no copiar ficheros. Mismo
   patrón con el que se pinean `runtime/orbit_api.h` y el archivo del runtime.
 - `baseline.json` - la medición vigente: `summary` (members, programs,
   oracleOk, r6BuildOk, match, unknownRegisterTypes), `byCode`,
@@ -609,3 +609,18 @@ los cierran: R6 construye y coincide en 135 de 135 programas.
 `user_fn_named_like_compiler_helper` (11675 a 12545 bytes). R6 construye y
 coincide en 137 de 137 programas, ninguno difiere. El trinquete pasa de 135 a
 137 y `axes-baseline.json` se re-toma sobre el corpus nuevo.
+
+## Re-pin 2026-10-28 (D-F0-20, emisor `bf38b38`, corpus `94025f2e`)
+
+144 documentos (120 programas de suite, `imports.support.orb` y 23 de std),
+6 992 300 bytes, `filesSha256 94025f2e…`, emitidos con
+`C:\Temp\orbit-fp-099b002148.exe` desde `C:\Temp\orbit-pin-bf38b38-git`.
+Entran `c_names_user_defined`, `division_by_zero`, `division_checked_values`,
+`division_int_min_overflow`, `float_call_result_binding`, `int_wrap_64`,
+`remainder_by_zero` y `remainder_int_min_overflow`; salen `int_wrap_32` y
+`namespace_user_names`. Los 136 documentos que siguen cambian de hash: los
+símbolos de usuario salen como `o_<nombre>` y el `int` mide 64 bits. R6
+construye y coincide en 143 de 143 programas, ninguno difiere. El trinquete
+pasa de 137 a 143 y `axes-baseline.json` se re-toma sobre el corpus nuevo.
+El oráculo se construye con `ORBIT_BACKEND=c`: el pin hace nativo el backend
+por defecto en Windows (D-F0-20).

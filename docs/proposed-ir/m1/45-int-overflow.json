@@ -27,11 +27,11 @@
             "elemKind": 0
           },
           {
-            "opcode": "load_const",
+            "opcode": "load_var",
             "dest": 1,
             "operand1": {
-              "kind": "Int",
-              "value": 1
+              "kind": "Sym",
+              "value": "x"
             },
             "operand2": {
               "kind": "None"
@@ -46,10 +46,10 @@
             "dest": 2,
             "operand1": {
               "kind": "Register",
-              "value": 0
+              "value": 1
             },
             "operand2": {
-              "kind": "Register",
+              "kind": "Int",
               "value": 1
             },
             "operand3": {
@@ -113,15 +113,45 @@
             "elemKind": 0
           },
           {
-            "opcode": "mul",
+            "opcode": "load_var",
             "dest": 1,
             "operand1": {
+              "kind": "Sym",
+              "value": "v"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 2,
+            "operand1": {
+              "kind": "Sym",
+              "value": "v"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "mul",
+            "dest": 3,
+            "operand1": {
               "kind": "Register",
-              "value": 0
+              "value": 1
             },
             "operand2": {
               "kind": "Register",
-              "value": 0
+              "value": 2
             },
             "operand3": {
               "kind": "None"
@@ -133,7 +163,7 @@
             "dest": -1,
             "operand1": {
               "kind": "Register",
-              "value": 1
+              "value": 3
             },
             "operand2": {
               "kind": "None"
@@ -144,8 +174,10 @@
             "elemKind": 0
           }
         ],
-        "registerCount": 2,
+        "registerCount": 4,
         "registerTypes": [
+          "int",
+          "int",
           "int",
           "int"
         ],
@@ -234,15 +266,14 @@
             "elemKind": 0
           },
           {
-            "opcode": "add",
+            "opcode": "load_var",
             "dest": 4,
             "operand1": {
-              "kind": "Register",
-              "value": 0
+              "kind": "Sym",
+              "value": "a"
             },
             "operand2": {
-              "kind": "Register",
-              "value": 1
+              "kind": "None"
             },
             "operand3": {
               "kind": "None"
@@ -250,15 +281,14 @@
             "elemKind": 0
           },
           {
-            "opcode": "add",
+            "opcode": "load_var",
             "dest": 5,
             "operand1": {
-              "kind": "Register",
-              "value": 4
+              "kind": "Sym",
+              "value": "b"
             },
             "operand2": {
-              "kind": "Register",
-              "value": 2
+              "kind": "None"
             },
             "operand3": {
               "kind": "None"
@@ -270,11 +300,73 @@
             "dest": 6,
             "operand1": {
               "kind": "Register",
-              "value": 5
+              "value": 4
             },
             "operand2": {
               "kind": "Register",
-              "value": 3
+              "value": 5
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 7,
+            "operand1": {
+              "kind": "Sym",
+              "value": "c"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "add",
+            "dest": 8,
+            "operand1": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 7
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 9,
+            "operand1": {
+              "kind": "Sym",
+              "value": "d"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "add",
+            "dest": 10,
+            "operand1": {
+              "kind": "Register",
+              "value": 8
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 9
             },
             "operand3": {
               "kind": "None"
@@ -286,7 +378,7 @@
             "dest": -1,
             "operand1": {
               "kind": "Register",
-              "value": 6
+              "value": 10
             },
             "operand2": {
               "kind": "None"
@@ -297,8 +389,12 @@
             "elemKind": 0
           }
         ],
-        "registerCount": 7,
+        "registerCount": 11,
         "registerTypes": [
+          "int",
+          "int",
+          "int",
+          "int",
           "int",
           "int",
           "int",
@@ -341,11 +437,26 @@
             "elemKind": 0
           },
           {
+            "opcode": "load_var",
+            "dest": 1,
+            "operand1": {
+              "kind": "Sym",
+              "value": "v"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
             "opcode": "ret",
             "dest": -1,
             "operand1": {
               "kind": "Register",
-              "value": 0
+              "value": 1
             },
             "operand2": {
               "kind": "None"
@@ -356,8 +467,9 @@
             "elemKind": 0
           }
         ],
-        "registerCount": 1,
+        "registerCount": 2,
         "registerTypes": [
+          "int",
           "int"
         ],
         "returnType": "int",
@@ -375,8 +487,8 @@
         "paramTypes": [],
         "instructions": [
           {
-            "opcode": "load_const",
-            "dest": 0,
+            "opcode": "arg",
+            "dest": -1,
             "operand1": {
               "kind": "Int",
               "value": 2147483647
@@ -390,25 +502,10 @@
             "elemKind": 0
           },
           {
-            "opcode": "arg",
-            "dest": -1,
-            "operand1": {
-              "kind": "Register",
-              "value": 0
-            },
-            "operand2": {
-              "kind": "None"
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
             "opcode": "call",
-            "dest": 1,
+            "dest": 0,
             "operand1": {
-              "kind": "Sym",
+              "kind": "String",
               "value": "bump"
             },
             "operand2": {
@@ -421,7 +518,38 @@
             "elemKind": 0
           },
           {
-            "opcode": "ge",
+            "opcode": "decl_var",
+            "dest": -1,
+            "operand1": {
+              "kind": "Sym",
+              "value": "over"
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 1,
+            "operand1": {
+              "kind": "Sym",
+              "value": "over"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ne",
             "dest": 2,
             "operand1": {
               "kind": "Register",
@@ -429,7 +557,7 @@
             },
             "operand2": {
               "kind": "Int",
-              "value": 0
+              "value": 2147483648
             },
             "operand3": {
               "kind": "None"
@@ -445,7 +573,7 @@
             },
             "operand2": {
               "kind": "Label",
-              "value": 1
+              "value": 0
             },
             "operand3": {
               "kind": "None"
@@ -453,8 +581,8 @@
             "elemKind": 0
           },
           {
-            "opcode": "load_const",
-            "dest": 3,
+            "opcode": "ret",
+            "dest": -1,
             "operand1": {
               "kind": "Int",
               "value": 10
@@ -468,41 +596,11 @@
             "elemKind": 0
           },
           {
-            "opcode": "ret",
-            "dest": -1,
-            "operand1": {
-              "kind": "Register",
-              "value": 3
-            },
-            "operand2": {
-              "kind": "None"
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
             "opcode": "label",
             "dest": -1,
             "operand1": {
               "kind": "Label",
-              "value": 1
-            },
-            "operand2": {
-              "kind": "None"
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "load_const",
-            "dest": 4,
-            "operand1": {
-              "kind": "Int",
-              "value": 65536
+              "value": 0
             },
             "operand2": {
               "kind": "None"
@@ -516,8 +614,8 @@
             "opcode": "arg",
             "dest": -1,
             "operand1": {
-              "kind": "Register",
-              "value": 4
+              "kind": "Int",
+              "value": 65536
             },
             "operand2": {
               "kind": "None"
@@ -529,9 +627,9 @@
           },
           {
             "opcode": "call",
-            "dest": 5,
+            "dest": 3,
             "operand1": {
-              "kind": "Sym",
+              "kind": "String",
               "value": "sq"
             },
             "operand2": {
@@ -545,14 +643,14 @@
           },
           {
             "opcode": "ne",
-            "dest": 6,
+            "dest": 4,
             "operand1": {
               "kind": "Register",
-              "value": 5
+              "value": 3
             },
             "operand2": {
               "kind": "Int",
-              "value": 0
+              "value": 4294967296
             },
             "operand3": {
               "kind": "None"
@@ -564,7 +662,7 @@
             "dest": -1,
             "operand1": {
               "kind": "Register",
-              "value": 6
+              "value": 4
             },
             "operand2": {
               "kind": "Label",
@@ -576,26 +674,11 @@
             "elemKind": 0
           },
           {
-            "opcode": "load_const",
-            "dest": 7,
-            "operand1": {
-              "kind": "Int",
-              "value": 13
-            },
-            "operand2": {
-              "kind": "None"
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
             "opcode": "ret",
             "dest": -1,
             "operand1": {
-              "kind": "Register",
-              "value": 7
+              "kind": "Int",
+              "value": 13
             },
             "operand2": {
               "kind": "None"
@@ -611,6 +694,99 @@
             "operand1": {
               "kind": "Label",
               "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 5,
+            "operand1": {
+              "kind": "Sym",
+              "value": "over"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "sub",
+            "dest": 6,
+            "operand1": {
+              "kind": "Register",
+              "value": 5
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ne",
+            "dest": 7,
+            "operand1": {
+              "kind": "Register",
+              "value": 6
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2147483647
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 7
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 4
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 14
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 4
             },
             "operand2": {
               "kind": "None"
@@ -625,7 +801,7 @@
             "dest": 8,
             "operand1": {
               "kind": "Int",
-              "value": 1
+              "value": 4
             },
             "operand2": {
               "kind": "None"
@@ -636,89 +812,11 @@
             "elemKind": 0
           },
           {
-            "opcode": "sub",
+            "opcode": "neg",
             "dest": 9,
             "operand1": {
               "kind": "Register",
-              "value": 1
-            },
-            "operand2": {
-              "kind": "Register",
               "value": 8
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "ne",
-            "dest": 10,
-            "operand1": {
-              "kind": "Register",
-              "value": 9
-            },
-            "operand2": {
-              "kind": "Int",
-              "value": 2147483647
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "jump_if_false",
-            "dest": -1,
-            "operand1": {
-              "kind": "Register",
-              "value": 10
-            },
-            "operand2": {
-              "kind": "Label",
-              "value": 3
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "load_const",
-            "dest": 11,
-            "operand1": {
-              "kind": "Int",
-              "value": 14
-            },
-            "operand2": {
-              "kind": "None"
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "ret",
-            "dest": -1,
-            "operand1": {
-              "kind": "Register",
-              "value": 11
-            },
-            "operand2": {
-              "kind": "None"
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "label",
-            "dest": -1,
-            "operand1": {
-              "kind": "Label",
-              "value": 3
             },
             "operand2": {
               "kind": "None"
@@ -777,8 +875,8 @@
             "opcode": "arg",
             "dest": -1,
             "operand1": {
-              "kind": "Int",
-              "value": -4
+              "kind": "Register",
+              "value": 9
             },
             "operand2": {
               "kind": "None"
@@ -790,9 +888,9 @@
           },
           {
             "opcode": "call",
-            "dest": 12,
+            "dest": 10,
             "operand1": {
-              "kind": "Sym",
+              "kind": "String",
               "value": "sum4"
             },
             "operand2": {
@@ -806,10 +904,10 @@
           },
           {
             "opcode": "ne",
-            "dest": 13,
+            "dest": 11,
             "operand1": {
               "kind": "Register",
-              "value": 12
+              "value": 10
             },
             "operand2": {
               "kind": "Int",
@@ -825,26 +923,11 @@
             "dest": -1,
             "operand1": {
               "kind": "Register",
-              "value": 13
+              "value": 11
             },
             "operand2": {
               "kind": "Label",
-              "value": 4
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "load_const",
-            "dest": 14,
-            "operand1": {
-              "kind": "Int",
-              "value": 15
-            },
-            "operand2": {
-              "kind": "None"
+              "value": 6
             },
             "operand3": {
               "kind": "None"
@@ -855,8 +938,8 @@
             "opcode": "ret",
             "dest": -1,
             "operand1": {
-              "kind": "Register",
-              "value": 14
+              "kind": "Int",
+              "value": 15
             },
             "operand2": {
               "kind": "None"
@@ -871,7 +954,37 @@
             "dest": -1,
             "operand1": {
               "kind": "Label",
-              "value": 4
+              "value": 6
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_const",
+            "dest": 12,
+            "operand1": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "neg",
+            "dest": 13,
+            "operand1": {
+              "kind": "Register",
+              "value": 12
             },
             "operand2": {
               "kind": "None"
@@ -885,8 +998,8 @@
             "opcode": "arg",
             "dest": -1,
             "operand1": {
-              "kind": "Int",
-              "value": -1
+              "kind": "Register",
+              "value": 13
             },
             "operand2": {
               "kind": "None"
@@ -898,9 +1011,9 @@
           },
           {
             "opcode": "call",
-            "dest": 15,
+            "dest": 14,
             "operand1": {
-              "kind": "Sym",
+              "kind": "String",
               "value": "id"
             },
             "operand2": {
@@ -914,10 +1027,10 @@
           },
           {
             "opcode": "ge",
-            "dest": 16,
+            "dest": 15,
             "operand1": {
               "kind": "Register",
-              "value": 15
+              "value": 14
             },
             "operand2": {
               "kind": "Int",
@@ -933,26 +1046,11 @@
             "dest": -1,
             "operand1": {
               "kind": "Register",
-              "value": 16
+              "value": 15
             },
             "operand2": {
               "kind": "Label",
-              "value": 5
-            },
-            "operand3": {
-              "kind": "None"
-            },
-            "elemKind": 0
-          },
-          {
-            "opcode": "load_const",
-            "dest": 17,
-            "operand1": {
-              "kind": "Int",
-              "value": 12
-            },
-            "operand2": {
-              "kind": "None"
+              "value": 8
             },
             "operand3": {
               "kind": "None"
@@ -963,8 +1061,8 @@
             "opcode": "ret",
             "dest": -1,
             "operand1": {
-              "kind": "Register",
-              "value": 17
+              "kind": "Int",
+              "value": 12
             },
             "operand2": {
               "kind": "None"
@@ -979,7 +1077,7 @@
             "dest": -1,
             "operand1": {
               "kind": "Label",
-              "value": 5
+              "value": 8
             },
             "operand2": {
               "kind": "None"
@@ -990,11 +1088,89 @@
             "elemKind": 0
           },
           {
-            "opcode": "load_const",
-            "dest": 18,
+            "opcode": "arg",
+            "dest": -1,
             "operand1": {
               "kind": "Int",
-              "value": 42
+              "value": 4294967296
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 16,
+            "operand1": {
+              "kind": "String",
+              "value": "id"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ne",
+            "dest": 17,
+            "operand1": {
+              "kind": "Register",
+              "value": 16
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 4294967296
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "jump_if_false",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 17
+            },
+            "operand2": {
+              "kind": "Label",
+              "value": 10
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 16
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "label",
+            "dest": -1,
+            "operand1": {
+              "kind": "Label",
+              "value": 10
             },
             "operand2": {
               "kind": "None"
@@ -1008,8 +1184,8 @@
             "opcode": "ret",
             "dest": -1,
             "operand1": {
-              "kind": "Register",
-              "value": 18
+              "kind": "Int",
+              "value": 42
             },
             "operand2": {
               "kind": "None"
@@ -1020,12 +1196,17 @@
             "elemKind": 0
           }
         ],
-        "registerCount": 19,
+        "registerCount": 18,
         "registerTypes": [
           "int",
           "int",
           "bool",
           "int",
+          "bool",
+          "int",
+          "int",
+          "bool",
+          "int",
           "int",
           "int",
           "bool",
@@ -1034,13 +1215,7 @@
           "int",
           "bool",
           "int",
-          "int",
-          "bool",
-          "int",
-          "int",
-          "bool",
-          "int",
-          "int"
+          "bool"
         ],
         "returnType": "int",
         "isExtern": false,

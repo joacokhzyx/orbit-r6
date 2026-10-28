@@ -1,3 +1,5 @@
+// -INT64_MIN wraps to itself, INT64_MAX + 1 wraps to INT64_MIN, and the
+// 32-bit boundary is an ordinary value (D-M1-94).
 fn neg(a: int) -> int {
     return -a
 }
@@ -7,12 +9,13 @@ fn add(a: int, b: int) -> int {
 }
 
 fn main() -> int {
-    val low = -2147483648
-    if add(2147483647, 1) != low { return 10 }
-    if add(2147483647, 1) != -2147483648 { return 11 }
+    val high = 9223372036854775807
+    val low = add(neg(high), -1)
+    if add(high, 1) != low { return 10 }
     if neg(low) != low { return 12 }
     if neg(-5) != 5 { return 13 }
-    if neg(2147483647) != -2147483647 { return 14 }
+    if neg(high) != low + 1 { return 14 }
+    if add(2147483647, 1) != 2147483648 { return 11 }
     print(low)
     return 42
 }

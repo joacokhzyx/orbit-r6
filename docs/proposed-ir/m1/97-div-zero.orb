@@ -1,0 +1,13 @@
+// An integer division by zero stops the program: stderr gets
+// `orbit: division by zero at <file>:<line>` and the exit status is 2
+// (D-M1-95). The first print reaches stdout before the stop.
+fn quo(a: int, b: int) -> int {
+    return a / b
+}
+
+fn main() -> int {
+    print(quo(84, 2))
+    print(quo(7, 0))
+    print("unreachable")
+    return 42
+}

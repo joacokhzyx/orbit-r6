@@ -60,6 +60,21 @@ static void stage_add(int stage, double since) {
     stage_ran[stage] = true;
 }
 
+/* D-M1-98: the three runtime inputs of the link, from one directory. */
+static bool file_exists(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    fclose(f);
+    return true;
+}
+
+static void full_path(const char *path, char *out, size_t cap) {
+#ifdef _WIN32
+    if (_fullpath(out, path, cap)) return;
+#endif
+    snprintf(out, cap, "%s", path);
+}
+
 static int run(const char *tool, char *const argv[]) {
 #ifdef _WIN32
     intptr_t status = R6_SPAWN(R6_WAIT, tool, (const char *const *)argv);
@@ -75,6 +90,12 @@ static int run(const char *tool, char *const argv[]) {
 #endif
 }
 
+/* D-M1-100: the line `--version` prints. The protocol number is what the
+ * language checks before it hands r6 a module; docs/DECISIONS.md says what
+ * bumps it. */
+#define R6_VERSION "0.1.0"
+#define R6_IR_PROTOCOL 2
+
 int main(int argc, char **argv) {
     const char *input, *output = NULL, *root, *version;
     FILE *file = NULL, *asm_file = NULL, *obj_file = NULL;
@@ -83,7 +104,10 @@ int main(int argc, char **argv) {
     size_t got;
     R6Module module;
     R6Diagnostic diag = {0};
-    char asm_path[512], obj_path[512], ld_path[1024];
+    char asm_path[1024], obj_path[1024], ld_path[1024];
+    char tmpdir[900], runtime_a[1024], sqlite_lib[1024], full[1024];
+    const char *runtime_dir = NULL, *tmp_env;
+    size_t tmp_len;
     char crt2[1024], crtbegin[1024], crtend[1024], libdir[1024], gcclibdir[1024];
     char pidbuf[32];
     char *link_argv[64];
@@ -98,15 +122,34 @@ int main(int argc, char **argv) {
 
     timings = timings_env && strcmp(timings_env, "1") == 0;
 
+    if (argi < argc && (strcmp(argv[argi], "--version") == 0 || strcmp(argv[argi], "-V") == 0)) {
+        printf("r6 %s ir-protocol %d\n", R6_VERSION, R6_IR_PROTOCOL);
+        return 0;
+    }
+    if (argi < argc && (strcmp(argv[argi], "--help") == 0 || strcmp(argv[argi], "-h") == 0)) {
+        fputs("usage: r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>] [--timings]\n"
+              "       r6 --version   prints `r6 <semver> ir-protocol <N>` and exits 0\n"
+              "  --runtime-dir <dir>  directory with libruntime_net.a, libruntime_net_db.a and\n"
+              "                       sqlite3.lib (else R6_RUNTIME_DIR, else .r6-build/runtime-win64)\n"
+              "  --timings            print per-stage timings (or R6_TIMINGS=1)\n"
+              "  R6_TMPDIR            directory of the .s/.o temporaries (else the system temp dir)\n",
+              stdout);
+        return 0;
+    }
     if (argi < argc && strcmp(argv[argi], "build") == 0) ++argi;
     if (argi >= argc) {
-        fprintf(stderr, "usage: r6 [build] <input.ir> -o <output.exe>\n");
+        fprintf(stderr, "usage: r6 [build] <input.ir> -o <output.exe> "
+                        "[--runtime-dir <dir>] [--timings]\n");
         return 2;
     }
     input = argv[argi++];
     while (argi < argc) {
         if (strcmp(argv[argi], "-o") == 0 && argi + 1 < argc && !output) {
             output = argv[argi + 1];
+            argi += 2;
+        } else if (strcmp(argv[argi], "--runtime-dir") == 0 && argi + 1 < argc &&
+                   !runtime_dir) {
+            runtime_dir = argv[argi + 1];
             argi += 2;
         } else if (strcmp(argv[argi], "--timings") == 0) {
             timings = true;
@@ -153,15 +196,30 @@ int main(int argc, char **argv) {
             strncmp(module.functions[fn].name, "orbit_db_", 9) == 0)
             uses_db = true;
 
-    /* All intermediates remain inside the R6 checkout. */
+    /* D-M1-98: R6_TMPDIR, else the system temporary directory; never the
+     * project of the program being built. */
+    tmp_env = getenv("R6_TMPDIR");
+    if (tmp_env && *tmp_env) {
+        snprintf(tmpdir, sizeof tmpdir, "%s", tmp_env);
 #ifdef _WIN32
-    _mkdir(".r6-build");
+        _mkdir(tmpdir);
 #else
-    mkdir(".r6-build", 0777);
+        mkdir(tmpdir, 0777);
 #endif
+    } else {
+#ifdef _WIN32
+        DWORD n = GetTempPathA((DWORD)sizeof tmpdir, tmpdir);
+        if (n == 0 || n >= sizeof tmpdir) snprintf(tmpdir, sizeof tmpdir, ".");
+#else
+        snprintf(tmpdir, sizeof tmpdir, "/tmp");
+#endif
+    }
+    tmp_len = strlen(tmpdir);
+    while (tmp_len > 1 && (tmpdir[tmp_len - 1] == '/' || tmpdir[tmp_len - 1] == '\\'))
+        tmpdir[--tmp_len] = '\0';
     snprintf(pidbuf, sizeof pidbuf, "%ld", (long)R6_PID());
-    snprintf(asm_path, sizeof asm_path, ".r6-build/r6-%s.s", pidbuf);
-    snprintf(obj_path, sizeof obj_path, ".r6-build/r6-%s.o", pidbuf);
+    snprintf(asm_path, sizeof asm_path, "%s/r6-%s.s", tmpdir, pidbuf);
+    snprintf(obj_path, sizeof obj_path, "%s/r6-%s.o", tmpdir, pidbuf);
     t0 = now_ms();
     asm_file = fopen(asm_path, "wb");
     if (!asm_file) {
@@ -214,6 +272,19 @@ int main(int argc, char **argv) {
     snprintf(crtend, sizeof crtend, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtend.o", root, version);
     snprintf(libdir, sizeof libdir, "%s/lib", root);
     snprintf(gcclibdir, sizeof gcclibdir, "%s/lib/gcc/x86_64-w64-mingw32/%s", root, version);
+    if (!runtime_dir) {
+        runtime_dir = getenv("R6_RUNTIME_DIR");
+        if (!runtime_dir || !*runtime_dir) runtime_dir = ".r6-build/runtime-win64";
+    }
+    snprintf(runtime_a, sizeof runtime_a, "%s/%s", runtime_dir,
+             uses_db ? "libruntime_net_db.a" : "libruntime_net.a");
+    snprintf(sqlite_lib, sizeof sqlite_lib, "%s/sqlite3.lib", runtime_dir);
+    if (!file_exists(runtime_a) || (uses_db && !file_exists(sqlite_lib))) {
+        full_path(file_exists(runtime_a) ? sqlite_lib : runtime_a, full, sizeof full);
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: runtime archive not found: %s\n",
+                input, full);
+        goto free_module;
+    }
     t0 = now_ms();
     asm_file = fopen(asm_path, "rb");
     if (!asm_file) {
@@ -248,15 +319,16 @@ int main(int argc, char **argv) {
     stage_add(T_COFF, t0);
     link_argv[link_argc++] = ld_path;
     link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
-    link_argv[link_argc++] = "-Bdynamic"; link_argv[link_argc++] = "-o";
+    link_argv[link_argc++] = "-Bdynamic";
+    link_argv[link_argc++] = "--stack"; link_argv[link_argc++] = "16777216";
+    link_argv[link_argc++] = "-o";
     link_argv[link_argc++] = (char *)output;
     link_argv[link_argc++] = crt2; link_argv[link_argc++] = crtbegin;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = libdir;
     link_argv[link_argc++] = obj_path;
-    link_argv[link_argc++] = uses_db ? ".r6-build/runtime-win64/libruntime_net_db.a"
-                                     : ".r6-build/runtime-win64/libruntime_net.a";
-    if (uses_db) link_argv[link_argc++] = ".r6-build/runtime-win64/sqlite3.lib";
+    link_argv[link_argc++] = runtime_a;
+    if (uses_db) link_argv[link_argc++] = sqlite_lib;
     link_argv[link_argc++] = "-lws2_32"; link_argv[link_argc++] = "-lmingw32";
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";

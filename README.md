@@ -22,14 +22,14 @@ executable.
 
 ## Status
 
-Measured on 2026-10-28 at the pin (`6a9ddaf`, see below):
+Measured on 2026-10-28 at the pin (`bf38b38`, see below):
 
 | Check | Result | Kind |
 |---|---|---|
-| Differential (`tests/diff/run_diff.py`) | 95/95 | gate |
-| Loader contract suite (`tests/reject/run_reject.py`) | 309/309 (205 rejections, 104 acceptance controls) | gate |
-| Corpus (`tests/corpus/run_corpus.py`) | 137 build / 137 match over 137 programs | measurement with a one-way ratchet |
-| Compiler-IR census (`tests/compiler-ir/run_census.py`) | 2 build over 28 modules | measurement with a one-way ratchet |
+| Differential (`tests/diff/run_diff.py`) | 100/100 | gate |
+| Loader contract suite (`tests/reject/run_reject.py`) | 341/341 (215 rejections, 126 acceptance controls) | gate |
+| Corpus (`tests/corpus/run_corpus.py`) | 143 build / 143 match over 143 programs | measurement with a one-way ratchet |
+| Compiler-IR census (`tests/compiler-ir/run_census.py`) | 2 build over 27 modules | measurement with a one-way ratchet |
 
 R6 builds the Orbit compiler itself (`compiler/host/main.orb`, 1038
 functions). The compiler it produces translates its own source to C
@@ -53,7 +53,7 @@ the pinned sources by the language's own bootstrap.
 - The runtime archive `.r6-build\runtime-win64\libruntime_net.a`. It is not in
   the repository and is not byte-reproducible. Rebuild it from the pinned Orbit
   checkout with `scripts/mklib_runtime.py --out <absolute path>`. `docs/PIN.md`
-  lists the recipe and the expected 337-symbol set.
+  lists the recipe and the expected 343-symbol set.
 - For programs that call the database: `python scripts/build-runtime-db.py
   --orbit-root <pinned checkout> --cc C:\w64devkit\bin\gcc.exe`, which writes
   `libruntime_net_db.a` and `sqlite3.lib` beside the archive (D-M1-87). The
@@ -75,15 +75,15 @@ cd orbit-r6
 .\scripts\build-r6.ps1                              # -> .r6-build\r6.exe
 
 # The pinned language tree: runtime archive and oracle.
-git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-6a9ddaf-git
-git -C C:\Temp\orbit-pin-6a9ddaf-git checkout 6a9ddaf
-python C:\Temp\orbit-pin-6a9ddaf-git\scripts\mklib_runtime.py `
+git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin-bf38b38-git
+git -C C:\Temp\orbit-pin-bf38b38-git checkout bf38b38
+python C:\Temp\orbit-pin-bf38b38-git\scripts\mklib_runtime.py `
   --cc C:\w64devkit\bin\gcc.exe `
   --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
 
 python tests/reject/run_reject.py                    # needs no oracle
 
-cd C:\Temp\orbit-pin-6a9ddaf-git
+cd C:\Temp\orbit-pin-bf38b38-git
 python scripts/dev.py fp --cc C:\w64devkit\bin\gcc.exe  # builds the fixed point
 python scripts/dev.py fp-path                        # prints its path
 ```
@@ -102,12 +102,23 @@ The script uses `$env:R6_CC`, else `$env:CC`, else `gcc` on `PATH`, with
 
 ## Use
 
-Run from the repository root. The runtime archive path and the temporary files
-under `.r6-build` resolve against the current directory.
-
 ```powershell
-.\.r6-build\r6.exe build program.ir -o program.exe
+.\.r6-build\r6.exe build program.ir -o program.exe [--runtime-dir <dir>] [--timings]
 ```
+
+`--runtime-dir <dir>` names the directory holding `libruntime_net.a`,
+`libruntime_net_db.a` and `sqlite3.lib`. Lookup order (D-M1-98): the flag, then
+`R6_RUNTIME_DIR`, then `.r6-build/runtime-win64` relative to the current
+directory. A missing archive is `error[LINK]` with the full path tried.
+
+The `.s` and `.o` temporaries go to `R6_TMPDIR`, else the system temporary
+directory. They are named `r6-<pid>.s` and `r6-<pid>.o` and are deleted after a
+successful link.
+
+`r6 --version` prints `r6 <semver> ir-protocol <N>` and exits 0 (D-M1-100). The language
+refuses an r6 whose protocol it does not know. N bumps when the command line, the
+IR r6 reads, the width of a type or the runtime ABI changes; `docs/DECISIONS.md`
+lists the cases.
 
 A diagnostic is one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit
 2 is CLI misuse. Exit 1 is every other failure.
@@ -119,9 +130,9 @@ The commands below were verified on 2026-10-28 on the machine named in
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
+  --compiler C:\Temp\orbit-fp-099b002148.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
+  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/reject/run_reject.py
@@ -142,27 +153,27 @@ Corpus and census:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
+  --compiler C:\Temp\orbit-fp-099b002148.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-6a9ddaf-git `
+  --orbit-root C:\Temp\orbit-pin-bf38b38-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 
 python tests/compiler-ir/run_census.py `
-  --compiler C:\Temp\orbit-fp-c41ad248ab.exe `
-  --tree C:\Temp\orbit-pin-6a9ddaf-git `
+  --compiler C:\Temp\orbit-fp-099b002148.exe `
+  --tree C:\Temp\orbit-pin-bf38b38-git `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
 ## The pin
 
-R6 is pinned to one `orbit-lang` commit: `6a9ddaf7066d396fe9b25a902e67ca2ee4701872`,
+R6 is pinned to one `orbit-lang` commit: `bf38b38866fa89728d0236c2f17ab7872230d6a4`,
 on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 The pin is the Orbit commit and the inputs listed in `docs/PIN.md`: the IR
 emitter, the fixed-point compiler, the runtime recipe, the runtime symbol set
 and the corpus hash.
 
-- Pinned bytes come from `git cat-file blob 6a9ddaf:<path>`, never from a
+- Pinned bytes come from `git cat-file blob bf38b38:<path>`, never from a
   working tree that may be ahead of the pin.
 - The corpus and the census regenerate from a tree materialized at the pin.
   `--orbit-root` and `--tree` must point at that tree.
@@ -178,7 +189,7 @@ and the corpus hash.
 |---|---|
 | `src/loader/` | Strict JSON IRv1 parser and validator; admits opcodes |
 | `src/codegen-x64/` | `win64.c` (IR to private asm text), `peephole.c` (reload removal on the asm text), `regalloc.c` (registers for hot slots), `asm_win64.c` (encoder), `coff.c` (COFF writer) |
-| `src/driver/r6.c` | CLI, temporaries under `.r6-build`, direct `ld` link |
+| `src/driver/r6.c` | CLI, temporaries in `R6_TMPDIR` or the system temp, direct `ld` link |
 | `tests/diff/` | Differential harness |
 | `tests/reject/` | Loader contract suite: `manifest.json` is the truth, `cases/` is rendered from it |
 | `tests/corpus/` | Language-emitted corpus manifest, ratchet and runner |

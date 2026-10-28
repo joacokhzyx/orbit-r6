@@ -323,6 +323,13 @@ static void analyze_line(const char *line, size_t len, PInfo *pi) {
         pi->def = BIT(2);
         return;
     }
+    if (span_eq(mn, "imulq") && b.n == 0) {
+        /* One operand: %rdx:%rax = %rax * operand. */
+        pi->use = BIT(0) | operand_mask(a, &unknown);
+        pi->def = BIT(0) | BIT(2);
+        if (unknown) pi->use = ALL_REGS;
+        return;
+    }
     if (span_eq(mn, "idivl") || span_eq(mn, "idivq")) {
         pi->use = BIT(0) | BIT(2) | operand_mask(a, &unknown);
         pi->def = BIT(0) | BIT(2);

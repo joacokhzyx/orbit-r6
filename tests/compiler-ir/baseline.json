@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "languageCommit": "6a9ddaf7066d396fe9b25a902e67ca2ee4701872",
-  "irFilesSha256": "cdeffef11b00c9f89c7a8a9b725d08304883c3930b4f371e0dbb2ac20576f7c1",
+  "languageCommit": "bf38b38866fa89728d0236c2f17ab7872230d6a4",
+  "irFilesSha256": "7df8b538b46e8b6ce149433f3ac13fbeb18709da5a8db27b697291173cdf126f",
   "summary": {
-    "modules": 28,
-    "emitted": 28,
+    "modules": 27,
+    "emitted": 27,
     "r6BuildOk": 2
   },
   "refusals": {
-    "error[CGEN]: module must define one non-extern main": 26
+    "error[CGEN]: module must define one non-extern main": 25
   }
 }

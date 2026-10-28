@@ -4298,3 +4298,288 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   census **2 build over 28 modules**, unchanged; self-host C `C1176CF4...`
   from the IR of `compiler/host/main.orb`.
 - Status: **applied**.
+
+## D-M1-94 - An int is 64 bits
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (orbit-lang `d536223`, not pinned yet). Measured with
+  that tree's fixed point: `run_diff.py` 99/99, `run_reject.py` 332/332, corpus
+  140 match + 3 whose oracle fails to build (D-M1-97), self-host C
+  `DD649139...` equal to `PUBLISHED_C`.
+- Reason: the language makes `orbit_int` an `int64_t` with two's complement
+  arithmetic and defined wrap (Phase 1b). Arithmetic, comparison, negation and
+  the six bitwise opcodes are 64-bit; a shift count is taken `& 63` and `shr`
+  is arithmetic; list elements, result payloads and model fields of type `int`
+  are eight bytes; `print` of an int writes the 64-bit value.
+- Decision:
+  - The loader keeps an `Int` value in `as.i64` and accepts INT64_MIN to
+    INT64_MAX. A value past that range is `E_RANGE`, as past INT32 was.
+  - `add`, `sub`, `mul` and `neg` are `addq`, `subq`, `imulq` and `negq` on the
+    slots. The `movslq` that D-M1-36 and D-M1-52 added after each is gone, and
+    the typed rule and the word rule of D-M1-91 are one rule.
+  - An int immediate that fits a sign-extended 32 bits is `movq $imm`; any other
+    goes through `movabsq` into `%rax` (`emit_int_rax`, `emit_int_slot`). The
+    same holds for an inline argument, a returned literal, a result payload, a
+    field initializer and a global (`global_integer` parses 64 bits).
+  - `bit_and`, `bit_or` and `bit_xor` are `andq`, `orq`, `xorq`; `shl` and `shr`
+    are `shlq %cl` and `sarq %cl`; `bit_not` is `notq`. D-M1-85 keeps its
+    typing rules and loses its 32-bit narrowing.
+  - A call whose destination or callee is `int` stores all of `%rax`; an `int`
+    argument of a `void*` parameter and a `void*` argument of an `int` parameter
+    are the same word, so the truncation of D-M1-84 and the low-32-bit decode of
+    D-M1-89 and D-M1-91 go. An opaque list element decodes with `movq`.
+  - `model_field_size` gives an `int` eight bytes with alignment eight, so the
+    layout of a model and of a union pack follows. An enumeration field is
+    rewritten to `int` before the layout (D-M1-35) and takes eight bytes too.
+  - `cvtsi2sdq` was already 64-bit. The print format `%lld` and its
+    full-register load do not change.
+- Superseded: D-M1-36 (32-bit slot), D-M1-52 (`neg` at 32 bits), the width
+  statement of D-M1-85, the truncations of D-M1-84, D-M1-89 and D-M1-91, and the
+  4-byte enumeration field of D-M1-35.
+- Not changed: the union tag stays a 4-byte write and read at offset 0 of the
+  16-byte cell; `list_len` keeps its 64-bit store; a bool keeps its 32-bit write.
+- Open: an extern whose C runtime function returns a plain `int` and whose IR
+  entry says `int` now reads a garbage upper half. The language branch has to
+  type those entries by the C return type, or the runtime has to return
+  `orbit_int`. The `int` fixtures `06`, `45`, `47`, `59`, `60`, `85` and `88`
+  and the controls of `tests/reject/` that encode INT32 limits change with this
+  decision.
+
+## D-M1-95 - Division by zero and INT64_MIN / -1 stop the program
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (`d536223`); the file and line arrive in the IR
+  (D-M1-97). Counts as in D-M1-94.
+- Reason: the language makes an integer `/` or `%` by zero, and `INT64_MIN` by
+  `-1`, a runtime stop: `orbit: division by zero at <file>:<line>` or `orbit:
+  integer overflow in division at <file>:<line>` on stderr, exit status 2.
+  Float division stays IEEE. Before this decision `idivl` raised a hardware
+  exception (STATUS_INTEGER_DIVIDE_BY_ZERO) in R6 programs.
+- Decision:
+  - An integer `div` or `mod` whose divisor is not a constant other than 0 or -1
+    is `cqto` and `idivq` preceded by two checks. `testq` of the divisor and
+    `je` to the zero block; `cmpq $-1` of the divisor and, when equal, a
+    `cmpq` of the dividend against `INT64_MIN` and `je` to the overflow block.
+  - The two blocks follow the function body, after the last `ret`. Each one is:
+
+        leaq .LCr6_<id>(%rip), %rcx    # "<orbit-ir>"
+        movq $<line>, %rdx
+        movq $<kind>, %r8              # 0 division by zero, 1 overflow
+        call orbit_div_error
+        ud2
+
+    The runtime function `void orbit_div_error(const char *file, int64_t line,
+    int64_t kind)` does not return. It belongs to the language branch; a module
+    that divides and links an archive without it fails with `error[LINK]`.
+  - The line is `div_trap_line(i)`, one function in `win64.c`. D-M1-97 feeds it
+    from the IR.
+  - A constant divisor of 0 or -1 keeps this path, so the trap fires at run
+    time; the multiply path of D-M1-96 never sees them.
+- Fixtures: `97-div-zero` and `98-div-overflow` (exit 2, empty stdout, message
+  on stderr, which the differential does not compare).
+- Closed by D-M1-97: the line travels in the IR, the runtime exports
+  `orbit_div_error`, and `mod` shares the messages of `div`.
+
+## D-M1-96 - Division and remainder by a constant at 64 bits
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (`d536223`). Counts as in D-M1-94.
+- Reason: D-M1-81 replaced `idivl` by a 32-bit multiply and shifts. With a
+  64-bit int the divisor, the magic number and the product are 64-bit.
+- Decision:
+  - A divisor is constant under the rule of D-M1-81. A divisor of 0, -1 or
+    INT64_MIN keeps the checked `idivq` of D-M1-95. A divisor of 1 is a copy
+    (`div`) or zero (`mod`).
+  - A power of two `2^k` is `(n + ((n >> 63) >>> (64 - k))) >> k`, negated for a
+    negative divisor, with `sarq`, `shrq` and `addq`. The remainder is
+    `n - (q << k)`.
+  - Any other divisor uses the signed 64-bit magic number of Hacker's Delight
+    10-1 with a word size of 64 (`signed_magic`, shift `p - 64`). `movabsq` loads
+    the magic into `%rax`, the one-operand `imulq %rcx` leaves the high half of
+    `n * magic` in `%rdx`, `addq` or `subq` of `n` corrects a magic of the other
+    sign, `sarq` shifts by `p - 64`, and `shrq $63` adds the sign bit. The
+    remainder is `n - q * d` with the two-operand `imulq`.
+  - The peephole models the one-operand `imulq` (read of `%rax` and the operand,
+    write of `%rax` and `%rdx`), as it models `idivq`.
+- Measured outside R6 with `tests/div/magic64.c`, which runs the emitted
+  sequence in C with `__int128` for the high half against the `/` and `%` of
+  gcc: 4000 divisors (edge values, their multiples, random of every bit
+  length), 3000 dividends each (the edge values, the divisor and its
+  neighbours, multiples of the divisor, random of every bit length): 11 751 000
+  pairs, 0 disagreements.
+- Fixture: `99-div-by-constant-64` (constant divisors against a divisor that
+  arrives as a parameter, over 64-bit edge values).
+
+## D-M1-97 - Source name and line in the IR, and the stack reserve
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (`d536223`, `docs/IR_SPEC.md` section 1.5 and V-20).
+- Reason: the language puts the base name of the root file in the module as
+  `sourceName` and the Orbit line in each `div` and `mod` as `line`, so the
+  trap of D-M1-95 can name its origin. Its runtime links every Windows
+  executable with a 16 MiB stack, because 64-bit frames overflowed the 2 MiB
+  default.
+- Decision:
+  - The module accepts an optional string `sourceName`; an absent one is `""`.
+    An instruction accepts an optional `line`, a positive integer, on `div` and
+    `mod` only. Any other opcode, zero, a negative number, a fraction or a
+    string is `E_SCHEMA` or `E_RANGE`. Optional, not required, because the 99
+    fixtures and the 275 loader cases predate the field; the runtime prints the
+    bare message when both are absent.
+  - The trap block of D-M1-95 loads `sourceName` and `line` instead of
+    `<orbit-ir>` and 0.
+  - The driver passes `--stack 16777216` to `ld`.
+- Language-side finding, not worked around: the suite programs
+  `division_checked_values`, `remainder_by_zero` and
+  `remainder_int_min_overflow` define a user function `remainder`, which
+  collides with the libm declaration in `math.h`, so their C build fails
+  (`previous declaration of 'remainder'`). R6 builds them and prints
+  `orbit: division by zero at remainder_by_zero.orb:11` and
+  `orbit: integer overflow in division at remainder_int_min_overflow.orb:10`,
+  exit 2. The fix is a user-symbol prefix in the C backend (Phase 4).
+- Controls: `v20-line-on-add`, `v20-line-zero`, `v20-line-negative`,
+  `v20-line-string`, `v20-line-fraction`, `v20-sourcename-number` (rejected);
+  `ok-div-trap-line`, `ok-mod-trap-line`, `ok-div-trap-no-source` (stderr
+  compared through the new `run_stderr` key of `run_reject.py`).
+- Measured: `run_diff.py` 99/99, `run_reject.py` 332/332, `make_cases.py
+  --check` clean, self-host `DD649139...`. The corpus emitted by the branch has
+  143 programs: 140 match, 3 fail in the oracle for the collision above.
+
+
+## D-M1-98 - Runtime directory and temporary directory of the driver
+
+- Date: 2026-10-28.
+- Reason: the language installs R6 as `bin\r6.exe` with the runtime archives in
+  `lib\` and runs it from the user's project. The driver resolved the archives
+  and its `.s`/`.o` temporaries under `.r6-build` in the current directory,
+  which wrote into the user's project and found no archives there.
+- Decision:
+  - Runtime directory, in order: `--runtime-dir <dir>`, `R6_RUNTIME_DIR`,
+    `.r6-build/runtime-win64` relative to the current directory. The directory
+    holds `libruntime_net.a`, `libruntime_net_db.a` and `sqlite3.lib`.
+  - A missing archive is `error[LINK]: runtime archive not found: <full path>`,
+    checked before `ld` runs. `sqlite3.lib` is checked only for a module with an
+    `orbit_db_*` extern.
+  - Temporaries: `R6_TMPDIR` (created if absent), else `GetTempPathA`. Names
+    stay `r6-<pid>.s` and `r6-<pid>.o`; a good link deletes them, a failed one
+    keeps them.
+- Not changed: the repo's scripts and harnesses pass no flag or variable, so
+  they still use `.r6-build/runtime-win64`. None reads the temporaries.
+- Controls: `link-runtime-dir-empty`, `link-runtime-env-empty` (rejected, LINK);
+  three builds of `ok-link-runtime-dir` through the flag, the variable and the
+  flag over a wrong variable. `run_reject.py` cases carry optional `args` and
+  `env`.
+
+## D-M1-99 - User symbols are emitted as `o_<name>`
+
+- Date: 2026-10-28.
+- Reason: the language's C backend emits every user function as `o_<name>`
+  (orbit-lang `tests/suite/c_names_user_defined.orb`). R6 emitted the IR name,
+  so a user function named `system_uptime` or `current_lease` met the runtime
+  archive's unprefixed export and the link reported a multiple definition. The
+  same collision held for any libc, CRT or Win32 name (`printf`, `remainder`).
+- Decision:
+  - Every non-extern function is defined, called and bound as a value under
+    `o_<name>`. The runtime's own names start with `orbit_`, which `o_`
+    cannot spell, and `o_` is the prefix of the C backend.
+  - The entry stays `orbit_main`, called by the wrapper `main` that the CRT
+    link needs. Externs keep their names.
+  - Models, unions and globals emit no symbol in the object, so they need no
+    prefix. The `where` strings of runtime errors keep the IR name.
+  - A function name over 140 bytes is `error[CGEN]`: the assembler label is 160
+    bytes and carries `__r6_unwind_` and `o_`, and truncation would merge two
+    names.
+- Controls: `101-user-symbol-prefix` (user functions `printf`, `remainder`,
+  `system_uptime`, `current_lease`, `orbit_main_like`, one bound as a value;
+  differential against the oracle; the unprefixed driver fails it with
+  `multiple definition of system_uptime`), `ok-user-name-max` (140 bytes
+  accepted) and `cgen-user-name-too-long` (141 bytes rejected).
+
+## D-M1-100 - Version handshake: `r6 --version`
+
+- Date: 2026-10-28.
+- Reason: the language runs `r6.exe` for `--backend=native`. A stale r6 that
+  predates a change of the IR or of the command line hung a build instead of
+  failing. The language needs to read what an executable speaks before it hands
+  it a module.
+- Decision: `r6 --version` (also `-V`) prints exactly one line,
+  `r6 <semver> ir-protocol <N>`, to stdout and exits 0. Currently
+  `r6 0.1.0 ir-protocol 2`. `--help` lists it.
+- The protocol number N covers what the language and r6 agree on:
+  - the command line: `build <ir> -o <exe>`, `--runtime-dir`, the exit codes
+    and the one-line diagnostic;
+  - the IR the language emits and r6 accepts: `irVersion`, the opcode set, the
+    fields r6 reads (`line`, `sourceName`), the width of `int` and the typing
+    of registers;
+  - the runtime archive ABI r6 links against.
+- N bumps when a change makes an executable that lacks it build wrong or fail
+  on a module the other side produces: a new or removed flag, a new field or
+  opcode the language starts to emit, a change of the width or meaning of a
+  type, a runtime symbol r6 starts to call. A fix inside r6 that leaves these
+  untouched changes the semver only.
+- History: 1 is every r6 before this decision (32-bit `int`, no `sourceName`,
+  no `--runtime-dir`, no handshake; such an r6 has no `--version` and exits 2).
+  2 is the 64-bit `int` with the division stop (D-M1-94, D-M1-95), the source
+  name and line (D-M1-97), the runtime directory (D-M1-98) and `o_` symbols
+  (D-M1-99).
+- The language refuses an r6 whose protocol it does not know.
+
+## D-M1-101 - String literals over 64 bytes span several `.byte` lines
+
+- Date: 2026-10-28.
+- Reason: at the pin `bf38b38` the compiler's usage text for `orbit build` is
+  a 280-byte string literal. `emit_string` wrote it as one `.byte` line of 1058
+  bytes and the assembler refuses lines over 1023 bytes, so
+  `compiler/host/main.orb` stopped building (`error[ASSEMBLER]: assembler line
+  305047 exceeds 1023 bytes`) and the census ratchet fell from 2 to 1 build.
+- Decision: `emit_string` ends the line after 64 bytes and opens a new `.byte`
+  line. The bytes and their order are unchanged. The assembler limit is not
+  raised: a line limit is what keeps its fixed buffers bounded.
+- Control: `ok-long-string` (a 300-byte literal printed whole). The driver
+  without the change fails it with the assembler error above.
+
+## D-F0-20 - Re-pin to bf38b38: 64-bit int, `o_` symbols, native default
+
+- Date: 2026-10-28. Moves the pin from `6a9ddaf` (D-F0-19) to orbit-lang
+  `main` `bf38b38866fa89728d0236c2f17ab7872230d6a4`, 27 commits in seven merges.
+- What moved:
+  - `int64`: `orbit_int` is `int64_t`, `div` and `mod` are checked and read the
+    module `sourceName` and the instruction `line`, and `shl`/`shr` mask the
+    count with 63. R6 lowers this since D-M1-94 to D-M1-97.
+  - `c-mangle`: the C backend emits every user symbol as `o_<name>`. R6 does
+    the same since D-M1-99. `c_names_user_defined` joins the suite.
+  - `security`: `Model.where` binds its parameters, secrets compare in
+    constant time (`orbit_ct_equal` replaces `orbit_streq`) and the HTTP
+    request line, headers and body are capped before allocation.
+  - `native-backend`: `orbit build --backend=native` and `ORBIT_BACKEND` run
+    R6, and native is the default on Windows.
+  - Suite: eight programs join (`c_names_user_defined`, `division_by_zero`,
+    `division_checked_values`, `division_int_min_overflow`,
+    `float_call_result_binding`, `int_wrap_64`, `remainder_by_zero`,
+    `remainder_int_min_overflow`) and two leave (`int_wrap_32`,
+    `namespace_user_names`): 120 suite and 23 std programs.
+- `scripts/mklib_runtime.py` did not move; `runtime/` changed in 20 files. The
+  runtime archive is rebuilt from the pin: `orbit_lib.o` defines 343 symbols
+  (337 before), 145160 bytes.
+- Harness: with native the default, the oracle build of `run_diff.py` and
+  `run_corpus.py` would run r6 and compare R6 with itself. Both set
+  `ORBIT_BACKEND=c` for the oracle. Without it a build against a stale r6 did
+  not finish in 300 s.
+- R6 changes the pin needed: D-M1-101. The usage text of `orbit build` is a
+  280-byte literal and the assembler refused its 1058-byte `.byte` line, which
+  dropped the census from 2 to 1 build.
+- Inputs at the pin (`docs/PIN.md`): fixed point
+  `C:\Temp\orbit-fp-099b002148.exe` (sha256 `7c511c23...`, 947200 bytes),
+  built from `C:\Temp\orbit-pin-bf38b38-git`; `PUBLISHED_C 70129F41.` (was
+  `C1176CF4.`). The corpus regenerates to 144 documents, 6992300 bytes,
+  `filesSha256 94025f2e.`; all 136 documents that remain change hash.
+- Ratchets: the corpus baseline is taken at the pin (`r6BuildOk 143`, `match
+  143`; the previous baseline names another corpus), and so are the census
+  baseline (27 modules, 2 build) and `axes-baseline.json` (143 programs, best
+  of 5).
+- Measured: differential **100/100** against the new oracle; loader
+  **341/341** (215 rejections, 126 acceptance controls); corpus **137 build /
+  137 match over 137 -> 143 build / 143 match over 143 programs**, none
+  differing; census **2 build over 27 modules**; self-host C `70129F41...` from
+  the IR of `compiler/host/main.orb`, equal to `PUBLISHED_C`.
+- Status: **applied**.

@@ -20,7 +20,7 @@ fn main() -> int {
     if firstLen(words) != 3 { return 10 }
     if pick(nums, 0) != 14 { return 11 }
     if pick(nums, 1) != -10 { return 12 }
-    if pick(nums, 2) != -2 { return 13 }
+    if pick(nums, 2) != 4294967294 { return 13 }
     print(strLen(words.get(1)))
     return 42
 }

@@ -74,6 +74,7 @@ def main() -> int:
             parser.error(f"expected matching fixture pair {name}.json and {name}.orb in {FIXTURES}")
 
     env = dict(os.environ)
+    env["ORBIT_BACKEND"] = "c"  # D-F0-20: the oracle builds through C; native is the default of the pin
     if args.cc:
         env.update({"ORBIT_CC": args.cc, "CC": args.cc, "R6_CC": args.cc})
     else:

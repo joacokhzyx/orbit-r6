@@ -1,0 +1,30 @@
+// INT64_MIN / -1 stops the program with `integer overflow in division`
+// and exit status 2 (D-M1-95); INT64_MAX / -1 and INT64_MAX % -1 do not
+// overflow and print before the stop.
+fn quo(a: int, b: int) -> int {
+    return a / b
+}
+
+fn rem(a: int, b: int) -> int {
+    return a % b
+}
+
+fn sub(a: int, b: int) -> int {
+    return a - b
+}
+
+fn neg(a: int) -> int {
+    return -a
+}
+
+fn main() -> int {
+    val max = 9223372036854775807
+    val min = sub(neg(max), 1)
+    print(quo(min, 2))
+    print(rem(min, 3))
+    print(quo(max, -1))
+    print(rem(max, -1))
+    print(rem(min, -1))
+    print("unreachable")
+    return 42
+}

@@ -13,7 +13,7 @@ The archive is the translation unit of scripts/mklib_runtime.py at the pin
 with one more define. The driver picks it when a module declares an orbit_db_*
 extern. Nothing here is committed; both files are build output.
 
-    python scripts/build-runtime-db.py --orbit-root C:\\Temp\\orbit-pin-6a9ddaf-git \\
+    python scripts/build-runtime-db.py --orbit-root C:\\Temp\\orbit-pin-bf38b38-git \\
         --cc C:\\w64devkit\\bin\\gcc.exe
 """
 

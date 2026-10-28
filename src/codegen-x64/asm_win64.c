@@ -347,6 +347,16 @@ static bool encode(Asm *a, char *line) {
         return emit(a, (uint8_t)(0x48 | (id1 >> 3))) && emit(a, 0xf7) &&
                emit(a, (uint8_t)(0xd8 | (id1 & 7)));
     }
+    if (strcmp(op, "notq") == 0 && a1) {
+        id1 = reg_id(a1, &w1, &x1);
+        if (id1 < 0 || x1 || w1 != 64) return bad(a, "notq requires a 64-bit GPR");
+        return emit(a, (uint8_t)(0x48 | (id1 >> 3))) && emit(a, 0xf7) &&
+               emit(a, (uint8_t)(0xd0 | (id1 & 7)));
+    }
+    /* One operand: %rdx:%rax = %rax * r/m64, the signed multiply-high of the
+       division by a constant (D-M1-96). */
+    if (strcmp(op, "imulq") == 0 && a1 && !strchr(a1, ',') && parse_rm(a, a1, 64, &m))
+        return rex_modrm_mem(a, 64, 5, m, 0xf7, 0, 0, -1);
     if (strcmp(op, "idivq") == 0 && a1 && parse_rm(a, a1, 64, &m))
         return rex_modrm_mem(a, 64, 7, m, 0xf7, 0, 0, -1);
     if (strcmp(op, "cltd") == 0) return emit(a, 0x99);
@@ -434,6 +444,14 @@ static bool encode(Asm *a, char *line) {
         uint8_t rex = (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3));
         return emit(a, rex) && emit(a, 0x0f) && emit(a, 0xaf) &&
                emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
+    }
+    if ((strcmp(op, "andq") == 0 || strcmp(op, "orq") == 0 || strcmp(op, "xorq") == 0) &&
+        id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
+        uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
+        uint8_t opcode = strcmp(op, "andq") == 0 ? 0x21 :
+                         strcmp(op, "orq") == 0 ? 0x09 : 0x31;
+        return emit(a, rex) && emit(a, opcode) &&
+               emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
     if (strcmp(op, "movabsq") == 0) {
         if (!parse_imm(a1, &imm) || id2 != 0 || x2 || w2 != 64) return bad(a, "unsupported movabsq operands");
@@ -538,6 +556,12 @@ static bool encode(Asm *a, char *line) {
         r.base = id2; r.reg = 1;
         return rex_modrm_mem(a, 32, strcmp(op, "shll") == 0 ? 4 : 7, r, 0xd3, 0, 0, -1);
     }
+    if ((strcmp(op, "shlq") == 0 || strcmp(op, "sarq") == 0) && a1 && strcmp(a1, "%cl") == 0 &&
+        id2 >= 0 && !x2 && w2 == 64) {
+        Mem r = {0};
+        r.base = id2; r.reg = 1;
+        return rex_modrm_mem(a, 64, strcmp(op, "shlq") == 0 ? 4 : 7, r, 0xd3, 0, 0, -1);
+    }
     if (strcmp(op, "cmpl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x3b, 0, 0, -1);
     if (strcmp(op, "addq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
@@ -582,7 +606,8 @@ static bool encode(Asm *a, char *line) {
         return rex_modrm_mem(a, 32, 0, r, 0x69, 0, 0, -1) && emit32(a, (uint32_t)v);
     }
     if ((strcmp(op, "sarl") == 0 || strcmp(op, "shrl") == 0 || strcmp(op, "shll") == 0 ||
-         strcmp(op, "sarq") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2 &&
+         strcmp(op, "sarq") == 0 || strcmp(op, "shrq") == 0 || strcmp(op, "shlq") == 0) &&
+        parse_imm(a1, &imm) && id2 >= 0 && !x2 &&
         w2 == (op[3] == 'q' ? 64 : 32) && imm >= 1 && imm < (op[3] == 'q' ? 64u : 32u)) {
         /* D-M1-81: C1 /7 sar, /5 shr, /4 shl, with an 8-bit count. */
         Mem r = {0};

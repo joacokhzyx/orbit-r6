@@ -8,8 +8,10 @@ expected diagnostic CODE. Acceptance cases must build; when the manifest
 declares run_exit (and optionally run_stdout) the binary is also executed and
 compared byte-for-byte.
 
-The driver runs with the repository root as CWD because R6 resolves its
-temporary files and the runtime archive relative to the current directory.
+The driver runs with the repository root as CWD because R6 resolves the
+default runtime archive path relative to the current directory. A case may
+carry "args" and "env"; {empty} and {runtime} expand to a directory without
+archives and to .r6-build/runtime-win64 (D-M1-98).
 
 Usage (from anywhere):
     python tests/reject/run_reject.py [--r6 .r6-build/r6.exe] [--case STEM]...
@@ -17,6 +19,7 @@ Usage (from anywhere):
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -48,10 +51,25 @@ def main() -> int:
     def selected(file: str) -> bool:
         return not args.case or any(k in Path(file).stem for k in args.case)
 
-    def build(path: Path, exe: Path):
-        return subprocess.run([str(r6), "build", str(path), "-o", str(exe)],
+    empty = outdir / "empty-runtime"
+    empty.mkdir(parents=True, exist_ok=True)
+    subst = {"{empty}": str(empty),
+             "{runtime}": str(REPO / ".r6-build" / "runtime-win64")}
+
+    def expand(text: str) -> str:
+        for key, value in subst.items():
+            text = text.replace(key, value)
+        return text
+
+    def build(path: Path, exe: Path, case):
+        env = dict(os.environ)
+        env.pop("R6_RUNTIME_DIR", None)
+        env.pop("R6_TMPDIR", None)
+        env.update({k: expand(v) for k, v in case.get("env", {}).items()})
+        return subprocess.run([str(r6), "build", str(path), "-o", str(exe)]
+                              + [expand(a) for a in case.get("args", [])],
                               capture_output=True, text=True, errors="replace",
-                              cwd=str(REPO))
+                              cwd=str(REPO), env=env)
 
     passed = failed = 0
     for case in manifest["reject"]:
@@ -59,7 +77,7 @@ def main() -> int:
             continue
         path = HERE / case["file"]
         exe = outdir / (path.stem + ".exe")
-        proc = build(path, exe)
+        proc = build(path, exe, case)
         lines = [ln for ln in proc.stderr.splitlines() if ln.strip()]
         diag = DIAG.match(lines[0]) if len(lines) == 1 else None
         ok = (proc.returncode == case["exit"] and diag is not None
@@ -82,13 +100,15 @@ def main() -> int:
             continue
         path = (HERE / case["file"]).resolve()
         exe = outdir / (path.stem + ".exe")
-        proc = build(path, exe)
+        proc = build(path, exe, case)
         ok = proc.returncode == 0
         detail = "build"
         if ok and "run_exit" in case:
             run = subprocess.run([str(exe)], capture_output=True)
             want_stdout = case.get("run_stdout", "").encode("utf-8")
             ok = run.returncode == case["run_exit"] and run.stdout == want_stdout
+            if ok and "run_stderr" in case:
+                ok = run.stderr.decode("utf-8", "replace").strip() == case["run_stderr"]
             detail = f"run exit={run.returncode} stdout={run.stdout!r}"
         if ok:
             passed += 1

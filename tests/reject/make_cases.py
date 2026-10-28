@@ -55,12 +55,15 @@ def Types(n):
     return ["int"] * n
 
 
-def I(op, dest=-1, o1=None, o2=None, o3=None, ek=0):
-    return {"opcode": op, "dest": dest,
-            "operand1": NONE if o1 is None else o1,
-            "operand2": NONE if o2 is None else o2,
-            "operand3": NONE if o3 is None else o3,
-            "elemKind": ek}
+def I(op, dest=-1, o1=None, o2=None, o3=None, ek=0, line=None):
+    ins = {"opcode": op, "dest": dest,
+           "operand1": NONE if o1 is None else o1,
+           "operand2": NONE if o2 is None else o2,
+           "operand3": NONE if o3 is None else o3,
+           "elemKind": ek}
+    if line is not None:
+        ins["line"] = line
+    return ins
 
 
 def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None, route=None):
@@ -109,11 +112,79 @@ def base_instrs():
     return [I("load_const", 0, Int(0)), I("ret", -1, Reg(0))]
 
 
+def trunc_div(a, b):
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+
+def build_const_div_stdout():
+    ns = [9223372036854775807, -9223372036854775808, -1, 1, 12345678901234567, -4294967297]
+    ds = [3, 7, -7, 10, 1000000007, 4294967297, -4294967296, 4611686018427387904,
+          9223372036854775807, -9223372036854775807, 2, -2, 641]
+    out = ""
+    for n in ns:
+        for d in ds:
+            q = trunc_div(n, d)
+            out += "%d\r\n%d\r\n" % (q, n - q * d)
+    return out
+
+
+CONST_DIV_STDOUT = build_const_div_stdout()
+
+
+def wrap64(v):
+    v &= (1 << 64) - 1
+    return v - (1 << 64) if v >> 63 else v
+
+
+def build_int64_wrap_stdout():
+    mx, mn = 9223372036854775807, -9223372036854775808
+    lines = [wrap64(mx + 1), wrap64(mn - 1), wrap64(mx * 2), wrap64(4294967296 * 4294967296),
+             wrap64(3037000500 * 3037000500), wrap64(-mn),
+             wrap64(1 << 62), wrap64(1 << 63), wrap64(1 << (64 & 63)), wrap64(1 << (65 & 63)),
+             wrap64(3 << 63), wrap64(1 << (-1 & 63)), mn >> 63, mx >> 62, -1 >> (64 & 63),
+             mn >> 1, mn & mx, wrap64(mn | mx), wrap64(mx ^ -1), wrap64(~mx), wrap64(~mn),
+             9007199254740993, 9007199254740994]
+    acc = 1
+    for _ in range(40):
+        acc = wrap64(acc * 3)
+    lines.append(acc)
+    return "".join("%d\r\n" % v for v in lines)
+
+
+INT64_WRAP_STDOUT = build_int64_wrap_stdout()
+
+
+LONG_STRING = "".join(chr(97 + (i * 7) % 26) for i in range(300))
+
+
 def build_reject():
     cases = []
 
-    def add(stem, data, rule, code, note):
-        cases.append({"stem": stem, "data": data, "rule": rule, "code": code, "note": note})
+    def add(stem, data, rule, code, note, args=None, env=None):
+        case = {"stem": stem, "data": data, "rule": rule, "code": code, "note": note}
+        if args:
+            case["args"] = args
+        if env:
+            case["env"] = env
+        cases.append(case)
+
+    # ---- D-M1-98: where the link finds the runtime archives -----------------
+    # {empty} is a directory without archives and {runtime} the repo's own
+    # archives; run_reject.py substitutes both.
+    link_doc = jd(DOC([MAIN([I("ret", -1, Int(0))], ["int"])]))
+    add("link-runtime-dir-empty", link_doc, "D-M1-98", "LINK",
+        "--runtime-dir at a directory without the archive fails the link",
+        args=["--runtime-dir", "{empty}"])
+    add("link-runtime-env-empty", link_doc, "D-M1-98", "LINK",
+        "R6_RUNTIME_DIR at a directory without the archive fails the link",
+        env={"R6_RUNTIME_DIR": "{empty}"})
+
+    # ---- D-M1-99: user symbols are emitted as o_<name> -----------------------
+    long_name = DOC([MAIN([I("ret", -1, Int(0))], ["int"]),
+                     FN("f" * 141, [I("ret", -1, Int(0))], ["int"])])
+    add("cgen-user-name-too-long", jd(long_name), "D-M1-99", "CGEN",
+        "a function name over 140 bytes does not fit the prefixed assembler label")
 
     # ---- V-01: JSON envelope -------------------------------------------------
     add("v01-no-trailing-lf", jd(DOC())[:-1], "V-01", "E_JSON",
@@ -165,6 +236,26 @@ def build_reject():
         jd(DOC([MAIN([I("list_create", 0, ek=6), I("ret", -1, Reg(0))])])),
         "V-04", "E_RANGE", "elemKind is an integer in 0..5")
 
+    # ---- V-20: line and sourceName (D-M1-97) ---------------------------------
+    def line_doc(op, line):
+        return jd(DOC([MAIN([I("load_const", 0, Int(7)), I("load_const", 1, Int(0)),
+                             I(op, 2, Reg(0), Reg(1), line=line),
+                             I("ret", -1, Int(1))], Types(3))]))
+    add("v20-line-on-add", line_doc("add", 3), "V-20", "E_SCHEMA",
+        "line is allowed on div and mod only")
+    add("v20-line-zero", line_doc("div", 0), "V-20", "E_RANGE",
+        "line is a positive integer")
+    add("v20-line-negative", line_doc("mod", -4), "V-20", "E_RANGE",
+        "line is a positive integer")
+    add("v20-line-string", line_doc("div", "3"), "V-20", "E_SCHEMA",
+        "line is a number, not a string")
+    add("v20-line-fraction", line_doc("div", 3.5), "V-20", "E_SCHEMA",
+        "line is an integer")
+    src_doc = DOC()
+    src_doc["module"]["sourceName"] = 7
+    add("v20-sourcename-number", jd(src_doc), "V-20", "E_SCHEMA",
+        "sourceName is a string")
+
     # ---- V-05: operand values ------------------------------------------------
     def with_operand2(op):
         ins = base_instrs()
@@ -194,9 +285,11 @@ def build_reject():
     add("v06-int-exponent", jd(DOC([MAIN(ins)])).replace(b"424242", b"1e3"),
         "V-06", "E_SCHEMA", "no exponent in integer values")
     ins = base_instrs()
-    ins[0]["operand1"] = Int(2147483648)
-    add("v06-int-overflow", jd(DOC([MAIN(ins)])), "V-06", "E_RANGE",
-        "signed 32-bit limit")
+    ins[0]["operand1"] = Int(424242)
+    add("v06-int-overflow", jd(DOC([MAIN(ins)])).replace(b"424242", b"9223372036854775808"),
+        "V-06", "E_RANGE", "signed 64-bit limit (D-M1-94)")
+    add("v06-int-underflow", jd(DOC([MAIN(ins)])).replace(b"424242", b"-9223372036854775809"),
+        "V-06", "E_RANGE", "signed 64-bit lower limit (D-M1-94)")
 
     # ---- V-07/V-09: destinations and register ids ----------------------------
     add("v07-dest-below-minus-one",
@@ -1055,13 +1148,13 @@ def build_reject():
         "D-M1-33", "CGEN",
         "a declared non-scalar global type is still refused, whatever the text")
     add("x-global-int-overflow",
-        jd(DOC([MAIN()], globals_=[G("BIG", "unknown", Str("2147483648"))])),
+        jd(DOC([MAIN()], globals_=[G("BIG", "unknown", Str("9223372036854775808"))])),
         "D-M1-33", "CGEN",
-        "a decimal text outside int32 is refused, never clamped")
+        "a decimal text outside int64 is refused, never clamped")
     add("x-global-int-underflow",
-        jd(DOC([MAIN()], globals_=[G("SMALL", "unknown", Str("-2147483649"))])),
+        jd(DOC([MAIN()], globals_=[G("SMALL", "unknown", Str("-9223372036854775809"))])),
         "D-M1-33", "CGEN",
-        "a negative decimal text outside int32 is refused on the same parse")
+        "a negative decimal text outside int64 is refused on the same parse")
 
     # ---- D-M1-23: a string `add` concatenates and spreads -------------------
     # The pinned backend turns `add` into orbit_string_concat whenever either
@@ -1774,6 +1867,15 @@ def build_accept_files():
                                 I("add", 3, Reg(1), Reg(2)),
                                 I("ret", -1, Reg(3))],
                                ["object", "int", "int", "int"])]))))
+    files.append(("ok-user-name-max", jd(DOC([
+        MAIN([I("call", 0, Str("g" * 140), Int(0)), I("ret", -1, Reg(0))], ["int"]),
+        FN("g" * 140, [I("load_const", 0, Int(5)), I("ret", -1, Reg(0))], ["int"])]))))
+    files.append(("ok-long-string", jd(DOC([
+        MAIN([I("load_const", 0, Str(LONG_STRING)),
+              I("arg", -1, Reg(0)),
+              I("call", -1, Str("print"), Int(1)),
+              I("ret", -1, Int(0))], ["string"])]))))
+    files.append(("ok-link-runtime-dir", jd(DOC([MAIN([I("ret", -1, Int(0))], ["int"])]))))
     files.append(("ok-db-link",
                   jd(DOC([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
                              params=["table"], ptypes=["string"]),
@@ -1800,7 +1902,7 @@ def build_accept_files():
                                 I("sub", 4, Reg(2), Reg(1)),
                                 I("mul", 5, Reg(4), Reg(1)),
                                 I("add", 6, Reg(5), Reg(1)),
-                                I("eq", 7, Reg(6), Int(-2147483648)),
+                                I("eq", 7, Reg(6), Int(2147483648)),
                                 I("jump_if_false", -1, Reg(7), Lab(1)),
                                 I("ret", -1, Int(7)),
                                 I("label", -1, Lab(1)),
@@ -1814,6 +1916,86 @@ def build_accept_files():
                                 I("call", 2, Str("print"), Int(1)),
                                 I("ret", -1, Int(0))],
                                ["int", "float", "void"])]))))
+    # D-M1-94: an int is 64 bits.
+    files.append(("ok-int64-literal-wrap",
+                  jd(DOC([MAIN([I("load_const", 0, Int(9223372036854775807)),
+                                I("add", 1, Reg(0), Int(1)),
+                                I("arg", -1, Reg(1)),
+                                I("call", 2, Str("print"), Int(1)),
+                                I("ret", -1, Int(3))],
+                               ["int", "int", "void"])]))))
+    files.append(("ok-int64-wide-arg",
+                  jd(DOC([FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["int"],
+                             params=["x"], ptypes=["int"]),
+                          MAIN([I("arg", -1, Int(4294967296)),
+                                I("call", 0, Str("id"), Int(1)),
+                                I("arg", -1, Reg(0)),
+                                I("call", 1, Str("print"), Int(1)),
+                                I("ret", -1, Int(4294967297))],
+                               ["int", "void"])]))))
+    files.append(("ok-int64-global",
+                  jd(DOC([MAIN([I("load_var", 0, Sym("BIGG")),
+                                I("arg", -1, Reg(0)),
+                                I("call", 1, Str("print"), Int(1)),
+                                I("ret", -1, Int(0))],
+                               ["int", "void"])],
+                          globals_=[G("BIGG", "unknown", Str("9223372036854775807"))]))))
+
+    def div_trap(op, n, d):
+        return jd(DOC([MAIN([I("load_const", 0, Int(n)),
+                             I("load_const", 1, Int(d)),
+                             I(op, 2, Reg(0), Reg(1)),
+                             I("arg", -1, Reg(2)),
+                             I("call", 3, Str("print"), Int(1)),
+                             I("ret", -1, Int(1))],
+                            ["int", "int", "int", "void"])]))
+
+    # D-M1-95: a zero divisor and INT64_MIN by -1 stop the program with status 2.
+    files.append(("ok-div-zero-trap", div_trap("div", 7, 0)))
+    files.append(("ok-mod-zero-trap", div_trap("mod", 7, 0)))
+    files.append(("ok-div-overflow-trap", div_trap("div", -9223372036854775808, -1)))
+    files.append(("ok-mod-overflow-trap", div_trap("mod", -9223372036854775808, -1)))
+    files.append(("ok-div-minus-one",
+                  jd(DOC([MAIN([I("load_const", 0, Int(9223372036854775807)),
+                                I("load_const", 1, Int(-1)),
+                                I("div", 2, Reg(0), Reg(1)),
+                                I("arg", -1, Reg(2)),
+                                I("call", 3, Str("print"), Int(1)),
+                                I("mod", 4, Reg(0), Reg(1)),
+                                I("arg", -1, Reg(4)),
+                                I("call", 5, Str("print"), Int(1)),
+                                I("ret", -1, Int(0))],
+                               ["int", "int", "int", "void", "int", "void"])]))))
+
+    # D-M1-97: the trap names the file and the line the IR carries.
+    for ln_name, ln_op in (("div", "div"), ("mod", "mod")):
+        ln_doc = DOC([MAIN([I("load_const", 0, Int(7)), I("load_const", 1, Int(0)),
+                            I(ln_op, 2, Reg(0), Reg(1), line=12),
+                            I("ret", -1, Int(1))], ["int", "int", "int"])])
+        ln_doc["module"]["sourceName"] = "trap.orb"
+        files.append(("ok-%s-trap-line" % ln_name, jd(ln_doc)))
+    ln_doc = DOC([MAIN([I("load_const", 0, Int(7)), I("load_const", 1, Int(0)),
+                        I("div", 2, Reg(0), Reg(1)),
+                        I("ret", -1, Int(1))], ["int", "int", "int"])])
+    ln_doc["module"]["sourceName"] = ""
+    files.append(("ok-div-trap-no-source", jd(ln_doc)))
+
+    # D-M1-96: constant divisors over 64-bit dividends.
+    cd_ns = [9223372036854775807, -9223372036854775808, -1, 1, 12345678901234567, -4294967297]
+    cd_ds = [3, 7, -7, 10, 1000000007, 4294967297, -4294967296, 4611686018427387904,
+             9223372036854775807, -9223372036854775807, 2, -2, 641]
+    cd_ins, cd_types = [], []
+    for cd_n in cd_ns:
+        for cd_d in cd_ds:
+            for cd_op in ("div", "mod"):
+                base = len(cd_types)
+                cd_ins += [I("load_const", base, Int(cd_n)),
+                           I(cd_op, base + 1, Reg(base), Int(cd_d)),
+                           I("arg", -1, Reg(base + 1)),
+                           I("call", base + 2, Str("print"), Int(1))]
+                cd_types += ["int", "int", "void"]
+    cd_ins.append(I("ret", -1, Int(0)))
+    files.append(("ok-div-const-64", jd(DOC([MAIN(cd_ins, cd_types)]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -2093,8 +2275,11 @@ def build_accept_files():
 def build_manifest(reject, accept_files):
     del accept_files  # local accept files are emitted from build_accept_files()
     return {
-        "reject": [{"file": f"cases/{c['stem']}.json", "exit": 1, "code": c["code"],
-                    "rule": c["rule"], "note": c["note"]} for c in reject],
+        "reject": [dict({"file": f"cases/{c['stem']}.json", "exit": 1, "code": c["code"],
+                         "rule": c["rule"], "note": c["note"]},
+                        **({"args": c["args"]} if "args" in c else {}),
+                        **({"env": c["env"]} if "env" in c else {}))
+                   for c in reject],
         "accept": [
             {"file": "../../docs/proposed-ir/m1/01-int-call.json", "run_exit": 42,
              "run_stdout": "M1-add\r\n\r\n", "rule": "corpus",
@@ -2150,8 +2335,8 @@ def build_manifest(reject, accept_files):
              "note": "an int goes into a void* parameter and a void* word into an int parameter"},
             {"file": "cases/ok-voidptr-call-dest-int.json", "run_exit": 9, "rule": "D-M1-84",
              "note": "a void* return lands in an int register as the sign-extended low 32 bits"},
-            {"file": "cases/ok-bitwise-literal-operands.json", "run_exit": 14, "rule": "D-M1-85",
-             "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"},
+            {"file": "cases/ok-bitwise-literal-operands.json", "run_exit": 12, "rule": "D-M1-85",
+             "note": "inline literal operands of the bitwise and shift opcodes, count & 63 and arithmetic shr; the exit code is the low 32 bits of 8589934604"},
             {"file": "cases/ok-object-set-get.json", "run_exit": 5, "rule": "D-M1-86",
              "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"},
             {"file": "cases/ok-db-link.json", "rule": "D-M1-87",
@@ -2160,10 +2345,71 @@ def build_manifest(reject, accept_files):
              "note": "a module with an orbit_db_* extern and two migrations links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"},
             {"file": "cases/ok-word-arith-print.json", "run_exit": 7,
              "run_stdout": "2147483648\r\n", "rule": "D-M1-91",
-             "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"},
+             "note": "add, sub and mul over void* words and an int destination are the same 64-bit word, and print writes the whole word"},
             {"file": "cases/ok-copy-int-into-float.json", "run_exit": 0,
              "run_stdout": "-7.0\r\n", "rule": "D-M1-93",
              "note": "an int register copied into a float register is converted, as the pin's C assignment does"},
+            {"file": "cases/ok-int64-literal-wrap.json", "run_exit": 3,
+             "run_stdout": "-9223372036854775808\r\n", "rule": "D-M1-94",
+             "note": "INT64_MAX plus one wraps to INT64_MIN and print writes the 64-bit value"},
+            {"file": "cases/ok-int64-wide-arg.json", "run_exit": 1,
+             "run_stdout": "4294967296\r\n", "rule": "D-M1-94",
+             "note": "a literal argument wider than 32 bits crosses a call; the exit code is the low 32 bits"},
+            {"file": "cases/ok-int64-global.json", "run_exit": 0,
+             "run_stdout": "9223372036854775807\r\n", "rule": "D-M1-94",
+             "note": "a decimal global up to INT64_MAX is an int constant"},
+            {"file": "cases/ok-div-zero-trap.json", "run_exit": 2, "run_stdout": "",
+             "rule": "D-M1-95", "note": "div by a zero register stops with status 2"},
+            {"file": "cases/ok-mod-zero-trap.json", "run_exit": 2, "run_stdout": "",
+             "rule": "D-M1-95", "note": "mod by a zero register stops with status 2"},
+            {"file": "cases/ok-div-overflow-trap.json", "run_exit": 2, "run_stdout": "",
+             "rule": "D-M1-95", "note": "INT64_MIN / -1 stops with status 2"},
+            {"file": "cases/ok-mod-overflow-trap.json", "run_exit": 2, "run_stdout": "",
+             "rule": "D-M1-95", "note": "INT64_MIN % -1 stops with status 2"},
+            {"file": "cases/ok-div-minus-one.json", "run_exit": 0,
+             "run_stdout": "-9223372036854775807\r\n0\r\n", "rule": "D-M1-95",
+             "note": "INT64_MAX / -1 and INT64_MAX % -1 do not overflow and do not stop"},
+            {"file": "cases/ok-div-trap-line.json", "run_exit": 2, "run_stdout": "",
+             "run_stderr": "orbit: division by zero at trap.orb:12", "rule": "D-M1-97",
+             "note": "the trap prints the sourceName and the line of the div"},
+            {"file": "cases/ok-mod-trap-line.json", "run_exit": 2, "run_stdout": "",
+             "run_stderr": "orbit: division by zero at trap.orb:12", "rule": "D-M1-97",
+             "note": "the trap prints the sourceName and the line of the mod"},
+            {"file": "cases/ok-div-trap-no-source.json", "run_exit": 2, "run_stdout": "",
+             "run_stderr": "orbit: division by zero", "rule": "D-M1-97",
+             "note": "an empty sourceName and no line print the bare message"},
+            {"file": "cases/ok-div-const-64.json", "run_exit": 0, "run_stdout": CONST_DIV_STDOUT,
+             "rule": "D-M1-96",
+             "note": "constant divisors, powers of two, magic numbers and their negatives over 64-bit dividends"},
+            {"file": "../../docs/proposed-ir/m1/97-div-zero.json", "run_exit": 2,
+             "run_stdout": "42\r\n", "rule": "D-M1-95",
+             "note": "a division by a zero parameter prints what came before and stops"},
+            {"file": "../../docs/proposed-ir/m1/98-div-overflow.json", "run_exit": 2,
+             "run_stdout": "-4611686018427387904\r\n-2\r\n-9223372036854775807\r\n0\r\n",
+             "rule": "D-M1-95", "note": "INT64_MIN % -1 stops after the non-overflowing divisions"},
+            {"file": "../../docs/proposed-ir/m1/99-div-by-constant-64.json", "run_exit": 42,
+             "run_stdout": "0\r\n-7835353680425529040\r\n-6476564002640978153\r\n6476564002640978155\r\n-25\r\n",
+             "rule": "D-M1-96", "note": "44 constant divisors against a parameter divisor over 64-bit edge values"},
+            {"file": "../../docs/proposed-ir/m1/100-int64-wrap.json", "run_exit": 42,
+             "run_stdout": INT64_WRAP_STDOUT, "rule": "D-M1-94",
+             "note": "wrap at 2^63, shifts with count & 63, bitwise on the whole word and 64-bit literals"},
+            {"file": "../../docs/proposed-ir/m1/101-user-symbol-prefix.json", "run_exit": 42,
+             "run_stdout": "[a]\r\n2\r\n8\r\n", "rule": "D-M1-99",
+             "note": "user functions named printf, remainder, system_uptime and current_lease build, run and bind as values"},
+            {"file": "cases/ok-long-string.json", "run_exit": 0, "rule": "D-M1-101",
+             "run_stdout": LONG_STRING + "\r\n",
+             "note": "a 300-byte string literal splits over several .byte lines and prints whole"},
+            {"file": "cases/ok-user-name-max.json", "run_exit": 5, "rule": "D-M1-99",
+             "note": "a 140-byte function name is accepted"},
+            {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
+             "args": ["--runtime-dir", "{runtime}"],
+             "note": "--runtime-dir at a directory holding the archive links"},
+            {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
+             "env": {"R6_RUNTIME_DIR": "{empty}"}, "args": ["--runtime-dir", "{runtime}"],
+             "note": "--runtime-dir wins over R6_RUNTIME_DIR"},
+            {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
+             "env": {"R6_RUNTIME_DIR": "{runtime}"},
+             "note": "R6_RUNTIME_DIR at a directory holding the archive links"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",
@@ -2320,8 +2566,8 @@ def build_manifest(reject, accept_files):
              "run_exit": 42, "run_stdout": "3\r\n", "rule": "D-M1-51",
              "note": "opaque reads compared with int literals and registers read as ints"},
             {"file": "../../docs/proposed-ir/m1/60-int-neg-wrap.json",
-             "run_exit": 42, "run_stdout": "-2147483648\r\n", "rule": "D-M1-52",
-             "note": "an int negates at 32 bits, so -INT32_MIN wraps to itself"},
+             "run_exit": 42, "run_stdout": "-9223372036854775808\r\n", "rule": "D-M1-94",
+             "note": "-INT64_MIN wraps to itself and INT64_MAX plus one wraps to INT64_MIN"},
             {"file": "../../docs/proposed-ir/m1/61-union-pack-arm.json",
              "run_exit": 42, "run_stdout": "pack\r\n", "rule": "D-M1-53",
              "note": "multi-payload arms read int, bool and string parts from the pack"},

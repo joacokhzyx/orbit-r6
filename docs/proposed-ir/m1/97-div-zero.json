@@ -1,0 +1,354 @@
+{
+  "irVersion": "1",
+  "module": {
+    "functions": [
+      {
+        "name": "quo",
+        "params": [
+          "a",
+          "b"
+        ],
+        "paramTypes": [
+          "int",
+          "int"
+        ],
+        "instructions": [
+          {
+            "opcode": "arg",
+            "dest": 0,
+            "operand1": {
+              "kind": "Int",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": 1,
+            "operand1": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 2,
+            "operand1": {
+              "kind": "Sym",
+              "value": "a"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "load_var",
+            "dest": 3,
+            "operand1": {
+              "kind": "Sym",
+              "value": "b"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "div",
+            "dest": 4,
+            "operand1": {
+              "kind": "Register",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "Register",
+              "value": 3
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 4
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
+        ],
+        "registerCount": 5,
+        "registerTypes": [
+          "int",
+          "int",
+          "int",
+          "int",
+          "int"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
+      },
+      {
+        "name": "main",
+        "params": [],
+        "paramTypes": [],
+        "instructions": [
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 84
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 0,
+            "operand1": {
+              "kind": "String",
+              "value": "quo"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 1,
+            "operand1": {
+              "kind": "String",
+              "value": "print"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 7
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 0
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 2,
+            "operand1": {
+              "kind": "String",
+              "value": "quo"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 2
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "Register",
+              "value": 2
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 3,
+            "operand1": {
+              "kind": "String",
+              "value": "print"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "arg",
+            "dest": -1,
+            "operand1": {
+              "kind": "String",
+              "value": "unreachable"
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "call",
+            "dest": 4,
+            "operand1": {
+              "kind": "String",
+              "value": "print"
+            },
+            "operand2": {
+              "kind": "Int",
+              "value": 1
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          },
+          {
+            "opcode": "ret",
+            "dest": -1,
+            "operand1": {
+              "kind": "Int",
+              "value": 42
+            },
+            "operand2": {
+              "kind": "None"
+            },
+            "operand3": {
+              "kind": "None"
+            },
+            "elemKind": 0
+          }
+        ],
+        "registerCount": 5,
+        "registerTypes": [
+          "int",
+          "void",
+          "int",
+          "void",
+          "void"
+        ],
+        "returnType": "int",
+        "isExtern": false,
+        "routeMethod": "",
+        "routePath": "",
+        "routeHasLimit": false,
+        "routeLimitRate": 0,
+        "routeLimitWindowMs": 0,
+        "routeLimitBurst": 0
+      }
+    ],
+    "globals": [],
+    "models": [],
+    "types": [],
+    "migrations": []
+  }
+}
