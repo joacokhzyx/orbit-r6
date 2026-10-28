@@ -4120,3 +4120,27 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 133 / 133**, census 2 build over 28 modules, self-host C
   `80A61B67...`.
 - Status: **applied**.
+
+## D-M1-89 - An untyped list element bound to a local
+
+- Date: 2026-10-27. Pin: `e34833a` (D-F0-18).
+- Root cause: in `test_random`, `val b = bs.get(i)` reads an element of a list
+  the builder cannot type (`list_get` elemKind 0, destination `void*`) and binds
+  it with `decl_var`; the loads of `b` are `int`. The recovery of D-M1-51 and
+  D-M1-60 knew a comparison or an argument as the only use, not a bound local,
+  so the first refusal was `load_var requires a supported local`.
+- Decision: when the only use of the `void*` element is a `decl_var`, the
+  element takes the type of the loads of that local (`bound_local_type`, the
+  rule D-M1-47 uses for unwraps), if that type is `int` or `string`. The C
+  declares the local as a word and reads it as `(orbit_int)(uintptr_t)`, so an
+  element that fits 32 bits reads the same. An element wider than 32 bits is out
+  of evidence. Loads that disagree leave the element `void*` and the local is
+  refused.
+- Fixture `92-opaque-local` (oracle and R6 print `64 1` and exit 42): 64 random
+  bytes read with `val b = bs.get(i)`, a range check and a threshold count.
+  Control: `x-opaque-local-disagreeing-loads` stays `CGEN`.
+- Corpus: `test_random` builds and matches.
+- Gates: differential **91/91**, loader **302/302**, corpus **133 build / 133
+  match over 135 -> 134 / 134**, census 2 build over 28 modules, self-host C
+  `80A61B67...`.
+- Status: **applied**.

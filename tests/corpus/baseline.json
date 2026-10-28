@@ -5,25 +5,24 @@
     "members": 136,
     "programs": 135,
     "oracleOk": 135,
-    "r6BuildOk": 133,
-    "match": 133,
+    "r6BuildOk": 134,
+    "match": 134,
     "unknownRegisterTypes": 3
   },
   "byCode": {
-    "CGEN": 2
+    "CGEN": 1
   },
   "byFailingOpcode": {
-    "list_get": 1,
-    "load_var": 1
+    "list_get": 1
   },
   "byOpcode": {
     "add": {
       "cases": 100,
-      "match": 98
+      "match": 99
     },
     "arg": {
       "cases": 103,
-      "match": 102
+      "match": 103
     },
     "bit_and": {
       "cases": 3,
@@ -43,15 +42,15 @@
     },
     "call": {
       "cases": 119,
-      "match": 117
+      "match": 118
     },
     "copy": {
       "cases": 24,
-      "match": 23
+      "match": 24
     },
     "decl_var": {
       "cases": 115,
-      "match": 113
+      "match": 114
     },
     "div": {
       "cases": 16,
@@ -59,7 +58,7 @@
     },
     "eq": {
       "cases": 68,
-      "match": 67
+      "match": 68
     },
     "ge": {
       "cases": 22,
@@ -67,19 +66,19 @@
     },
     "gt": {
       "cases": 41,
-      "match": 40
+      "match": 41
     },
     "jump": {
       "cases": 88,
-      "match": 87
+      "match": 88
     },
     "jump_if_false": {
       "cases": 122,
-      "match": 120
+      "match": 121
     },
     "label": {
       "cases": 122,
-      "match": 120
+      "match": 121
     },
     "le": {
       "cases": 17,
@@ -91,11 +90,11 @@
     },
     "list_get": {
       "cases": 45,
-      "match": 43
+      "match": 44
     },
     "list_len": {
       "cases": 52,
-      "match": 51
+      "match": 52
     },
     "list_pop": {
       "cases": 3,
@@ -111,7 +110,7 @@
     },
     "load_const": {
       "cases": 108,
-      "match": 106
+      "match": 107
     },
     "load_field": {
       "cases": 40,
@@ -119,11 +118,11 @@
     },
     "load_var": {
       "cases": 123,
-      "match": 121
+      "match": 122
     },
     "lt": {
       "cases": 64,
-      "match": 63
+      "match": 64
     },
     "mod": {
       "cases": 13,
@@ -135,11 +134,11 @@
     },
     "ne": {
       "cases": 108,
-      "match": 106
+      "match": 107
     },
     "neg": {
       "cases": 51,
-      "match": 49
+      "match": 50
     },
     "not_op": {
       "cases": 2,
@@ -151,7 +150,7 @@
     },
     "result_is_ok": {
       "cases": 21,
-      "match": 20
+      "match": 21
     },
     "result_ok": {
       "cases": 20,
@@ -159,7 +158,7 @@
     },
     "result_unwrap": {
       "cases": 21,
-      "match": 20
+      "match": 21
     },
     "result_unwrap_err": {
       "cases": 5,
@@ -167,7 +166,7 @@
     },
     "ret": {
       "cases": 136,
-      "match": 133
+      "match": 134
     },
     "shl": {
       "cases": 3,
@@ -183,7 +182,7 @@
     },
     "store_var": {
       "cases": 58,
-      "match": 57
+      "match": 58
     },
     "sub": {
       "cases": 38,

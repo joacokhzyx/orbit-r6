@@ -1805,3 +1805,14 @@ rechazado) imprime lo mismo que el oraculo y sale 42. `test_imports` coincide;
 `test_random` pasa a un `load_var` de un local ligado a `list_get`. Diferencial
 **90/90**; loader **301/301**; corpus **132 build / 132 match over 135 -> 133 /
 133**; self-host C `80a61b67...`; census 2 de 28.
+
+## Actualizacion de M1 - An untyped list element bound to a local (2026-10-27)
+
+D-M1-89. `val b = bs.get(i)` sobre una lista que el builder no sabe tipar liga
+la palabra a un local con `decl_var`; la palabra toma el tipo (`int` o `string`)
+de las cargas de ese local, como el C que la declara `uintptr_t` y la lee como
+`orbit_int`. Cargas que no coinciden dejan la palabra `void*` y el local se
+rechaza. El par `92-opaque-local` sale 42 con salida igual a la del oraculo.
+`test_random` coincide. Diferencial **91/91**; loader **302/302**; corpus **133
+build / 133 match over 135 -> 134 / 134**; self-host C `80a61b67...`; census 2
+de 28.

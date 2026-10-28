@@ -813,6 +813,19 @@ def build_reject():
         "D-M1-88", "CGEN",
         "an unwrap writes int, float, string or list; a bool destination is refused")
 
+    # ---- D-M1-89: an untyped element bound to a local ------------------------
+    add("x-opaque-local-disagreeing-loads",
+        jd(DOC([MAIN([I("list_create", 0, Int(8), Int(1), ek=0),
+                      I("load_const", 1, Int(0)),
+                      I("list_get", 2, Reg(0), Reg(1), ek=0),
+                      I("decl_var", -1, Sym("b"), Reg(2)),
+                      I("load_var", 3, Sym("b")),
+                      I("load_var", 4, Sym("b")),
+                      I("ret", -1, Int(0))],
+                     ["list", "int", "void*", "int", "string"])])),
+        "D-M1-89", "CGEN",
+        "loads of the bound local that disagree leave the word untyped and refused")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]

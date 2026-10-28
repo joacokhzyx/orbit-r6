@@ -103,6 +103,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `89-object-literals` | literal de objeto (`orbit_object_create` y un setter por clave), lecturas por getter segun el tipo del destino, claves ausentes, objeto como parametro y retorno, objeto anidado, lista dentro de un objeto y un modelo con campos del mismo nombre | 42 | `orbit\r\n42\r\n0.5\r\n1\r\n42\r\n1\r\n0\r\n7\r\n2\r\nb\r\n0\r\n\r\n0\r\n0\r\nfrom-model\r\n7\r\norbit\r\n` |
 | `90-db-link` | modelo con cuatro tipos de campo y un modelo vacio; `all`, `where` y `create` enlazan la variante DB del runtime y el punto de entrada abre la base; se ejecuta sin `.orbit/data`, asi que la apertura falla igual en los dos lados | 42 | `2\r\n2\r\n0\r\n2\r\n` |
 | `91-result-list` | `orbit_random_bytes` devuelve un result cuyo valor es una lista; se desenvuelve a un local `list` (16 bytes y vacia), se recorre y un conteo negativo se rechaza | 42 | `16\r\n16\r\n0\r\n1\r\n` |
+| `92-opaque-local` | elemento de una lista sin tipo (`orbit_random_bytes`) ligado con `val b = bs.get(i)` y leido como int; rango y umbral sobre 64 bytes | 42 | `64\r\n1\r\n` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los

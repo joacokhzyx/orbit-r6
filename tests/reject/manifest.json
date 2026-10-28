@@ -841,6 +841,13 @@
       "note": "an unwrap writes int, float, string or list; a bool destination is refused"
     },
     {
+      "file": "cases/x-opaque-local-disagreeing-loads.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-89",
+      "note": "loads of the bound local that disagree leave the word untyped and refused"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",

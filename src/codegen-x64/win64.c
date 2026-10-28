@@ -1052,6 +1052,8 @@ static const R6Type *find_union_variant(const R6Module *m, const char *variant,
  * `arg` that a direct call to a declared function consumes, with no label or
  * jump in between. Only string (the pointer bits) and int (the low 32 bits)
  * are measured; every other use leaves the read untyped. */
+static const char *bound_local_type(const R6Function *f, size_t at);
+
 static const char *opaque_read_type(const R6Module *m, const R6Function *f, size_t at) {
     int32_t reg = f->instructions[at].dest;
     size_t pc, use = f->instruction_count, above = 0;
@@ -1066,6 +1068,13 @@ static const char *opaque_read_type(const R6Module *m, const R6Function *f, size
             }
     }
     if (use == f->instruction_count || use <= at) return NULL;
+    /* D-M1-89: `val b = bs.get(i)` binds the word to a local. The C declares
+     * the local `uintptr_t` and reads it back as the type of the loads; the
+     * word takes that type when it is an int or a string. */
+    if (f->instructions[use].opcode == R6_OP_DECL_VAR) {
+        const char *bound = bound_local_type(f, at);
+        return is_int(bound) || is_string(bound) ? bound : NULL;
+    }
     /* D-M1-51: a comparison with an int. The pin compares the word as
      * uintptr_t (eq/ne) or intptr_t (lt/le/gt/ge), and an int element is
      * stored sign-extended, so the low 32 bits sign-extended compare the same
