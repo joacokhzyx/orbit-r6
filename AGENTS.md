@@ -156,10 +156,11 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 
 ## Running the driver
 
-- `r6 [build] <input.ir> -o <output.exe>`. Run it from the repo root: temp
-  `.r6-build\r6-<pid>.s/.o` files and the runtime archive path are resolved
-  relative to the CWD. A successful build deletes the temps; a failed one
-  keeps them.
+- `r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>]`. The runtime
+  directory is the flag, else `R6_RUNTIME_DIR`, else `.r6-build\runtime-win64`
+  relative to the CWD (D-M1-98), so run it from the repo root unless one is set.
+  Temps `r6-<pid>.s/.o` go to `R6_TMPDIR`, else the system temp dir. A
+  successful build deletes them; a failed one keeps them.
 - `--timings` or `R6_TIMINGS=1` prints one stderr line per stage: load,
   codegen, peephole, regalloc, asm, coff, ld.
 - Needs `.r6-build\runtime-win64\libruntime_net.a`, which is **gitignored and
@@ -201,7 +202,7 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   to slots on that text (D-M1-68); `asm_win64.{c,h}` — encodes only the
   selector's instruction subset; `coff.{c,h}` — AMD64 COFF writer (sections,
   symbols, REL32/ADDR32NB relocations, unwind data).
-- `src/driver/r6.c` — CLI, temporaries under `.r6-build`, direct `ld` link.
+- `src/driver/r6.c` — CLI, temporaries in `R6_TMPDIR` or the system temp dir, direct `ld` link.
 - `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — probes
   that produced `docs/COFF_OBJECTS.md`.
 - `tests/reject/` — loader contract suite: `run_reject.py` (second gate),

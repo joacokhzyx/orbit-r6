@@ -158,8 +158,24 @@ INT64_WRAP_STDOUT = build_int64_wrap_stdout()
 def build_reject():
     cases = []
 
-    def add(stem, data, rule, code, note):
-        cases.append({"stem": stem, "data": data, "rule": rule, "code": code, "note": note})
+    def add(stem, data, rule, code, note, args=None, env=None):
+        case = {"stem": stem, "data": data, "rule": rule, "code": code, "note": note}
+        if args:
+            case["args"] = args
+        if env:
+            case["env"] = env
+        cases.append(case)
+
+    # ---- D-M1-98: where the link finds the runtime archives -----------------
+    # {empty} is a directory without archives and {runtime} the repo's own
+    # archives; run_reject.py substitutes both.
+    link_doc = jd(DOC([MAIN([I("ret", -1, Int(0))], ["int"])]))
+    add("link-runtime-dir-empty", link_doc, "D-M1-98", "LINK",
+        "--runtime-dir at a directory without the archive fails the link",
+        args=["--runtime-dir", "{empty}"])
+    add("link-runtime-env-empty", link_doc, "D-M1-98", "LINK",
+        "R6_RUNTIME_DIR at a directory without the archive fails the link",
+        env={"R6_RUNTIME_DIR": "{empty}"})
 
     # ---- V-01: JSON envelope -------------------------------------------------
     add("v01-no-trailing-lf", jd(DOC())[:-1], "V-01", "E_JSON",
@@ -1842,6 +1858,7 @@ def build_accept_files():
                                 I("add", 3, Reg(1), Reg(2)),
                                 I("ret", -1, Reg(3))],
                                ["object", "int", "int", "int"])]))))
+    files.append(("ok-link-runtime-dir", jd(DOC([MAIN([I("ret", -1, Int(0))], ["int"])]))))
     files.append(("ok-db-link",
                   jd(DOC([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
                              params=["table"], ptypes=["string"]),
@@ -2241,8 +2258,11 @@ def build_accept_files():
 def build_manifest(reject, accept_files):
     del accept_files  # local accept files are emitted from build_accept_files()
     return {
-        "reject": [{"file": f"cases/{c['stem']}.json", "exit": 1, "code": c["code"],
-                    "rule": c["rule"], "note": c["note"]} for c in reject],
+        "reject": [dict({"file": f"cases/{c['stem']}.json", "exit": 1, "code": c["code"],
+                         "rule": c["rule"], "note": c["note"]},
+                        **({"args": c["args"]} if "args" in c else {}),
+                        **({"env": c["env"]} if "env" in c else {}))
+                   for c in reject],
         "accept": [
             {"file": "../../docs/proposed-ir/m1/01-int-call.json", "run_exit": 42,
              "run_stdout": "M1-add\r\n\r\n", "rule": "corpus",
@@ -2356,6 +2376,15 @@ def build_manifest(reject, accept_files):
             {"file": "../../docs/proposed-ir/m1/100-int64-wrap.json", "run_exit": 42,
              "run_stdout": INT64_WRAP_STDOUT, "rule": "D-M1-94",
              "note": "wrap at 2^63, shifts with count & 63, bitwise on the whole word and 64-bit literals"},
+            {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
+             "args": ["--runtime-dir", "{runtime}"],
+             "note": "--runtime-dir at a directory holding the archive links"},
+            {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
+             "env": {"R6_RUNTIME_DIR": "{empty}"}, "args": ["--runtime-dir", "{runtime}"],
+             "note": "--runtime-dir wins over R6_RUNTIME_DIR"},
+            {"file": "cases/ok-link-runtime-dir.json", "run_exit": 0, "rule": "D-M1-98",
+             "env": {"R6_RUNTIME_DIR": "{runtime}"},
+             "note": "R6_RUNTIME_DIR at a directory holding the archive links"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",

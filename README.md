@@ -102,12 +102,18 @@ The script uses `$env:R6_CC`, else `$env:CC`, else `gcc` on `PATH`, with
 
 ## Use
 
-Run from the repository root. The runtime archive path and the temporary files
-under `.r6-build` resolve against the current directory.
-
 ```powershell
-.\.r6-build\r6.exe build program.ir -o program.exe
+.\.r6-build\r6.exe build program.ir -o program.exe [--runtime-dir <dir>] [--timings]
 ```
+
+`--runtime-dir <dir>` names the directory holding `libruntime_net.a`,
+`libruntime_net_db.a` and `sqlite3.lib`. Lookup order (D-M1-98): the flag, then
+`R6_RUNTIME_DIR`, then `.r6-build/runtime-win64` relative to the current
+directory. A missing archive is `error[LINK]` with the full path tried.
+
+The `.s` and `.o` temporaries go to `R6_TMPDIR`, else the system temporary
+directory. They are named `r6-<pid>.s` and `r6-<pid>.o` and are deleted after a
+successful link.
 
 A diagnostic is one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit
 2 is CLI misuse. Exit 1 is every other failure.
@@ -178,7 +184,7 @@ and the corpus hash.
 |---|---|
 | `src/loader/` | Strict JSON IRv1 parser and validator; admits opcodes |
 | `src/codegen-x64/` | `win64.c` (IR to private asm text), `peephole.c` (reload removal on the asm text), `regalloc.c` (registers for hot slots), `asm_win64.c` (encoder), `coff.c` (COFF writer) |
-| `src/driver/r6.c` | CLI, temporaries under `.r6-build`, direct `ld` link |
+| `src/driver/r6.c` | CLI, temporaries in `R6_TMPDIR` or the system temp, direct `ld` link |
 | `tests/diff/` | Differential harness |
 | `tests/reject/` | Loader contract suite: `manifest.json` is the truth, `cases/` is rendered from it |
 | `tests/corpus/` | Language-emitted corpus manifest, ratchet and runner |

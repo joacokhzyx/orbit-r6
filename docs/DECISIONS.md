@@ -4444,3 +4444,28 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 - Measured: `run_diff.py` 99/99, `run_reject.py` 332/332, `make_cases.py
   --check` clean, self-host `DD649139...`. The corpus emitted by the branch has
   143 programs: 140 match, 3 fail in the oracle for the collision above.
+
+
+## D-M1-98 - Runtime directory and temporary directory of the driver
+
+- Date: 2026-10-28.
+- Reason: the language installs R6 as `bin\r6.exe` with the runtime archives in
+  `lib\` and runs it from the user's project. The driver resolved the archives
+  and its `.s`/`.o` temporaries under `.r6-build` in the current directory,
+  which wrote into the user's project and found no archives there.
+- Decision:
+  - Runtime directory, in order: `--runtime-dir <dir>`, `R6_RUNTIME_DIR`,
+    `.r6-build/runtime-win64` relative to the current directory. The directory
+    holds `libruntime_net.a`, `libruntime_net_db.a` and `sqlite3.lib`.
+  - A missing archive is `error[LINK]: runtime archive not found: <full path>`,
+    checked before `ld` runs. `sqlite3.lib` is checked only for a module with an
+    `orbit_db_*` extern.
+  - Temporaries: `R6_TMPDIR` (created if absent), else `GetTempPathA`. Names
+    stay `r6-<pid>.s` and `r6-<pid>.o`; a good link deletes them, a failed one
+    keeps them.
+- Not changed: the repo's scripts and harnesses pass no flag or variable, so
+  they still use `.r6-build/runtime-win64`. None reads the temporaries.
+- Controls: `link-runtime-dir-empty`, `link-runtime-env-empty` (rejected, LINK);
+  three builds of `ok-link-runtime-dir` through the flag, the variable and the
+  flag over a wrong variable. `run_reject.py` cases carry optional `args` and
+  `env`.

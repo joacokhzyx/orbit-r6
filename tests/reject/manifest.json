@@ -1,6 +1,27 @@
 {
   "reject": [
     {
+      "file": "cases/link-runtime-dir-empty.json",
+      "exit": 1,
+      "code": "LINK",
+      "rule": "D-M1-98",
+      "note": "--runtime-dir at a directory without the archive fails the link",
+      "args": [
+        "--runtime-dir",
+        "{empty}"
+      ]
+    },
+    {
+      "file": "cases/link-runtime-env-empty.json",
+      "exit": 1,
+      "code": "LINK",
+      "rule": "D-M1-98",
+      "note": "R6_RUNTIME_DIR at a directory without the archive fails the link",
+      "env": {
+        "R6_RUNTIME_DIR": "{empty}"
+      }
+    },
+    {
       "file": "cases/v01-no-trailing-lf.json",
       "exit": 1,
       "code": "E_JSON",
@@ -1790,6 +1811,38 @@
       "run_stdout": "-9223372036854775808\r\n9223372036854775807\r\n-2\r\n0\r\n-9223372036709301616\r\n-9223372036854775808\r\n4611686018427387904\r\n-9223372036854775808\r\n1\r\n2\r\n-9223372036854775808\r\n-9223372036854775808\r\n-1\r\n1\r\n-1\r\n-4611686018427387904\r\n0\r\n-1\r\n-9223372036854775808\r\n-9223372036854775808\r\n9223372036854775807\r\n9007199254740993\r\n9007199254740994\r\n-6289078614652622815\r\n",
       "rule": "D-M1-94",
       "note": "wrap at 2^63, shifts with count & 63, bitwise on the whole word and 64-bit literals"
+    },
+    {
+      "file": "cases/ok-link-runtime-dir.json",
+      "run_exit": 0,
+      "rule": "D-M1-98",
+      "args": [
+        "--runtime-dir",
+        "{runtime}"
+      ],
+      "note": "--runtime-dir at a directory holding the archive links"
+    },
+    {
+      "file": "cases/ok-link-runtime-dir.json",
+      "run_exit": 0,
+      "rule": "D-M1-98",
+      "env": {
+        "R6_RUNTIME_DIR": "{empty}"
+      },
+      "args": [
+        "--runtime-dir",
+        "{runtime}"
+      ],
+      "note": "--runtime-dir wins over R6_RUNTIME_DIR"
+    },
+    {
+      "file": "cases/ok-link-runtime-dir.json",
+      "run_exit": 0,
+      "rule": "D-M1-98",
+      "env": {
+        "R6_RUNTIME_DIR": "{runtime}"
+      },
+      "note": "R6_RUNTIME_DIR at a directory holding the archive links"
     },
     {
       "file": "cases/ok-infer-union-tag.json",
