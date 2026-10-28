@@ -2318,11 +2318,10 @@ typedef struct {
 static DivTrap *div_traps;
 static size_t div_trap_count, div_trap_cap;
 
-/* IR v1 carries no source line for an operation, so the trap reports 0. This
- * is the one place that changes when the contract adds a `line` field. */
+/* The IR `line` of a div or mod; 0 when the emitter left it out, which the
+ * runtime prints as `at <file>` with no line. */
 static int64_t div_trap_line(const R6Instruction *i) {
-    (void)i;
-    return 0;
+    return i->source_line;
 }
 
 static bool defer_div_trap(size_t pc, unsigned long long file_id, int64_t line) {
@@ -3372,7 +3371,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                 fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
             } else {
                 unsigned long long file_id = string_id++;
-                emit_string(o, "<orbit-ir>", file_id);
+                emit_string(o, m->source_name, file_id);
                 if (!defer_div_trap(pc, file_id, div_trap_line(i)))
                     return fail(d, i, "CGEN", "out of memory");
                 fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\ttestq %%rcx, %%rcx\n"

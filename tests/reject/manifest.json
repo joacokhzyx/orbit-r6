@@ -99,6 +99,48 @@
       "note": "elemKind is an integer in 0..5"
     },
     {
+      "file": "cases/v20-line-on-add.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-20",
+      "note": "line is allowed on div and mod only"
+    },
+    {
+      "file": "cases/v20-line-zero.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-20",
+      "note": "line is a positive integer"
+    },
+    {
+      "file": "cases/v20-line-negative.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-20",
+      "note": "line is a positive integer"
+    },
+    {
+      "file": "cases/v20-line-string.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-20",
+      "note": "line is a number, not a string"
+    },
+    {
+      "file": "cases/v20-line-fraction.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-20",
+      "note": "line is an integer"
+    },
+    {
+      "file": "cases/v20-sourcename-number.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-20",
+      "note": "sourceName is a string"
+    },
+    {
       "file": "cases/v05-missing-kind.json",
       "exit": 1,
       "code": "E_SCHEMA",
@@ -1689,6 +1731,30 @@
       "run_stdout": "-9223372036854775807\r\n0\r\n",
       "rule": "D-M1-95",
       "note": "INT64_MAX / -1 and INT64_MAX % -1 do not overflow and do not stop"
+    },
+    {
+      "file": "cases/ok-div-trap-line.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "run_stderr": "orbit: division by zero at trap.orb:12",
+      "rule": "D-M1-97",
+      "note": "the trap prints the sourceName and the line of the div"
+    },
+    {
+      "file": "cases/ok-mod-trap-line.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "run_stderr": "orbit: division by zero at trap.orb:12",
+      "rule": "D-M1-97",
+      "note": "the trap prints the sourceName and the line of the mod"
+    },
+    {
+      "file": "cases/ok-div-trap-no-source.json",
+      "run_exit": 2,
+      "run_stdout": "",
+      "run_stderr": "orbit: division by zero",
+      "rule": "D-M1-97",
+      "note": "an empty sourceName and no line print the bare message"
     },
     {
       "file": "cases/ok-div-const-64.json",

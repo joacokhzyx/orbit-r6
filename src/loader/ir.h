@@ -41,6 +41,7 @@ typedef struct {
     R6Value operands[3];
     int32_t elem_kind;
     size_t line, column;
+    int64_t source_line; /* Orbit line of a div or mod; 0 when absent */
 } R6Instruction;
 
 typedef struct { char *name; char *type_name; } R6Field;
@@ -70,6 +71,7 @@ typedef struct {
     size_t model_count; R6Model *models;
     size_t type_count; R6Type *types;
     size_t migration_count; char **migrations;
+    char *source_name; /* base name of the root file; "" when absent */
 } R6Module;
 
 typedef struct { size_t line, column; char code[16]; char message[256]; } R6Diagnostic;

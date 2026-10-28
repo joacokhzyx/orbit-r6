@@ -248,7 +248,9 @@ int main(int argc, char **argv) {
     stage_add(T_COFF, t0);
     link_argv[link_argc++] = ld_path;
     link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
-    link_argv[link_argc++] = "-Bdynamic"; link_argv[link_argc++] = "-o";
+    link_argv[link_argc++] = "-Bdynamic";
+    link_argv[link_argc++] = "--stack"; link_argv[link_argc++] = "16777216";
+    link_argv[link_argc++] = "-o";
     link_argv[link_argc++] = (char *)output;
     link_argv[link_argc++] = crt2; link_argv[link_argc++] = crtbegin;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;

@@ -89,6 +89,8 @@ def main() -> int:
             run = subprocess.run([str(exe)], capture_output=True)
             want_stdout = case.get("run_stdout", "").encode("utf-8")
             ok = run.returncode == case["run_exit"] and run.stdout == want_stdout
+            if ok and "run_stderr" in case:
+                ok = run.stderr.decode("utf-8", "replace").strip() == case["run_stderr"]
             detail = f"run exit={run.returncode} stdout={run.stdout!r}"
         if ok:
             passed += 1

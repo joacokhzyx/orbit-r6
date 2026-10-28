@@ -55,12 +55,15 @@ def Types(n):
     return ["int"] * n
 
 
-def I(op, dest=-1, o1=None, o2=None, o3=None, ek=0):
-    return {"opcode": op, "dest": dest,
-            "operand1": NONE if o1 is None else o1,
-            "operand2": NONE if o2 is None else o2,
-            "operand3": NONE if o3 is None else o3,
-            "elemKind": ek}
+def I(op, dest=-1, o1=None, o2=None, o3=None, ek=0, line=None):
+    ins = {"opcode": op, "dest": dest,
+           "operand1": NONE if o1 is None else o1,
+           "operand2": NONE if o2 is None else o2,
+           "operand3": NONE if o3 is None else o3,
+           "elemKind": ek}
+    if line is not None:
+        ins["line"] = line
+    return ins
 
 
 def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None, route=None):
@@ -207,6 +210,26 @@ def build_reject():
     add("v04-elemkind-out-of-range",
         jd(DOC([MAIN([I("list_create", 0, ek=6), I("ret", -1, Reg(0))])])),
         "V-04", "E_RANGE", "elemKind is an integer in 0..5")
+
+    # ---- V-20: line and sourceName (D-M1-97) ---------------------------------
+    def line_doc(op, line):
+        return jd(DOC([MAIN([I("load_const", 0, Int(7)), I("load_const", 1, Int(0)),
+                             I(op, 2, Reg(0), Reg(1), line=line),
+                             I("ret", -1, Int(1))], Types(3))]))
+    add("v20-line-on-add", line_doc("add", 3), "V-20", "E_SCHEMA",
+        "line is allowed on div and mod only")
+    add("v20-line-zero", line_doc("div", 0), "V-20", "E_RANGE",
+        "line is a positive integer")
+    add("v20-line-negative", line_doc("mod", -4), "V-20", "E_RANGE",
+        "line is a positive integer")
+    add("v20-line-string", line_doc("div", "3"), "V-20", "E_SCHEMA",
+        "line is a number, not a string")
+    add("v20-line-fraction", line_doc("div", 3.5), "V-20", "E_SCHEMA",
+        "line is an integer")
+    src_doc = DOC()
+    src_doc["module"]["sourceName"] = 7
+    add("v20-sourcename-number", jd(src_doc), "V-20", "E_SCHEMA",
+        "sourceName is a string")
 
     # ---- V-05: operand values ------------------------------------------------
     def with_operand2(op):
@@ -1910,6 +1933,19 @@ def build_accept_files():
                                 I("ret", -1, Int(0))],
                                ["int", "int", "int", "void", "int", "void"])]))))
 
+    # D-M1-97: the trap names the file and the line the IR carries.
+    for ln_name, ln_op in (("div", "div"), ("mod", "mod")):
+        ln_doc = DOC([MAIN([I("load_const", 0, Int(7)), I("load_const", 1, Int(0)),
+                            I(ln_op, 2, Reg(0), Reg(1), line=12),
+                            I("ret", -1, Int(1))], ["int", "int", "int"])])
+        ln_doc["module"]["sourceName"] = "trap.orb"
+        files.append(("ok-%s-trap-line" % ln_name, jd(ln_doc)))
+    ln_doc = DOC([MAIN([I("load_const", 0, Int(7)), I("load_const", 1, Int(0)),
+                        I("div", 2, Reg(0), Reg(1)),
+                        I("ret", -1, Int(1))], ["int", "int", "int"])])
+    ln_doc["module"]["sourceName"] = ""
+    files.append(("ok-div-trap-no-source", jd(ln_doc)))
+
     # D-M1-96: constant divisors over 64-bit dividends.
     cd_ns = [9223372036854775807, -9223372036854775808, -1, 1, 12345678901234567, -4294967297]
     cd_ds = [3, 7, -7, 10, 1000000007, 4294967297, -4294967296, 4611686018427387904,
@@ -2296,6 +2332,15 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-div-minus-one.json", "run_exit": 0,
              "run_stdout": "-9223372036854775807\r\n0\r\n", "rule": "D-M1-95",
              "note": "INT64_MAX / -1 and INT64_MAX % -1 do not overflow and do not stop"},
+            {"file": "cases/ok-div-trap-line.json", "run_exit": 2, "run_stdout": "",
+             "run_stderr": "orbit: division by zero at trap.orb:12", "rule": "D-M1-97",
+             "note": "the trap prints the sourceName and the line of the div"},
+            {"file": "cases/ok-mod-trap-line.json", "run_exit": 2, "run_stdout": "",
+             "run_stderr": "orbit: division by zero at trap.orb:12", "rule": "D-M1-97",
+             "note": "the trap prints the sourceName and the line of the mod"},
+            {"file": "cases/ok-div-trap-no-source.json", "run_exit": 2, "run_stdout": "",
+             "run_stderr": "orbit: division by zero", "rule": "D-M1-97",
+             "note": "an empty sourceName and no line print the bare message"},
             {"file": "cases/ok-div-const-64.json", "run_exit": 0, "run_stdout": CONST_DIV_STDOUT,
              "rule": "D-M1-96",
              "note": "constant divisors, powers of two, magic numbers and their negatives over 64-bit dividends"},

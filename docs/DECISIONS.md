@@ -4301,9 +4301,11 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 
 ## D-M1-94 - An int is 64 bits
 
-- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **pending verification**:
-  the language branch `int64` of orbit-lang is not pinned yet, so no
-  differential, corpus or self-host number exists for this decision.
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (orbit-lang `d536223`, not pinned yet). Measured with
+  that tree's fixed point: `run_diff.py` 99/99, `run_reject.py` 332/332, corpus
+  140 match + 3 whose oracle fails to build (D-M1-97), self-host C
+  `DD649139...` equal to `PUBLISHED_C`.
 - Reason: the language makes `orbit_int` an `int64_t` with two's complement
   arithmetic and defined wrap (Phase 1b). Arithmetic, comparison, negation and
   the six bitwise opcodes are 64-bit; a shift count is taken `& 63` and `shr`
@@ -4345,9 +4347,9 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 
 ## D-M1-95 - Division by zero and INT64_MIN / -1 stop the program
 
-- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **pending verification**:
-  the language branch `int64` is not pinned yet, and its IR contract for the
-  source line of a division is not decided.
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (`d536223`); the file and line arrive in the IR
+  (D-M1-97). Counts as in D-M1-94.
 - Reason: the language makes an integer `/` or `%` by zero, and `INT64_MIN` by
   `-1`, a runtime stop: `orbit: division by zero at <file>:<line>` or `orbit:
   integer overflow in division at <file>:<line>` on stderr, exit status 2.
@@ -4369,21 +4371,19 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
     The runtime function `void orbit_div_error(const char *file, int64_t line,
     int64_t kind)` does not return. It belongs to the language branch; a module
     that divides and links an archive without it fails with `error[LINK]`.
-  - The line is `div_trap_line(i)`, one function in `win64.c`. IR v1 carries no
-    source line, so it returns 0 and the message reads `<orbit-ir>:0`. The
-    function changes when the contract adds an optional `line` field on
-    `div` and `mod`, or when the division becomes a call to a runtime helper.
+  - The line is `div_trap_line(i)`, one function in `win64.c`. D-M1-97 feeds it
+    from the IR.
   - A constant divisor of 0 or -1 keeps this path, so the trap fires at run
     time; the multiply path of D-M1-96 never sees them.
 - Fixtures: `97-div-zero` and `98-div-overflow` (exit 2, empty stdout, message
   on stderr, which the differential does not compare).
-- Open: whether the line travels in the IR, which symbol the runtime exports,
-  and whether `mod` by zero has a message of its own.
+- Closed by D-M1-97: the line travels in the IR, the runtime exports
+  `orbit_div_error`, and `mod` shares the messages of `div`.
 
 ## D-M1-96 - Division and remainder by a constant at 64 bits
 
-- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **pending verification**:
-  the language branch `int64` is not pinned yet.
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (`d536223`). Counts as in D-M1-94.
 - Reason: D-M1-81 replaced `idivl` by a 32-bit multiply and shifts. With a
   64-bit int the divisor, the magic number and the product are 64-bit.
 - Decision:
@@ -4409,3 +4409,38 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   pairs, 0 disagreements.
 - Fixture: `99-div-by-constant-64` (constant divisors against a divisor that
   arrives as a parameter, over 64-bit edge values).
+
+## D-M1-97 - Source name and line in the IR, and the stack reserve
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **applied** against the
+  language branch `int64` (`d536223`, `docs/IR_SPEC.md` section 1.5 and V-20).
+- Reason: the language puts the base name of the root file in the module as
+  `sourceName` and the Orbit line in each `div` and `mod` as `line`, so the
+  trap of D-M1-95 can name its origin. Its runtime links every Windows
+  executable with a 16 MiB stack, because 64-bit frames overflowed the 2 MiB
+  default.
+- Decision:
+  - The module accepts an optional string `sourceName`; an absent one is `""`.
+    An instruction accepts an optional `line`, a positive integer, on `div` and
+    `mod` only. Any other opcode, zero, a negative number, a fraction or a
+    string is `E_SCHEMA` or `E_RANGE`. Optional, not required, because the 99
+    fixtures and the 275 loader cases predate the field; the runtime prints the
+    bare message when both are absent.
+  - The trap block of D-M1-95 loads `sourceName` and `line` instead of
+    `<orbit-ir>` and 0.
+  - The driver passes `--stack 16777216` to `ld`.
+- Language-side finding, not worked around: the suite programs
+  `division_checked_values`, `remainder_by_zero` and
+  `remainder_int_min_overflow` define a user function `remainder`, which
+  collides with the libm declaration in `math.h`, so their C build fails
+  (`previous declaration of 'remainder'`). R6 builds them and prints
+  `orbit: division by zero at remainder_by_zero.orb:11` and
+  `orbit: integer overflow in division at remainder_int_min_overflow.orb:10`,
+  exit 2. The fix is a user-symbol prefix in the C backend (Phase 4).
+- Controls: `v20-line-on-add`, `v20-line-zero`, `v20-line-negative`,
+  `v20-line-string`, `v20-line-fraction`, `v20-sourcename-number` (rejected);
+  `ok-div-trap-line`, `ok-mod-trap-line`, `ok-div-trap-no-source` (stderr
+  compared through the new `run_stderr` key of `run_reject.py`).
+- Measured: `run_diff.py` 99/99, `run_reject.py` 332/332, `make_cases.py
+  --check` clean, self-host `DD649139...`. The corpus emitted by the branch has
+  143 programs: 140 match, 3 fail in the oracle for the collision above.
