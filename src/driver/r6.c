@@ -197,6 +197,14 @@ int main(int argc, char **argv) {
                         "[--runtime-dir <dir>] [--timings]\n");
         return 2;
     }
+    if (strcmp(argv[argi], "--object") == 0) {
+        object_mode = true;
+        ++argi;
+        if (argi >= argc) {
+            fprintf(stderr, "r6: error[CLI]: missing input file\n");
+            return 2;
+        }
+    }
     input = argv[argi++];
     while (argi < argc) {
         if (strcmp(argv[argi], "-o") == 0 && argi + 1 < argc && !output) {
