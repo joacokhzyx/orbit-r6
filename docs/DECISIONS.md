@@ -4201,7 +4201,6 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   prints `2147483648`: a 64-bit sum, a 64-bit difference and product, an `int`
   destination that wraps to `-2147483648`); `x-word-arith-bool-operand` and
   `x-word-div-word-destination` stay `CGEN`.
-- Not verified when written: no gate was run. The `94-word-chain` IR is not
-  emitter output, and `tests/reject/cases/` needs `make_cases.py` to be
-  re-run.
-- Status: **pending verification**.
+- Gates: differential **93/93**, loader **306/306** (`make_cases.py --check`
+  clean). The `94-word-chain` IR is hand-written, not emitter output.
+- Status: **applied**.
