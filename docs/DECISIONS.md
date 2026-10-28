@@ -4511,7 +4511,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   it a module.
 - Decision: `r6 --version` (also `-V`) prints exactly one line,
   `r6 <semver> ir-protocol <N>`, to stdout and exits 0. Currently
-  `r6 0.1.0 ir-protocol 2`. `--help` lists it.
+  `r6 0.1.0 ir-protocol 3` (D-M1-107). `--help` lists it.
 - The protocol number N covers what the language and r6 agree on:
   - the command line: `build <ir> -o <exe>`, `--runtime-dir`, the exit codes
     and the one-line diagnostic;
@@ -4529,6 +4529,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   2 is the 64-bit `int` with the division stop (D-M1-94, D-M1-95), the source
   name and line (D-M1-97), the runtime directory (D-M1-98) and `o_` symbols
   (D-M1-99).
+  3 adds `build --object`, the module field `runtimeModule`, the function
+  field `export` and the four byte opcodes (D-M1-105, D-M1-106, D-M1-107).
 - The language refuses an r6 whose protocol it does not know.
 
 ## D-M1-101 - String literals over 64 bytes span several `.byte` lines
@@ -4820,4 +4822,22 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   into 104 - 61 - 87 = -44), exit 0.
 - Not done: a literal operand, a bounds check, a `bytes_alloc` that clears the
   bytes, and any other string operation. A new opcode is a new decision.
+- Status: **applied**.
+
+## D-M1-107 - `ir-protocol 3`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: D-M1-100 bumps the protocol when the IR gains a field or an opcode the
+  language starts to emit, or when the command line gains a flag. D-M1-105 and
+  D-M1-106 add one flag (`--object`), two fields (`runtimeModule`, `export`) and
+  four opcodes. A language that emits them must be able to refuse an r6 built
+  before them, which reads the field as an unknown key (`E_SCHEMA`) and the
+  opcodes as `E_OPCODE`.
+- Decision: `r6 --version` prints `r6 0.1.0 ir-protocol 3`. The semver stays.
+- What the bump does not touch: the pinned compiler `01e31e8` requires
+  `ir-protocol 2`. `tests/diff/run_diff.py`, `tests/corpus/run_corpus.py`,
+  `tests/compiler-ir/run_census.py` and `scripts/selfhost.ps1` call `r6.exe build`
+  directly and never read the version, so they are unaffected. A build through
+  `orbit build --backend=native` with the pinned fixed point refuses this r6
+  until the language moves to protocol 3.
 - Status: **applied**.

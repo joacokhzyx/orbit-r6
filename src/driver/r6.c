@@ -145,7 +145,7 @@ out:
  * language checks before it hands r6 a module; docs/DECISIONS.md says what
  * bumps it. */
 #define R6_VERSION "0.1.0"
-#define R6_IR_PROTOCOL 2
+#define R6_IR_PROTOCOL 3
 
 int main(int argc, char **argv) {
     const char *input, *output = NULL, *root, *version;

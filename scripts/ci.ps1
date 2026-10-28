@@ -49,6 +49,10 @@ if ($Selfhost -and -not ($Compiler -and $OrbitRoot)) {
 Invoke-Stage 'driver build' { & (Join-Path $PSScriptRoot 'build-r6.ps1') }
 Invoke-Stage 'reject cases drift' { python tests/reject/make_cases.py --check }
 Invoke-Stage 'loader suite' { python tests/reject/run_reject.py }
+Invoke-Stage 'runtime module' {
+    python tests/runtime-module/make_probe.py --check
+    if ($LASTEXITCODE -eq 0) { python tests/runtime-module/run_runtime_module.py }
+}
 
 if ($Diff) {
     Invoke-Stage 'differential' {
