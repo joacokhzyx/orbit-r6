@@ -79,11 +79,65 @@ def total():
               ptypes=["string"], export=True)
 
 
+def lower_core():
+    # r0 arena, r1 s, r2 n, r3 out, r4 i, r5 loop test, r6 byte, r7 'A', r8 byte >= 'A',
+    # r9 'Z', r10 byte <= 'Z', r11 32, r12 converted byte, r13 1, r14 i + 1
+    types = ["RtArena", "string", "int", "string", "int", "bool", "int", "int", "bool",
+             "int", "bool", "int", "int", "int", "int"]
+    ins = [
+        I("arg", 0, Int(0)),
+        I("arg", 1, Int(1)),
+        I("str_len", 2, Reg(1)),
+        I("bytes_alloc", 3, Reg(2), Reg(0)),
+        I("load_const", 4, Int(0)),
+        I("load_const", 7, Int(65)),
+        I("load_const", 9, Int(90)),
+        I("load_const", 11, Int(32)),
+        I("load_const", 13, Int(1)),
+        I("label", -1, Lab(1)),
+        I("lt", 5, Reg(4), Reg(2)),
+        I("jump_if_false", -1, Reg(5), Lab(2)),
+        I("byte_load", 6, Reg(1), Reg(4)),
+        I("copy", 12, Reg(6)),
+        I("ge", 8, Reg(6), Reg(7)),
+        I("jump_if_false", -1, Reg(8), Lab(3)),
+        I("le", 10, Reg(6), Reg(9)),
+        I("jump_if_false", -1, Reg(10), Lab(3)),
+        I("add", 12, Reg(6), Reg(11)),
+        I("label", -1, Lab(3)),
+        I("byte_store", -1, Reg(3), Reg(4), Reg(12)),
+        I("add", 14, Reg(4), Reg(13)),
+        I("copy", 4, Reg(14)),
+        I("jump", -1, Lab(1)),
+        I("label", -1, Lab(2)),
+        I("ret", -1, Reg(3)),
+    ]
+    return FN("rtmod_lower_core", ins, types, rtype="string", params=["a", "s"],
+              ptypes=["RtArena", "string"])
+
+
+def lower():
+    # Forwards the caller's arena to a file-local helper.
+    types = ["RtArena", "string", "string"]
+    ins = [
+        I("arg", 0, Int(0)),
+        I("arg", 1, Int(1)),
+        I("arg", -1, Reg(0)),
+        I("arg", -1, Reg(1)),
+        I("call", 2, Str("rtmod_lower_core"), Int(2)),
+        I("ret", -1, Reg(2)),
+    ]
+    return FN("rtmod_probe_lower", ins, types, rtype="string", params=["a", "s"],
+              ptypes=["RtArena", "string"], export=True)
+
+
 def program():
     ext_upper = FN("rtmod_probe_upper", [], [], rtype="string", extern=True,
                    params=["s"], ptypes=["string"])
     ext_sum = FN("rtmod_probe_sum", [], [], rtype="int", extern=True,
                  params=["s"], ptypes=["string"])
+    ext_lower = FN("rtmod_probe_lower", [], [], rtype="string", extern=True,
+                   params=["s"], ptypes=["string"])
     main = MAIN([
         I("arg", -1, Str("hello, Orbit 42!")),
         I("call", 0, Str("rtmod_probe_upper"), Int(1)),
@@ -97,13 +151,17 @@ def program():
         I("call", 4, Str("rtmod_probe_sum"), Int(1)),
         I("arg", -1, Reg(4)),
         I("call", 5, Str("print"), Int(1)),
+        I("arg", -1, Str("Hello, ORBIT 42!")),
+        I("call", 6, Str("rtmod_probe_lower"), Int(1)),
+        I("arg", -1, Reg(6)),
+        I("call", 7, Str("print"), Int(1)),
         I("ret", -1, Int(0)),
-    ], ["string", "void", "string", "void", "int", "void"])
-    return DOC([ext_upper, ext_sum, main])
+    ], ["string", "void", "string", "void", "int", "void", "string", "void"])
+    return DOC([ext_upper, ext_sum, ext_lower, main])
 
 
 def render():
-    return {HERE / "probe-rt.json": jd(RTDOC([upper(), total()])),
+    return {HERE / "probe-rt.json": jd(RTDOC([upper(), total(), lower(), lower_core()])),
             HERE / "probe-main.json": jd(program())}
 
 

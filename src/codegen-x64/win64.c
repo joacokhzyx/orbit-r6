@@ -44,6 +44,9 @@ static bool is_result(const char *t) { return t && strcmp(t, "result") == 0; }
 static size_t hidden_slots(const R6Function *f, bool is_main);
 static bool is_void(const char *t) { return t && strcmp(t, "void") == 0; }
 static bool is_void_ptr(const char *t) { return t && strcmp(t, "void*") == 0; }
+/* D-M1-108: the opaque OrbitArena* of a runtime module; the loader admits the
+   spelling in runtime modules only. */
+static bool is_rtarena(const char *t) { return t && strcmp(t, "RtArena") == 0; }
 static bool is_scalar(const char *t) {
     return is_int(t) || is_float(t) || is_string(t) || is_bool(t);
 }
@@ -334,7 +337,10 @@ static bool extern_needs_arena(const char *name) {
         "orbit_db_query_first", "orbit_db_query_order", "orbit_db_query_order_desc",
         "orbit_db_count_all", "orbit_db_count_v", "orbit_http_client_fetch",
         "orbit_cache_get", "orbit_file_upload_save", "orbit_base64url_encode_str",
-        "orbit_sha256_hex", "orbit_hmac_sha256_base64url"
+        "orbit_sha256_hex", "orbit_hmac_sha256_base64url",
+        /* D-M1-108: the arena-first export of tests/runtime-module, the only way
+           an ordinary program obtains an RtArena. */
+        "rtmod_probe_lower"
     };
     size_t n;
     for (n = 0; n < sizeof names / sizeof names[0]; ++n)
@@ -1614,6 +1620,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     for (pc = 0; pc < f->param_count; ++pc)
         if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc]) ||
               is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc]) ||
+              is_rtarena(f->param_types[pc]) ||
               (is_result(f->param_types[pc]) && strcmp(f->name, "main") != 0)))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     /* D-M1-44: a model return is the `Name*` the pin returns (mapTypeToC),
@@ -1965,6 +1972,10 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!m->runtime_module || !valid_dest(f, i, true, d) ||
                 !is_string(type_at(f, i->dest)) || !is_int_reg(f, &i->operands[0]))
                 return fail(d, i, "CGEN", "bytes_alloc requires an int length register and a string destination");
+            if (i->operands[1].kind != R6_VAL_NONE &&
+                !(i->operands[1].kind == R6_VAL_REG &&
+                  is_rtarena(type_at(f, i->operands[1].as.i32))))
+                return fail(d, i, "CGEN", "bytes_alloc operand2 must be an RtArena register");
             break;
         case R6_OP_JUMP_IF_FALSE:
             if (i->operands[0].kind != R6_VAL_REG ||
@@ -2004,6 +2015,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
                 if (!value_type(f, &i->operands[0], &t) ||
                     !(is_scalar(t) || is_list(t) || is_model_type(m, t) || is_void_ptr(t) ||
+                      is_rtarena(t) ||
                       (is_result(t) && i->operands[0].kind == R6_VAL_REG)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
@@ -3617,6 +3629,19 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                program the C backend built. The terminating byte is written
                before the destination store, so a destination that shares
                the length slot cannot corrupt the address. */
+            /* D-M1-108: an RtArena operand is the arena of the caller; NULL
+               falls back to the global arena. */
+            if (i->operands[1].kind == R6_VAL_REG)
+                fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\ttestq %%rcx, %%rcx\n"
+                           "\tjne .Lr6_f%zu_bytes_arena_%zu\n\tcall orbit_arena_get_global\n"
+                           "\tmovq %%rax, %%rcx\n.Lr6_f%zu_bytes_arena_%zu:\n"
+                           "\tmovq -%u(%%rbp), %%rdx\n\tleaq 1(%%rdx), %%rdx\n"
+                           "\tcall orbit_alloc\n\tmovq -%u(%%rbp), %%rcx\n"
+                           "\taddq %%rax, %%rcx\n\tmovb $0, (%%rcx)\n"
+                           "\tmovq %%rax, -%u(%%rbp)\n",
+                        operand_slot(f, is_main, i, 1), fn_index, pc, fn_index, pc,
+                        operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 0), off);
+            else
             fprintf(o, "\tcall orbit_arena_get_global\n\tmovq %%rax, %%rcx\n"
                        "\tmovq -%u(%%rbp), %%rdx\n\tleaq 1(%%rdx), %%rdx\n"
                        "\tcall orbit_alloc\n\tmovq -%u(%%rbp), %%rcx\n"
@@ -4753,7 +4778,8 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
                     return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
                 continue;
             }
-            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_model_type(module, rt))
+            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_rtarena(rt) &&
+                !is_model_type(module, rt))
                 return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
         }
         if (!validate_function(module, f, diag)) return false;

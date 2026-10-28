@@ -1796,6 +1796,37 @@ def build_reject():
               ["int", "int"]),
         "D-M1-106", "CGEN", "bytes_alloc produces a string register", args=["--object"])
 
+    # ---- D-M1-108: RtArena, the arena operand of bytes_alloc ------------------
+    add("rt-rtarena-param-ordinary-module",
+        jd(DOC([FN("take", [I("arg", 0, Int(0)), I("ret", -1, Int(0))], ["RtArena"],
+                   params=["a"], ptypes=["RtArena"]), MAIN()])),
+        "D-M1-108", "E_SCHEMA", "RtArena as a parameter type outside a runtime module")
+    add("rt-rtarena-register-ordinary-module",
+        jd(DOC([MAIN([I("load_const", 1, Int(0)), I("ret", -1, Reg(1))],
+                     ["RtArena", "int"])])),
+        "D-M1-108", "E_SCHEMA", "RtArena as a register type outside a runtime module")
+    add("rt-rtarena-extern-ordinary-module",
+        jd(DOC([FN("rtmod_ext", [], [], rtype="int", extern=True, params=["a"],
+                   ptypes=["RtArena"]), MAIN()])),
+        "D-M1-108", "E_SCHEMA", "RtArena on an extern declaration of an ordinary module")
+    add("rt-bytes-alloc-arena-int",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(4)),
+               I("bytes_alloc", 2, Reg(1), Reg(0)), I("ret", -1, Reg(2))],
+              ["int", "int", "string"], params=["a"], ptypes=["int"]),
+        "D-M1-108", "CGEN", "bytes_alloc operand2 is an int register, not an RtArena",
+        args=["--object"])
+    add("rt-bytes-alloc-arena-string",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(4)),
+               I("bytes_alloc", 2, Reg(1), Reg(0)), I("ret", -1, Reg(2))],
+              ["string", "int", "string"], params=["a"], ptypes=["string"]),
+        "D-M1-108", "CGEN", "bytes_alloc operand2 is a string register, not an RtArena",
+        args=["--object"])
+    add("rt-bytes-alloc-arena-literal",
+        rt_fn([I("load_const", 0, Int(4)), I("bytes_alloc", 1, Reg(0), Int(0)),
+               I("ret", -1, Reg(1))], ["int", "string"]),
+        "D-M1-108", "CGEN", "bytes_alloc operand2 is a literal, not an RtArena register",
+        args=["--object"])
+
     return cases
 
 
@@ -2393,6 +2424,14 @@ def build_accept_files():
               I("call", 3, Sym("rtmod_twice"), Int(1)), I("ret", -1, Reg(3))],
              Types(4), params=["a", "b"], ptypes=["int", "int"], export=True)
     files.append(("ok-runtime-module-object", jd(RTDOC([twice, via, RT_ADD()]))))
+    files.append(("ok-runtime-module-arena",
+                  jd(RTDOC([FN("rtmod_bytes_in",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("str_len", 2, Reg(1)), I("bytes_alloc", 3, Reg(2), Reg(0)),
+                                I("ret", -1, Reg(3))],
+                               ["RtArena", "string", "int", "string"], rtype="string",
+                               params=["a", "s"], ptypes=["RtArena", "string"],
+                               export=True)]))))
     files.append(("ok-runtime-module-bytes",
                   jd(RTDOC([FN("rtmod_bytes_copy_first",
                                [I("arg", 0, Int(0)), I("str_len", 1, Reg(0)),
@@ -2775,6 +2814,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-object.json", "rule": "D-M1-105",
              "args": ["--object"],
              "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"},
+            {"file": "cases/ok-runtime-module-arena.json", "rule": "D-M1-108",
+             "args": ["--object"],
+             "note": "an RtArena parameter is the arena operand of bytes_alloc (the end-to-end run is tests/runtime-module)"},
             {"file": "cases/ok-runtime-module-bytes.json", "rule": "D-M1-106",
              "args": ["--object"],
              "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"},

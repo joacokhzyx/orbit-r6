@@ -1703,6 +1703,57 @@
       "args": [
         "--object"
       ]
+    },
+    {
+      "file": "cases/rt-rtarena-param-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-108",
+      "note": "RtArena as a parameter type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtarena-register-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-108",
+      "note": "RtArena as a register type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtarena-extern-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-108",
+      "note": "RtArena on an extern declaration of an ordinary module"
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-108",
+      "note": "bytes_alloc operand2 is an int register, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-108",
+      "note": "bytes_alloc operand2 is a string register, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-literal.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-108",
+      "note": "bytes_alloc operand2 is a literal, not an RtArena register",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -2577,6 +2628,14 @@
         "--object"
       ],
       "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"
+    },
+    {
+      "file": "cases/ok-runtime-module-arena.json",
+      "rule": "D-M1-108",
+      "args": [
+        "--object"
+      ],
+      "note": "an RtArena parameter is the arena operand of bytes_alloc (the end-to-end run is tests/runtime-module)"
     },
     {
       "file": "cases/ok-runtime-module-bytes.json",

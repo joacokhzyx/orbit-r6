@@ -21,8 +21,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 
-EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\n"
-EXPORTS = ["rtmod_probe_sum", "rtmod_probe_upper"]
+EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\n"
+EXPORTS = ["rtmod_probe_lower", "rtmod_probe_sum", "rtmod_probe_upper"]
 
 
 def run(cmd, **kw):
@@ -64,6 +64,10 @@ def main():
             symbols[parts[2]] = parts[1]
     check("exports are global text symbols",
           all(symbols.get(n) == "T" for n in EXPORTS), str(sorted(symbols.items())))
+    undefined = {parts[1] for parts in (ln.split() for ln in p.stdout.splitlines())
+                 if len(parts) == 2 and parts[0] == "U"}
+    check("allocates through orbit_alloc and the global-arena fallback",
+          {"orbit_alloc", "orbit_arena_get_global"} <= undefined, str(sorted(undefined)))
     check("no entry symbol",
           not any(n in symbols for n in ("main", "orbit_main", "orbit_start")))
 

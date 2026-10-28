@@ -4841,3 +4841,41 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `orbit build --backend=native` with the pinned fixed point refuses this r6
   until the language moves to protocol 3.
 - Status: **applied**.
+
+## D-M1-108 - `RtArena`: the arena a runtime function allocates from
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: several runtime string functions take `OrbitArena* arena` as their
+  first C parameter, and a program passes the arena of the request. A runtime
+  module that allocated from the global arena (D-M1-106) would keep every
+  per-request string until the process ends.
+- Decision, the type: `RtArena` is an opaque 64-bit pointer, passed like any
+  reference in the integer argument register or slot. It is admitted as a
+  parameter type and a register type of a runtime module only. In any function
+  of an ordinary module (including an extern declaration) it is
+  `E_SCHEMA: type RtArena is admitted only in a runtime module`. A runtime
+  module can pass an `RtArena` register as a call argument. It has no
+  literal, no comparison and no conversion.
+- Decision, `bytes_alloc`: the optional `operand2` is an `RtArena` register. With
+  it the lowering is `orbit_alloc(a ? a : orbit_arena_get_global(), n + 1)` and
+  the NUL byte; without it the allocation is the global arena (D-M1-106). An
+  operand2 that is a literal or a register of another type is `CGEN`.
+- Test hook: R6 prepends the arena to an extern only for the names in
+  `extern_needs_arena` (D-M1-27). `rtmod_probe_lower` is added to that list so
+  that an ordinary program can reach an arena-first export; no pinned runtime
+  symbol has that name. The names the runtime really defines (for example
+  `orbit_string_slice`) are already in the list.
+- Controls: `rt-rtarena-param-ordinary-module`,
+  `rt-rtarena-register-ordinary-module`, `rt-rtarena-extern-ordinary-module`,
+  `rt-bytes-alloc-arena-int`, `rt-bytes-alloc-arena-string`,
+  `rt-bytes-alloc-arena-literal`; the acceptance control is
+  `ok-runtime-module-arena`.
+- End to end: `tests/runtime-module` adds the export
+  `rtmod_probe_lower(a: RtArena, s: string) -> string`, which forwards `a` to a
+  file-local helper that allocates with it. The ordinary program calls it as an
+  arena-taking extern and prints `hello, orbit 42!` for `Hello, ORBIT 42!`. The
+  script also checks that the object references `orbit_alloc` and
+  `orbit_arena_get_global`.
+- Not measured: the NULL branch of `a ? a : global`, because no IR value of
+  type `RtArena` is NULL.
+- Status: **applied**.
