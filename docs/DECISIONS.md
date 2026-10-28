@@ -4725,3 +4725,47 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `compiler/host/main.orb`, equal to `PUBLISHED_C`. `hello` is 1 792 bytes of
   `.text` in R6 and 7 904 in the C backend (D-M1-104).
 - Status: **applied**.
+
+## D-M1-105 - Runtime modules: `runtimeModule`, `export` and `build --object`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit runtime, written in C, will be ported to Orbit one module at
+  a time. A ported module is an Orbit file without `main` whose `export fn`
+  functions keep their C names and join the runtime archive. R6 must compile such
+  a module to an object, not to an executable.
+- Decision, the IR (admitted by the loader, `src/loader/ir.c`):
+  - `module.runtimeModule` is an optional boolean, default false. `function.export`
+    is an optional boolean, default false. Both are absent from every module the
+    pin emits, so an absent field is the old behaviour.
+  - `export: true` outside a runtime module is `E_SCHEMA`. So is `export` on an
+    extern function, an exported name that is not a C identifier
+    (`[A-Za-z_][A-Za-z0-9_]*`), a non-boolean `export` or `runtimeModule`, and a
+    runtime module that defines `main` (an extern `main` declaration is not a
+    definition).
+- Decision, the code (`src/codegen-x64/win64.c`):
+  - An exported function's symbol is its IR name, with no `o_` prefix (D-M1-99
+    keeps `o_` for every other definition). It is global.
+  - A function of a runtime module that is not exported keeps `o_<name>` and is
+    file-local (no `.globl`), so two members of the archive can carry a helper of
+    the same name. `nm` prints it as `t`.
+  - Exported functions are the roots of reachability (D-M1-65); a runtime module
+    has no `main` and no entry wrapper, so no `orbit_main`, `orbit_start` or
+    `main` symbol is emitted.
+  - The arena of an executable is the `r6_arena` mirror that `main` fills
+    (D-M1-23). A runtime module is archived into programs the C backend also
+    links, where `r6_arena` does not exist. The operations that read it (lists,
+    model and union cells, string `add`, `print`, arena-taking externs) are
+    `error[CGEN]: a runtime module cannot use the executable arena`.
+- Decision, the driver (`src/driver/r6.c`): `r6 build --object <in.ir> -o <out.o>`
+  runs load, codegen, peephole, regalloc, asm and coff, writes the object to the
+  `-o` path and does not run `ld` or look for the runtime archive. `--object`
+  with an ordinary module, and a runtime module without `--object`, are
+  `error[CLI]` with exit 1: the module is what disagrees with the flag, which is
+  an input error and not a misspelled command line.
+- Controls (`tests/reject/`): ten rejections `rt-*` (export outside a runtime
+  module, main in a runtime module, two non-identifier names, an exported extern,
+  two non-boolean fields, both `CLI` cases and the arena refusal) and
+  `ok-runtime-module-object`, which builds two exports and a local helper. The
+  object's symbols were read with `nm`: `rtmod_probe_add` and
+  `rtmod_probe_twice_sum` are `T`, `o_rtmod_twice` is `t`.
+- Status: **applied**.

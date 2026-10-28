@@ -728,6 +728,7 @@ static const R6Function *find_function(const R6Module *m, const char *name) {
 static const char *user_symbol(const R6Module *m, const char *name, char *buf, size_t cap) {
     const R6Function *fn = find_function(m, name);
     if (!fn || fn->is_extern) return name;
+    if (fn->is_export) return name;
     if (strcmp(name, "main") == 0) return "orbit_main";
     snprintf(buf, cap, "o_%s", name);
     return buf;
@@ -746,7 +747,7 @@ static bool mark_live_functions(R6Module *m) {
     for (n = 0; n < m->function_count; ++n) {
         R6Function *f = &m->functions[n];
         f->live = false;
-        if (!f->is_extern && (f->has_route || strcmp(f->name, "main") == 0)) {
+        if (!f->is_extern && (f->has_route || f->is_export || strcmp(f->name, "main") == 0)) {
             f->live = true;
             stack[top++] = n;
         }
@@ -3018,7 +3019,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     if (uses_spread_scratch(f)) used += 16;  /* two spread slots, D-M1-23 */
     size_t frame = (used + 32 + (outgoing > 4 ? (outgoing - 4) * 8 : 0) + 15) & ~(size_t)15;
     if (f->is_extern) return true;
-    fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
+    /* D-M1-105: a helper of a runtime module is file-local; only the
+       exports are visible to the linker. */
+    if (m->runtime_module && !f->is_export)
+        fprintf(o, "\t.text\n\t.def %s; .scl 3; .type 32; .endef\n", native_name);
+    else
+        fprintf(o, "\t.text\n\t.globl %s\n\t.def %s; .scl 2; .type 32; .endef\n", native_name, native_name);
     fprintf(o, "\t.seh_proc %s\n%s:\n\tpushq %%rbp\n\t.seh_pushreg %%rbp\n\tmovq %%rsp, %%rbp\n\t.seh_setframe %%rbp, 0\n", native_name, native_name);
     /* D-M1-79: a frame of one page or more is touched page by page, top
        down, before rsp moves; regalloc.c may add up to 14 pushes, so the
@@ -4683,8 +4689,13 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
         }
         if (!validate_function(module, f, diag)) return false;
     }
-    if (!main_found) return fail(diag, NULL, "CGEN", "module must define one non-extern main");
+    if (!main_found && !module->runtime_module)
+        return fail(diag, NULL, "CGEN", "module must define one non-extern main");
     if (!mark_live_functions(module)) return fail(diag, NULL, "CGEN", "out of memory marking reachable functions");
+    /* D-M1-105: the archive member may be linked into a program the C backend
+       built, which has no r6_arena; the operations that read it are refused. */
+    if (module->runtime_module && module_needs_arena_global(module))
+        return fail(diag, NULL, "CGEN", "a runtime module cannot use the executable arena");
     if (module_needs_arena_global(module))
         fputs("\t.section .data,\"dw\"\nr6_arena:\n\t.byte 0,0,0,0,0,0,0,0\n\t.text\n", out);
     for (n = 0; n < module->function_count; ++n) {
@@ -4693,7 +4704,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
             return fail(diag, NULL, "CGEN", "out of memory indexing locals of %s", module->functions[n].name);
         if (!emit_function(out, module, &module->functions[n], n, diag)) return false;
     }
-    if (!emit_entry_wrapper(out, module, diag)) return false;
+    if (!module->runtime_module && !emit_entry_wrapper(out, module, diag)) return false;
     return !ferror(out);
 }
 

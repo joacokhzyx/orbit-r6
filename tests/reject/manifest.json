@@ -1511,6 +1511,100 @@
       "code": "CGEN",
       "rule": "D-M1-78",
       "note": "an extern outside the JSON getters returns no object"
+    },
+    {
+      "file": "cases/rt-export-outside-runtime-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "export on a function of an ordinary module"
+    },
+    {
+      "file": "cases/rt-main-in-runtime-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "a runtime module defines no main",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-name-not-identifier.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "an exported name is a C identifier",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-name-digit-first.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "an exported name does not start with a digit",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-extern.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "an extern declaration is not exported",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-not-boolean.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "export is a JSON boolean",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-runtime-module-not-boolean.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "runtimeModule is a JSON boolean",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-runtime-module-without-object.json",
+      "exit": 1,
+      "code": "CLI",
+      "rule": "D-M1-105",
+      "note": "a runtime module has no main and builds only with --object"
+    },
+    {
+      "file": "cases/rt-object-of-ordinary-module.json",
+      "exit": 1,
+      "code": "CLI",
+      "rule": "D-M1-105",
+      "note": "--object builds runtime modules only",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-runtime-module-arena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-105",
+      "note": "the executable arena is not available to an archive member",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -2377,6 +2471,14 @@
       "run_stdout": "api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n",
       "rule": "D-M1-78",
       "note": "a parsed JSON object bound by try, passed, returned and read through every getter"
+    },
+    {
+      "file": "cases/ok-runtime-module-object.json",
+      "rule": "D-M1-105",
+      "args": [
+        "--object"
+      ],
+      "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"
     }
   ]
 }

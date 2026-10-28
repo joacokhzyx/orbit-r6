@@ -66,9 +66,10 @@ def I(op, dest=-1, o1=None, o2=None, o3=None, ek=0, line=None):
     return ins
 
 
-def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None, route=None):
+def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None, route=None,
+       export=False):
     r = route or {}
-    return {"name": name, "params": params or [], "paramTypes": ptypes or [],
+    fn = {"name": name, "params": params or [], "paramTypes": ptypes or [],
             "instructions": instrs,
             "registerCount": len(types), "registerTypes": list(types),
             "returnType": rtype, "isExtern": extern,
@@ -77,6 +78,9 @@ def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None,
             "routeLimitRate": r.get("limit_rate", 0),
             "routeLimitWindowMs": r.get("limit_window_ms", 0),
             "routeLimitBurst": r.get("limit_burst", 0)}
+    if export:
+        fn["export"] = True
+    return fn
 
 
 def MAIN(instrs=None, types=None, route=None, **kw):
@@ -85,8 +89,22 @@ def MAIN(instrs=None, types=None, route=None, **kw):
     return FN("main", instrs, ["int"] if types is None else types, route=route, **kw)
 
 
-def MOD(fns):
-    return {"functions": fns, "globals": [], "models": [], "types": [], "migrations": []}
+def MOD(fns, runtime=False):
+    mod = {"functions": fns, "globals": [], "models": [], "types": [], "migrations": []}
+    if runtime:
+        mod["runtimeModule"] = True
+    return mod
+
+
+def RTDOC(fns):
+    return {"irVersion": "1", "module": MOD(fns, runtime=True)}
+
+
+def RT_ADD(export=True):
+    return FN("rtmod_probe_add",
+              [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+               I("add", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+              Types(3), params=["a", "b"], ptypes=["int", "int"], export=export)
 
 
 def G(name, type_name, value):
@@ -1681,6 +1699,46 @@ def build_reject():
         jd(DOC([FN("orbit_unlisted", [], [], rtype="object", extern=True), MAIN()])),
         "D-M1-78", "CGEN", "an extern outside the JSON getters returns no object")
 
+    # ---- D-M1-105: runtime modules and exported functions ---------------------
+    add("rt-export-outside-runtime-module",
+        jd(DOC([MAIN(), RT_ADD()])), "D-M1-105", "E_SCHEMA",
+        "export on a function of an ordinary module")
+    add("rt-main-in-runtime-module",
+        jd(RTDOC([MAIN(), RT_ADD()])), "D-M1-105", "E_SCHEMA",
+        "a runtime module defines no main", args=["--object"])
+    add("rt-export-name-not-identifier",
+        jd(RTDOC([FN("rtmod-probe", [I("ret", -1, Int(0))], ["int"], export=True)])),
+        "D-M1-105", "E_SCHEMA", "an exported name is a C identifier", args=["--object"])
+    add("rt-export-name-digit-first",
+        jd(RTDOC([FN("1probe", [I("ret", -1, Int(0))], ["int"], export=True)])),
+        "D-M1-105", "E_SCHEMA", "an exported name does not start with a digit",
+        args=["--object"])
+    add("rt-export-extern",
+        jd(RTDOC([FN("rtmod_ext", [], [], rtype="int", extern=True, export=True)])),
+        "D-M1-105", "E_SCHEMA", "an extern declaration is not exported", args=["--object"])
+    export_flag = RTDOC([RT_ADD()])
+    export_flag["module"]["functions"][0]["export"] = 1
+    add("rt-export-not-boolean", jd(export_flag), "D-M1-105", "E_SCHEMA",
+        "export is a JSON boolean", args=["--object"])
+    flag = RTDOC([RT_ADD()])
+    flag["module"]["runtimeModule"] = "yes"
+    add("rt-runtime-module-not-boolean", jd(flag), "D-M1-105", "E_SCHEMA",
+        "runtimeModule is a JSON boolean", args=["--object"])
+    add("rt-runtime-module-without-object",
+        jd(RTDOC([RT_ADD()])), "D-M1-105", "CLI",
+        "a runtime module has no main and builds only with --object")
+    add("rt-object-of-ordinary-module",
+        jd(DOC()), "D-M1-105", "CLI",
+        "--object builds runtime modules only", args=["--object"])
+    add("rt-runtime-module-arena",
+        jd(RTDOC([FN("rtmod_list",
+                     [I("load_const", 1, Int(4)),
+                      I("list_create", 0, Int(8), Reg(1), ek=1),
+                      I("ret", -1, Int(0))],
+                     ["list", "int"], export=True)])),
+        "D-M1-105", "CGEN",
+        "the executable arena is not available to an archive member", args=["--object"])
+
     return cases
 
 
@@ -2269,6 +2327,15 @@ def build_accept_files():
                                       I("call", 4, Str("echo"), Int(1)),
                                       I("ret", -1, Reg(4))],
                                      ["list", "int", "int", "unknown", "int"])]))))
+    twice = FN("rtmod_twice", [I("arg", 0, Int(0)), I("add", 1, Reg(0), Reg(0)),
+                               I("ret", -1, Reg(1))],
+               Types(2), params=["a"], ptypes=["int"])
+    via = FN("rtmod_probe_twice_sum",
+             [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+              I("add", 2, Reg(0), Reg(1)), I("arg", -1, Reg(2)),
+              I("call", 3, Sym("rtmod_twice"), Int(1)), I("ret", -1, Reg(3))],
+             Types(4), params=["a", "b"], ptypes=["int", "int"], export=True)
+    files.append(("ok-runtime-module-object", jd(RTDOC([twice, via, RT_ADD()]))))
     return files
 
 
@@ -2639,6 +2706,9 @@ def build_manifest(reject, accept_files):
              "run_stdout": "api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n",
              "rule": "D-M1-78",
              "note": "a parsed JSON object bound by try, passed, returned and read through every getter"},
+            {"file": "cases/ok-runtime-module-object.json", "rule": "D-M1-105",
+             "args": ["--object"],
+             "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"},
         ],
     }
 

@@ -111,6 +111,9 @@ The script uses `$env:R6_CC`, else `$env:CC`, else `gcc` on `PATH`, with
 `R6_RUNTIME_DIR`, then `.r6-build/runtime-win64` relative to the current
 directory. A missing archive is `error[LINK]` with the full path tried.
 
+`r6 build --object <module.ir> -o <module.o>` compiles a runtime module (`"runtimeModule": true`,
+D-M1-105) to an object and stops before the link. A runtime module builds only that way.
+
 The `.s` and `.o` temporaries go to `R6_TMPDIR`, else the system temporary
 directory. They are named `r6-<pid>.s` and `r6-<pid>.o` and are deleted after a
 successful link.
