@@ -4907,3 +4907,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   build. The end-to-end script builds both emitted files, adds the arena one to
   the archive, and the ordinary program prints `copy me` through it.
 - Status: **applied**.
+
+## D-M1-110 - `str_offset` and `bytes_copy`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit port of `orbit_string_trim` went from 37 ms to 98 ms because
+  it copies byte by byte where the C function calls `memcpy`. Slice, concat and
+  replace need the same two operations.
+- Decision, admission: both opcodes follow D-M1-106. They are admitted only in a
+  runtime module (`E_UNSUPPORTED: opcode is admitted only in a runtime module`
+  elsewhere), every operand is a register (an inline literal is `CGEN`), and
+  a type that does not match is `CGEN`.
+
+  | Opcode | dest | operands | Lowering |
+  |---|---|---|---|
+  | `str_offset` | string | string s, int i | `s + i`: no allocation, no check |
+  | `bytes_copy` | none (`-1`) | string dst, string src, int n | `memcpy(dst, src, n)` of msvcrt when `n > 0`; a count of 0 or below copies nothing |
+
+  `bytes_copy` with a destination and `str_offset` without one are `E_SCHEMA`.
+  The count is tested as a signed 64-bit value before the call, so a negative
+  count never reaches `memcpy` as a huge `size_t`.
+- Controls: `rt-str-offset-ordinary-module`, `rt-bytes-copy-ordinary-module`,
+  `rt-bytes-copy-with-dest`, `rt-str-offset-missing-dest`, the literal operand
+  of each, and the wrong operand or destination type of each refuse the input;
+  `ok-runtime-module-slice` builds both.
+- End to end: `rtmod_probe_slice(a: RtArena, s, start, len)` copies a middle
+  slice into a buffer from `bytes_alloc`; the program prints `Orbit` for
+  `("hello, Orbit 42", 7, 5)`. `rtmod_probe_guard` writes `x` into a buffer and
+  calls `bytes_copy` with a count of -5; the program prints `x`. `rtmod_probe_slice`
+  joins the `extern_needs_arena` test hook (D-M1-108).
+- Status: **applied**.

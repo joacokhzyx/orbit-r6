@@ -1838,6 +1838,54 @@ def build_reject():
         "D-M1-109", "CGEN", "an int local does not load into an RtArena register",
         args=["--object"])
 
+    # ---- D-M1-110: str_offset and bytes_copy --------------------------------
+    add("rt-str-offset-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("str_offset", 2, Reg(0), Reg(1))], ["string", "int", "string"]),
+        "D-M1-110", "E_UNSUPPORTED", "str_offset outside a runtime module")
+    add("rt-bytes-copy-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("bytes_copy", -1, Reg(0), Reg(0), Reg(1))], ["string", "int"]),
+        "D-M1-110", "E_UNSUPPORTED", "bytes_copy outside a runtime module")
+    add("rt-bytes-copy-with-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("bytes_copy", 2, Reg(0), Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "E_SCHEMA", "bytes_copy has no destination", args=["--object"])
+    add("rt-str-offset-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("str_offset", -1, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "E_SCHEMA", "str_offset requires a destination", args=["--object"])
+    add("rt-str-offset-literal-offset",
+        rt_fn([I("arg", 0, Int(0)), I("str_offset", 1, Reg(0), Int(1)), I("ret", -1, Reg(1))],
+              ["string", "string"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "an inline literal is not an operand of str_offset",
+        args=["--object"])
+    add("rt-str-offset-int-source",
+        rt_fn([I("load_const", 0, Int(1)), I("str_offset", 1, Reg(0), Reg(0)),
+               I("ret", -1, Int(0))], ["int", "string"]),
+        "D-M1-110", "CGEN", "str_offset offsets a string register", args=["--object"])
+    add("rt-str-offset-int-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+               I("str_offset", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "str_offset produces a string register", args=["--object"])
+    add("rt-bytes-copy-literal-count",
+        rt_fn([I("arg", 0, Int(0)), I("bytes_copy", -1, Reg(0), Reg(0), Int(1)),
+               I("ret", -1, Int(0))], ["string"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "an inline literal is not an operand of bytes_copy",
+        args=["--object"])
+    add("rt-bytes-copy-int-source",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+               I("bytes_copy", -1, Reg(0), Reg(1), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "bytes_copy reads a string source register", args=["--object"])
+    add("rt-bytes-copy-string-count",
+        rt_fn([I("arg", 0, Int(0)), I("bytes_copy", -1, Reg(0), Reg(0), Reg(0)),
+               I("ret", -1, Int(0))], ["string"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "bytes_copy counts with an int register", args=["--object"])
+
     return cases
 
 
@@ -2449,6 +2497,16 @@ def build_accept_files():
                                 "RtArena", "int", "string"], rtype="string",
                                params=["a", "s"], ptypes=["RtArena", "string"],
                                export=True)]))))
+    files.append(("ok-runtime-module-slice",
+                  jd(RTDOC([FN("rtmod_slice_tail",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("str_offset", 2, Reg(0), Reg(1)), I("str_len", 3, Reg(2)),
+                                I("bytes_alloc", 4, Reg(3)),
+                                I("bytes_copy", -1, Reg(4), Reg(2), Reg(3)),
+                                I("ret", -1, Reg(4))],
+                               ["string", "int", "string", "int", "string"], rtype="string",
+                               params=["s", "from"], ptypes=["string", "int"],
+                               export=True)]))))
     files.append(("ok-runtime-module-arena",
                   jd(RTDOC([FN("rtmod_bytes_in",
                                [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
@@ -2848,6 +2906,9 @@ def build_manifest(reject, accept_files):
             {"file": "../runtime-module/emitted/upper.json", "rule": "D-M1-109",
              "args": ["--object"],
              "note": "the IR the language emits for an upper-casing export builds as a runtime module"},
+            {"file": "cases/ok-runtime-module-slice.json", "rule": "D-M1-110",
+             "args": ["--object"],
+             "note": "str_offset and bytes_copy build in a runtime module (the end-to-end run is tests/runtime-module)"},
             {"file": "cases/ok-runtime-module-arena.json", "rule": "D-M1-108",
              "args": ["--object"],
              "note": "an RtArena parameter is the arena operand of bytes_alloc (the end-to-end run is tests/runtime-module)"},

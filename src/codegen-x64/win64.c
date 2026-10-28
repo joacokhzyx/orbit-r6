@@ -340,7 +340,8 @@ static bool extern_needs_arena(const char *name) {
         "orbit_sha256_hex", "orbit_hmac_sha256_base64url",
         /* D-M1-108: the arena-first export of tests/runtime-module, the only way
            an ordinary program obtains an RtArena. */
-        "rtmod_probe_lower", "rtmod_probe_copy_in"
+        "rtmod_probe_lower", "rtmod_probe_copy_in",
+        "rtmod_probe_slice"
     };
     size_t n;
     for (n = 0; n < sizeof names / sizeof names[0]; ++n)
@@ -1967,6 +1968,19 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 !is_string_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]) ||
                 !is_int_reg(f, &i->operands[2]))
                 return fail(d, i, "CGEN", "byte_store requires a string register, an int index register and an int value register, and no destination");
+            break;
+        /* D-M1-110 */
+        case R6_OP_STR_OFFSET:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_string(type_at(f, i->dest)) ||
+                !is_string_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]))
+                return fail(d, i, "CGEN", "str_offset requires a string register, an int offset register and a string destination");
+            break;
+        case R6_OP_BYTES_COPY:
+            if (!m->runtime_module || i->has_dest ||
+                !is_string_reg(f, &i->operands[0]) || !is_string_reg(f, &i->operands[1]) ||
+                !is_int_reg(f, &i->operands[2]))
+                return fail(d, i, "CGEN", "bytes_copy requires a string destination register, a string source register and an int count register, and no destination");
             break;
         case R6_OP_BYTES_ALLOC:
             if (!m->runtime_module || !valid_dest(f, i, true, d) ||
@@ -3611,6 +3625,23 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                        "\tmovq %%rax, -%u(%%rbp)\n",
                     operand_slot(f, is_main, i, 0), fn_index, pc, fn_index, pc, off);
             break;
+        /* D-M1-110. No allocation and no check: the pointer moves by i bytes.
+           bytes_copy passes memcpy a positive count only. */
+        case R6_OP_STR_OFFSET:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1), off);
+            break;
+        case R6_OP_BYTES_COPY:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\ttestq %%rax, %%rax\n"
+                       "\tjle .Lr6_f%zu_bytes_copy_%zu\n"
+                       "\tmovq -%u(%%rbp), %%rcx\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\tmovq -%u(%%rbp), %%r8\n\tcall memcpy\n"
+                       ".Lr6_f%zu_bytes_copy_%zu:\n",
+                    operand_slot(f, is_main, i, 2), fn_index, pc,
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
+                    operand_slot(f, is_main, i, 2), fn_index, pc);
+            break;
         case R6_OP_BYTE_LOAD:
             fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
                        "\taddq %%rcx, %%rax\n\tmovzbl (%%rax), %%eax\n"
@@ -4577,7 +4608,7 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
     }
     case R6_OP_LIST_CREATE: return "list";
     case R6_OP_STR_LEN: case R6_OP_BYTE_LOAD: return "int";
-    case R6_OP_BYTES_ALLOC: return "string";
+    case R6_OP_BYTES_ALLOC: case R6_OP_STR_OFFSET: return "string";
     case R6_OP_LIST_LEN: return "int";
     case R6_OP_LIST_GET:
     case R6_OP_LIST_POP:

@@ -131,6 +131,40 @@ def lower():
               ptypes=["RtArena", "string"], export=True)
 
 
+def slice_():
+    # r0 arena, r1 s, r2 start, r3 len, r4 s + start, r5 out
+    types = ["RtArena", "string", "int", "int", "string", "string"]
+    ins = [
+        I("arg", 0, Int(0)), I("arg", 1, Int(1)), I("arg", 2, Int(2)), I("arg", 3, Int(3)),
+        I("str_offset", 4, Reg(1), Reg(2)),
+        I("bytes_alloc", 5, Reg(3), Reg(0)),
+        I("bytes_copy", -1, Reg(5), Reg(4), Reg(3)),
+        I("ret", -1, Reg(5)),
+    ]
+    return FN("rtmod_probe_slice", ins, types, rtype="string",
+              params=["a", "s", "start", "len"],
+              ptypes=["RtArena", "string", "int", "int"], export=True)
+
+
+def guard():
+    # A negative count copies nothing: the buffer keeps "x".
+    # r0 s, r1 buffer, r2 0, r3 'x', r4 1, r5 NUL, r6 -5
+    types = ["string", "string", "int", "int", "int", "int", "int"]
+    ins = [
+        I("arg", 0, Int(0)),
+        I("load_const", 4, Int(1)), I("load_const", 2, Int(0)),
+        I("load_const", 3, Int(120)), I("load_const", 5, Int(0)),
+        I("load_const", 6, Int(-5)),
+        I("bytes_alloc", 1, Reg(4)),
+        I("byte_store", -1, Reg(1), Reg(2), Reg(3)),
+        I("byte_store", -1, Reg(1), Reg(4), Reg(5)),
+        I("bytes_copy", -1, Reg(1), Reg(0), Reg(6)),
+        I("ret", -1, Reg(1)),
+    ]
+    return FN("rtmod_probe_guard", ins, types, rtype="string", params=["s"],
+              ptypes=["string"], export=True)
+
+
 def program():
     ext_upper = FN("rtmod_probe_upper", [], [], rtype="string", extern=True,
                    params=["s"], ptypes=["string"])
@@ -140,6 +174,10 @@ def program():
                    params=["s"], ptypes=["string"])
     ext_copy = FN("rtmod_probe_copy_in", [], [], rtype="string", extern=True,
                   params=["s"], ptypes=["string"])
+    ext_slice = FN("rtmod_probe_slice", [], [], rtype="string", extern=True,
+                   params=["s", "start", "len"], ptypes=["string", "int", "int"])
+    ext_guard = FN("rtmod_probe_guard", [], [], rtype="string", extern=True,
+                   params=["s"], ptypes=["string"])
     main = MAIN([
         I("arg", -1, Str("hello, Orbit 42!")),
         I("call", 0, Str("rtmod_probe_upper"), Int(1)),
@@ -161,13 +199,21 @@ def program():
         I("call", 8, Str("rtmod_probe_copy_in"), Int(1)),
         I("arg", -1, Reg(8)),
         I("call", 9, Str("print"), Int(1)),
+        I("load_const", 10, Int(7)), I("load_const", 11, Int(5)),
+        I("arg", -1, Str("hello, Orbit 42")), I("arg", -1, Reg(10)), I("arg", -1, Reg(11)),
+        I("call", 12, Str("rtmod_probe_slice"), Int(3)),
+        I("arg", -1, Reg(12)), I("call", 13, Str("print"), Int(1)),
+        I("arg", -1, Str("abc")),
+        I("call", 14, Str("rtmod_probe_guard"), Int(1)),
+        I("arg", -1, Reg(14)), I("call", 15, Str("print"), Int(1)),
         I("ret", -1, Int(0)),
-    ], ["string", "void", "string", "void", "int", "void", "string", "void", "string", "void"])
-    return DOC([ext_upper, ext_sum, ext_lower, ext_copy, main])
+    ], ["string", "void", "string", "void", "int", "void", "string", "void", "string", "void",
+        "int", "int", "string", "void", "string", "void"])
+    return DOC([ext_upper, ext_sum, ext_lower, ext_copy, ext_slice, ext_guard, main])
 
 
 def render():
-    return {HERE / "probe-rt.json": jd(RTDOC([upper(), total(), lower(), lower_core()])),
+    return {HERE / "probe-rt.json": jd(RTDOC([upper(), total(), lower(), lower_core(), slice_(), guard()])),
             HERE / "probe-main.json": jd(program())}
 
 

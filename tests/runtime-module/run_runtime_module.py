@@ -21,8 +21,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 
-EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\n"
-EXPORTS = ["rtmod_probe_lower", "rtmod_probe_sum", "rtmod_probe_upper"]
+EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\nOrbit\r\nx\r\n"
+EXPORTS = ["rtmod_probe_guard", "rtmod_probe_lower", "rtmod_probe_slice",
+           "rtmod_probe_sum", "rtmod_probe_upper"]
 
 
 def run(cmd, **kw):
