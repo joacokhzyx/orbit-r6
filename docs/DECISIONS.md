@@ -4379,3 +4379,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   on stderr, which the differential does not compare).
 - Open: whether the line travels in the IR, which symbol the runtime exports,
   and whether `mod` by zero has a message of its own.
+
+## D-M1-96 - Division and remainder by a constant at 64 bits
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18). Status: **pending verification**:
+  the language branch `int64` is not pinned yet.
+- Reason: D-M1-81 replaced `idivl` by a 32-bit multiply and shifts. With a
+  64-bit int the divisor, the magic number and the product are 64-bit.
+- Decision:
+  - A divisor is constant under the rule of D-M1-81. A divisor of 0, -1 or
+    INT64_MIN keeps the checked `idivq` of D-M1-95. A divisor of 1 is a copy
+    (`div`) or zero (`mod`).
+  - A power of two `2^k` is `(n + ((n >> 63) >>> (64 - k))) >> k`, negated for a
+    negative divisor, with `sarq`, `shrq` and `addq`. The remainder is
+    `n - (q << k)`.
+  - Any other divisor uses the signed 64-bit magic number of Hacker's Delight
+    10-1 with a word size of 64 (`signed_magic`, shift `p - 64`). `movabsq` loads
+    the magic into `%rax`, the one-operand `imulq %rcx` leaves the high half of
+    `n * magic` in `%rdx`, `addq` or `subq` of `n` corrects a magic of the other
+    sign, `sarq` shifts by `p - 64`, and `shrq $63` adds the sign bit. The
+    remainder is `n - q * d` with the two-operand `imulq`.
+  - The peephole models the one-operand `imulq` (read of `%rax` and the operand,
+    write of `%rax` and `%rdx`), as it models `idivq`.
+- Measured outside R6 with `tests/div/magic64.c`, which runs the emitted
+  sequence in C with `__int128` for the high half against the `/` and `%` of
+  gcc: 4000 divisors (edge values, their multiples, random of every bit
+  length), 3000 dividends each (the edge values, the divisor and its
+  neighbours, multiples of the divisor, random of every bit length): 11 751 000
+  pairs, 0 disagreements.
+- Fixture: `99-div-by-constant-64` (constant divisors against a divisor that
+  arrives as a parameter, over 64-bit edge values).

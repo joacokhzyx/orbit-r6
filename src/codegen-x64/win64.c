@@ -2872,22 +2872,22 @@ static void emit_string_equality(FILE *o, size_t fn_index, size_t pc, unsigned a
             aoff, boff, fn_index, pc, fn_index, pc, fn_index, pc, fn_index, pc);
 }
 
-/* D-M1-81: the divisor of the `div` or `mod` at `pc` when it is an inline int
- * or a register that the straight-line code before it set with `load_const`.
- * A label between the definition and the use ends the search. */
-static bool constant_register(const R6Function *f, size_t pc, int32_t reg, int depth, int32_t *out) {
+/* D-M1-81, D-M1-96: the divisor of the `div` or `mod` at `pc` when it is an
+ * inline int or a register that the straight-line code before it set with
+ * `load_const`. A label between the definition and the use ends the search. */
+static bool constant_register(const R6Function *f, size_t pc, int32_t reg, int depth, int64_t *out) {
     size_t k;
     for (k = pc; k-- > 0;) {
         const R6Instruction *p = &f->instructions[k];
         if (p->opcode == R6_OP_LABEL) return false;
         if (p->has_dest && p->dest == reg) {
             if (p->opcode == R6_OP_LOAD_CONST && p->operands[0].kind == R6_VAL_INT) {
-                *out = p->operands[0].as.i32;
+                *out = p->operands[0].as.i64;
                 return true;
             }
             if (p->opcode == R6_OP_NEG && depth < 2 && p->operands[0].kind == R6_VAL_REG &&
                 constant_register(f, k, p->operands[0].as.i32, depth + 1, out)) {
-                *out = (int32_t)(0u - (uint32_t)*out);
+                *out = (int64_t)(UINT64_C(0) - (uint64_t)*out);
                 return true;
             }
             return false;
@@ -2896,26 +2896,27 @@ static bool constant_register(const R6Function *f, size_t pc, int32_t reg, int d
     return false;
 }
 
-static bool constant_divisor(const R6Function *f, size_t pc, int32_t *out) {
+static bool constant_divisor(const R6Function *f, size_t pc, int64_t *out) {
     const R6Value *v = &f->instructions[pc].operands[1];
     if (v->kind == R6_VAL_INT) {
-        *out = v->as.i32;
+        *out = v->as.i64;
         return true;
     }
     return v->kind == R6_VAL_REG && constant_register(f, pc, v->as.i32, 0, out);
 }
 
-/* D-M1-81: signed 32-bit magic number and shift for a divisor of two or more
- * in magnitude that is not a power of two (Hacker's Delight, figure 10-1). */
-static void signed_magic(int32_t d, int32_t *mul, int *shift) {
-    const uint32_t two31 = 0x80000000u;
-    uint32_t ad = d < 0 ? 0u - (uint32_t)d : (uint32_t)d;
-    uint32_t t = two31 + ((uint32_t)d >> 31);
-    uint32_t anc = t - 1 - t % ad;
-    uint32_t q1 = two31 / anc, r1 = two31 - q1 * anc;
-    uint32_t q2 = two31 / ad, r2 = two31 - q2 * ad;
-    uint32_t delta;
-    int p = 31;
+/* D-M1-96: signed 64-bit magic number and shift for a divisor of two or more
+ * in magnitude that is not a power of two (Hacker's Delight, figure 10-1 with
+ * the word size at 64). */
+static void signed_magic(int64_t d, int64_t *mul, int *shift) {
+    const uint64_t two63 = UINT64_C(1) << 63;
+    uint64_t ad = d < 0 ? UINT64_C(0) - (uint64_t)d : (uint64_t)d;
+    uint64_t t = two63 + ((uint64_t)d >> 63);
+    uint64_t anc = t - 1 - t % ad;
+    uint64_t q1 = two63 / anc, r1 = two63 - q1 * anc;
+    uint64_t q2 = two63 / ad, r2 = two63 - q2 * ad;
+    uint64_t delta;
+    int p = 63;
     do {
         ++p;
         q1 = 2 * q1;
@@ -2932,44 +2933,46 @@ static void signed_magic(int32_t d, int32_t *mul, int *shift) {
         }
         delta = ad - r2;
     } while (q1 < delta || (q1 == delta && r1 == 0));
-    *mul = (int32_t)(q2 + 1);
-    if (d < 0) *mul = (int32_t)(0u - (uint32_t)*mul);
-    *shift = p - 32;
+    *mul = (int64_t)(q2 + 1);
+    if (d < 0) *mul = (int64_t)(UINT64_C(0) - (uint64_t)*mul);
+    *shift = p - 64;
 }
 
-/* D-M1-81: n / d or n % d for a constant d other than 0, -1 and INT_MIN, with
- * the truncation of C. The result is left sign-extended in rax. */
-static void emit_division_by_constant(FILE *o, bool remainder, int32_t d, unsigned aoff) {
-    uint32_t ad = d < 0 ? 0u - (uint32_t)d : (uint32_t)d;
+/* D-M1-96: n / d or n % d for a constant d other than 0, -1 and INT64_MIN,
+ * with the truncation of C. The result is left in %rax. The magic path keeps n
+ * in %rcx and multiplies with the one-operand imulq, whose high half lands in
+ * %rdx. */
+static void emit_division_by_constant(FILE *o, bool remainder, int64_t d, unsigned aoff) {
+    uint64_t ad = d < 0 ? UINT64_C(0) - (uint64_t)d : (uint64_t)d;
     if (ad == 1) {
         if (remainder) fputs("\tmovq $0, %rax\n", o);
-        else fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tmovslq %%eax, %%rax\n", aoff);
+        else fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", aoff);
         return;
     }
     if ((ad & (ad - 1)) == 0) {
         unsigned k = 0;
-        while ((1u << k) != ad) ++k;
-        fprintf(o, "\tmovl -%u(%%rbp), %%eax\n\tmovl %%eax, %%ecx\n\tsarl $31, %%ecx\n"
-                   "\tshrl $%u, %%ecx\n\taddl %%ecx, %%eax\n\tsarl $%u, %%eax\n",
-                aoff, 32 - k, k);
+        while ((UINT64_C(1) << k) != ad) ++k;
+        fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, %%rcx\n\tsarq $63, %%rcx\n"
+                   "\tshrq $%u, %%rcx\n\taddq %%rcx, %%rax\n\tsarq $%u, %%rax\n",
+                aoff, 64 - k, k);
         if (remainder)
-            fprintf(o, "\tshll $%u, %%eax\n\tnegl %%eax\n\taddl -%u(%%rbp), %%eax\n", k, aoff);
-        else if (d < 0) fputs("\tnegl %eax\n", o);
+            fprintf(o, "\tshlq $%u, %%rax\n\tnegq %%rax\n\taddq -%u(%%rbp), %%rax\n", k, aoff);
+        else if (d < 0) fputs("\tnegq %rax\n", o);
     } else {
-        int32_t mul;
+        int64_t mul;
         int shift;
         signed_magic(d, &mul, &shift);
-        fprintf(o, "\tmovslq -%u(%%rbp), %%rax\n\tmovq $%d, %%rcx\n\timulq %%rcx, %%rax\n"
-                   "\tsarq $32, %%rax\n", aoff, mul);
-        if (d > 0 && mul < 0) fprintf(o, "\taddl -%u(%%rbp), %%eax\n", aoff);
-        if (d < 0 && mul > 0) fprintf(o, "\tsubl -%u(%%rbp), %%eax\n", aoff);
-        if (shift) fprintf(o, "\tsarl $%d, %%eax\n", shift);
-        fputs("\tmovl %eax, %ecx\n\tshrl $31, %ecx\n\taddl %ecx, %eax\n", o);
+        fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n\tmovabsq $%lld, %%rax\n\timulq %%rcx\n",
+                aoff, (long long)mul);
+        if (d > 0 && mul < 0) fputs("\taddq %rcx, %rdx\n", o);
+        if (d < 0 && mul > 0) fputs("\tsubq %rcx, %rdx\n", o);
+        if (shift) fprintf(o, "\tsarq $%d, %%rdx\n", shift);
+        fputs("\tmovq %rdx, %rax\n\tshrq $63, %rax\n\taddq %rax, %rdx\n", o);
         if (remainder)
-            fprintf(o, "\tmovq $%d, %%rcx\n\timull %%ecx, %%eax\n\tnegl %%eax\n"
-                       "\taddl -%u(%%rbp), %%eax\n", d, aoff);
+            fprintf(o, "\tmovabsq $%lld, %%rax\n\timulq %%rdx, %%rax\n"
+                       "\tsubq %%rax, %%rcx\n\tmovq %%rcx, %%rax\n", (long long)d);
+        else fputs("\tmovq %rdx, %rax\n", o);
     }
-    fputs("\tmovslq %eax, %rax\n", o);
 }
 
 static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
@@ -3352,7 +3355,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             unsigned aoff = operand_slot(f, is_main, i, 0);
             unsigned boff = operand_slot(f, is_main, i, 1);
             const char *t0 = operand_type_of(f, i, 0);
-            int32_t divisor = 0;
+            int64_t divisor = 0;
             materialize_literals(o, f, i, is_main, &string_id);
             if (is_float(t0)) {
                 const char *ins = i->opcode == R6_OP_SUB ? "subsd" :
@@ -3365,7 +3368,7 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                         aoff, i->opcode == R6_OP_SUB ? "subq" : "imulq", boff, off);
             } else if ((i->opcode == R6_OP_DIV || i->opcode == R6_OP_MOD) &&
                        constant_divisor(f, pc, &divisor) && divisor != 0 && divisor != -1 &&
-                       divisor != INT32_MIN) {
+                       divisor != INT64_MIN) {
                 emit_division_by_constant(o, i->opcode == R6_OP_MOD, divisor, aoff);
                 fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n", off);
             } else {
