@@ -32,6 +32,18 @@ Usage:
 `scripts/emit_ir_corpus.py` (default: ORBIT_ROOT or the sibling `orbit-lang`).
 `--ir-dir` runs the differential over an already-emitted corpus instead of
 regenerating one, and the hashes are still checked against the pin.
+
+`--axes` measures every matching program on six axes: correctness (the
+match), `.text`+`.data`+`.rdata` bytes (`size -A`), best-of-N wall time of
+the run, best-of-N R6 build time, peak working set (Windows), and an energy
+proxy: the user+kernel CPU time of the run, labelled as a proxy because no
+energy sensor is read.  Each axis keeps the spread (max - min) of its N
+repetitions as its noise.  `--write-axes-baseline` records the values in
+`tests/corpus/axes-baseline.json`; `--check-axes` fails when an axis grows by
+more than the larger of the two noises, or a program stops matching.  A
+program that looks regressed is measured again `--axes-confirm` times (best
+of all rounds) before it counts, because a busy machine can slow every
+repetition of one round.
 """
 
 from __future__ import annotations
@@ -44,6 +56,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -52,6 +65,21 @@ BASELINE = HERE / "baseline.json"
 CORPUS_DIR = REPO / ".r6-build" / "corpus-ir"
 DEFAULT_ORBIT = REPO.parent / "orbit-lang"
 ORACLE_CACHE = REPO / ".r6-build" / "oracle-cache.json"
+AXES_BASELINE = HERE / "axes-baseline.json"
+DEFAULT_SIZE = Path("C:/w64devkit/bin/size.exe")
+SIZED_SECTIONS = (".text", ".data", ".rdata")
+# Axis key -> its noise key; bytes and peak memory are compared like times.
+AXES = (("bytes", "bytesNoise"), ("wallMs", "wallNoiseMs"),
+        ("buildMs", "buildNoiseMs"), ("peakWorkingSet", "peakNoise"),
+        ("energyProxyCpuMs", "energyNoiseMs"))
+ENERGY_NOTE = ("proxy: user+kernel CPU ms of the program run, not a "
+               "measurement of energy")
+# GetProcessTimes counts in scheduler ticks of 15.625 ms: a smaller change in
+# the CPU proxy is below what the counter can show.  The peak working set of
+# byte-identical programs moved by up to 28 KiB (7 pages) between two corpus
+# runs on 2026-10-28, more than the spread inside one run, so it tolerates
+# 64 KiB.
+AXIS_FLOOR = {"energyProxyCpuMs": 15.625, "peakWorkingSet": 65536}
 
 sys.path.insert(0, str(HERE.parent))
 from oracle_cache import OracleCache, sha256_file  # noqa: E402
@@ -153,6 +181,147 @@ def run(argv, cwd, env, timeout):
             proc.stderr.decode("utf-8", errors="replace"), False, None)
 
 
+def section_bytes(size_tool: str, exe: Path):
+    """Sum of the SIZED_SECTIONS of a PE image, from `size -A`."""
+    proc = subprocess.run([size_tool, "-A", str(exe)], capture_output=True,
+                          text=True, timeout=60)
+    if proc.returncode != 0:
+        raise OSError(f"{size_tool} -A {exe}: {proc.stderr.strip()}")
+    total = 0
+    for line in proc.stdout.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] in SIZED_SECTIONS:
+            total += int(fields[1])
+    return total
+
+
+def process_stats(proc):
+    """(peak working set bytes, user+kernel CPU ms) of an exited process.
+
+    Windows only: the handle stays open until the Popen object goes away, so
+    the counters are still readable after wait().
+    """
+    if os.name != "nt":
+        return (None, None)
+    import ctypes
+    from ctypes import wintypes
+
+    class Counters(ctypes.Structure):
+        _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
+            (name, ctypes.c_size_t) for name in (
+                "PeakWorkingSetSize", "WorkingSetSize",
+                "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage",
+                "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage",
+                "PagefileUsage", "PeakPagefileUsage")]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = wintypes.HANDLE(int(proc._handle))
+    counters = Counters()
+    counters.cb = ctypes.sizeof(Counters)
+    peak = None
+    if kernel32.K32GetProcessMemoryInfo(handle, ctypes.byref(counters),
+                                        counters.cb):
+        peak = counters.PeakWorkingSetSize
+    times = [ctypes.c_ulonglong() for _ in range(4)]
+    cpu = None
+    if kernel32.GetProcessTimes(handle, *(ctypes.byref(t) for t in times)):
+        cpu = (times[2].value + times[3].value) / 10000.0
+    return (peak, cpu)
+
+
+def measure_program(command, r6_exe, case_dir, case_env, reps, size_tool,
+                    timeout):
+    """One program's axes over `reps` builds and runs, or an error string."""
+    samples = {key: [] for key, _ in AXES}
+    exits = set()
+    for _ in range(reps):
+        start = time.perf_counter()
+        build = subprocess.run(command, cwd=str(REPO), env=case_env,
+                               capture_output=True, timeout=timeout)
+        samples["buildMs"].append((time.perf_counter() - start) * 1000.0)
+        if build.returncode != 0 or not r6_exe.is_file():
+            return f"R6 build failed (rc={build.returncode})"
+        samples["bytes"].append(section_bytes(size_tool, r6_exe))
+        start = time.perf_counter()
+        proc = subprocess.Popen([str(r6_exe)], cwd=str(case_dir), env=case_env,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            return "run timed out"
+        samples["wallMs"].append((time.perf_counter() - start) * 1000.0)
+        exits.add(proc.returncode)
+        peak, cpu = process_stats(proc)
+        samples["peakWorkingSet"].append(peak)
+        samples["energyProxyCpuMs"].append(cpu)
+    if len(exits) != 1:
+        return f"exit status varies across runs: {sorted(exits)}"
+    record = {}
+    for key, noise in AXES:
+        values = [value for value in samples[key] if value is not None]
+        if not values:
+            record[key] = record[noise] = None
+            continue
+        best = min(values)
+        spread = max(values) - best
+        if isinstance(best, float):
+            best, spread = round(best, 3), round(spread, 3)
+        record[key], record[noise] = best, spread
+    return record
+
+
+def program_regressions(rel, was, now):
+    """Axes of one measured program that grew beyond the noise."""
+    findings = []
+    for key, noise in AXES:
+        if was.get(key) is None or now.get(key) is None:
+            continue
+        tolerance = max(was.get(noise) or 0, now.get(noise) or 0,
+                        AXIS_FLOOR.get(key, 0))
+        if now[key] - was[key] > tolerance:
+            findings.append(f"{rel}: {key} {was[key]} -> {now[key]} "
+                            f"(noise {tolerance})")
+    return findings
+
+
+def merge_rounds(first, second):
+    """Best of two measurement rounds of one program; the noise is the larger."""
+    if not isinstance(first, dict) or not isinstance(second, dict):
+        return first if not isinstance(first, dict) else second
+    merged = {}
+    for key, noise in AXES:
+        values = [value for value in (first.get(key), second.get(key))
+                  if value is not None]
+        noises = [value for value in (first.get(noise), second.get(noise))
+                  if value is not None]
+        merged[key] = min(values) if values else None
+        merged[noise] = max(noises) if noises else None
+    return merged
+
+
+def axes_findings(baseline, report, axes):
+    """Ways this run regresses the axes baseline. Pure, so it can be exercised."""
+    findings = []
+    if baseline.get("corpusFilesSha256") != report["corpusFilesSha256"]:
+        findings.append(
+            f"the axes baseline was taken against a different corpus "
+            f"({baseline.get('corpusFilesSha256')} vs "
+            f"{report['corpusFilesSha256']})")
+        return findings
+    for rel, was in sorted(baseline.get("programs", {}).items()):
+        now = axes.get(rel)
+        if not isinstance(now, dict):
+            findings.append(f"{rel}: correctness: matched in the baseline, "
+                            f"now {report['cases'].get(rel, {}).get('verdict', 'absent')}"
+                            f"{' (' + now + ')' if isinstance(now, str) else ''}")
+            continue
+        findings.extend(program_regressions(rel, was, now))
+    return findings
+
+
 def ratchet_findings(baseline, report):
     """Ways the baseline forbids this run. Pure, so it can be exercised."""
     findings = []
@@ -197,6 +366,19 @@ def main() -> int:
                         help="print one line per case, not just the summary")
     parser.add_argument("--no-oracle-cache", action="store_true",
                         help=f"rebuild and rerun every oracle instead of reading {ORACLE_CACHE}")
+    parser.add_argument("--axes", action="store_true",
+                        help="measure the six axes of every matching program")
+    parser.add_argument("--axes-reps", type=int, default=5,
+                        help="builds and runs per program for --axes (best of N)")
+    parser.add_argument("--size-tool", default=str(DEFAULT_SIZE),
+                        help="GNU size used for the section bytes")
+    parser.add_argument("--axes-baseline", type=Path, default=AXES_BASELINE)
+    parser.add_argument("--axes-confirm", type=int, default=2,
+                        help="extra rounds for a program that looks regressed")
+    parser.add_argument("--check-axes", action="store_true",
+                        help="fail when an axis regresses beyond its noise (implies --axes)")
+    parser.add_argument("--write-axes-baseline", action="store_true",
+                        help="replace tests/corpus/axes-baseline.json (implies --axes)")
     args = parser.parse_args()
 
     orbit_root = args.orbit_root.resolve()
@@ -209,6 +391,9 @@ def main() -> int:
         parser.error("--r6-command must include an executable")
     if not args.manifest.is_file():
         parser.error(f"no pinned manifest at {args.manifest}")
+    args.axes = args.axes or args.check_axes or args.write_axes_baseline
+    if args.axes and args.axes_reps < 1:
+        parser.error("--axes-reps must be at least 1")
 
     sys.path.insert(0, str(orbit_root / "scripts"))
     try:
@@ -258,6 +443,8 @@ def main() -> int:
                     f"{sha256_file(Path(compiler))}:")
 
     cases = {}
+    matched = []
+    axes = {}
     by_opcode = {}
     by_failing = {}
     reports = []
@@ -354,6 +541,37 @@ def main() -> int:
             case["exit"] = oracle_exit
             for opcode in opcodes:
                 by_opcode[opcode]["match"] += 1
+            matched.append((rel, command, r6_exe, case_dir, case_env))
+
+        if args.axes:
+            print(f"axes: {len(matched)} programs x {args.axes_reps} builds and runs")
+            for rel, command, r6_exe, case_dir, case_env in matched:
+                try:
+                    axes[rel] = measure_program(
+                        command, r6_exe, case_dir, case_env, args.axes_reps,
+                        args.size_tool, args.timeout)
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    axes[rel] = str(exc)
+            if args.check_axes and args.axes_baseline.is_file():
+                was_programs = load_json(args.axes_baseline).get("programs", {})
+                for round_index in range(args.axes_confirm):
+                    suspects = [entry for entry in matched
+                                if isinstance(axes.get(entry[0]), dict)
+                                and entry[0] in was_programs
+                                and program_regressions(entry[0], was_programs[entry[0]],
+                                                        axes[entry[0]])]
+                    if not suspects:
+                        break
+                    print(f"axes: confirming {len(suspects)} programs, "
+                          f"round {round_index + 2}")
+                    for rel, command, r6_exe, case_dir, case_env in suspects:
+                        try:
+                            again = measure_program(
+                                command, r6_exe, case_dir, case_env,
+                                args.axes_reps, args.size_tool, args.timeout)
+                        except (OSError, subprocess.TimeoutExpired) as exc:
+                            again = str(exc)
+                        axes[rel] = merge_rounds(axes[rel], again)
 
     cache.save()
     print(cache.summary())
@@ -408,6 +626,9 @@ def main() -> int:
         "byOpcode": dict(sorted(by_opcode.items())),
         "cases": cases,
     }
+    if args.axes:
+        report["axes"] = {"reps": args.axes_reps, "energyProxy": ENERGY_NOTE,
+                          "programs": axes}
 
     print(f"\ncorpus differential: {report['summary']['match']}/{programs} programs match "
           f"({len(cases)} members, {report['summary']['r6BuildOk']} build under R6)")
@@ -430,6 +651,23 @@ def main() -> int:
           f"{len(unsupported)}/{len(report['byOpcode'])}")
     if unsupported:
         print("    " + " ".join(sorted(unsupported)))
+
+    if args.axes:
+        measured = [record for record in axes.values() if isinstance(record, dict)]
+        failed = {rel: record for rel, record in axes.items()
+                  if not isinstance(record, dict)}
+        print(f"  axes over {len(measured)} programs, best of {args.axes_reps}:")
+        for key, noise in AXES:
+            values = [record[key] for record in measured if record.get(key) is not None]
+            noises = [record[noise] for record in measured if record.get(noise) is not None]
+            label = f"{key} ({ENERGY_NOTE})" if key == "energyProxyCpuMs" else key
+            if values:
+                print(f"    {label}: total {round(sum(values), 3)}, "
+                      f"noise total {round(sum(noises), 3)}")
+            else:
+                print(f"    {label}: not measured on this platform")
+        for rel, why in sorted(failed.items()):
+            print(f"    not measured: {rel}: {why}")
 
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
@@ -456,6 +694,42 @@ def main() -> int:
         print(f"ratchet holds: r6BuildOk {baseline['summary']['r6BuildOk']} -> "
               f"{report['summary']['r6BuildOk']}, match "
               f"{baseline['summary']['match']} -> {report['summary']['match']}")
+
+    if args.check_axes:
+        if not args.axes_baseline.is_file():
+            print(f"no axes baseline at {args.axes_baseline}", file=sys.stderr)
+            return 2
+        broken = axes_findings(load_json(args.axes_baseline), report, axes)
+        if broken:
+            print(f"FAIL: {len(broken)} axis regressions beyond the noise:",
+                  file=sys.stderr)
+            for finding in broken:
+                print(f"  {finding}", file=sys.stderr)
+            return 1
+        print(f"axes hold: no regression beyond the noise over "
+              f"{len(load_json(args.axes_baseline).get('programs', {}))} programs")
+
+    if args.write_axes_baseline:
+        failed = sorted(rel for rel, record in axes.items()
+                        if not isinstance(record, dict))
+        if failed:
+            print(f"axes not measured for {len(failed)} programs; "
+                  f"no axes baseline written", file=sys.stderr)
+            return 1
+        payload = {
+            "schema": "r6-axes-baseline/1",
+            "corpusFilesSha256": report["corpusFilesSha256"],
+            "reps": args.axes_reps,
+            "noise": "max - min over the reps; a check tolerates the larger "
+                     "of the baseline's and the run's",
+            "energyProxy": ENERGY_NOTE,
+            "programs": dict(sorted(axes.items())),
+        }
+        args.axes_baseline.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.axes_baseline, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(payload, indent=2) + "\n")
+        print(f"axes baseline written to {args.axes_baseline}: "
+              f"{len(axes)} programs")
 
     if args.write_baseline:
         # After --check, so promoting a baseline is "verify, then re-take":
