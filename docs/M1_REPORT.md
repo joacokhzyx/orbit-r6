@@ -1845,4 +1845,5 @@ modelos y sale con 1 si responde falso. Sin una extern `orbit_db_*` las
 migraciones siguen en `CGEN`. El par `95-db-migrations` sale 1 con salida vacia
 en los dos lados (sin `.orbit/data` la apertura falla); con el directorio
 presente, oraculo y R6 imprimen `466` y salen 42 en la primera corrida y en la
-segunda. Diferencial **94/94**; loader **307/307**.
+segunda. Diferencial **94/94**; loader **307/307**; corpus **135 build / 135 match over 135 -> 135 /
+135**; self-host C `80a61b67...`.

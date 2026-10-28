@@ -4229,5 +4229,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   Controls in `tests/reject/`: `ok-db-migrations` (builds, two migrations and an
   `orbit_db_*` extern); `x-db-migrations-no-db-extern` stays `CGEN`. The case
   `x-db-migrations` of D-M1-87 is replaced by these two.
-- Gates: differential **94/94**, loader **307/307**.
+- Gates: differential **94/94**, loader **307/307**, corpus **135 build / 135
+  match over 135 -> 135 / 135** (ratchet holds), self-host C `80A61B67...`
+  (`selfhost2.ps1` prints SELFHOST OK).
 - Status: **applied**.
