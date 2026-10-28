@@ -1813,6 +1813,16 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             break;
         }
         case R6_OP_COPY:
+            /* D-M1-93: the pin widens an int stored into a float local or
+               field by copying the int register into a float register, and
+               its C assignment converts the value. */
+            if (i->operands[0].kind == R6_VAL_REG && type_at(f, i->dest) &&
+                is_float(type_at(f, i->dest)) &&
+                i->operands[0].as.i32 >= 0 && i->operands[0].as.i32 < f->register_count &&
+                is_int(type_at(f, i->operands[0].as.i32))) {
+                if (!valid_dest(f, i, true, d)) return false;
+                break;
+            }
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             if (!is_scalar(type_at(f, i->dest)) &&
@@ -3221,6 +3231,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             if (is_result(type_at(f, i->dest)))
                 emit_cell_copy(o, result_cell_offset(f, is_main, i->operands[0].as.i32),
                                result_cell_offset(f, is_main, i->dest));
+            else if (is_float(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG &&
+                     is_int(type_at(f, i->operands[0].as.i32)))
+                fprintf(o, "\tcvtsi2sdq -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
+                        (unsigned)(i->operands[0].as.i32 + 1) * 8, off);
             else if (is_float(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG)
                 fprintf(o, "\tmovsd -%u(%%rbp), %%xmm0\n\tmovsd %%xmm0, -%u(%%rbp)\n",
                         (unsigned)(i->operands[0].as.i32 + 1) * 8, off);

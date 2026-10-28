@@ -863,6 +863,15 @@ def build_reject():
         "D-M1-91", "CGEN",
         "div and mod over words are not admitted: the pin divides signed ints, not words")
 
+    # ---- D-M1-93: an int register copied into a float register -------------
+    add("x-copy-bool-into-float",
+        jd(DOC([MAIN([I("load_const", 0, Bool(True)),
+                      I("copy", 1, Reg(0)),
+                      I("ret", -1, Int(0))],
+                     ["bool", "float"])])),
+        "D-M1-93", "CGEN",
+        "only an int widens into a float: a bool has no measured conversion")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -1798,6 +1807,13 @@ def build_accept_files():
                                 I("ret", -1, Int(1))],
                                ["void*", "void*", "void*", "void", "void*", "void*",
                                 "int", "bool"])]))))
+    files.append(("ok-copy-int-into-float",
+                  jd(DOC([MAIN([I("load_const", 0, Int(-7)),
+                                I("copy", 1, Reg(0)),
+                                I("arg", -1, Reg(1)),
+                                I("call", 2, Str("print"), Int(1)),
+                                I("ret", -1, Int(0))],
+                               ["int", "float", "void"])]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -2145,6 +2161,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-word-arith-print.json", "run_exit": 7,
              "run_stdout": "2147483648\r\n", "rule": "D-M1-91",
              "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"},
+            {"file": "cases/ok-copy-int-into-float.json", "run_exit": 0,
+             "run_stdout": "-7.0\r\n", "rule": "D-M1-93",
+             "note": "an int register copied into a float register is converted, as the pin's C assignment does"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",

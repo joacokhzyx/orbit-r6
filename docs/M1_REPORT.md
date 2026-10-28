@@ -1847,3 +1847,12 @@ en los dos lados (sin `.orbit/data` la apertura falla); con el directorio
 presente, oraculo y R6 imprimen `466` y salen 42 en la primera corrida y en la
 segunda. Diferencial **94/94**; loader **307/307**; corpus **135 build / 135 match over 135 -> 135 /
 135**; self-host C `80a61b67...`.
+
+## Actualizacion de M1 - Copia de int a float (2026-10-28)
+
+D-M1-93. Un `copy` de un registro `int` a un registro `float` convierte el
+valor con `cvtsi2sdq`, como la asignacion de C del pin. Es el mecanismo con el
+que orbit-lang `6a9ddaf` guarda un int en un local o campo float. Otro par de
+tipos distintos sigue en `CGEN`. El par `96-int-copy-to-float` imprime `3.5` y
+sale 42 en los dos lados. Diferencial **95/95**; loader **309/309**; corpus
+**135 build / 135 match over 135 -> 135 / 135**; self-host C `80a61b67...`.

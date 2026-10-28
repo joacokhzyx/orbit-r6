@@ -4233,3 +4233,28 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 135 / 135** (ratchet holds), self-host C `80A61B67...`
   (`selfhost2.ps1` prints SELFHOST OK).
 - Status: **applied**.
+
+## D-M1-93 - An int register copied into a float register
+
+- Date: 2026-10-28. Pin: `e34833a` (D-F0-18); the IR that needs it is the one
+  of orbit-lang `6a9ddaf`.
+- Root cause: orbit-lang `eb54e08` converts an int stored into a float local or
+  float field by copying the int register into a float register (the mechanism
+  of `39a6d18` for a float declaration), and `992b12b` documents in IR_SPEC that
+  this `copy` converts the value, as the C assignment does. The validation of
+  `copy` required the operand type to equal the destination type, so
+  `tests/suite/float_local_int_assign` from the `6a9ddaf` corpus failed with
+  `CGEN` ("copy value type int does not match register type float").
+- Decision: a `copy` whose operand is an `int` register and whose destination
+  is a `float` register is lowered as `cvtsi2sdq` from the int slot into
+  `%xmm0` and a `movsd` into the float slot. Every other pair of differing
+  kinds stays `CGEN`.
+- Fixture `96-int-copy-to-float` (prints `3.5`, exit 42; its `.json` is the IR
+  the `6a9ddaf` fixed point emits). Controls in `tests/reject/`:
+  `ok-copy-int-into-float` (prints `-7.0`, exit 0); `x-copy-bool-into-float`
+  stays `CGEN`.
+- Gates at `e34833a`: differential **95/95**, loader **309/309**, corpus
+  **135 build / 135 match over 135 -> 135 / 135**, self-host C `80A61B67...`
+  (`scripts/selfhost.ps1` prints SELFHOST OK). At the `6a9ddaf` corpus the
+  driver builds 137 of 137 programs.
+- Status: **applied**.

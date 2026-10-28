@@ -869,6 +869,13 @@
       "note": "div and mod over words are not admitted: the pin divides signed ints, not words"
     },
     {
+      "file": "cases/x-copy-bool-into-float.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-93",
+      "note": "only an int widens into a float: a bool has no measured conversion"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -1612,6 +1619,13 @@
       "run_stdout": "2147483648\r\n",
       "rule": "D-M1-91",
       "note": "add, sub and mul over void* words keep 64 bits, an int destination keeps the low 32, and print writes the whole word"
+    },
+    {
+      "file": "cases/ok-copy-int-into-float.json",
+      "run_exit": 0,
+      "run_stdout": "-7.0\r\n",
+      "rule": "D-M1-93",
+      "note": "an int register copied into a float register is converted, as the pin's C assignment does"
     },
     {
       "file": "cases/ok-infer-union-tag.json",

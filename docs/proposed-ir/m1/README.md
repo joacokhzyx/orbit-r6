@@ -107,6 +107,7 @@ declarado por ABI C en `runtime/orbit_api.h`.
 | `93-nested-lists` | lecturas de `list<list<int>>` y `list<list<list<int>>>`; el elemento sin tipo es receptor de otra lectura u operando de suma, resta y producto con destino int | 42 | `3\r\n` |
 | `94-word-chain` | suma de tres terminos sobre elementos sin tipo con una suma intermedia `void*`, y `print` de una palabra (IR escrito a mano: el emisor tipa la suma intermedia int) | 42 | `8\r\n` |
 | `95-db-migrations` | modelo `Note`, dos lineas `migrations` y una consulta; el `main` llama `orbit_run_migrations` despues de las tablas y sale 1 si falla; se ejecuta sin `.orbit/data`, asi que la apertura falla y los dos lados salen 1 sin salida | 1 | vacia |
+| `96-int-copy-to-float` | `var ratio: float = 1.5` y luego `ratio = n` con `n` int; el `copy` int a float convierte el valor (D-M1-93) | 42 | `3.5` |
 
 Los pares son manuales y anteriores al emisor; el pin incluye el emisor
 (`orbit build --emit-ir`) y el corpus de `tests/corpus/` es su salida. Los
