@@ -54,6 +54,10 @@ the pinned sources by the language's own bootstrap.
   the repository and is not byte-reproducible. Rebuild it from the pinned Orbit
   checkout with `scripts/mklib_runtime.py --out <absolute path>`. `docs/PIN.md`
   lists the recipe and the expected 337-symbol set.
+- For programs that call the database: `python scripts/build-runtime-db.py
+  --orbit-root <pinned checkout> --cc C:\w64devkit\bin\gcc.exe`, which writes
+  `libruntime_net_db.a` and `sqlite3.lib` beside the archive (D-M1-87). The
+  executable needs `sqlite3.dll` from `runtime/vendor/win-x64` on `PATH`.
 - MinGW CRT and library directories: `R6_MINGW_ROOT` (default `C:/w64devkit`) and
   `R6_MINGW_GCC_VERSION` (default `16.2.0`). Only `ld.exe` is executed.
 - For the differential, the corpus and the census: a checkout of `orbit-lang`

@@ -4057,3 +4057,43 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   match over 135 -> 130 / 130**, census 2 build over 28 modules, self-host C
   `80A61B67...`.
 - Status: **applied**.
+
+## D-M1-87 - Database programs link the DB variant of the runtime
+
+- Date: 2026-10-27. Pin: `e34833a` (D-F0-18).
+- Root cause: `arena_sink_scope` and `peephole_no_fold_side_effects` call
+  `Item.all()` and `Item.where(...)`, which are `orbit_db_query_all` and
+  `orbit_db_query_where_p` externs (IR_SPEC 3.3). `ld` reported
+  `undefined reference to orbit_db_query_all` because the net archive defines no
+  database symbols. The language links such a program against the whole runtime
+  compiled with `-DORBIT_WITH_DB`, `-I<runtime>/vendor` and
+  `<runtime>/vendor/win-x64/sqlite3.lib` (`compiler/host/pipeline.orb`).
+- Decision:
+  - `scripts/build-runtime-db.py --orbit-root <pin> --cc <gcc>` compiles the
+    translation unit of the pinned `scripts/mklib_runtime.py` with one more
+    define, `ORBIT_WITH_DB`, into `.r6-build/runtime-win64/libruntime_net_db.a`
+    and copies `sqlite3.lib` beside it. Neither file is committed. CI and
+    `scripts/ci.ps1` build or require them.
+  - The driver links the DB archive and `sqlite3.lib` instead of the plain
+    archive when the module declares an extern named `orbit_db_*`.
+  - The entry wrapper does what the pin's `main` does for such a module: it
+    calls `orbit_db_init(".orbit/data/app.db")` and one `orbit_db_exec_ddl("CREATE
+    TABLE IF NOT EXISTS <lowercased name>s (...)")` per model with fields (int
+    and bool `INTEGER`, float `REAL`, anything else `TEXT`, the field `id` the
+    primary key; `generateModelDDL` and `modelTableName`). More than 8 models
+    and any `migrations` entry are `CGEN`: the migration runner has no lowering.
+  - The executable finds `sqlite3.dll` as the oracle's does, beside the exe or on
+    `PATH`. `tests/diff/run_diff.py` puts `<orbit-root>/runtime/vendor/win-x64`
+    first on `PATH` and runs both executables with that environment, as
+    `run_corpus.py` already does.
+- Fixture `90-db-link` (oracle and R6 print `2 2 0 2` and exit 42): all, where
+  and create on a model with four field kinds, an empty model, run where
+  `.orbit/data` does not exist, so the open fails on both sides with the same
+  message on stderr. Both corpus programs were also run by hand with
+  `.orbit/data` present: stdout and exit equal, and both sides create
+  `app.db`. Controls: `ok-db-link` (build only) and `x-db-migrations`
+  (`CGEN`).
+- Gates: differential **89/89**, loader **300/300**, corpus **130 build / 130
+  match over 135 -> 132 / 132**, census 2 build over 28 modules, self-host C
+  `80A61B67...`.
+- Status: **applied**.

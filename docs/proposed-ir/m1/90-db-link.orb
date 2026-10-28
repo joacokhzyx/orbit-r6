@@ -1,0 +1,29 @@
+// D-M1-87: a module that calls the database builtins links the DB variant of
+// the runtime and opens the database in main, as the pin's main does, with one
+// CREATE TABLE per model that has fields. The fixture runs where no
+// .orbit/data directory exists, so the open fails on both sides the same way
+// and every query answers empty; the corpus programs and a run with the
+// directory present were compared by hand when the decision was taken.
+// expect-exit 42
+
+model Item {
+    id: string
+    qty: int
+    price: float
+    live: bool
+}
+
+model Empty {
+}
+
+fn main() -> int {
+    val everything = Item.all()
+    print(everything.len())
+    val none = Item.where("id = ?", "nope")
+    print(none.len())
+    val saved = Item.create("""{"id":"a","qty":1,"price":2.5,"live":true}""")
+    if saved { print(1) } else { print(0) }
+    val again = Item.all()
+    print(again.len())
+    return 42
+}

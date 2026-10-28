@@ -1781,3 +1781,16 @@ par `89-object-literals` imprime 17 lineas iguales a las del oraculo y sale 42.
 Los cuatro programas de objetos coinciden. Diferencial **88/88**; loader
 **298/298**; corpus **126 build / 126 match over 135 -> 130 / 130**; self-host
 C `80a61b67...`; census 2 de 28.
+
+## Actualizacion de M1 - Database programs link the DB variant of the runtime (2026-10-27)
+
+D-M1-87. Los programas que llaman a la base de datos fallaban en el enlace con
+`undefined reference to orbit_db_query_all`. `scripts/build-runtime-db.py`
+compila la receta del pin con `ORBIT_WITH_DB` en
+`.r6-build/runtime-win64/libruntime_net_db.a` y copia `sqlite3.lib`; el driver
+los enlaza cuando el modulo declara un extern `orbit_db_*`, y el punto de
+entrada abre `.orbit/data/app.db` y crea una tabla por modelo con campos, como
+el `main` del pin. Las migraciones siguen en `CGEN`. El par `90-db-link` sale
+42 con salida igual a la del oraculo. Diferencial **89/89**; loader
+**300/300**; corpus **130 build / 130 match over 135 -> 132 / 132**; self-host C
+`80a61b67...`; census 2 de 28.

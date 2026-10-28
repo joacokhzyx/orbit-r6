@@ -827,6 +827,13 @@
       "note": "an object-typed extern parameter is admitted for the creator and setters only"
     },
     {
+      "file": "cases/x-db-migrations.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-87",
+      "note": "a database module with migrations is refused: the pin's migration runner has no lowering here"
+    },
+    {
       "file": "cases/x-global-register.json",
       "exit": 1,
       "code": "CGEN",
@@ -1553,6 +1560,11 @@
       "run_exit": 5,
       "rule": "D-M1-86",
       "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"
+    },
+    {
+      "file": "cases/ok-db-link.json",
+      "rule": "D-M1-87",
+      "note": "a module with an orbit_db_* extern links the DB archive and the SQLite import library (build only: the run needs sqlite3.dll on PATH)"
     },
     {
       "file": "cases/ok-infer-union-tag.json",

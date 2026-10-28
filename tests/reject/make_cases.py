@@ -790,6 +790,21 @@ def build_reject():
         "D-M1-86", "CGEN",
         "an object-typed extern parameter is admitted for the creator and setters only")
 
+    # ---- D-M1-87: the database variant of the runtime ------------------------
+    # A module that declares an orbit_db_* extern links the DB archive and opens
+    # the database in main. Migrations have no measured lowering.
+    def DB_COUNT():
+        return FN("orbit_db_count_all", [], [], rtype="int", extern=True,
+                  params=["table"], ptypes=["string"])
+
+    mod = MOD([DB_COUNT(), MAIN([I("arg", -1, Str("items")),
+                                 I("call", 0, Str("orbit_db_count_all"), Int(1)),
+                                 I("ret", -1, Int(0))], ["int"])])
+    mod["migrations"] = ["CREATE TABLE t (id TEXT)"]
+    add("x-db-migrations", jd({"irVersion": "1", "module": mod}),
+        "D-M1-87", "CGEN",
+        "a database module with migrations is refused: the pin's migration runner has no lowering here")
+
     # ---- D-M1-15: globals hold literals, never register words ----------------
     mod = MOD([MAIN()])
     mod["globals"] = [{"name": "G", "value": Reg(0), "typeName": "int"}]
@@ -1692,6 +1707,12 @@ def build_accept_files():
                                 I("add", 3, Reg(1), Reg(2)),
                                 I("ret", -1, Reg(3))],
                                ["object", "int", "int", "int"])]))))
+    files.append(("ok-db-link",
+                  jd(DOC([FN("orbit_db_count_all", [], [], rtype="int", extern=True,
+                             params=["table"], ptypes=["string"]),
+                          MAIN([I("arg", -1, Str("items")),
+                                I("call", 0, Str("orbit_db_count_all"), Int(1)),
+                                I("ret", -1, Int(0))], ["int"])]))))
     mod = MOD([MAIN([I("load_var", 0, Sym("Shape_TAG_Dot")),
                      I("ret", -1, Reg(0))], ["unknown"])])
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
@@ -2032,6 +2053,8 @@ def build_manifest(reject, accept_files):
              "note": "inline literal operands of the bitwise and shift opcodes, count & 31 and arithmetic shr"},
             {"file": "cases/ok-object-set-get.json", "run_exit": 5, "rule": "D-M1-86",
              "note": "orbit_object_create, a setter and two getter reads, one of a key never stored"},
+            {"file": "cases/ok-db-link.json", "rule": "D-M1-87",
+             "note": "a module with an orbit_db_* extern links the DB archive and the SQLite import library (build only: the run needs sqlite3.dll on PATH)"},
             {"file": "cases/ok-infer-union-tag.json", "run_exit": 0, "rule": "D-M1-20",
              "note": "an unknown <union>_TAG_<variant> load is recovered as int"},
             {"file": "../../docs/proposed-ir/m1/30-inferred-model-fields.json",

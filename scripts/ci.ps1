@@ -30,6 +30,11 @@ if (-not (Test-Path $archive)) {
     Write-Host "FAILED: missing $archive (rebuild it with scripts/mklib_runtime.py from the pinned checkout; see docs/PIN.md)"
     exit 1
 }
+$dbArchive = Join-Path $root '.r6-build\runtime-win64\libruntime_net_db.a'
+if (-not (Test-Path $dbArchive)) {
+    Write-Host "FAILED: missing $dbArchive (python scripts/build-runtime-db.py --orbit-root <pinned checkout>; see docs/PIN.md)"
+    exit 1
+}
 if (($Diff -or $Corpus) -and -not ($Compiler -and $OrbitRoot -and $Cc)) {
     Write-Host 'FAILED: -Diff and -Corpus need -Compiler, -OrbitRoot and -Cc'
     exit 2

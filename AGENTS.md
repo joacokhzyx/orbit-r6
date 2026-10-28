@@ -139,6 +139,10 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   not in the repo**. A fresh clone must rebuild it from the pinned checkout
   with its `scripts/mklib_runtime.py --out ...` (expected hash/symbols in
   `docs/PIN.md`), otherwise linking fails with `error[LINK]`.
+- A module with an `orbit_db_*` extern links `libruntime_net_db.a` and
+  `sqlite3.lib` from the same directory, built by `python
+  scripts/build-runtime-db.py --orbit-root <pin checkout>` (D-M1-87); the
+  executable finds `sqlite3.dll` on `PATH` (`runtime/vendor/win-x64`).
 - MinGW CRT/lib dirs come from `R6_MINGW_ROOT` (default `C:/w64devkit`) and
   `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging paths only; just
   `ld.exe` is executed.

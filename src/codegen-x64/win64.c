@@ -3972,7 +3972,60 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
     return !ferror(o);
 }
 
-static void emit_entry_wrapper(FILE *o) {
+/* D-M1-87: the pin's main opens the database and creates one table per model
+ * with fields when the module calls a database builtin (c_backend.orb,
+ * generateModelDDL: `<lowercased name>s`, int and bool INTEGER, float REAL,
+ * the rest TEXT, `id` the primary key). */
+static bool module_uses_db(const R6Module *m) {
+    size_t n;
+    for (n = 0; n < m->function_count; ++n)
+        if (m->functions[n].is_extern && m->functions[n].name &&
+            strncmp(m->functions[n].name, "orbit_db_", 9) == 0)
+            return true;
+    return false;
+}
+
+static void emit_db_text(FILE *o, const char *text, unsigned long long id) {
+    emit_string(o, text, id);
+}
+
+static bool emit_entry_wrapper(FILE *o, const R6Module *m, R6Diagnostic *d) {
+    bool db = module_uses_db(m);
+    unsigned long long base = 1ULL << 62, next = base + 1;
+    char ddl[8][1024];
+    unsigned long long ddl_id[8];
+    size_t ddl_count = 0, k, j;
+    if (db) {
+        if (m->migration_count)
+            return fail(d, NULL, "CGEN", "a database module with migrations is outside the M1 native subset");
+        emit_db_text(o, ".orbit/data/app.db", base);
+        for (k = 0; k < m->model_count; ++k) {
+            const R6Model *model = &m->models[k];
+            size_t len = 0;
+            if (!model->field_count) continue;
+            if (ddl_count == 8)
+                return fail(d, NULL, "CGEN", "a database module with more than 8 models is outside the M1 native subset");
+            len += (size_t)snprintf(ddl[ddl_count], sizeof ddl[0], "CREATE TABLE IF NOT EXISTS ");
+            for (j = 0; model->name[j] && len + 4 < sizeof ddl[0]; ++j) {
+                char c = model->name[j];
+                ddl[ddl_count][len++] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+            }
+            len += (size_t)snprintf(ddl[ddl_count] + len, sizeof ddl[0] - len, "s (");
+            for (j = 0; j < model->field_count && len + 128 < sizeof ddl[0]; ++j) {
+                const char *ft = model->fields[j].type_name;
+                len += (size_t)snprintf(ddl[ddl_count] + len, sizeof ddl[0] - len, "%s%s %s%s",
+                                        j ? ", " : "", model->fields[j].name,
+                                        is_int(ft) || is_bool(ft) ? "INTEGER" : is_float(ft) ? "REAL" : "TEXT",
+                                        strcmp(model->fields[j].name, "id") == 0 ? " PRIMARY KEY" : "");
+            }
+            if (j != model->field_count || len + 3 >= sizeof ddl[0])
+                return fail(d, NULL, "CGEN", "model %s is too large for the database table text", model->name);
+            snprintf(ddl[ddl_count] + len, sizeof ddl[0] - len, ");");
+            ddl_id[ddl_count] = next++;
+            emit_db_text(o, ddl[ddl_count], ddl_id[ddl_count]);
+            ++ddl_count;
+        }
+    }
     fputs("\t.text\n\t.globl main\n"
           "\t.def main; .scl 2; .type 32; .endef\n"
           "\t.seh_proc main\nmain:\n"
@@ -3983,14 +4036,20 @@ static void emit_entry_wrapper(FILE *o) {
           /* D-M1-37: the pinned main stores argc/argv for orbit_os_argc and
            * orbit_os_argv before anything else runs. */
           "\tleaq _orbit_argc(%rip), %rax\n\tmovl %ecx, 0(%rax)\n"
-          "\tleaq _orbit_argv(%rip), %rax\n\tmovq %rdx, 0(%rax)\n"
-          "\tmovl $131072, %ecx\n\tcall orbit_arena_create\n"
+          "\tleaq _orbit_argv(%rip), %rax\n\tmovq %rdx, 0(%rax)\n", o);
+    if (db) {
+        fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tcall orbit_db_init\n", base);
+        for (k = 0; k < ddl_count; ++k)
+            fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n\tcall orbit_db_exec_ddl\n", ddl_id[k]);
+    }
+    fputs("\tmovl $131072, %ecx\n\tcall orbit_arena_create\n"
           "\tmovq %rax, -8(%rbp)\n"
           "\tmovq %rax, %rcx\n\tcall orbit_main\n"
           "\tmovl %eax, -16(%rbp)\n"
           "\tmovq -8(%rbp), %rcx\n\tcall orbit_arena_destroy\n"
           "\tmovl -16(%rbp), %eax\n\tleave\n\tret\n"
           "\t.seh_endproc\n", o);
+    return !ferror(o);
 }
 
 /* ---- D-M1-20: recovering a register type the builder left `unknown` ------
@@ -4368,7 +4427,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
             return fail(diag, NULL, "CGEN", "out of memory indexing locals of %s", module->functions[n].name);
         if (!emit_function(out, module, &module->functions[n], n, diag)) return false;
     }
-    emit_entry_wrapper(out);
+    if (!emit_entry_wrapper(out, module, diag)) return false;
     return !ferror(out);
 }
 

@@ -6,6 +6,7 @@
 #include "../codegen-x64/win64.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,6 +63,8 @@ int main(int argc, char **argv) {
     R6CoffObject object;
     char asm_error[256];
     int argi = 1, rc = 1;
+    bool uses_db = false;
+    size_t fn;
 
     if (argi < argc && strcmp(argv[argi], "build") == 0) ++argi;
     if (argi >= argc) {
@@ -104,6 +107,14 @@ int main(int argc, char **argv) {
         print_error(input, &diag);
         goto done;
     }
+
+    /* D-M1-87: a module that declares an orbit_db_* extern links the DB
+     * variant of the runtime archive and the SQLite import library, as the
+     * language does for a program that calls the database (pipeline.orb). */
+    for (fn = 0; fn < module.function_count; ++fn)
+        if (module.functions[fn].is_extern && module.functions[fn].name &&
+            strncmp(module.functions[fn].name, "orbit_db_", 9) == 0)
+            uses_db = true;
 
     /* All intermediates remain inside the R6 checkout. */
 #ifdef _WIN32
@@ -194,7 +205,9 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = libdir;
     link_argv[link_argc++] = obj_path;
-    link_argv[link_argc++] = ".r6-build/runtime-win64/libruntime_net.a";
+    link_argv[link_argc++] = uses_db ? ".r6-build/runtime-win64/libruntime_net_db.a"
+                                     : ".r6-build/runtime-win64/libruntime_net.a";
+    if (uses_db) link_argv[link_argc++] = ".r6-build/runtime-win64/sqlite3.lib";
     link_argv[link_argc++] = "-lws2_32"; link_argv[link_argc++] = "-lmingw32";
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";

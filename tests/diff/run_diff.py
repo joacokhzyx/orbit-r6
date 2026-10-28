@@ -74,6 +74,9 @@ def main() -> int:
         noop = "cmd /c exit 0" if os.name == "nt" else "true"
         env.update({"ORBIT_CC": noop, "CC": noop})
     env = _common.disposable_test_env(env, cc=args.cc)
+    vendor = orbit_root / "runtime" / "vendor" / "win-x64"
+    if vendor.is_dir():
+        env["PATH"] = str(vendor) + os.pathsep + env.get("PATH", "")
     suffix = ".exe" if os.name == "nt" else ""
     failures = 0
 
@@ -122,9 +125,9 @@ def main() -> int:
                 continue
 
             try:
-                oracle = subprocess.run([str(oracle_exe)], cwd=case_dir,
+                oracle = subprocess.run([str(oracle_exe)], cwd=case_dir, env=case_env,
                                         capture_output=True, timeout=args.timeout)
-                native = subprocess.run([str(r6_exe)], cwd=case_dir,
+                native = subprocess.run([str(r6_exe)], cwd=case_dir, env=case_env,
                                         capture_output=True, timeout=args.timeout)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 print(f"FAIL {name}: execution failed or timed out: {exc}", file=sys.stderr)

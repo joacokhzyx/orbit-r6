@@ -62,6 +62,8 @@ jobs:
           $out = Join-Path $PWD '.r6-build\runtime-win64\libruntime_net.a'
           python orbit-lang/scripts/mklib_runtime.py --cc C:\w64devkit\bin\gcc.exe --out $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/build-runtime-db.py --orbit-root orbit-lang --cc C:\w64devkit\bin\gcc.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $n = (& C:\w64devkit\bin\nm.exe --defined-only $out | Measure-Object -Line).Lines
           Write-Host "defined symbols: $n"
 
@@ -111,6 +113,8 @@ jobs:
           New-Item -ItemType Directory -Force .r6-build\runtime-win64 | Out-Null
           $out = Join-Path $PWD '.r6-build\runtime-win64\libruntime_net.a'
           python orbit-lang/scripts/mklib_runtime.py --cc C:\w64devkit\bin\gcc.exe --out $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/build-runtime-db.py --orbit-root orbit-lang --cc C:\w64devkit\bin\gcc.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build the Orbit fixed point
