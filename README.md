@@ -197,7 +197,7 @@ and the corpus hash.
 | `tests/reject/` | Loader contract suite: `manifest.json` is the truth, `cases/` is rendered from it |
 | `tests/corpus/` | Language-emitted corpus manifest, ratchet and runner |
 | `tests/compiler-ir/` | Census of the compiler's own IR |
-| `docs/` | `PIN.md`, `CONTRACT.md`, `DECISIONS.md`, `M1_PLAN.md`, `M1_REPORT.md`, fixtures in `proposed-ir/m1/` |
+| `docs/` | `PIN.md`, `CONTRACT.md`, `DECISIONS.md`, `M1_REPORT.md`, fixtures in `proposed-ir/m1/` |
 | `scripts/` | `build-r6.ps1`, `migrate-m1-fixtures.py` |
 
 Contract prose in `docs/` is Spanish. `AGENTS.md` holds the working rules.
