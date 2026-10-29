@@ -111,6 +111,9 @@ The script uses `$env:R6_CC`, else `$env:CC`, else `gcc` on `PATH`, with
 `R6_RUNTIME_DIR`, then `.r6-build/runtime-win64` relative to the current
 directory. A missing archive is `error[LINK]` with the full path tried.
 
+`r6 build --object <module.ir> -o <module.o>` compiles a runtime module (`"runtimeModule": true`,
+D-M1-105) to an object and stops before the link. A runtime module builds only that way.
+
 The `.s` and `.o` temporaries go to `R6_TMPDIR`, else the system temporary
 directory. They are named `r6-<pid>.s` and `r6-<pid>.o` and are deleted after a
 successful link.
@@ -194,7 +197,7 @@ and the corpus hash.
 | `tests/reject/` | Loader contract suite: `manifest.json` is the truth, `cases/` is rendered from it |
 | `tests/corpus/` | Language-emitted corpus manifest, ratchet and runner |
 | `tests/compiler-ir/` | Census of the compiler's own IR |
-| `docs/` | `PIN.md`, `CONTRACT.md`, `DECISIONS.md`, `M1_PLAN.md`, `M1_REPORT.md`, fixtures in `proposed-ir/m1/` |
+| `docs/` | `PIN.md`, `CONTRACT.md`, `DECISIONS.md`, `M1_REPORT.md`, fixtures in `proposed-ir/m1/` |
 | `scripts/` | `build-r6.ps1`, `migrate-m1-fixtures.py` |
 
 Contract prose in `docs/` is Spanish. `AGENTS.md` holds the working rules.

@@ -145,7 +145,7 @@ out:
  * language checks before it hands r6 a module; docs/DECISIONS.md says what
  * bumps it. */
 #define R6_VERSION "0.1.0"
-#define R6_IR_PROTOCOL 2
+#define R6_IR_PROTOCOL 3
 
 int main(int argc, char **argv) {
     const char *input, *output = NULL, *root, *version;
@@ -166,7 +166,8 @@ int main(int argc, char **argv) {
     R6CoffObject object;
     char asm_error[256];
     int argi = 1, rc = 1, stage;
-    bool uses_db = false, uses_net, own_entry, timings;
+    bool uses_db = false, uses_net, own_entry, timings, object_mode = false;
+    const char *obj_out;
     char bad_section[64], msvcrt_dll[1024];
     const char *bad;
     const char *timings_env = getenv("R6_TIMINGS");
@@ -181,6 +182,7 @@ int main(int argc, char **argv) {
     }
     if (argi < argc && (strcmp(argv[argi], "--help") == 0 || strcmp(argv[argi], "-h") == 0)) {
         fputs("usage: r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>] [--timings]\n"
+              "       r6 build --object <runtime-module.ir> -o <output.o>   no linking\n"
               "       r6 --version   prints `r6 <semver> ir-protocol <N>` and exits 0\n"
               "  --runtime-dir <dir>  directory with libruntime_net.a, libruntime_net_db.a and\n"
               "                       sqlite3.lib (else R6_RUNTIME_DIR, else .r6-build/runtime-win64)\n"
@@ -195,6 +197,14 @@ int main(int argc, char **argv) {
                         "[--runtime-dir <dir>] [--timings]\n");
         return 2;
     }
+    if (strcmp(argv[argi], "--object") == 0) {
+        object_mode = true;
+        ++argi;
+        if (argi >= argc) {
+            fprintf(stderr, "r6: error[CLI]: missing input file\n");
+            return 2;
+        }
+    }
     input = argv[argi++];
     while (argi < argc) {
         if (strcmp(argv[argi], "-o") == 0 && argi + 1 < argc && !output) {
@@ -204,6 +214,9 @@ int main(int argc, char **argv) {
                    !runtime_dir) {
             runtime_dir = argv[argi + 1];
             argi += 2;
+        } else if (strcmp(argv[argi], "--object") == 0 && !object_mode) {
+            object_mode = true;
+            ++argi;
         } else if (strcmp(argv[argi], "--timings") == 0) {
             timings = true;
             ++argi;
@@ -240,6 +253,12 @@ int main(int argc, char **argv) {
         goto done;
     }
     stage_add(T_LOAD, t0);
+    if (module.runtime_module != object_mode) {
+        fprintf(stderr, "r6: %s:0:0: error[CLI]: %s\n", input,
+                object_mode ? "--object builds a runtime module (\"runtimeModule\": true) only"
+                            : "a runtime module has no main: build it with --object");
+        goto free_module;
+    }
 
     /* D-M1-87: a module that declares an orbit_db_* extern links the DB
      * variant of the runtime archive and the SQLite import library, as the
@@ -336,7 +355,7 @@ int main(int argc, char **argv) {
     snprintf(runtime_a, sizeof runtime_a, "%s/%s", runtime_dir,
              uses_db ? "libruntime_net_db.a" : "libruntime_net.a");
     snprintf(sqlite_lib, sizeof sqlite_lib, "%s/sqlite3.lib", runtime_dir);
-    if (!file_exists(runtime_a) || (uses_db && !file_exists(sqlite_lib))) {
+    if (!object_mode && (!file_exists(runtime_a) || (uses_db && !file_exists(sqlite_lib)))) {
         full_path(file_exists(runtime_a) ? sqlite_lib : runtime_a, full, sizeof full);
         fprintf(stderr, "r6: %s:0:0: error[LINK]: runtime archive not found: %s\n",
                 input, full);
@@ -356,7 +375,8 @@ int main(int argc, char **argv) {
     fclose(asm_file); asm_file = NULL;
     stage_add(T_ASM, t0);
     t0 = now_ms();
-    obj_file = fopen(obj_path, "wb");
+    obj_out = object_mode ? output : obj_path;
+    obj_file = fopen(obj_out, "wb");
     if (!obj_file || !r6_coff_write(&object, obj_file)) {
         fprintf(stderr, "r6: %s:0:0: error[OBJECT]: %s\n", input,
                 obj_file ? r6_coff_error(&object) : strerror(errno));
@@ -374,6 +394,11 @@ int main(int argc, char **argv) {
     obj_file = NULL;
     r6_coff_free(&object);
     stage_add(T_COFF, t0);
+    if (object_mode) {
+        remove(asm_path);
+        rc = 0;
+        goto free_module;
+    }
     link_argv[link_argc++] = ld_path;
     link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
     link_argv[link_argc++] = "-Bdynamic";

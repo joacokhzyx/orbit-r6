@@ -210,8 +210,8 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   selector's instruction subset; `coff.{c,h}` — AMD64 COFF writer (sections,
   symbols, REL32/ADDR32NB relocations, unwind data).
 - `src/driver/r6.c` — CLI, temporaries in `R6_TMPDIR` or the system temp dir, direct `ld` link.
-- `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — probes
-  that produced `docs/COFF_OBJECTS.md`.
+- `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — historical
+  COFF probes.
 - `tests/reject/` — loader contract suite: `run_reject.py` (second gate),
   `make_cases.py` (deterministic case builder), `cases/` + `manifest.json`.
 - `tests/corpus/` — the language-emitted corpus (`run_corpus.py`, the second
@@ -225,9 +225,9 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
   pre-migration revision, `06d7d2c^`, skipping fixtures newer than the base).
 - `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module
-  interfaces), `IR_SPEC_DRAFT.md` (superseded draft grammar, kept for
-  reference), `IR_SPEC_ALIGNMENT.md` (adopted spec vs implementation, D-F0-06),
-  `DECISIONS.md` (dated rulings), `M1_PLAN.md`/`M1_REPORT.md` (plan/evidence).
+  interfaces and the internal assembler boundary), `IR_SPEC_ALIGNMENT.md`
+  (adopted spec vs implementation, D-F0-06), `DECISIONS.md` (dated rulings),
+  `M1_REPORT.md` (evidence), `BRANCHES.md` (branches and releases).
   Contract prose is Spanish; match the file you edit.
 
 ## Adding IR support
@@ -284,6 +284,7 @@ the gates; they do not have this session.
 One decision, one commit. A commit is how a change is found again, reviewed and
 undone.
 
+- Branches, merges and releases follow `docs/BRANCHES.md`: work happens on `feature/<topic>`, it merges into `develop` after the full gate, and `main` receives only tagged releases.
 - Commit when the change is small, verified and complete. A correction that
   changes behaviour or a document's claim gets its own commit, even if it is one
   line.

@@ -1511,6 +1511,894 @@
       "code": "CGEN",
       "rule": "D-M1-78",
       "note": "an extern outside the JSON getters returns no object"
+    },
+    {
+      "file": "cases/rt-export-outside-runtime-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "export on a function of an ordinary module"
+    },
+    {
+      "file": "cases/rt-main-in-runtime-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "a runtime module defines no main",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-name-not-identifier.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "an exported name is a C identifier",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-name-digit-first.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "an exported name does not start with a digit",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-extern.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "an extern declaration is not exported",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-export-not-boolean.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "export is a JSON boolean",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-runtime-module-not-boolean.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-105",
+      "note": "runtimeModule is a JSON boolean",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-runtime-module-without-object.json",
+      "exit": 1,
+      "code": "CLI",
+      "rule": "D-M1-105",
+      "note": "a runtime module has no main and builds only with --object"
+    },
+    {
+      "file": "cases/rt-object-of-ordinary-module.json",
+      "exit": 1,
+      "code": "CLI",
+      "rule": "D-M1-105",
+      "note": "--object builds runtime modules only",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-runtime-module-arena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-105",
+      "note": "the executable arena is not available to an archive member",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-len-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "str_len outside a runtime module"
+    },
+    {
+      "file": "cases/rt-byte-load-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "byte_load outside a runtime module"
+    },
+    {
+      "file": "cases/rt-byte-store-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "byte_store outside a runtime module"
+    },
+    {
+      "file": "cases/rt-bytes-alloc-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-106",
+      "note": "bytes_alloc outside a runtime module"
+    },
+    {
+      "file": "cases/rt-byte-store-with-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-106",
+      "note": "byte_store has no destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-load-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-106",
+      "note": "byte_load requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-len-int-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "str_len reads a string register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-load-string-index.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "byte_load indexes with an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-load-literal-index.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "an inline literal is not an operand of byte_load",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-byte-store-string-value.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "byte_store writes an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-106",
+      "note": "bytes_alloc produces a string register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtarena-param-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-108",
+      "note": "RtArena as a parameter type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtarena-register-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-108",
+      "note": "RtArena as a register type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtarena-extern-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-108",
+      "note": "RtArena on an extern declaration of an ordinary module"
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-108",
+      "note": "bytes_alloc operand2 is an int register, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-108",
+      "note": "bytes_alloc operand2 is a string register, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-literal.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-108",
+      "note": "bytes_alloc operand2 is a literal, not an RtArena register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtarena-copy-from-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-109",
+      "note": "an int register does not copy into an RtArena register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtarena-decl-int-local-load-as-rtarena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-109",
+      "note": "an int local does not load into an RtArena register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-110",
+      "note": "str_offset outside a runtime module"
+    },
+    {
+      "file": "cases/rt-bytes-copy-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-110",
+      "note": "bytes_copy outside a runtime module"
+    },
+    {
+      "file": "cases/rt-bytes-copy-with-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-110",
+      "note": "bytes_copy has no destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-110",
+      "note": "str_offset requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-literal-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-110",
+      "note": "an inline literal is not an operand of str_offset",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-int-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-110",
+      "note": "str_offset offsets a string register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-110",
+      "note": "str_offset produces a string register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-copy-literal-count.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-110",
+      "note": "an inline literal is not an operand of bytes_copy",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-copy-int-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-110",
+      "note": "bytes_copy reads a string source register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-copy-string-count.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-110",
+      "note": "bytes_copy counts with an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/x-string-lt-null.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-111",
+      "note": "NULL is a word for eq and ne; a string has no ordering against it"
+    },
+    {
+      "file": "cases/x-string-eq-voidptr-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-111",
+      "note": "a string is compared with the NULL register only, not with any void* word"
+    },
+    {
+      "file": "cases/x-string-eq-null-register-redefined.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-111",
+      "note": "a register assigned twice is not the NULL register"
+    },
+    {
+      "file": "cases/rt-rtptr-param-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "RtPtr as a parameter type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtptr-register-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "RtPtr as a register type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtptr-extern-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "RtPtr on an extern declaration of an ordinary module"
+    },
+    {
+      "file": "cases/rt-reinterpret-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-113",
+      "note": "reinterpret outside a runtime module"
+    },
+    {
+      "file": "cases/rt-reinterpret-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "reinterpret requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-int-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret reads a string or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret produces a string or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-string-to-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret converts between a string and an RtPtr",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-rtptr-to-rtptr.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret converts between a string and an RtPtr",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-literal-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an inline literal is not an operand of reinterpret",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-rtptr-string-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "str_offset of an RtPtr produces an RtPtr",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-string-rtptr-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "str_offset of a string produces a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-copy-from-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an int register does not copy into an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-decl-int-local-load-as-rtptr.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an int local does not load into an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-lt-null.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "NULL is a word for eq and ne; an RtPtr has no ordering against it",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-eq-voidptr-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an RtPtr is compared with the NULL register only, not with any void* word",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-eq-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an RtPtr is not compared with a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-rtptr.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "bytes_alloc operand2 is an RtPtr register, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-extern-argument-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an int register is not an RtPtr argument",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-114",
+      "note": "mem_load outside a runtime module"
+    },
+    {
+      "file": "cases/rt-mem-store-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-114",
+      "note": "mem_store outside a runtime module"
+    },
+    {
+      "file": "cases/rt-mem-store-with-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-114",
+      "note": "mem_store has no destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-114",
+      "note": "mem_load requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-elemkind-out-of-range.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "D-M1-114",
+      "note": "elemKind of a memory opcode is an integer in 0..8",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-elemkind-8-on-list-create.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "D-M1-114",
+      "note": "elemKind 8 belongs to the memory opcodes; a list kind stays in 0..5"
+    },
+    {
+      "file": "cases/rt-mem-load-elemkind-0.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load moves 8 or 4 bytes: elemKind 0 is refused",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-elemkind-5.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load moves 8 or 4 bytes: a list kind is refused",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-string-pointer.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load reads through an RtPtr register, not a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-string-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load offsets with an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-literal-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "an inline literal is not an operand of mem_load",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-string-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load produces an int or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-bool-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load produces an int or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-rtptr-dest-elemkind-4.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "a pointer is loaded as a word: elemKind 4 produces an int",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-elemkind-0.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_store moves 8 or 4 bytes: elemKind 0 is refused",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-int-pointer.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_store writes through an RtPtr register, not an int",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-literal-value.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "an inline literal is not an operand of mem_store",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-literal-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "an inline literal is not an operand of mem_store",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-string-value.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_store writes an int or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-rtptr-value-elemkind-4.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "a pointer is stored as a word: elemKind 4 stores an int",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-115",
+      "note": "float_bits outside a runtime module"
+    },
+    {
+      "file": "cases/rt-bits-float-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-115",
+      "note": "bits_float outside a runtime module"
+    },
+    {
+      "file": "cases/rt-float-bits-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-115",
+      "note": "float_bits requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-115",
+      "note": "bits_float requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-int-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "float_bits reads a float register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-float-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "float_bits produces an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-literal-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "an inline literal is not an operand of float_bits",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-float-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "bits_float reads an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "bits_float produces a float register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-literal-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "an inline literal is not an operand of bits_float",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-err-code-first-ordinary-module.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "an ordinary module keeps the message first: (code, message) is refused"
+    },
+    {
+      "file": "cases/rt-result-err-code-first-literal-message.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "the message of a code-first result_err is a register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-err-code-first-int-message.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "the message of a code-first result_err is a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-ok-rtarena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "result_ok carries an RtPtr word, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-ok-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "result_ok produces a result register",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -2377,6 +3265,123 @@
       "run_stdout": "api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n",
       "rule": "D-M1-78",
       "note": "a parsed JSON object bound by try, passed, returned and read through every getter"
+    },
+    {
+      "file": "cases/ok-runtime-module-object.json",
+      "rule": "D-M1-105",
+      "args": [
+        "--object"
+      ],
+      "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"
+    },
+    {
+      "file": "cases/ok-string-null-argument.json",
+      "run_exit": 42,
+      "rule": "D-M1-111",
+      "note": "NULL passed as a string argument equals NULL (R6 only: the pinned C backend runs strcmp on it and crashes)"
+    },
+    {
+      "file": "cases/ok-runtime-module-null-compare.json",
+      "rule": "D-M1-111",
+      "args": [
+        "--object"
+      ],
+      "note": "a string and an RtArena register compared with the NULL register in eq and ne, in both orders"
+    },
+    {
+      "file": "cases/ok-string-null-compare.json",
+      "run_exit": 42,
+      "run_stdout": "here\r\nnot null\r\n",
+      "rule": "D-M1-111",
+      "note": "eq and ne of a string with NULL compare the pointer word: a literal and the empty string are not NULL"
+    },
+    {
+      "file": "../runtime-module/emitted/strings.json",
+      "rule": "D-M1-111",
+      "args": [
+        "--object"
+      ],
+      "note": "the IR the language emits for runtime/orb/strings.orb, which compares strings and arenas with NULL"
+    },
+    {
+      "file": "cases/ok-runtime-module-arena-var.json",
+      "rule": "D-M1-109",
+      "args": [
+        "--object"
+      ],
+      "note": "an RtArena parameter is declared, loaded, copied and stored through locals"
+    },
+    {
+      "file": "../runtime-module/emitted/arena.json",
+      "rule": "D-M1-109",
+      "args": [
+        "--object"
+      ],
+      "note": "the IR the language emits for an arena-first export loads its RtArena parameter with load_var"
+    },
+    {
+      "file": "../runtime-module/emitted/upper.json",
+      "rule": "D-M1-109",
+      "args": [
+        "--object"
+      ],
+      "note": "the IR the language emits for an upper-casing export builds as a runtime module"
+    },
+    {
+      "file": "cases/ok-runtime-module-slice.json",
+      "rule": "D-M1-110",
+      "args": [
+        "--object"
+      ],
+      "note": "str_offset and bytes_copy build in a runtime module (the end-to-end run is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-arena.json",
+      "rule": "D-M1-108",
+      "args": [
+        "--object"
+      ],
+      "note": "an RtArena parameter is the arena operand of bytes_alloc (the end-to-end run is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-bytes.json",
+      "rule": "D-M1-106",
+      "args": [
+        "--object"
+      ],
+      "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-rtptr.json",
+      "rule": "D-M1-113",
+      "args": [
+        "--object"
+      ],
+      "note": "an RtPtr parameter is reinterpreted to and from a string, offset, kept in a local, compared with NULL and passed to an extern next to an RtArena"
+    },
+    {
+      "file": "cases/ok-runtime-module-mem.json",
+      "rule": "D-M1-114",
+      "args": [
+        "--object"
+      ],
+      "note": "mem_load and mem_store move a word, a sign-extended 32-bit value and a pointer through an RtPtr register (the end-to-end run is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-float-bits.json",
+      "rule": "D-M1-115",
+      "args": [
+        "--object"
+      ],
+      "note": "float_bits and bits_float build in a runtime module (the round trip is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-result.json",
+      "rule": "D-M1-116",
+      "args": [
+        "--object"
+      ],
+      "note": "an export returns a result built by result_ok of an RtPtr and an int, and by result_err in three forms (the end-to-end run is tests/runtime-module)"
     }
   ]
 }

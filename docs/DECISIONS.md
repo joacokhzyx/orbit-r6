@@ -4511,7 +4511,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   it a module.
 - Decision: `r6 --version` (also `-V`) prints exactly one line,
   `r6 <semver> ir-protocol <N>`, to stdout and exits 0. Currently
-  `r6 0.1.0 ir-protocol 2`. `--help` lists it.
+  `r6 0.1.0 ir-protocol 3` (D-M1-107). `--help` lists it.
 - The protocol number N covers what the language and r6 agree on:
   - the command line: `build <ir> -o <exe>`, `--runtime-dir`, the exit codes
     and the one-line diagnostic;
@@ -4529,6 +4529,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   2 is the 64-bit `int` with the division stop (D-M1-94, D-M1-95), the source
   name and line (D-M1-97), the runtime directory (D-M1-98) and `o_` symbols
   (D-M1-99).
+  3 adds `build --object`, the module field `runtimeModule`, the function
+  field `export` and the four byte opcodes (D-M1-105, D-M1-106, D-M1-107).
 - The language refuses an r6 whose protocol it does not know.
 
 ## D-M1-101 - String literals over 64 bytes span several `.byte` lines
@@ -4724,4 +4726,417 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   **2 build over 27 modules**; self-host C `E794E2DB...` from the IR of
   `compiler/host/main.orb`, equal to `PUBLISHED_C`. `hello` is 1 792 bytes of
   `.text` in R6 and 7 904 in the C backend (D-M1-104).
+- Status: **applied**.
+
+## D-M1-105 - Runtime modules: `runtimeModule`, `export` and `build --object`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit runtime, written in C, will be ported to Orbit one module at
+  a time. A ported module is an Orbit file without `main` whose `export fn`
+  functions keep their C names and join the runtime archive. R6 must compile such
+  a module to an object, not to an executable.
+- Decision, the IR (admitted by the loader, `src/loader/ir.c`):
+  - `module.runtimeModule` is an optional boolean, default false. `function.export`
+    is an optional boolean, default false. Both are absent from every module the
+    pin emits, so an absent field is the old behaviour.
+  - `export: true` outside a runtime module is `E_SCHEMA`. So is `export` on an
+    extern function, an exported name that is not a C identifier
+    (`[A-Za-z_][A-Za-z0-9_]*`), a non-boolean `export` or `runtimeModule`, and a
+    runtime module that defines `main` (an extern `main` declaration is not a
+    definition).
+- Decision, the code (`src/codegen-x64/win64.c`):
+  - An exported function's symbol is its IR name, with no `o_` prefix (D-M1-99
+    keeps `o_` for every other definition). It is global.
+  - A function of a runtime module that is not exported keeps `o_<name>` and is
+    file-local (no `.globl`), so two members of the archive can carry a helper of
+    the same name. `nm` prints it as `t`.
+  - Exported functions are the roots of reachability (D-M1-65); a runtime module
+    has no `main` and no entry wrapper, so no `orbit_main`, `orbit_start` or
+    `main` symbol is emitted.
+  - The arena of an executable is the `r6_arena` mirror that `main` fills
+    (D-M1-23). A runtime module is archived into programs the C backend also
+    links, where `r6_arena` does not exist. The operations that read it (lists,
+    model and union cells, string `add`, `print`, arena-taking externs) are
+    `error[CGEN]: a runtime module cannot use the executable arena`.
+- Decision, the driver (`src/driver/r6.c`): `r6 build --object <in.ir> -o <out.o>`
+  runs load, codegen, peephole, regalloc, asm and coff, writes the object to the
+  `-o` path and does not run `ld` or look for the runtime archive. `--object`
+  with an ordinary module, and a runtime module without `--object`, are
+  `error[CLI]` with exit 1: the module is what disagrees with the flag, which is
+  an input error and not a misspelled command line.
+- Controls (`tests/reject/`): ten rejections `rt-*` (export outside a runtime
+  module, main in a runtime module, two non-identifier names, an exported extern,
+  two non-boolean fields, both `CLI` cases and the arena refusal) and
+  `ok-runtime-module-object`, which builds two exports and a local helper. The
+  object's symbols were read with `nm`: `rtmod_probe_add` and
+  `rtmod_probe_twice_sum` are `T`, `o_rtmod_twice` is `t`.
+- Status: **applied**.
+
+## D-M1-106 - Byte opcodes of a runtime module: `str_len`, `byte_load`, `byte_store`, `bytes_alloc`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: a runtime module written in Orbit reads and writes the bytes of a
+  string. The IR has no opcode for that, and a C-string runtime function such as
+  an upper-casing helper needs all four.
+- Decision, admission: the four opcodes are admitted only when
+  `module.runtimeModule` is true. In an ordinary module they are
+  `E_UNSUPPORTED: opcode is admitted only in a runtime module`, so a module the
+  pin emits today cannot reach them.
+- Decision, semantics (`src/codegen-x64/win64.c`). Every operand is a register:
+  an inline literal is `error[CGEN]`, because these opcodes have no scratch slot
+  for one.
+
+  | Opcode | dest | operands | Lowering |
+  |---|---|---|---|
+  | `str_len` | int | string | `strlen`; a NULL string is 0, as `orbit_string_len` of the pin |
+  | `byte_load` | int | string, int index | `movzbl (s+i)`: zero-extended, no bounds check |
+  | `byte_store` | none (`-1`) | string, int index, int value | `movb %dl, (s+i)`: the low 8 bits of the value |
+  | `bytes_alloc` | string | int n | `orbit_alloc(orbit_arena_get_global(), n + 1)`, byte `n` set to 0 |
+
+  - `byte_store` with a destination is `E_SCHEMA`; the other three without one
+    are `E_SCHEMA` too.
+  - `bytes_alloc` calls the global arena and not `r6_arena`: the object may be
+    linked into a program built by the C backend (D-M1-105). Both symbols are
+    declared in `runtime/arena.h` of the pin (`void* orbit_alloc(OrbitArena*,
+    size_t)`, `OrbitArena* orbit_arena_get_global(void)`) and live in the
+    `arena_alloc` and `arena_global` members of the archive. The byte after the
+    allocation is written, and nothing else is cleared.
+  - The assembler gets no new instruction: the lowering uses `movzbl (%rax)`,
+    `movb %dl, (%rax)`, `movb $0, (%rcx)`, `leaq 1(%rdx), %rdx` and the address
+    `addq %rcx, %rax`, which `asm_win64.c` already encodes.
+- Controls: `rt-*-ordinary-module` (four opcodes refused outside a runtime
+  module), `rt-byte-store-with-dest`, `rt-byte-load-missing-dest`,
+  `rt-str-len-int-operand`, `rt-byte-load-string-index`,
+  `rt-byte-load-literal-index`, `rt-byte-store-string-value` and
+  `rt-bytes-alloc-int-dest` refuse the wrong operand or destination;
+  `ok-runtime-module-bytes` builds all four in a runtime module.
+- End to end (`python tests/runtime-module/run_runtime_module.py`): the runtime
+  module `probe-rt.json` exports `rtmod_probe_upper(s: string) -> string` and
+  `rtmod_probe_sum(s: string) -> int`. The script builds it with `--object`,
+  checks with `nm` that both are `T` and that no `main`, `orbit_main` or
+  `orbit_start` exists, shows that `probe-main.json` fails with `error[LINK]`
+  while the member is missing, adds the object to a temporary copy of
+  `libruntime_net.a` with `ar`, links the program and compares its output. It
+  printed `HELLO, ORBIT 42!`, an empty line and `468` (the byte sum of `h` and
+  the two bytes of `é`, 104 + 195 + 169, which a sign-extending load would turn
+  into 104 - 61 - 87 = -44), exit 0.
+- Not done: a literal operand, a bounds check, a `bytes_alloc` that clears the
+  bytes, and any other string operation. A new opcode is a new decision.
+- Status: **applied**.
+
+## D-M1-107 - `ir-protocol 3`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: D-M1-100 bumps the protocol when the IR gains a field or an opcode the
+  language starts to emit, or when the command line gains a flag. D-M1-105 and
+  D-M1-106 add one flag (`--object`), two fields (`runtimeModule`, `export`) and
+  four opcodes. A language that emits them must be able to refuse an r6 built
+  before them, which reads the field as an unknown key (`E_SCHEMA`) and the
+  opcodes as `E_OPCODE`.
+- Decision: `r6 --version` prints `r6 0.1.0 ir-protocol 3`. The semver stays.
+- What the bump does not touch: the pinned compiler `01e31e8` requires
+  `ir-protocol 2`. `tests/diff/run_diff.py`, `tests/corpus/run_corpus.py`,
+  `tests/compiler-ir/run_census.py` and `scripts/selfhost.ps1` call `r6.exe build`
+  directly and never read the version, so they are unaffected. A build through
+  `orbit build --backend=native` with the pinned fixed point refuses this r6
+  until the language moves to protocol 3.
+- Status: **applied**.
+
+## D-M1-108 - `RtArena`: the arena a runtime function allocates from
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: several runtime string functions take `OrbitArena* arena` as their
+  first C parameter, and a program passes the arena of the request. A runtime
+  module that allocated from the global arena (D-M1-106) would keep every
+  per-request string until the process ends.
+- Decision, the type: `RtArena` is an opaque 64-bit pointer, passed like any
+  reference in the integer argument register or slot. It is admitted as a
+  parameter type and a register type of a runtime module only. In any function
+  of an ordinary module (including an extern declaration) it is
+  `E_SCHEMA: type RtArena is admitted only in a runtime module`. A runtime
+  module can pass an `RtArena` register as a call argument. It has no
+  literal, no comparison and no conversion.
+- Decision, `bytes_alloc`: the optional `operand2` is an `RtArena` register. With
+  it the lowering is `orbit_alloc(a ? a : orbit_arena_get_global(), n + 1)` and
+  the NUL byte; without it the allocation is the global arena (D-M1-106). An
+  operand2 that is a literal or a register of another type is `CGEN`.
+- Test hook: R6 prepends the arena to an extern only for the names in
+  `extern_needs_arena` (D-M1-27). `rtmod_probe_lower` is added to that list so
+  that an ordinary program can reach an arena-first export; no pinned runtime
+  symbol has that name. The names the runtime really defines (for example
+  `orbit_string_slice`) are already in the list.
+- Controls: `rt-rtarena-param-ordinary-module`,
+  `rt-rtarena-register-ordinary-module`, `rt-rtarena-extern-ordinary-module`,
+  `rt-bytes-alloc-arena-int`, `rt-bytes-alloc-arena-string`,
+  `rt-bytes-alloc-arena-literal`; the acceptance control is
+  `ok-runtime-module-arena`.
+- End to end: `tests/runtime-module` adds the export
+  `rtmod_probe_lower(a: RtArena, s: string) -> string`, which forwards `a` to a
+  file-local helper that allocates with it. The ordinary program calls it as an
+  arena-taking extern and prints `hello, orbit 42!` for `Hello, ORBIT 42!`. The
+  script also checks that the object references `orbit_alloc` and
+  `orbit_arena_get_global`.
+- Not measured: the NULL branch of `a ? a : global`, because no IR value of
+  type `RtArena` is NULL.
+- Status: **applied**.
+
+## D-M1-109 - `RtArena` through locals: `load_var`, `decl_var`, `store_var`, `copy`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the language does not reference a parameter register. It emits
+  `arg`, then `load_var` of the parameter name wherever the body reads it
+  (`tests/runtime-module/emitted/arena.json`, emitted by the runtime-module
+  branch of orbit-lang). D-M1-108 admitted `RtArena` in parameters, registers
+  and call arguments only, so that IR was `error[CGEN]: load_var requires a
+  supported local, parameter, ...`.
+- Decision: an `RtArena` is a 64-bit reference like a list or a model pointer in
+  `load_var` of a parameter or a local, `decl_var`, `store_var` and `copy`. The
+  types must match as for the other references: an int register does not copy
+  into an `RtArena` register and an int local does not load into one. The
+  loader still admits the spelling in runtime modules only (D-M1-108), so an
+  ordinary module has no way to reach these paths.
+- Test hook: `rtmod_probe_copy_in` joins `rtmod_probe_lower` in
+  `extern_needs_arena`, for the same reason (D-M1-108).
+- Inputs: `tests/runtime-module/emitted/arena.json` and `upper.json` are the
+  IR of the fixed point `1769474c12` of orbit-lang `runtime-module` for
+  `tests/runtime_module/arena.orb` and `upper.orb`; `REBUILD.txt` there gives the
+  command. They are committed inputs, not regenerated here.
+- Controls: `rt-rtarena-copy-from-int` and
+  `rt-rtarena-decl-int-local-load-as-rtarena` refuse the mismatch;
+  `ok-runtime-module-arena-var`, `emitted/arena.json` and `emitted/upper.json`
+  build. The end-to-end script builds both emitted files, adds the arena one to
+  the archive, and the ordinary program prints `copy me` through it.
+- Status: **applied**.
+
+## D-M1-110 - `str_offset` and `bytes_copy`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit port of `orbit_string_trim` went from 37 ms to 98 ms because
+  it copies byte by byte where the C function calls `memcpy`. Slice, concat and
+  replace need the same two operations.
+- Decision, admission: both opcodes follow D-M1-106. They are admitted only in a
+  runtime module (`E_UNSUPPORTED: opcode is admitted only in a runtime module`
+  elsewhere), every operand is a register (an inline literal is `CGEN`), and
+  a type that does not match is `CGEN`.
+
+  | Opcode | dest | operands | Lowering |
+  |---|---|---|---|
+  | `str_offset` | string | string s, int i | `s + i`: no allocation, no check |
+  | `bytes_copy` | none (`-1`) | string dst, string src, int n | `memcpy(dst, src, n)` of msvcrt when `n > 0`; a count of 0 or below copies nothing |
+
+  `bytes_copy` with a destination and `str_offset` without one are `E_SCHEMA`.
+  The count is tested as a signed 64-bit value before the call, so a negative
+  count never reaches `memcpy` as a huge `size_t`.
+- Controls: `rt-str-offset-ordinary-module`, `rt-bytes-copy-ordinary-module`,
+  `rt-bytes-copy-with-dest`, `rt-str-offset-missing-dest`, the literal operand
+  of each, and the wrong operand or destination type of each refuse the input;
+  `ok-runtime-module-slice` builds both.
+- End to end: `rtmod_probe_slice(a: RtArena, s, start, len)` copies a middle
+  slice into a buffer from `bytes_alloc`; the program prints `Orbit` for
+  `("hello, Orbit 42", 7, 5)`. `rtmod_probe_guard` writes `x` into a buffer and
+  calls `bytes_copy` with a count of -5; the program prints `x`. `rtmod_probe_slice`
+  joins the `extern_needs_arena` test hook (D-M1-108).
+- Status: **applied**.
+
+## D-M1-111 - `eq` and `ne` of a string or an `RtArena` with `NULL`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: orbit-lang `ef7e751` no longer retypes the register of the `NULL`
+  literal as `string`, so `s == NULL` reaches R6 as a string register against a
+  `NULL` register. R6 read it as a string comparison and refused it
+  (`runtime/orb/strings.orb`, 11 string and 3 `RtArena` comparisons).
+- Decision: in `eq` and `ne`, a string register or an `RtArena` register
+  against the register of the `NULL` literal is a comparison of two 64-bit
+  words, in either order, in every module. No `strcmp` call. The register of the
+  literal is the one `canonical_union_spelling` types `void*` and that is
+  defined exactly once, by `load_const NULL` (`null_register`, D-M1-59). A
+  string against a string stays `strcmp`.
+- Not admitted, and `error[CGEN]`: an ordering (`lt`, `le`, `gt`, `ge`) against
+  `NULL`, a string against any other `void*` word, and a `NULL` register
+  assigned twice.
+- Controls: `x-string-lt-null`, `x-string-eq-voidptr-param` and
+  `x-string-eq-null-register-redefined` refuse the neighbours;
+  `ok-runtime-module-null-compare` builds the four forms; `ok-string-null-compare`
+  runs an ordinary program (`"here"` and `""` are not NULL, byte-compared output)
+  and `ok-string-null-argument` shows NULL equal to NULL. Neither is a
+  differential fixture: the pinned C backend lowers `s == NULL` to `strcmp` and
+  the oracle crashes with 0xC0000005 even on a non-NULL string (`run_diff.py
+  --no-oracle-cache` on such a fixture), so `run_diff.py` stays 100/100.
+  `tests/runtime-module/emitted/strings.json` is the IR of
+  `runtime/orb/strings.orb` from the fixed point `1769474c12` of orbit-lang
+  `runtime-module`, and `scripts/mklib_runtime.py --r6` builds 26 of 26 members
+  with it.
+- Status: **applied**.
+
+## D-M1-112 - `result_ok` and `result_err` write the `OrbitResult` in place
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: orbit-lang removes `runtime/types.c` (the five `OrbitResult`
+  constructors become `static inline`), so an R6 program must not reference
+  `orbit_result_ok`, `orbit_result_ok_float` or `orbit_result_err`.
+- Decision: `result_ok` and `result_err` store the four fields of the
+  24-byte result cell directly: `bool ok` at +0 (written as a 32-bit word),
+  `int error_code` at +4, `const char *error_msg` at +8, `void *value` at +16.
+  Layout checked against `runtime/orbit_api.h` of orbit-lang `develop`.
+  `result_ok` writes the value operand as its 64-bit pattern: an int, a pointer,
+  a string address, a bool zero-extended or a float's IEEE-754 bits, which is
+  what `orbit_result_ok_float` boxed. `result_err` writes the code as 32 bits,
+  the message (or NULL) and a NULL value. Every operand form the lowering
+  admitted stays admitted; no new input is accepted.
+- Evidence of the removal: `22-result-ops.json` rebuilt as a runtime module
+  (`runtimeModule: true`, `main` renamed and exported) has no `orbit_result_ok`,
+  `orbit_result_ok_float` or `orbit_result_err` in `nm`; the only result symbol
+  it references is `orbit_result_get_float`, which `result_unwrap` of a float
+  still calls.
+- Status: **applied**.
+
+## D-M1-113 - `RtPtr` and `reinterpret`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit port of the list functions (orbit-lang `runtime/orb/lists.orb`)
+  reads and writes the fields of `OrbitList`, so a runtime module needs a pointer
+  that is not a string. Amendment 2 of the runtime design names it `RtPtr`.
+- Decision, the type: `RtPtr` is an opaque 64-bit pointer, passed like any
+  reference in the integer argument register or slot. It is admitted as a
+  parameter type (including the parameters of an extern declaration, next to
+  `RtArena`), a register type and a call argument of a runtime module only. In
+  any function of an ordinary module, extern declarations included, it is
+  `E_SCHEMA: type RtPtr is admitted only in a runtime module`. It travels through
+  `load_var`, `decl_var`, `store_var` and `copy` as `RtArena` does (D-M1-109).
+  It has no literal, no return type and no conversion except `reinterpret`.
+- Decision, comparison: `eq` and `ne` of an `RtPtr` register against the register
+  of the `NULL` literal are a comparison of two 64-bit words, in either order
+  (D-M1-111). An ordering against `NULL`, a comparison with a `void*` parameter
+  or with a string stays `error[CGEN]`.
+- Decision, `reinterpret`: dest `RtPtr` with a string register operand, or dest
+  string with an `RtPtr` register operand. The lowering is a 64-bit copy. Same
+  admission as D-M1-106: runtime modules only (`E_UNSUPPORTED` elsewhere), a
+  register operand (an inline literal is `CGEN`), a destination (`E_SCHEMA`).
+  Any other pairing, including string to string and `RtPtr` to `RtPtr`, is `CGEN`.
+- Decision, `str_offset`: also takes an `RtPtr` register and produces an `RtPtr`.
+  A string offsets to a string and an `RtPtr` to an `RtPtr`; the two do not mix.
+- Controls: `rt-rtptr-param-ordinary-module`, `rt-rtptr-register-ordinary-module`,
+  `rt-rtptr-extern-ordinary-module`, `rt-reinterpret-ordinary-module`,
+  `rt-reinterpret-missing-dest`, five wrong pairings or operands of
+  `reinterpret`, two wrong pairings of `str_offset`, `rt-rtptr-copy-from-int`,
+  `rt-rtptr-decl-int-local-load-as-rtptr`, `rt-rtptr-lt-null`,
+  `rt-rtptr-eq-voidptr-param`, `rt-rtptr-eq-string`,
+  `rt-bytes-alloc-arena-rtptr` and `rt-rtptr-extern-argument-int` refuse the
+  input; `ok-runtime-module-rtptr` builds the admitted forms.
+- Status: **applied**.
+
+## D-M1-114 - `mem_load` and `mem_store`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `OrbitList` is `{data, len, capacity, elem_size, elem_kind, arena}`. The
+  list functions of orbit-lang `runtime/orb/lists.orb` read and write those fields
+  through an `RtPtr` (D-M1-113).
+- Decision: both opcodes follow D-M1-106. Runtime modules only (`E_UNSUPPORTED`
+  elsewhere), every operand a register (an inline literal is `CGEN`).
+
+  | Opcode | dest | operands | `elemKind` 8 | `elemKind` 4 |
+  |---|---|---|---|---|
+  | `mem_load` | int, or `RtPtr` with `elemKind` 8 | `RtPtr` p, int off | `movq (p+off)` | `movslq (p+off)`: sign-extended |
+  | `mem_store` | none (`-1`) | `RtPtr` p, int off, int or `RtPtr` value | `movq` of the word | `movl` of the low 32 bits |
+
+  The address is `p + off` with `off` in bytes. No null test and no bounds test.
+  `mem_store` with a destination is `E_SCHEMA`, as `byte_store`. `elemKind` of a
+  memory opcode is an integer in 0..8 (`E_RANGE` above); of any other opcode it
+  stays 0..5. An `elemKind` other than 8 or 4, a string or int pointer operand, a
+  string or bool destination, and a pointer moved with `elemKind` 4 are `CGEN`.
+  `elemKind` on an opcode that is neither a list nor a memory opcode stays
+  `E_SCHEMA`.
+- Controls: `rt-mem-load-ordinary-module`, `rt-mem-store-ordinary-module`,
+  `rt-mem-store-with-dest`, `rt-mem-load-missing-dest`,
+  `rt-mem-elemkind-out-of-range`, `rt-elemkind-8-on-list-create` and fourteen
+  wrong operands, destinations or kinds refuse the input;
+  `ok-runtime-module-mem` builds both widths and the pointer form.
+- Status: **applied**.
+
+## D-M1-115 - `float_bits` and `bits_float`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `orbit_list_push_float` and `orbit_list_get_float` store a float in the
+  64-bit element word as its IEEE-754 bit pattern. The Orbit port has to move
+  that pattern between a float register and an int register without a numeric
+  conversion.
+- Decision: both opcodes follow D-M1-106 (runtime modules only, registers only,
+  a destination required). `float_bits` takes a float register and produces an
+  int register, `bits_float` takes an int register and produces a float
+  register. A float slot holds its bit pattern, so both lower to a 64-bit copy
+  (`movq`); no `cvtsi2sd`, no `cvttsd2si`. Any other operand or destination type
+  and an inline literal are `CGEN`.
+- Controls: `rt-float-bits-ordinary-module`, `rt-bits-float-ordinary-module`,
+  `rt-float-bits-missing-dest`, `rt-bits-float-missing-dest` and six wrong
+  operands or destinations refuse the input; `ok-runtime-module-float-bits`
+  builds. The round trip of the pattern of 1.5 and -0.0 runs in
+  `tests/runtime-module` (D-M1-117).
+- Status: **applied**.
+
+## D-M1-116 - `result_ok` of an `RtPtr`, `result_err` with the code first, an export that returns `result`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the list functions return `OrbitResult` (`orbit_list_create_typed`,
+  `orbit_list_pop`, `orbit_list_get`) and build it with the inline form of
+  D-M1-112. The runtime design names the forms `rt_ok(word: int)`,
+  `rt_ok_ptr(p: RtPtr)` and `rt_err(code: int, msg: string)`.
+- Decision, `result_ok`: the operand may also be an `RtPtr` register. Its 64-bit
+  word is the `value` field, as an int is. An `RtArena`, a `void*` and a model
+  register stay `CGEN`.
+- Decision, `result_err`: a runtime module may give the code first and the
+  message second, both registers (`rt_err(code, msg)` lowers to operand1 = code,
+  operand2 = message). The order of every other module, message first and code
+  second, and the one-operand form (code only) are unchanged; the two orders are
+  told apart by the type of operand1, which is an int register only in the
+  code-first form. An ordinary module that gives `(int, string)` stays
+  `CGEN: result_err message operand must be a string`.
+- Decision, export: an `export fn` with return type `result` returns the
+  `OrbitResult` by value through the hidden return pointer, as any function that
+  returns a result (D-M1-43). `ok-runtime-module-result` builds one.
+- Controls: `rt-result-err-code-first-ordinary-module`,
+  `rt-result-err-code-first-literal-message`,
+  `rt-result-err-code-first-int-message`, `rt-result-ok-rtarena` and
+  `rt-result-ok-int-dest` refuse the input; `ok-runtime-module-result` builds
+  `result_ok` of an RtPtr and of an int and `result_err` in three forms.
+- Status: **applied**.
+
+## D-M1-117 - end-to-end run of the memory, float-bit and result opcodes
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: D-M1-112 to D-M1-116 are admitted by rejection and acceptance cases that
+  only build. `tests/runtime-module` runs them.
+- Decision: `probe-rt.json` gains three exports.
+  - `rtmod_probe_cell(a: RtArena, x: int, mode: int) -> result` allocates 40 bytes
+    with `bytes_alloc`, stores `x` as a word at +0, -3 as 32 bits at +8 and the
+    cell's own address at +24, and reads `x` back through the stored pointer and
+    -3 back sign-extended. A negative `x` returns `result_err` with code 9 and
+    the message `negative`; mode 1 returns `result_ok` of the pointer; otherwise
+    `result_ok` of `x + (-3)`.
+  - `rtmod_probe_float(a: RtArena, y: float) -> result` stores `float_bits(y)`,
+    loads it, converts it with `bits_float` and returns it in `result_ok`.
+  - `rtmod_probe_bits(y: float) -> int` returns `float_bits(y)`.
+- Output added to the program: `2`, `negative`, `1`, `-2.5`, `4609434218613702656`
+  (the pattern of 1.5) and `-9223372036854775808` (the pattern of -0.0).
+- The script also requires that the object has no undefined `orbit_result_*`
+  symbol.
+- Test hook: `rtmod_probe_cell` and `rtmod_probe_float` join the arena-first names
+  of `extern_needs_arena` (D-M1-108), which is also what admits a `result`
+  returned by an extern; no pinned runtime symbol has those names.
+- Status: **applied**.
+
+## D-M1-118 - `result_unwrap` of a float reads the value word
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `orbit_result_get_float` is the last symbol of `runtime/types.c` that R6
+  still called. With the file removed (D-M1-112), a program that unwraps a float
+  would fail to link.
+- Decision: `result_unwrap` copies the `value` word of the result cell into the
+  destination slot for every type. A float is stored there as its bit pattern
+  (`orbit_result_ok_float` boxed it so, and D-M1-112 stores it so), and a float
+  slot holds a bit pattern, so no conversion is needed. The call and the
+  `movsd` of `xmm0` are gone.
+- Control: `tests/runtime-module` rebuilds `22-result-ops.json` (ok of a float,
+  its unwrap, err with a message, its unwrap) as a runtime module and requires
+  that its object has no undefined `orbit_result_*`; it references `strcmp`
+  only. `run_diff.py` runs the same fixture as a program against the oracle.
 - Status: **applied**.
