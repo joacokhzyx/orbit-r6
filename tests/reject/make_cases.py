@@ -2120,6 +2120,28 @@ def build_reject():
         "D-M1-115", "CGEN", "an inline literal is not an operand of bits_float",
         args=["--object"])
 
+    # ---- D-M1-116: result_ok of an RtPtr, result_err with the code first -----
+    add("rt-result-err-code-first-ordinary-module",
+        ordinary([I("load_const", 0, Int(1)), I("load_const", 1, Str("m")),
+                  I("result_err", 2, Reg(0), Reg(1))], ["int", "string", "result"]),
+        "D-M1-116", "CGEN", "an ordinary module keeps the message first: (code, message) is refused")
+    add("rt-result-err-code-first-literal-message",
+        rt_fn([I("load_const", 0, Int(1)), I("result_err", 1, Reg(0), Str("m")),
+               I("ret", -1, Int(0))], ["int", "result"]),
+        "D-M1-116", "CGEN", "the message of a code-first result_err is a register", args=["--object"])
+    add("rt-result-err-code-first-int-message",
+        rt_fn([I("load_const", 0, Int(1)), I("result_err", 1, Reg(0), Reg(0)),
+               I("ret", -1, Int(0))], ["int", "result"]),
+        "D-M1-116", "CGEN", "the message of a code-first result_err is a string", args=["--object"])
+    add("rt-result-ok-rtarena",
+        rt_fn([I("arg", 0, Int(0)), I("result_ok", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["RtArena", "result"], params=["a"], ptypes=["RtArena"]),
+        "D-M1-116", "CGEN", "result_ok carries an RtPtr word, not an RtArena", args=["--object"])
+    add("rt-result-ok-int-dest",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("result_ok", 1, Reg(0)), I("ret", -1, Int(0))],
+                  ["RtPtr", "int"]),
+        "D-M1-116", "CGEN", "result_ok produces a result register", args=["--object"])
+
     return cases
 
 
@@ -2847,6 +2869,18 @@ def build_accept_files():
                                 I("ret", -1, Reg(1))],
                                ["float", "int", "float"],
                                params=["x"], ptypes=["float"], export=True)]))))
+    files.append(("ok-runtime-module-result",
+                  jd(RTDOC([FN("rtmod_result",
+                               [I("arg", 0, Int(0)),
+                                I("load_const", 1, Int(7)), I("load_const", 2, Str("bad")),
+                                I("result_ok", 3, Reg(0)), I("result_ok", 4, Reg(1)),
+                                I("result_err", 5, Reg(1), Reg(2)),
+                                I("result_err", 6, Reg(2), Reg(1)),
+                                I("result_err", 7, Reg(1)),
+                                I("ret", -1, Reg(3))],
+                               ["RtPtr", "int", "string", "result", "result", "result",
+                                "result", "result"], rtype="result",
+                               params=["p"], ptypes=["RtPtr"], export=True)]))))
     return files
 
 
@@ -3258,6 +3292,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-float-bits.json", "rule": "D-M1-115",
              "args": ["--object"],
              "note": "float_bits and bits_float build in a runtime module (the round trip is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-result.json", "rule": "D-M1-116",
+             "args": ["--object"],
+             "note": "an export returns a result built by result_ok of an RtPtr and an int, and by result_err in three forms (the end-to-end run is tests/runtime-module)"},
         ],
     }
 

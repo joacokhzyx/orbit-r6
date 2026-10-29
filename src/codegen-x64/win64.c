@@ -2349,8 +2349,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_RESULT_OK:
             if (!valid_dest(f, i, true, d) || !is_result(type_at(f, i->dest)) ||
                 !value_type(f, &i->operands[0], &a) ||
-                !(is_int(a) || is_float(a) || is_bool(a) || is_string(a)))
-                return fail(d, i, "CGEN", "result_ok requires a result destination and an int, float, bool, or string operand");
+                !(is_int(a) || is_float(a) || is_bool(a) || is_string(a) || is_rtptr(a)))
+                return fail(d, i, "CGEN", "result_ok requires a result destination and an int, float, bool, string, or RtPtr operand");
             if (i->operands[0].kind == R6_VAL_STRING &&
                 i->operands[0].string_len != strlen(i->operands[0].as.string))
                 return fail(d, i, "CGEN", "string literal contains NUL and cannot be passed through the C ABI");
@@ -2362,6 +2362,12 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 /* Single-argument form: O1 carries the error code. */
                 if (!value_type(f, &i->operands[0], &a) || !is_int(a))
                     return fail(d, i, "CGEN", "result_err without a message requires an int code operand");
+            } else if (m->runtime_module && i->operands[0].kind == R6_VAL_REG &&
+                       is_int(type_at(f, i->operands[0].as.i32))) {
+                /* D-M1-116: a runtime module may give the code first and the
+                   message second, both registers. */
+                if (!is_string_reg(f, &i->operands[1]))
+                    return fail(d, i, "CGEN", "result_err with an int code first requires a string message register second");
             } else {
                 if (!value_type(f, &i->operands[0], &a) || !is_string(a))
                     return fail(d, i, "CGEN", "result_err message operand must be a string");
@@ -4268,8 +4274,12 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         }
         case R6_OP_RESULT_ERR: {
             unsigned cell = result_cell_offset(f, is_main, i->dest);
-            const R6Value *code = i->operands[1].kind == R6_VAL_NONE ? v : &i->operands[1];
-            const R6Value *msg = i->operands[1].kind == R6_VAL_NONE ? NULL : v;
+            const R6Value *code = v, *msg = NULL;
+            if (i->operands[1].kind != R6_VAL_NONE) {
+                value_type(f, v, &t);
+                if (is_int(t)) msg = &i->operands[1];
+                else { msg = v; code = &i->operands[1]; }
+            }
             if (msg) {
                 if (msg->kind == R6_VAL_REG)
                     fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(msg->as.i32 + 1) * 8);

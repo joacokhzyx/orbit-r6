@@ -5072,3 +5072,30 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   builds. The round trip of the pattern of 1.5 and -0.0 runs in
   `tests/runtime-module` (D-M1-117).
 - Status: **applied**.
+
+## D-M1-116 - `result_ok` of an `RtPtr`, `result_err` with the code first, an export that returns `result`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the list functions return `OrbitResult` (`orbit_list_create_typed`,
+  `orbit_list_pop`, `orbit_list_get`) and build it with the inline form of
+  D-M1-112. The runtime design names the forms `rt_ok(word: int)`,
+  `rt_ok_ptr(p: RtPtr)` and `rt_err(code: int, msg: string)`.
+- Decision, `result_ok`: the operand may also be an `RtPtr` register. Its 64-bit
+  word is the `value` field, as an int is. An `RtArena`, a `void*` and a model
+  register stay `CGEN`.
+- Decision, `result_err`: a runtime module may give the code first and the
+  message second, both registers (`rt_err(code, msg)` lowers to operand1 = code,
+  operand2 = message). The order of every other module, message first and code
+  second, and the one-operand form (code only) are unchanged; the two orders are
+  told apart by the type of operand1, which is an int register only in the
+  code-first form. An ordinary module that gives `(int, string)` stays
+  `CGEN: result_err message operand must be a string`.
+- Decision, export: an `export fn` with return type `result` returns the
+  `OrbitResult` by value through the hidden return pointer, as any function that
+  returns a result (D-M1-43). `ok-runtime-module-result` builds one.
+- Controls: `rt-result-err-code-first-ordinary-module`,
+  `rt-result-err-code-first-literal-message`,
+  `rt-result-err-code-first-int-message`, `rt-result-ok-rtarena` and
+  `rt-result-ok-int-dest` refuse the input; `ok-runtime-module-result` builds
+  `result_ok` of an RtPtr and of an int and `result_err` in three forms.
+- Status: **applied**.

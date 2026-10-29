@@ -2352,6 +2352,53 @@
       "args": [
         "--object"
       ]
+    },
+    {
+      "file": "cases/rt-result-err-code-first-ordinary-module.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "an ordinary module keeps the message first: (code, message) is refused"
+    },
+    {
+      "file": "cases/rt-result-err-code-first-literal-message.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "the message of a code-first result_err is a register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-err-code-first-int-message.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "the message of a code-first result_err is a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-ok-rtarena.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "result_ok carries an RtPtr word, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-result-ok-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-116",
+      "note": "result_ok produces a result register",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -3327,6 +3374,14 @@
         "--object"
       ],
       "note": "float_bits and bits_float build in a runtime module (the round trip is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-result.json",
+      "rule": "D-M1-116",
+      "args": [
+        "--object"
+      ],
+      "note": "an export returns a result built by result_ok of an RtPtr and an int, and by result_err in three forms (the end-to-end run is tests/runtime-module)"
     }
   ]
 }
