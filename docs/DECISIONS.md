@@ -5052,3 +5052,23 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   wrong operands, destinations or kinds refuse the input;
   `ok-runtime-module-mem` builds both widths and the pointer form.
 - Status: **applied**.
+
+## D-M1-115 - `float_bits` and `bits_float`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `orbit_list_push_float` and `orbit_list_get_float` store a float in the
+  64-bit element word as its IEEE-754 bit pattern. The Orbit port has to move
+  that pattern between a float register and an int register without a numeric
+  conversion.
+- Decision: both opcodes follow D-M1-106 (runtime modules only, registers only,
+  a destination required). `float_bits` takes a float register and produces an
+  int register, `bits_float` takes an int register and produces a float
+  register. A float slot holds its bit pattern, so both lower to a 64-bit copy
+  (`movq`); no `cvtsi2sd`, no `cvttsd2si`. Any other operand or destination type
+  and an inline literal are `CGEN`.
+- Controls: `rt-float-bits-ordinary-module`, `rt-bits-float-ordinary-module`,
+  `rt-float-bits-missing-dest`, `rt-bits-float-missing-dest` and six wrong
+  operands or destinations refuse the input; `ok-runtime-module-float-bits`
+  builds. The round trip of the pattern of 1.5 and -0.0 runs in
+  `tests/runtime-module` (D-M1-117).
+- Status: **applied**.

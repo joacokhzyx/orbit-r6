@@ -2080,6 +2080,46 @@ def build_reject():
         "D-M1-114", "CGEN", "a pointer is stored as a word: elemKind 4 stores an int",
         args=["--object"])
 
+    # ---- D-M1-115: float_bits and bits_float ----------------------------------
+    add("rt-float-bits-ordinary-module",
+        ordinary([I("load_const", 0, Flt(1.5)), I("float_bits", 1, Reg(0))], ["float", "int"]),
+        "D-M1-115", "E_UNSUPPORTED", "float_bits outside a runtime module")
+    add("rt-bits-float-ordinary-module",
+        ordinary([I("load_const", 0, Int(1)), I("bits_float", 1, Reg(0))], ["int", "float"]),
+        "D-M1-115", "E_UNSUPPORTED", "bits_float outside a runtime module")
+    add("rt-float-bits-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("float_bits", -1, Reg(0)), I("ret", -1, Int(0))],
+              ["float"], params=["x"], ptypes=["float"]),
+        "D-M1-115", "E_SCHEMA", "float_bits requires a destination", args=["--object"])
+    add("rt-bits-float-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("bits_float", -1, Reg(0)), I("ret", -1, Int(0))],
+              ["int"], params=["n"], ptypes=["int"]),
+        "D-M1-115", "E_SCHEMA", "bits_float requires a destination", args=["--object"])
+    add("rt-float-bits-int-source",
+        rt_fn([I("arg", 0, Int(0)), I("float_bits", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "int"], params=["n"], ptypes=["int"]),
+        "D-M1-115", "CGEN", "float_bits reads a float register", args=["--object"])
+    add("rt-float-bits-float-dest",
+        rt_fn([I("arg", 0, Int(0)), I("float_bits", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["float", "float"], params=["x"], ptypes=["float"]),
+        "D-M1-115", "CGEN", "float_bits produces an int register", args=["--object"])
+    add("rt-float-bits-literal-operand",
+        rt_fn([I("float_bits", 0, Flt(1.5)), I("ret", -1, Reg(0))], ["int"]),
+        "D-M1-115", "CGEN", "an inline literal is not an operand of float_bits",
+        args=["--object"])
+    add("rt-bits-float-float-source",
+        rt_fn([I("arg", 0, Int(0)), I("bits_float", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["float", "float"], params=["x"], ptypes=["float"]),
+        "D-M1-115", "CGEN", "bits_float reads an int register", args=["--object"])
+    add("rt-bits-float-int-dest",
+        rt_fn([I("arg", 0, Int(0)), I("bits_float", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "int"], params=["n"], ptypes=["int"]),
+        "D-M1-115", "CGEN", "bits_float produces a float register", args=["--object"])
+    add("rt-bits-float-literal-operand",
+        rt_fn([I("bits_float", 0, Int(1)), I("ret", -1, Int(0))], ["float"]),
+        "D-M1-115", "CGEN", "an inline literal is not an operand of bits_float",
+        args=["--object"])
+
     return cases
 
 
@@ -2800,6 +2840,13 @@ def build_accept_files():
                                 I("ret", -1, Reg(3))],
                                ["RtPtr", "int", "int", "int", "int", "RtPtr"],
                                params=["p"], ptypes=["RtPtr"], export=True)]))))
+    files.append(("ok-runtime-module-float-bits",
+                  jd(RTDOC([FN("rtmod_float_bits",
+                               [I("arg", 0, Int(0)),
+                                I("float_bits", 1, Reg(0)), I("bits_float", 2, Reg(1)),
+                                I("ret", -1, Reg(1))],
+                               ["float", "int", "float"],
+                               params=["x"], ptypes=["float"], export=True)]))))
     return files
 
 
@@ -3208,6 +3255,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-mem.json", "rule": "D-M1-114",
              "args": ["--object"],
              "note": "mem_load and mem_store move a word, a sign-extended 32-bit value and a pointer through an RtPtr register (the end-to-end run is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-float-bits.json", "rule": "D-M1-115",
+             "args": ["--object"],
+             "note": "float_bits and bits_float build in a runtime module (the round trip is tests/runtime-module)"},
         ],
     }
 

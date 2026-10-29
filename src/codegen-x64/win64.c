@@ -2017,6 +2017,19 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                   (is_rtptr_reg(f, &i->operands[2]) && i->elem_kind == 8)))
                 return fail(d, i, "CGEN", "mem_store requires an RtPtr register, an int offset register, elemKind 8 or 4, an int value register (an RtPtr value with elemKind 8) and no destination");
             break;
+        /* D-M1-115: the IEEE-754 bit pattern of a float, and back. A float
+           register holds its bits in the slot, so both are a 64-bit copy. */
+        case R6_OP_FLOAT_BITS:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_int(type_at(f, i->dest)) ||
+                i->operands[0].kind != R6_VAL_REG || !is_float(type_at(f, i->operands[0].as.i32)))
+                return fail(d, i, "CGEN", "float_bits requires a float register and an int destination");
+            break;
+        case R6_OP_BITS_FLOAT:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_float(type_at(f, i->dest)) || !is_int_reg(f, &i->operands[0]))
+                return fail(d, i, "CGEN", "bits_float requires an int register and a float destination");
+            break;
         /* D-M1-113: a 64-bit copy between a string and an RtPtr register. */
         case R6_OP_REINTERPRET:
             if (!m->runtime_module || !valid_dest(f, i, true, d) ||
@@ -3689,6 +3702,11 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
                     operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
                     operand_slot(f, is_main, i, 2),
                     i->elem_kind == 8 ? "movq %rdx," : "movl %edx,");
+            break;
+        case R6_OP_FLOAT_BITS:
+        case R6_OP_BITS_FLOAT:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), off);
             break;
         case R6_OP_REINTERPRET:
             fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",

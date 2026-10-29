@@ -2258,6 +2258,100 @@
       "args": [
         "--object"
       ]
+    },
+    {
+      "file": "cases/rt-float-bits-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-115",
+      "note": "float_bits outside a runtime module"
+    },
+    {
+      "file": "cases/rt-bits-float-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-115",
+      "note": "bits_float outside a runtime module"
+    },
+    {
+      "file": "cases/rt-float-bits-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-115",
+      "note": "float_bits requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-115",
+      "note": "bits_float requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-int-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "float_bits reads a float register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-float-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "float_bits produces an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-float-bits-literal-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "an inline literal is not an operand of float_bits",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-float-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "bits_float reads an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "bits_float produces a float register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bits-float-literal-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-115",
+      "note": "an inline literal is not an operand of bits_float",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -3225,6 +3319,14 @@
         "--object"
       ],
       "note": "mem_load and mem_store move a word, a sign-extended 32-bit value and a pointer through an RtPtr register (the end-to-end run is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-float-bits.json",
+      "rule": "D-M1-115",
+      "args": [
+        "--object"
+      ],
+      "note": "float_bits and bits_float build in a runtime module (the round trip is tests/runtime-module)"
     }
   ]
 }
