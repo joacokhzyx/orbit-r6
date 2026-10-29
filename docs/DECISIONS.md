@@ -4937,3 +4937,33 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   calls `bytes_copy` with a count of -5; the program prints `x`. `rtmod_probe_slice`
   joins the `extern_needs_arena` test hook (D-M1-108).
 - Status: **applied**.
+
+## D-M1-111 - `eq` and `ne` of a string or an `RtArena` with `NULL`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: orbit-lang `ef7e751` no longer retypes the register of the `NULL`
+  literal as `string`, so `s == NULL` reaches R6 as a string register against a
+  `NULL` register. R6 read it as a string comparison and refused it
+  (`runtime/orb/strings.orb`, 11 string and 3 `RtArena` comparisons).
+- Decision: in `eq` and `ne`, a string register or an `RtArena` register
+  against the register of the `NULL` literal is a comparison of two 64-bit
+  words, in either order, in every module. No `strcmp` call. The register of the
+  literal is the one `canonical_union_spelling` types `void*` and that is
+  defined exactly once, by `load_const NULL` (`null_register`, D-M1-59). A
+  string against a string stays `strcmp`.
+- Not admitted, and `error[CGEN]`: an ordering (`lt`, `le`, `gt`, `ge`) against
+  `NULL`, a string against any other `void*` word, and a `NULL` register
+  assigned twice.
+- Controls: `x-string-lt-null`, `x-string-eq-voidptr-param` and
+  `x-string-eq-null-register-redefined` refuse the neighbours;
+  `ok-runtime-module-null-compare` builds the four forms; `ok-string-null-compare`
+  runs an ordinary program (`"here"` and `""` are not NULL, byte-compared output)
+  and `ok-string-null-argument` shows NULL equal to NULL. Neither is a
+  differential fixture: the pinned C backend lowers `s == NULL` to `strcmp` and
+  the oracle crashes with 0xC0000005 even on a non-NULL string (`run_diff.py
+  --no-oracle-cache` on such a fixture), so `run_diff.py` stays 100/100.
+  `tests/runtime-module/emitted/strings.json` is the IR of
+  `runtime/orb/strings.orb` from the fixed point `1769474c12` of orbit-lang
+  `runtime-module`, and `scripts/mklib_runtime.py --r6` builds 26 of 26 members
+  with it.
+- Status: **applied**.

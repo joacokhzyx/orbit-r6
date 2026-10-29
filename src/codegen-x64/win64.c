@@ -458,6 +458,16 @@ static bool null_register(const R6Function *f, const R6Value *v) {
     return defs == 1 && null_def;
 }
 
+/* D-M1-111: a string or an RtArena register against the register that holds the
+   NULL literal (typed "NULL" by the language, void* here) is a comparison of
+   64-bit words, never strcmp. Only a register defined once, by the literal. */
+static bool null_word_compare_ok(const R6Function *f, const R6Instruction *i,
+                                 const char *a, const char *b) {
+    bool a_ref = is_string(a) || is_rtarena(a), b_ref = is_string(b) || is_rtarena(b);
+    return (a_ref && is_void_ptr(b) && null_register(f, &i->operands[1])) ||
+           (b_ref && is_void_ptr(a) && null_register(f, &i->operands[0]));
+}
+
 static bool word_compare_ok(const R6Module *m, const char *a, const char *b) {
     return ref_elem_type(m, a) && ref_elem_type(m, b);
 }
@@ -1909,7 +1919,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !operand_value(f, i, 0, &a, d) ||
                 !operand_value(f, i, 1, &b, d)) return false;
             if (!is_bool(type_at(f, i->dest)) ||
-                !(comparison_types_ok(a, b, true) || word_compare_ok(m, a, b)))
+                !(comparison_types_ok(a, b, true) || word_compare_ok(m, a, b) ||
+                  null_word_compare_ok(f, i, a, b)))
                 return fail(d, i, "CGEN", "eq and ne require int, float, bool, or string operands and a bool destination; a string is compared with strcmp only against another string");
             break;
         case R6_OP_NE: case R6_OP_LT: case R6_OP_LE: case R6_OP_GT: case R6_OP_GE:
@@ -1917,7 +1928,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 !operand_value(f, i, 1, &b, d)) return false;
             if (!is_bool(type_at(f, i->dest)) ||
                 !(comparison_types_ok(a, b, i->opcode == R6_OP_NE) ||
-                  (i->opcode == R6_OP_NE && word_compare_ok(m, a, b))))
+                  (i->opcode == R6_OP_NE &&
+                   (word_compare_ok(m, a, b) || null_word_compare_ok(f, i, a, b)))))
                 return fail(d, i, "CGEN", "relational ops require int, float, or bool operands and a bool destination; ne also takes strings");
             break;
         case R6_OP_AND_OP: case R6_OP_OR_OP:

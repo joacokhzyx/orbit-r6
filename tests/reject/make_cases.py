@@ -1886,6 +1886,24 @@ def build_reject():
                I("ret", -1, Int(0))], ["string"], params=["s"], ptypes=["string"]),
         "D-M1-110", "CGEN", "bytes_copy counts with an int register", args=["--object"])
 
+    # ---- D-M1-111: a string against NULL compares words ----------------------
+    add("x-string-lt-null",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")), I("load_const", 1, Sym("NULL")),
+                      I("lt", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                     ["string", "void*", "bool"])])),
+        "D-M1-111", "CGEN", "NULL is a word for eq and ne; a string has no ordering against it")
+    add("x-string-eq-voidptr-param",
+        jd(DOC([FN("cmp", [I("arg", 0, Int(0)), I("load_const", 1, Str("a")),
+                           I("eq", 2, Reg(1), Reg(0)), I("ret", -1, Int(0))],
+                   ["void*", "string", "bool"], params=["p"], ptypes=["void*"]),
+                MAIN()])),
+        "D-M1-111", "CGEN", "a string is compared with the NULL register only, not with any void* word")
+    add("x-string-eq-null-register-redefined",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")), I("load_const", 1, Sym("NULL")),
+                      I("load_const", 1, Sym("NULL")), I("eq", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))], ["string", "void*", "bool"])])),
+        "D-M1-111", "CGEN", "a register assigned twice is not the NULL register")
+
     return cases
 
 
@@ -2483,6 +2501,54 @@ def build_accept_files():
               I("call", 3, Sym("rtmod_twice"), Int(1)), I("ret", -1, Reg(3))],
              Types(4), params=["a", "b"], ptypes=["int", "int"], export=True)
     files.append(("ok-runtime-module-object", jd(RTDOC([twice, via, RT_ADD()]))))
+    is_null = FN("is_null", [I("arg", 0, Int(0)), I("load_const", 1, Sym("NULL")),
+                             I("eq", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+                 ["string", "NULL", "bool"], rtype="bool", params=["s"], ptypes=["string"])
+    not_null = FN("not_null", [I("arg", 0, Int(0)), I("load_const", 1, Sym("NULL")),
+                               I("ne", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+                  ["string", "NULL", "bool"], rtype="bool", params=["s"], ptypes=["string"])
+    files.append(("ok-string-null-compare",
+                  jd(DOC([is_null, not_null, MAIN([
+                      I("load_const", 0, Str("here")), I("load_const", 1, Str("")),
+                      I("arg", -1, Reg(0)), I("call", 2, Str("is_null"), Int(1)),
+                      I("jump_if_false", -1, Reg(2), Lab(1)), I("ret", -1, Int(11)),
+                      I("label", -1, Lab(1)),
+                      I("arg", -1, Reg(1)), I("call", 3, Str("is_null"), Int(1)),
+                      I("jump_if_false", -1, Reg(3), Lab(2)), I("ret", -1, Int(12)),
+                      I("label", -1, Lab(2)),
+                      I("arg", -1, Reg(0)), I("call", 4, Str("not_null"), Int(1)),
+                      I("jump_if_false", -1, Reg(4), Lab(3)),
+                      I("load_const", 5, Sym("NULL")),
+                      I("eq", 6, Reg(1), Reg(5)),
+                      I("jump_if_false", -1, Reg(6), Lab(4)), I("ret", -1, Int(14)),
+                      I("label", -1, Lab(4)),
+                      I("ne", 7, Reg(1), Reg(5)),
+                      I("jump_if_false", -1, Reg(7), Lab(3)),
+                      I("arg", -1, Reg(0)), I("call", 8, Str("print"), Int(1)),
+                      I("arg", -1, Str("not null")), I("call", 9, Str("print"), Int(1)),
+                      I("ret", -1, Int(42)),
+                      I("label", -1, Lab(3)), I("ret", -1, Int(13))],
+                      ["string", "string", "bool", "bool", "bool", "NULL", "bool", "bool",
+                       "void", "void"])]))))
+    files.append(("ok-string-null-argument",
+                  jd(DOC([is_null, MAIN([I("load_const", 0, Sym("NULL")),
+                                         I("arg", -1, Reg(0)),
+                                         I("call", 1, Str("is_null"), Int(1)),
+                                         I("jump_if_false", -1, Reg(1), Lab(1)),
+                                         I("ret", -1, Int(42)),
+                                         I("label", -1, Lab(1)),
+                                         I("ret", -1, Int(1))],
+                                        ["NULL", "bool"])]))))
+    files.append(("ok-runtime-module-null-compare",
+                  jd(RTDOC([FN("rtmod_null_compare",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("load_const", 2, Sym("NULL")),
+                                I("eq", 3, Reg(1), Reg(2)), I("ne", 4, Reg(0), Reg(2)),
+                                I("ne", 5, Reg(1), Reg(2)), I("eq", 6, Reg(2), Reg(0)),
+                                I("ret", -1, Int(0))],
+                               ["RtArena", "string", "NULL", "bool", "bool", "bool", "bool"],
+                               params=["a", "s"], ptypes=["RtArena", "string"],
+                               export=True)]))))
     files.append(("ok-runtime-module-arena-var",
                   jd(RTDOC([FN("rtmod_arena_var",
                                [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
@@ -2897,6 +2963,17 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-object.json", "rule": "D-M1-105",
              "args": ["--object"],
              "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"},
+            {"file": "cases/ok-string-null-argument.json", "run_exit": 42, "rule": "D-M1-111",
+             "note": "NULL passed as a string argument equals NULL (R6 only: the pinned C backend runs strcmp on it and crashes)"},
+            {"file": "cases/ok-runtime-module-null-compare.json", "rule": "D-M1-111",
+             "args": ["--object"],
+             "note": "a string and an RtArena register compared with the NULL register in eq and ne, in both orders"},
+            {"file": "cases/ok-string-null-compare.json", "run_exit": 42,
+             "run_stdout": "here\r\nnot null\r\n", "rule": "D-M1-111",
+             "note": "eq and ne of a string with NULL compare the pointer word: a literal and the empty string are not NULL"},
+            {"file": "../runtime-module/emitted/strings.json", "rule": "D-M1-111",
+             "args": ["--object"],
+             "note": "the IR the language emits for runtime/orb/strings.orb, which compares strings and arenas with NULL"},
             {"file": "cases/ok-runtime-module-arena-var.json", "rule": "D-M1-109",
              "args": ["--object"],
              "note": "an RtArena parameter is declared, loaded, copied and stored through locals"},
