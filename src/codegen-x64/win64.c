@@ -47,6 +47,8 @@ static bool is_void_ptr(const char *t) { return t && strcmp(t, "void*") == 0; }
 /* D-M1-108: the opaque OrbitArena* of a runtime module; the loader admits the
    spelling in runtime modules only. */
 static bool is_rtarena(const char *t) { return t && strcmp(t, "RtArena") == 0; }
+/* D-M1-113: an opaque 64-bit pointer of a runtime module, like RtArena. */
+static bool is_rtptr(const char *t) { return t && strcmp(t, "RtPtr") == 0; }
 static bool is_scalar(const char *t) {
     return is_int(t) || is_float(t) || is_string(t) || is_bool(t);
 }
@@ -341,7 +343,7 @@ static bool extern_needs_arena(const char *name) {
         /* D-M1-108: the arena-first export of tests/runtime-module, the only way
            an ordinary program obtains an RtArena. */
         "rtmod_probe_lower", "rtmod_probe_copy_in",
-        "rtmod_probe_slice"
+        "rtmod_probe_slice", "rtmod_probe_cell", "rtmod_probe_float"
     };
     size_t n;
     for (n = 0; n < sizeof names / sizeof names[0]; ++n)
@@ -458,12 +460,13 @@ static bool null_register(const R6Function *f, const R6Value *v) {
     return defs == 1 && null_def;
 }
 
-/* D-M1-111: a string or an RtArena register against the register that holds the
+/* D-M1-111, D-M1-113: a string, an RtArena or an RtPtr register against the register that holds the
    NULL literal (typed "NULL" by the language, void* here) is a comparison of
    64-bit words, never strcmp. Only a register defined once, by the literal. */
 static bool null_word_compare_ok(const R6Function *f, const R6Instruction *i,
                                  const char *a, const char *b) {
-    bool a_ref = is_string(a) || is_rtarena(a), b_ref = is_string(b) || is_rtarena(b);
+    bool a_ref = is_string(a) || is_rtarena(a) || is_rtptr(a),
+         b_ref = is_string(b) || is_rtarena(b) || is_rtptr(b);
     return (a_ref && is_void_ptr(b) && null_register(f, &i->operands[1])) ||
            (b_ref && is_void_ptr(a) && null_register(f, &i->operands[0]));
 }
@@ -1581,6 +1584,10 @@ static bool is_string_reg(const R6Function *f, const R6Value *v) {
     return v->kind == R6_VAL_REG && is_string(type_at(f, v->as.i32));
 }
 
+static bool is_rtptr_reg(const R6Function *f, const R6Value *v) {
+    return v->kind == R6_VAL_REG && is_rtptr(type_at(f, v->as.i32));
+}
+
 static bool is_int_reg(const R6Function *f, const R6Value *v) {
     return v->kind == R6_VAL_REG && is_int(type_at(f, v->as.i32));
 }
@@ -1602,6 +1609,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             return fail(d, NULL, "CGEN", "extern function %s has unsupported parameter metadata", f->name);
         for (pc = 0; pc < f->param_count; ++pc)
             if (!is_scalar(f->param_types[pc]) &&
+                !is_rtarena(f->param_types[pc]) && !is_rtptr(f->param_types[pc]) &&
                 !(is_void_ptr(f->param_types[pc]) &&
                   (extern_takes_object(f->name) || extern_object_symbol(f->name))) &&
                 !(is_list(f->param_types[pc]) && extern_object_symbol(f->name)))
@@ -1631,7 +1639,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     for (pc = 0; pc < f->param_count; ++pc)
         if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc]) ||
               is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc]) ||
-              is_rtarena(f->param_types[pc]) ||
+              is_rtarena(f->param_types[pc]) || is_rtptr(f->param_types[pc]) ||
               (is_result(f->param_types[pc]) && strcmp(f->name, "main") != 0)))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     /* D-M1-44: a model return is the `Name*` the pin returns (mapTypeToC),
@@ -1685,7 +1693,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             } else if (!value_type(f, &i->operands[1], &vt)) {
                 return fail(d, i, "CGEN", "%s has an unsupported value operand", r6_opcode_name(i->opcode));
             }
-            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_rtarena(vt) ||
+            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_rtarena(vt) || is_rtptr(vt) ||
                   is_model_type(m, vt) || is_fn_type(vt) || (is_result(vt) && i->operands[1].kind == R6_VAL_REG)) ||
                 !local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf) || !same_type(vt, lt))
                 return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, void*, model, or function value register",
@@ -1706,7 +1714,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !name ||
                 (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
                 ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
-                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_rtarena(lt) ||
+                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_rtarena(lt) || is_rtptr(lt) ||
                             is_model_type(m, lt) || is_fn_type(lt) || is_result(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global_type(global), type_at(f, i->dest))))
@@ -1870,6 +1878,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             if (!is_scalar(type_at(f, i->dest)) && !is_rtarena(type_at(f, i->dest)) &&
+                !is_rtptr(type_at(f, i->dest)) &&
                 !(is_result(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG))
                 return fail(d, i, "CGEN", "copy currently supports scalar and result registers only");
             if (i->operands[0].kind == R6_VAL_STRING &&
@@ -1984,9 +1993,49 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         /* D-M1-110 */
         case R6_OP_STR_OFFSET:
             if (!m->runtime_module || !valid_dest(f, i, true, d) ||
-                !is_string(type_at(f, i->dest)) ||
-                !is_string_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]))
-                return fail(d, i, "CGEN", "str_offset requires a string register, an int offset register and a string destination");
+                !(is_string(type_at(f, i->dest)) ? is_string_reg(f, &i->operands[0])
+                  : is_rtptr(type_at(f, i->dest)) && is_rtptr_reg(f, &i->operands[0])) ||
+                !is_int_reg(f, &i->operands[1]))
+                return fail(d, i, "CGEN", "str_offset requires a string register and a string destination, or an RtPtr register and an RtPtr destination, and an int offset register");
+            break;
+        /* D-M1-114: a load or a store through an RtPtr register at a byte
+           offset. elemKind 8 moves a word, elemKind 4 the low 32 bits (a load
+           sign-extends them). A pointer moves only as a word. */
+        case R6_OP_MEM_LOAD:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_rtptr_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]) ||
+                !(i->elem_kind == 8 || i->elem_kind == 4) ||
+                !(is_int(type_at(f, i->dest)) ||
+                  (is_rtptr(type_at(f, i->dest)) && i->elem_kind == 8)))
+                return fail(d, i, "CGEN", "mem_load requires an RtPtr register, an int offset register, elemKind 8 or 4, and an int destination (an RtPtr destination with elemKind 8)");
+            break;
+        case R6_OP_MEM_STORE:
+            if (!m->runtime_module || i->has_dest ||
+                !is_rtptr_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]) ||
+                !(i->elem_kind == 8 || i->elem_kind == 4) ||
+                !(is_int_reg(f, &i->operands[2]) ||
+                  (is_rtptr_reg(f, &i->operands[2]) && i->elem_kind == 8)))
+                return fail(d, i, "CGEN", "mem_store requires an RtPtr register, an int offset register, elemKind 8 or 4, an int value register (an RtPtr value with elemKind 8) and no destination");
+            break;
+        /* D-M1-115: the IEEE-754 bit pattern of a float, and back. A float
+           register holds its bits in the slot, so both are a 64-bit copy. */
+        case R6_OP_FLOAT_BITS:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_int(type_at(f, i->dest)) ||
+                i->operands[0].kind != R6_VAL_REG || !is_float(type_at(f, i->operands[0].as.i32)))
+                return fail(d, i, "CGEN", "float_bits requires a float register and an int destination");
+            break;
+        case R6_OP_BITS_FLOAT:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_float(type_at(f, i->dest)) || !is_int_reg(f, &i->operands[0]))
+                return fail(d, i, "CGEN", "bits_float requires an int register and a float destination");
+            break;
+        /* D-M1-113: a 64-bit copy between a string and an RtPtr register. */
+        case R6_OP_REINTERPRET:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !(is_rtptr(type_at(f, i->dest)) ? is_string_reg(f, &i->operands[0])
+                  : is_string(type_at(f, i->dest)) && is_rtptr_reg(f, &i->operands[0])))
+                return fail(d, i, "CGEN", "reinterpret requires a string register and an RtPtr destination, or an RtPtr register and a string destination");
             break;
         case R6_OP_BYTES_COPY:
             if (!m->runtime_module || i->has_dest ||
@@ -2041,7 +2090,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
                 if (!value_type(f, &i->operands[0], &t) ||
                     !(is_scalar(t) || is_list(t) || is_model_type(m, t) || is_void_ptr(t) ||
-                      is_rtarena(t) ||
+                      is_rtarena(t) || is_rtptr(t) ||
                       (is_result(t) && i->operands[0].kind == R6_VAL_REG)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
@@ -2300,8 +2349,8 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         case R6_OP_RESULT_OK:
             if (!valid_dest(f, i, true, d) || !is_result(type_at(f, i->dest)) ||
                 !value_type(f, &i->operands[0], &a) ||
-                !(is_int(a) || is_float(a) || is_bool(a) || is_string(a)))
-                return fail(d, i, "CGEN", "result_ok requires a result destination and an int, float, bool, or string operand");
+                !(is_int(a) || is_float(a) || is_bool(a) || is_string(a) || is_rtptr(a)))
+                return fail(d, i, "CGEN", "result_ok requires a result destination and an int, float, bool, string, or RtPtr operand");
             if (i->operands[0].kind == R6_VAL_STRING &&
                 i->operands[0].string_len != strlen(i->operands[0].as.string))
                 return fail(d, i, "CGEN", "string literal contains NUL and cannot be passed through the C ABI");
@@ -2313,6 +2362,12 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 /* Single-argument form: O1 carries the error code. */
                 if (!value_type(f, &i->operands[0], &a) || !is_int(a))
                     return fail(d, i, "CGEN", "result_err without a message requires an int code operand");
+            } else if (m->runtime_module && i->operands[0].kind == R6_VAL_REG &&
+                       is_int(type_at(f, i->operands[0].as.i32))) {
+                /* D-M1-116: a runtime module may give the code first and the
+                   message second, both registers. */
+                if (!is_string_reg(f, &i->operands[1]))
+                    return fail(d, i, "CGEN", "result_err with an int code first requires a string message register second");
             } else {
                 if (!value_type(f, &i->operands[0], &a) || !is_string(a))
                     return fail(d, i, "CGEN", "result_err message operand must be a string");
@@ -3639,6 +3694,30 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         /* D-M1-110. No allocation and no check: the pointer moves by i bytes.
            bytes_copy passes memcpy a positive count only. */
+        case R6_OP_MEM_LOAD:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\t%s (%%rax), %%rax\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
+                    i->elem_kind == 8 ? "movq" : "movslq", off);
+            break;
+        case R6_OP_MEM_STORE:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\t%s (%%rax)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
+                    operand_slot(f, is_main, i, 2),
+                    i->elem_kind == 8 ? "movq %rdx," : "movl %edx,");
+            break;
+        case R6_OP_FLOAT_BITS:
+        case R6_OP_BITS_FLOAT:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), off);
+            break;
+        case R6_OP_REINTERPRET:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), off);
+            break;
         case R6_OP_STR_OFFSET:
             fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
                        "\taddq %%rcx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
@@ -4166,63 +4245,57 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             fputs("\tleave\n\tret\n", o);
             break;
+        /* D-M1-112: the OrbitResult cell is written in place (bool ok @0, int
+           error_code @4, const char *error_msg @8, void *value @16). The value
+           is the bit pattern of an int, a float or a pointer, as types.c boxed
+           it; no call reaches the runtime. */
         case R6_OP_RESULT_OK: {
             unsigned cell = result_cell_offset(f, is_main, i->dest);
             value_type(f, v, &t);
-            if (is_float(t)) {
-                /* MS x64 argument registers are positional: the hidden sret
-                   pointer is argument 1 (RCX), so the float value of argument
-                   2 goes to XMM1, not XMM0. The pinned archive reads XMM1. */
-                if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovsd -%u(%%rbp), %%xmm1\n", (unsigned)(v->as.i32 + 1) * 8);
+            if (v->kind == R6_VAL_REG) {
+                if (is_bool(t))
+                    fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(v->as.i32 + 1) * 8);
                 else
-                    fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm1\n",
-                            (unsigned long long)v->as.f64_bits);
-                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_ok_float\n", cell);
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
+            } else if (v->kind == R6_VAL_STRING) {
+                emit_string(o, v->as.string, string_id);
+                fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", string_id++);
+            } else if (v->kind == R6_VAL_INT) {
+                emit_int_rax(o, v->as.i64);
+            } else if (v->kind == R6_VAL_FLOAT64) {
+                fprintf(o, "\tmovabsq $0x%016llx, %%rax\n", (unsigned long long)v->as.f64_bits);
             } else {
-                if (v->kind == R6_VAL_REG) {
-                    if (is_bool(t))
-                        fprintf(o, "\tmovl -%u(%%rbp), %%edx\n", (unsigned)(v->as.i32 + 1) * 8);
-                    else
-                        fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(v->as.i32 + 1) * 8);
-                } else if (v->kind == R6_VAL_STRING) {
-                    emit_string(o, v->as.string, string_id);
-                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rdx\n", string_id++);
-                } else if (v->kind == R6_VAL_INT) {
-                    fprintf(o, "\tmovabsq $%lld, %%rax\n\tmovq %%rax, %%rdx\n", (long long)v->as.i64);
-                } else {
-                    fprintf(o, "\tmovl $%d, %%edx\n", v->as.boolean ? 1 : 0);
-                }
-                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_ok\n", cell);
+                fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
             }
+            fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n\tmovl $1, -%u(%%rbp)\n"
+                       "\tmovl $0, -%u(%%rbp)\n\tmovq $0, -%u(%%rbp)\n",
+                    cell - 16, cell, cell - 4, cell - 8);
             break;
         }
         case R6_OP_RESULT_ERR: {
             unsigned cell = result_cell_offset(f, is_main, i->dest);
-            if (i->operands[1].kind == R6_VAL_NONE) {
-                /* Single-argument form: O1 is the error code, message NULL. */
-                if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(v->as.i32 + 1) * 8);
+            const R6Value *code = v, *msg = NULL;
+            if (i->operands[1].kind != R6_VAL_NONE) {
+                value_type(f, v, &t);
+                if (is_int(t)) msg = &i->operands[1];
+                else { msg = v; code = &i->operands[1]; }
+            }
+            if (msg) {
+                if (msg->kind == R6_VAL_REG)
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(msg->as.i32 + 1) * 8);
                 else {
-                    emit_int_rax(o, v->as.i64);
-                    fputs("\tmovq %rax, %rdx\n", o);
-                }
-                fputs("\tmovl $0, %r8d\n", o);
-            } else {
-                if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovq -%u(%%rbp), %%r8\n", (unsigned)(v->as.i32 + 1) * 8);
-                else {
-                    emit_string(o, v->as.string, string_id);
-                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%r8\n", string_id++);
-                }
-                if (i->operands[1].kind == R6_VAL_REG)
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(i->operands[1].as.i32 + 1) * 8);
-                else {
-                    emit_int_rax(o, i->operands[1].as.i64);
-                    fputs("\tmovq %rax, %rdx\n", o);
+                    emit_string(o, msg->as.string, string_id);
+                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n", string_id++);
                 }
             }
-            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_err\n", cell);
+            if (code->kind == R6_VAL_REG)
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(code->as.i32 + 1) * 8);
+            else
+                emit_int_rax(o, code->as.i64);
+            fprintf(o, "\tmovl %%eax, -%u(%%rbp)\n", cell - 4);
+            if (msg) fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", cell - 8);
+            else fprintf(o, "\tmovq $0, -%u(%%rbp)\n", cell - 8);
+            fprintf(o, "\tmovl $0, -%u(%%rbp)\n\tmovq $0, -%u(%%rbp)\n", cell, cell - 16);
             break;
         }
         case R6_OP_RESULT_IS_OK: {
@@ -4233,11 +4306,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         }
         case R6_OP_RESULT_UNWRAP: {
             unsigned cell = result_cell_offset(f, is_main, i->operands[0].as.i32);
-            if (is_float(type_at(f, i->dest)))
-                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_get_float\n\tmovsd %%xmm0, -%u(%%rbp)\n",
-                        cell, off);
-            else
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", cell - 16, off);
+            /* D-M1-118: a float travels in the value word as its bit pattern,
+               so the read is the same copy for every type. */
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", cell - 16, off);
             break;
         }
         case R6_OP_RESULT_UNWRAP_ERR: {
@@ -4821,7 +4892,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
                     return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
                 continue;
             }
-            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_rtarena(rt) &&
+            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_rtarena(rt) && !is_rtptr(rt) &&
                 !is_model_type(module, rt))
                 return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
         }

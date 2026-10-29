@@ -1904,6 +1904,244 @@ def build_reject():
                       I("ret", -1, Int(0))], ["string", "void*", "bool"])])),
         "D-M1-111", "CGEN", "a register assigned twice is not the NULL register")
 
+    # ---- D-M1-113: RtPtr and reinterpret --------------------------------------
+    def rt_ptr_fn(instrs, types, ptypes=("RtPtr",), params=("p",)):
+        return rt_fn(instrs, types, params=list(params), ptypes=list(ptypes))
+
+    add("rt-rtptr-param-ordinary-module",
+        jd(DOC([FN("take", [I("arg", 0, Int(0)), I("ret", -1, Int(0))], ["RtPtr"],
+                   params=["p"], ptypes=["RtPtr"]), MAIN()])),
+        "D-M1-113", "E_SCHEMA", "RtPtr as a parameter type outside a runtime module")
+    add("rt-rtptr-register-ordinary-module",
+        jd(DOC([MAIN([I("load_const", 1, Int(0)), I("ret", -1, Reg(1))],
+                     ["RtPtr", "int"])])),
+        "D-M1-113", "E_SCHEMA", "RtPtr as a register type outside a runtime module")
+    add("rt-rtptr-extern-ordinary-module",
+        jd(DOC([FN("rtmod_ext", [], [], rtype="int", extern=True, params=["p"],
+                   ptypes=["RtPtr"]), MAIN()])),
+        "D-M1-113", "E_SCHEMA", "RtPtr on an extern declaration of an ordinary module")
+    add("rt-reinterpret-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("reinterpret", 1, Reg(0))],
+                 ["string", "string"]),
+        "D-M1-113", "E_UNSUPPORTED", "reinterpret outside a runtime module")
+    add("rt-reinterpret-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("reinterpret", -1, Reg(0)), I("ret", -1, Int(0))],
+              ["string"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "E_SCHEMA", "reinterpret requires a destination", args=["--object"])
+    add("rt-reinterpret-int-source",
+        rt_fn([I("load_const", 0, Int(1)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "RtPtr"]),
+        "D-M1-113", "CGEN", "reinterpret reads a string or an RtPtr register", args=["--object"])
+    add("rt-reinterpret-int-dest",
+        rt_fn([I("arg", 0, Int(0)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "CGEN", "reinterpret produces a string or an RtPtr register", args=["--object"])
+    add("rt-reinterpret-string-to-string",
+        rt_fn([I("arg", 0, Int(0)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["string", "string"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "CGEN", "reinterpret converts between a string and an RtPtr", args=["--object"])
+    add("rt-reinterpret-rtptr-to-rtptr",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+                  ["RtPtr", "RtPtr"]),
+        "D-M1-113", "CGEN", "reinterpret converts between a string and an RtPtr", args=["--object"])
+    add("rt-reinterpret-literal-operand",
+        rt_fn([I("reinterpret", 0, Str("a")), I("ret", -1, Int(0))], ["RtPtr"]),
+        "D-M1-113", "CGEN", "an inline literal is not an operand of reinterpret",
+        args=["--object"])
+    add("rt-str-offset-rtptr-string-dest",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+                   I("str_offset", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "int", "string"]),
+        "D-M1-113", "CGEN", "str_offset of an RtPtr produces an RtPtr", args=["--object"])
+    add("rt-str-offset-string-rtptr-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+               I("str_offset", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "RtPtr"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "CGEN", "str_offset of a string produces a string", args=["--object"])
+    add("rt-rtptr-copy-from-int",
+        rt_fn([I("load_const", 0, Int(1)), I("copy", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "RtPtr"]),
+        "D-M1-113", "CGEN", "an int register does not copy into an RtPtr register",
+        args=["--object"])
+    add("rt-rtptr-decl-int-local-load-as-rtptr",
+        rt_fn([I("load_const", 0, Int(1)), I("decl_var", -1, Sym("v"), Reg(0)),
+               I("load_var", 1, Sym("v")), I("ret", -1, Int(0))],
+              ["int", "RtPtr"]),
+        "D-M1-113", "CGEN", "an int local does not load into an RtPtr register",
+        args=["--object"])
+    add("rt-rtptr-lt-null",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Sym("NULL")),
+                   I("lt", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "NULL", "bool"]),
+        "D-M1-113", "CGEN", "NULL is a word for eq and ne; an RtPtr has no ordering against it",
+        args=["--object"])
+    add("rt-rtptr-eq-voidptr-param",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                   I("eq", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "void*", "bool"], ptypes=("RtPtr", "void*"), params=("p", "q")),
+        "D-M1-113", "CGEN", "an RtPtr is compared with the NULL register only, not with any void* word",
+        args=["--object"])
+    add("rt-rtptr-eq-string",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                   I("eq", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "string", "bool"], ptypes=("RtPtr", "string"), params=("p", "s")),
+        "D-M1-113", "CGEN", "an RtPtr is not compared with a string", args=["--object"])
+    add("rt-bytes-alloc-arena-rtptr",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(4)),
+                   I("bytes_alloc", 2, Reg(1), Reg(0)), I("ret", -1, Reg(2))],
+                  ["RtPtr", "int", "string"]),
+        "D-M1-113", "CGEN", "bytes_alloc operand2 is an RtPtr register, not an RtArena",
+        args=["--object"])
+    add("rt-rtptr-extern-argument-int",
+        jd(RTDOC([FN("rtmod_ext", [], [], rtype="int", extern=True, params=["p"],
+                     ptypes=["RtPtr"]),
+                  FN("rtmod_caller", [I("load_const", 0, Int(1)), I("arg", -1, Reg(0)),
+                                      I("call", 1, Str("rtmod_ext"), Int(1)),
+                                      I("ret", -1, Reg(1))],
+                     ["int", "int"], export=True)])),
+        "D-M1-113", "CGEN", "an int register is not an RtPtr argument", args=["--object"])
+
+    # ---- D-M1-114: mem_load and mem_store -------------------------------------
+    def mem_fn(instrs, types):
+        return rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(8))] + instrs +
+                         [I("ret", -1, Int(0))], types)
+
+    add("rt-mem-load-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("mem_load", 2, Reg(0), Reg(1), ek=8)], ["string", "int", "int"]),
+        "D-M1-114", "E_UNSUPPORTED", "mem_load outside a runtime module")
+    add("rt-mem-store-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("mem_store", -1, Reg(0), Reg(1), Reg(1), ek=8)], ["string", "int"]),
+        "D-M1-114", "E_UNSUPPORTED", "mem_store outside a runtime module")
+    add("rt-mem-store-with-dest",
+        mem_fn([I("mem_store", 3, Reg(0), Reg(1), Reg(1), ek=8)], ["RtPtr", "int", "int", "int"]),
+        "D-M1-114", "E_SCHEMA", "mem_store has no destination", args=["--object"])
+    add("rt-mem-load-missing-dest",
+        mem_fn([I("mem_load", -1, Reg(0), Reg(1), ek=8)], ["RtPtr", "int"]),
+        "D-M1-114", "E_SCHEMA", "mem_load requires a destination", args=["--object"])
+    add("rt-mem-elemkind-out-of-range",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=9)], ["RtPtr", "int", "int"]),
+        "D-M1-114", "E_RANGE", "elemKind of a memory opcode is an integer in 0..8",
+        args=["--object"])
+    add("rt-elemkind-8-on-list-create",
+        jd(DOC([MAIN([I("list_create", 0, ek=8), I("ret", -1, Reg(0))])])),
+        "D-M1-114", "E_RANGE", "elemKind 8 belongs to the memory opcodes; a list kind stays in 0..5")
+    add("rt-mem-load-elemkind-0",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1))], ["RtPtr", "int", "int"]),
+        "D-M1-114", "CGEN", "mem_load moves 8 or 4 bytes: elemKind 0 is refused", args=["--object"])
+    add("rt-mem-load-elemkind-5",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=5)], ["RtPtr", "int", "int"]),
+        "D-M1-114", "CGEN", "mem_load moves 8 or 4 bytes: a list kind is refused", args=["--object"])
+    add("rt-mem-load-string-pointer",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(8)),
+               I("mem_load", 2, Reg(0), Reg(1), ek=8), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-114", "CGEN", "mem_load reads through an RtPtr register, not a string",
+        args=["--object"])
+    add("rt-mem-load-string-offset",
+        mem_fn([I("reinterpret", 2, Reg(0)), I("mem_load", 3, Reg(0), Reg(2), ek=8)],
+               ["RtPtr", "int", "string", "int"]),
+        "D-M1-114", "CGEN", "mem_load offsets with an int register", args=["--object"])
+    add("rt-mem-load-literal-offset",
+        mem_fn([I("mem_load", 2, Reg(0), Int(8), ek=8)], ["RtPtr", "int", "int"]),
+        "D-M1-114", "CGEN", "an inline literal is not an operand of mem_load", args=["--object"])
+    add("rt-mem-load-string-dest",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=8)], ["RtPtr", "int", "string"]),
+        "D-M1-114", "CGEN", "mem_load produces an int or an RtPtr register", args=["--object"])
+    add("rt-mem-load-bool-dest",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=4)], ["RtPtr", "int", "bool"]),
+        "D-M1-114", "CGEN", "mem_load produces an int or an RtPtr register", args=["--object"])
+    add("rt-mem-load-rtptr-dest-elemkind-4",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=4)], ["RtPtr", "int", "RtPtr"]),
+        "D-M1-114", "CGEN", "a pointer is loaded as a word: elemKind 4 produces an int",
+        args=["--object"])
+    add("rt-mem-store-elemkind-0",
+        mem_fn([I("mem_store", -1, Reg(0), Reg(1), Reg(1))], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "mem_store moves 8 or 4 bytes: elemKind 0 is refused",
+        args=["--object"])
+    add("rt-mem-store-int-pointer",
+        rt_fn([I("arg", 0, Int(0)), I("mem_store", -1, Reg(0), Reg(0), Reg(0), ek=8),
+               I("ret", -1, Int(0))], ["int"], params=["n"], ptypes=["int"]),
+        "D-M1-114", "CGEN", "mem_store writes through an RtPtr register, not an int",
+        args=["--object"])
+    add("rt-mem-store-literal-value",
+        mem_fn([I("mem_store", -1, Reg(0), Reg(1), Int(1), ek=8)], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "an inline literal is not an operand of mem_store", args=["--object"])
+    add("rt-mem-store-literal-offset",
+        mem_fn([I("mem_store", -1, Reg(0), Int(8), Reg(1), ek=8)], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "an inline literal is not an operand of mem_store", args=["--object"])
+    add("rt-mem-store-string-value",
+        mem_fn([I("reinterpret", 2, Reg(0)), I("mem_store", -1, Reg(0), Reg(1), Reg(2), ek=8)],
+               ["RtPtr", "int", "string"]),
+        "D-M1-114", "CGEN", "mem_store writes an int or an RtPtr register", args=["--object"])
+    add("rt-mem-store-rtptr-value-elemkind-4",
+        mem_fn([I("mem_store", -1, Reg(0), Reg(1), Reg(0), ek=4)], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "a pointer is stored as a word: elemKind 4 stores an int",
+        args=["--object"])
+
+    # ---- D-M1-115: float_bits and bits_float ----------------------------------
+    add("rt-float-bits-ordinary-module",
+        ordinary([I("load_const", 0, Flt(1.5)), I("float_bits", 1, Reg(0))], ["float", "int"]),
+        "D-M1-115", "E_UNSUPPORTED", "float_bits outside a runtime module")
+    add("rt-bits-float-ordinary-module",
+        ordinary([I("load_const", 0, Int(1)), I("bits_float", 1, Reg(0))], ["int", "float"]),
+        "D-M1-115", "E_UNSUPPORTED", "bits_float outside a runtime module")
+    add("rt-float-bits-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("float_bits", -1, Reg(0)), I("ret", -1, Int(0))],
+              ["float"], params=["x"], ptypes=["float"]),
+        "D-M1-115", "E_SCHEMA", "float_bits requires a destination", args=["--object"])
+    add("rt-bits-float-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("bits_float", -1, Reg(0)), I("ret", -1, Int(0))],
+              ["int"], params=["n"], ptypes=["int"]),
+        "D-M1-115", "E_SCHEMA", "bits_float requires a destination", args=["--object"])
+    add("rt-float-bits-int-source",
+        rt_fn([I("arg", 0, Int(0)), I("float_bits", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "int"], params=["n"], ptypes=["int"]),
+        "D-M1-115", "CGEN", "float_bits reads a float register", args=["--object"])
+    add("rt-float-bits-float-dest",
+        rt_fn([I("arg", 0, Int(0)), I("float_bits", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["float", "float"], params=["x"], ptypes=["float"]),
+        "D-M1-115", "CGEN", "float_bits produces an int register", args=["--object"])
+    add("rt-float-bits-literal-operand",
+        rt_fn([I("float_bits", 0, Flt(1.5)), I("ret", -1, Reg(0))], ["int"]),
+        "D-M1-115", "CGEN", "an inline literal is not an operand of float_bits",
+        args=["--object"])
+    add("rt-bits-float-float-source",
+        rt_fn([I("arg", 0, Int(0)), I("bits_float", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["float", "float"], params=["x"], ptypes=["float"]),
+        "D-M1-115", "CGEN", "bits_float reads an int register", args=["--object"])
+    add("rt-bits-float-int-dest",
+        rt_fn([I("arg", 0, Int(0)), I("bits_float", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "int"], params=["n"], ptypes=["int"]),
+        "D-M1-115", "CGEN", "bits_float produces a float register", args=["--object"])
+    add("rt-bits-float-literal-operand",
+        rt_fn([I("bits_float", 0, Int(1)), I("ret", -1, Int(0))], ["float"]),
+        "D-M1-115", "CGEN", "an inline literal is not an operand of bits_float",
+        args=["--object"])
+
+    # ---- D-M1-116: result_ok of an RtPtr, result_err with the code first -----
+    add("rt-result-err-code-first-ordinary-module",
+        ordinary([I("load_const", 0, Int(1)), I("load_const", 1, Str("m")),
+                  I("result_err", 2, Reg(0), Reg(1))], ["int", "string", "result"]),
+        "D-M1-116", "CGEN", "an ordinary module keeps the message first: (code, message) is refused")
+    add("rt-result-err-code-first-literal-message",
+        rt_fn([I("load_const", 0, Int(1)), I("result_err", 1, Reg(0), Str("m")),
+               I("ret", -1, Int(0))], ["int", "result"]),
+        "D-M1-116", "CGEN", "the message of a code-first result_err is a register", args=["--object"])
+    add("rt-result-err-code-first-int-message",
+        rt_fn([I("load_const", 0, Int(1)), I("result_err", 1, Reg(0), Reg(0)),
+               I("ret", -1, Int(0))], ["int", "result"]),
+        "D-M1-116", "CGEN", "the message of a code-first result_err is a string", args=["--object"])
+    add("rt-result-ok-rtarena",
+        rt_fn([I("arg", 0, Int(0)), I("result_ok", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["RtArena", "result"], params=["a"], ptypes=["RtArena"]),
+        "D-M1-116", "CGEN", "result_ok carries an RtPtr word, not an RtArena", args=["--object"])
+    add("rt-result-ok-int-dest",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("result_ok", 1, Reg(0)), I("ret", -1, Int(0))],
+                  ["RtPtr", "int"]),
+        "D-M1-116", "CGEN", "result_ok produces a result register", args=["--object"])
+
     return cases
 
 
@@ -2590,6 +2828,59 @@ def build_accept_files():
                                 I("byte_load", 5, Reg(2), Reg(3)), I("ret", -1, Reg(5))],
                                ["string", "int", "string", "int", "int", "int"],
                                params=["s"], ptypes=["string"], export=True)]))))
+    files.append(("ok-runtime-module-rtptr",
+                  jd(RTDOC([FN("rtmod_ext_ptr", [], [], rtype="int", extern=True,
+                               params=["a", "p"], ptypes=["RtArena", "RtPtr"]),
+                            FN("rtmod_rtptr",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)), I("arg", 2, Int(2)),
+                                I("load_const", 3, Int(8)),
+                                I("str_offset", 4, Reg(0), Reg(3)),
+                                I("reinterpret", 5, Reg(4)), I("reinterpret", 6, Reg(1)),
+                                I("decl_var", -1, Sym("q"), Reg(6)),
+                                I("load_var", 7, Sym("q")), I("copy", 8, Reg(7)),
+                                I("store_var", -1, Sym("q"), Reg(8)),
+                                I("load_const", 9, Sym("NULL")),
+                                I("eq", 10, Reg(8), Reg(9)), I("ne", 11, Reg(5), Reg(9)),
+                                I("eq", 12, Reg(9), Reg(0)),
+                                I("arg", -1, Reg(2)), I("arg", -1, Reg(8)),
+                                I("call", 13, Str("rtmod_ext_ptr"), Int(2)),
+                                I("ret", -1, Reg(13))],
+                               ["RtPtr", "string", "RtArena", "int", "RtPtr", "string", "RtPtr",
+                                "RtPtr", "RtPtr", "NULL", "bool", "bool", "bool", "int"],
+                               params=["p", "s", "a"], ptypes=["RtPtr", "string", "RtArena"],
+                               export=True)]))))
+    files.append(("ok-runtime-module-mem",
+                  jd(RTDOC([FN("rtmod_mem",
+                               [I("arg", 0, Int(0)),
+                                I("load_const", 1, Int(8)), I("load_const", 2, Int(16)),
+                                I("mem_load", 3, Reg(0), Reg(1), ek=8),
+                                I("mem_load", 4, Reg(0), Reg(1), ek=4),
+                                I("mem_load", 5, Reg(0), Reg(2), ek=8),
+                                I("mem_store", -1, Reg(0), Reg(1), Reg(3), ek=8),
+                                I("mem_store", -1, Reg(0), Reg(2), Reg(4), ek=4),
+                                I("mem_store", -1, Reg(0), Reg(2), Reg(5), ek=8),
+                                I("ret", -1, Reg(3))],
+                               ["RtPtr", "int", "int", "int", "int", "RtPtr"],
+                               params=["p"], ptypes=["RtPtr"], export=True)]))))
+    files.append(("ok-runtime-module-float-bits",
+                  jd(RTDOC([FN("rtmod_float_bits",
+                               [I("arg", 0, Int(0)),
+                                I("float_bits", 1, Reg(0)), I("bits_float", 2, Reg(1)),
+                                I("ret", -1, Reg(1))],
+                               ["float", "int", "float"],
+                               params=["x"], ptypes=["float"], export=True)]))))
+    files.append(("ok-runtime-module-result",
+                  jd(RTDOC([FN("rtmod_result",
+                               [I("arg", 0, Int(0)),
+                                I("load_const", 1, Int(7)), I("load_const", 2, Str("bad")),
+                                I("result_ok", 3, Reg(0)), I("result_ok", 4, Reg(1)),
+                                I("result_err", 5, Reg(1), Reg(2)),
+                                I("result_err", 6, Reg(2), Reg(1)),
+                                I("result_err", 7, Reg(1)),
+                                I("ret", -1, Reg(3))],
+                               ["RtPtr", "int", "string", "result", "result", "result",
+                                "result", "result"], rtype="result",
+                               params=["p"], ptypes=["RtPtr"], export=True)]))))
     return files
 
 
@@ -2992,6 +3283,18 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-bytes.json", "rule": "D-M1-106",
              "args": ["--object"],
              "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-rtptr.json", "rule": "D-M1-113",
+             "args": ["--object"],
+             "note": "an RtPtr parameter is reinterpreted to and from a string, offset, kept in a local, compared with NULL and passed to an extern next to an RtArena"},
+            {"file": "cases/ok-runtime-module-mem.json", "rule": "D-M1-114",
+             "args": ["--object"],
+             "note": "mem_load and mem_store move a word, a sign-extended 32-bit value and a pointer through an RtPtr register (the end-to-end run is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-float-bits.json", "rule": "D-M1-115",
+             "args": ["--object"],
+             "note": "float_bits and bits_float build in a runtime module (the round trip is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-result.json", "rule": "D-M1-116",
+             "args": ["--object"],
+             "note": "an export returns a result built by result_ok of an RtPtr and an int, and by result_err in three forms (the end-to-end run is tests/runtime-module)"},
         ],
     }
 

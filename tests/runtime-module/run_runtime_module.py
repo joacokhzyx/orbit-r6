@@ -12,6 +12,7 @@ Usage: python tests/runtime-module/run_runtime_module.py [--r6 .r6-build/r6.exe]
 """
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -21,9 +22,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 
-EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\nOrbit\r\nx\r\n"
-EXPORTS = ["rtmod_probe_guard", "rtmod_probe_lower", "rtmod_probe_slice",
-           "rtmod_probe_sum", "rtmod_probe_upper"]
+EXPECTED_STDOUT = (b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\nOrbit\r\nx\r\n"
+                   b"2\r\nnegative\r\n1\r\n-2.5\r\n4609434218613702656\r\n-9223372036854775808\r\n")
+EXPORTS = ["rtmod_probe_bits", "rtmod_probe_cell", "rtmod_probe_float", "rtmod_probe_guard",
+           "rtmod_probe_lower", "rtmod_probe_slice", "rtmod_probe_sum", "rtmod_probe_upper"]
 
 
 def run(cmd, **kw):
@@ -69,8 +71,33 @@ def main():
                  if len(parts) == 2 and parts[0] == "U"}
     check("allocates through orbit_alloc and the global-arena fallback",
           {"orbit_alloc", "orbit_arena_get_global"} <= undefined, str(sorted(undefined)))
+    # D-M1-112, D-M1-117: results are built in place, with no call into types.c.
+    check("builds results without orbit_result_ok or orbit_result_err",
+          not any(n.startswith("orbit_result_") for n in undefined), str(sorted(undefined)))
     check("no entry symbol",
           not any(n in symbols for n in ("main", "orbit_main", "orbit_start")))
+
+    # D-M1-118: an ordinary fixture that builds ok, err and a float unwrap,
+    # recompiled as a runtime module, must not reference any orbit_result_*.
+    doc = json.loads((REPO / "docs" / "proposed-ir" / "m1" / "22-result-ops.json").read_text())
+    doc["module"]["runtimeModule"] = True
+    for fn in doc["module"]["functions"]:
+        if fn["name"] == "main":
+            fn["name"] = "rtmod_result_ops"
+        if not fn["isExtern"]:
+            fn["export"] = True
+    ops_json = out / "result-ops-rt.json"
+    ops_json.write_bytes((json.dumps(doc) + "\n").encode())
+    ops_obj = out / "result-ops-rt.o"
+    p = run([args.r6, "build", "--object", ops_json, "-o", ops_obj])
+    check("result-ops fixture builds as a runtime module", p.returncode == 0, p.stderr.strip())
+    if p.returncode == 0:
+        p = run([nm, ops_obj])
+        ops_undefined = {ln.split()[1] for ln in p.stdout.splitlines()
+                         if len(ln.split()) == 2 and ln.split()[0] == "U"}
+        check("ok, err and a float unwrap reference no orbit_result_*",
+              not any(n.startswith("orbit_result_") for n in ops_undefined),
+              str(sorted(ops_undefined)))
 
     # The IR the language emits for tests/runtime_module in orbit-lang
     # (REBUILD.txt): parameters travel through load_var, as for any program.

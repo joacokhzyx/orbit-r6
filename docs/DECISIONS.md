@@ -4967,3 +4967,176 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `runtime-module`, and `scripts/mklib_runtime.py --r6` builds 26 of 26 members
   with it.
 - Status: **applied**.
+
+## D-M1-112 - `result_ok` and `result_err` write the `OrbitResult` in place
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: orbit-lang removes `runtime/types.c` (the five `OrbitResult`
+  constructors become `static inline`), so an R6 program must not reference
+  `orbit_result_ok`, `orbit_result_ok_float` or `orbit_result_err`.
+- Decision: `result_ok` and `result_err` store the four fields of the
+  24-byte result cell directly: `bool ok` at +0 (written as a 32-bit word),
+  `int error_code` at +4, `const char *error_msg` at +8, `void *value` at +16.
+  Layout checked against `runtime/orbit_api.h` of orbit-lang `develop`.
+  `result_ok` writes the value operand as its 64-bit pattern: an int, a pointer,
+  a string address, a bool zero-extended or a float's IEEE-754 bits, which is
+  what `orbit_result_ok_float` boxed. `result_err` writes the code as 32 bits,
+  the message (or NULL) and a NULL value. Every operand form the lowering
+  admitted stays admitted; no new input is accepted.
+- Evidence of the removal: `22-result-ops.json` rebuilt as a runtime module
+  (`runtimeModule: true`, `main` renamed and exported) has no `orbit_result_ok`,
+  `orbit_result_ok_float` or `orbit_result_err` in `nm`; the only result symbol
+  it references is `orbit_result_get_float`, which `result_unwrap` of a float
+  still calls.
+- Status: **applied**.
+
+## D-M1-113 - `RtPtr` and `reinterpret`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit port of the list functions (orbit-lang `runtime/orb/lists.orb`)
+  reads and writes the fields of `OrbitList`, so a runtime module needs a pointer
+  that is not a string. Amendment 2 of the runtime design names it `RtPtr`.
+- Decision, the type: `RtPtr` is an opaque 64-bit pointer, passed like any
+  reference in the integer argument register or slot. It is admitted as a
+  parameter type (including the parameters of an extern declaration, next to
+  `RtArena`), a register type and a call argument of a runtime module only. In
+  any function of an ordinary module, extern declarations included, it is
+  `E_SCHEMA: type RtPtr is admitted only in a runtime module`. It travels through
+  `load_var`, `decl_var`, `store_var` and `copy` as `RtArena` does (D-M1-109).
+  It has no literal, no return type and no conversion except `reinterpret`.
+- Decision, comparison: `eq` and `ne` of an `RtPtr` register against the register
+  of the `NULL` literal are a comparison of two 64-bit words, in either order
+  (D-M1-111). An ordering against `NULL`, a comparison with a `void*` parameter
+  or with a string stays `error[CGEN]`.
+- Decision, `reinterpret`: dest `RtPtr` with a string register operand, or dest
+  string with an `RtPtr` register operand. The lowering is a 64-bit copy. Same
+  admission as D-M1-106: runtime modules only (`E_UNSUPPORTED` elsewhere), a
+  register operand (an inline literal is `CGEN`), a destination (`E_SCHEMA`).
+  Any other pairing, including string to string and `RtPtr` to `RtPtr`, is `CGEN`.
+- Decision, `str_offset`: also takes an `RtPtr` register and produces an `RtPtr`.
+  A string offsets to a string and an `RtPtr` to an `RtPtr`; the two do not mix.
+- Controls: `rt-rtptr-param-ordinary-module`, `rt-rtptr-register-ordinary-module`,
+  `rt-rtptr-extern-ordinary-module`, `rt-reinterpret-ordinary-module`,
+  `rt-reinterpret-missing-dest`, five wrong pairings or operands of
+  `reinterpret`, two wrong pairings of `str_offset`, `rt-rtptr-copy-from-int`,
+  `rt-rtptr-decl-int-local-load-as-rtptr`, `rt-rtptr-lt-null`,
+  `rt-rtptr-eq-voidptr-param`, `rt-rtptr-eq-string`,
+  `rt-bytes-alloc-arena-rtptr` and `rt-rtptr-extern-argument-int` refuse the
+  input; `ok-runtime-module-rtptr` builds the admitted forms.
+- Status: **applied**.
+
+## D-M1-114 - `mem_load` and `mem_store`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `OrbitList` is `{data, len, capacity, elem_size, elem_kind, arena}`. The
+  list functions of orbit-lang `runtime/orb/lists.orb` read and write those fields
+  through an `RtPtr` (D-M1-113).
+- Decision: both opcodes follow D-M1-106. Runtime modules only (`E_UNSUPPORTED`
+  elsewhere), every operand a register (an inline literal is `CGEN`).
+
+  | Opcode | dest | operands | `elemKind` 8 | `elemKind` 4 |
+  |---|---|---|---|---|
+  | `mem_load` | int, or `RtPtr` with `elemKind` 8 | `RtPtr` p, int off | `movq (p+off)` | `movslq (p+off)`: sign-extended |
+  | `mem_store` | none (`-1`) | `RtPtr` p, int off, int or `RtPtr` value | `movq` of the word | `movl` of the low 32 bits |
+
+  The address is `p + off` with `off` in bytes. No null test and no bounds test.
+  `mem_store` with a destination is `E_SCHEMA`, as `byte_store`. `elemKind` of a
+  memory opcode is an integer in 0..8 (`E_RANGE` above); of any other opcode it
+  stays 0..5. An `elemKind` other than 8 or 4, a string or int pointer operand, a
+  string or bool destination, and a pointer moved with `elemKind` 4 are `CGEN`.
+  `elemKind` on an opcode that is neither a list nor a memory opcode stays
+  `E_SCHEMA`.
+- Controls: `rt-mem-load-ordinary-module`, `rt-mem-store-ordinary-module`,
+  `rt-mem-store-with-dest`, `rt-mem-load-missing-dest`,
+  `rt-mem-elemkind-out-of-range`, `rt-elemkind-8-on-list-create` and fourteen
+  wrong operands, destinations or kinds refuse the input;
+  `ok-runtime-module-mem` builds both widths and the pointer form.
+- Status: **applied**.
+
+## D-M1-115 - `float_bits` and `bits_float`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `orbit_list_push_float` and `orbit_list_get_float` store a float in the
+  64-bit element word as its IEEE-754 bit pattern. The Orbit port has to move
+  that pattern between a float register and an int register without a numeric
+  conversion.
+- Decision: both opcodes follow D-M1-106 (runtime modules only, registers only,
+  a destination required). `float_bits` takes a float register and produces an
+  int register, `bits_float` takes an int register and produces a float
+  register. A float slot holds its bit pattern, so both lower to a 64-bit copy
+  (`movq`); no `cvtsi2sd`, no `cvttsd2si`. Any other operand or destination type
+  and an inline literal are `CGEN`.
+- Controls: `rt-float-bits-ordinary-module`, `rt-bits-float-ordinary-module`,
+  `rt-float-bits-missing-dest`, `rt-bits-float-missing-dest` and six wrong
+  operands or destinations refuse the input; `ok-runtime-module-float-bits`
+  builds. The round trip of the pattern of 1.5 and -0.0 runs in
+  `tests/runtime-module` (D-M1-117).
+- Status: **applied**.
+
+## D-M1-116 - `result_ok` of an `RtPtr`, `result_err` with the code first, an export that returns `result`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the list functions return `OrbitResult` (`orbit_list_create_typed`,
+  `orbit_list_pop`, `orbit_list_get`) and build it with the inline form of
+  D-M1-112. The runtime design names the forms `rt_ok(word: int)`,
+  `rt_ok_ptr(p: RtPtr)` and `rt_err(code: int, msg: string)`.
+- Decision, `result_ok`: the operand may also be an `RtPtr` register. Its 64-bit
+  word is the `value` field, as an int is. An `RtArena`, a `void*` and a model
+  register stay `CGEN`.
+- Decision, `result_err`: a runtime module may give the code first and the
+  message second, both registers (`rt_err(code, msg)` lowers to operand1 = code,
+  operand2 = message). The order of every other module, message first and code
+  second, and the one-operand form (code only) are unchanged; the two orders are
+  told apart by the type of operand1, which is an int register only in the
+  code-first form. An ordinary module that gives `(int, string)` stays
+  `CGEN: result_err message operand must be a string`.
+- Decision, export: an `export fn` with return type `result` returns the
+  `OrbitResult` by value through the hidden return pointer, as any function that
+  returns a result (D-M1-43). `ok-runtime-module-result` builds one.
+- Controls: `rt-result-err-code-first-ordinary-module`,
+  `rt-result-err-code-first-literal-message`,
+  `rt-result-err-code-first-int-message`, `rt-result-ok-rtarena` and
+  `rt-result-ok-int-dest` refuse the input; `ok-runtime-module-result` builds
+  `result_ok` of an RtPtr and of an int and `result_err` in three forms.
+- Status: **applied**.
+
+## D-M1-117 - end-to-end run of the memory, float-bit and result opcodes
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: D-M1-112 to D-M1-116 are admitted by rejection and acceptance cases that
+  only build. `tests/runtime-module` runs them.
+- Decision: `probe-rt.json` gains three exports.
+  - `rtmod_probe_cell(a: RtArena, x: int, mode: int) -> result` allocates 40 bytes
+    with `bytes_alloc`, stores `x` as a word at +0, -3 as 32 bits at +8 and the
+    cell's own address at +24, and reads `x` back through the stored pointer and
+    -3 back sign-extended. A negative `x` returns `result_err` with code 9 and
+    the message `negative`; mode 1 returns `result_ok` of the pointer; otherwise
+    `result_ok` of `x + (-3)`.
+  - `rtmod_probe_float(a: RtArena, y: float) -> result` stores `float_bits(y)`,
+    loads it, converts it with `bits_float` and returns it in `result_ok`.
+  - `rtmod_probe_bits(y: float) -> int` returns `float_bits(y)`.
+- Output added to the program: `2`, `negative`, `1`, `-2.5`, `4609434218613702656`
+  (the pattern of 1.5) and `-9223372036854775808` (the pattern of -0.0).
+- The script also requires that the object has no undefined `orbit_result_*`
+  symbol.
+- Test hook: `rtmod_probe_cell` and `rtmod_probe_float` join the arena-first names
+  of `extern_needs_arena` (D-M1-108), which is also what admits a `result`
+  returned by an extern; no pinned runtime symbol has those names.
+- Status: **applied**.
+
+## D-M1-118 - `result_unwrap` of a float reads the value word
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `orbit_result_get_float` is the last symbol of `runtime/types.c` that R6
+  still called. With the file removed (D-M1-112), a program that unwraps a float
+  would fail to link.
+- Decision: `result_unwrap` copies the `value` word of the result cell into the
+  destination slot for every type. A float is stored there as its bit pattern
+  (`orbit_result_ok_float` boxed it so, and D-M1-112 stores it so), and a float
+  slot holds a bit pattern, so no conversion is needed. The call and the
+  `movsd` of `xmm0` are gone.
+- Control: `tests/runtime-module` rebuilds `22-result-ops.json` (ok of a float,
+  its unwrap, err with a message, its unwrap) as a runtime module and requires
+  that its object has no undefined `orbit_result_*`; it references `strcmp`
+  only. `run_diff.py` runs the same fixture as a program against the oracle.
+- Status: **applied**.
