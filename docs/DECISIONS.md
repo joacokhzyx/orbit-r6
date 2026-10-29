@@ -4989,3 +4989,38 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   it references is `orbit_result_get_float`, which `result_unwrap` of a float
   still calls.
 - Status: **applied**.
+
+## D-M1-113 - `RtPtr` and `reinterpret`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Orbit port of the list functions (orbit-lang `runtime/orb/lists.orb`)
+  reads and writes the fields of `OrbitList`, so a runtime module needs a pointer
+  that is not a string. Amendment 2 of the runtime design names it `RtPtr`.
+- Decision, the type: `RtPtr` is an opaque 64-bit pointer, passed like any
+  reference in the integer argument register or slot. It is admitted as a
+  parameter type (including the parameters of an extern declaration, next to
+  `RtArena`), a register type and a call argument of a runtime module only. In
+  any function of an ordinary module, extern declarations included, it is
+  `E_SCHEMA: type RtPtr is admitted only in a runtime module`. It travels through
+  `load_var`, `decl_var`, `store_var` and `copy` as `RtArena` does (D-M1-109).
+  It has no literal, no return type and no conversion except `reinterpret`.
+- Decision, comparison: `eq` and `ne` of an `RtPtr` register against the register
+  of the `NULL` literal are a comparison of two 64-bit words, in either order
+  (D-M1-111). An ordering against `NULL`, a comparison with a `void*` parameter
+  or with a string stays `error[CGEN]`.
+- Decision, `reinterpret`: dest `RtPtr` with a string register operand, or dest
+  string with an `RtPtr` register operand. The lowering is a 64-bit copy. Same
+  admission as D-M1-106: runtime modules only (`E_UNSUPPORTED` elsewhere), a
+  register operand (an inline literal is `CGEN`), a destination (`E_SCHEMA`).
+  Any other pairing, including string to string and `RtPtr` to `RtPtr`, is `CGEN`.
+- Decision, `str_offset`: also takes an `RtPtr` register and produces an `RtPtr`.
+  A string offsets to a string and an `RtPtr` to an `RtPtr`; the two do not mix.
+- Controls: `rt-rtptr-param-ordinary-module`, `rt-rtptr-register-ordinary-module`,
+  `rt-rtptr-extern-ordinary-module`, `rt-reinterpret-ordinary-module`,
+  `rt-reinterpret-missing-dest`, five wrong pairings or operands of
+  `reinterpret`, two wrong pairings of `str_offset`, `rt-rtptr-copy-from-int`,
+  `rt-rtptr-decl-int-local-load-as-rtptr`, `rt-rtptr-lt-null`,
+  `rt-rtptr-eq-voidptr-param`, `rt-rtptr-eq-string`,
+  `rt-bytes-alloc-arena-rtptr` and `rt-rtptr-extern-argument-int` refuse the
+  input; `ok-runtime-module-rtptr` builds the admitted forms.
+- Status: **applied**.

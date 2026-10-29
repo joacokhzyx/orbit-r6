@@ -47,6 +47,8 @@ static bool is_void_ptr(const char *t) { return t && strcmp(t, "void*") == 0; }
 /* D-M1-108: the opaque OrbitArena* of a runtime module; the loader admits the
    spelling in runtime modules only. */
 static bool is_rtarena(const char *t) { return t && strcmp(t, "RtArena") == 0; }
+/* D-M1-113: an opaque 64-bit pointer of a runtime module, like RtArena. */
+static bool is_rtptr(const char *t) { return t && strcmp(t, "RtPtr") == 0; }
 static bool is_scalar(const char *t) {
     return is_int(t) || is_float(t) || is_string(t) || is_bool(t);
 }
@@ -458,12 +460,13 @@ static bool null_register(const R6Function *f, const R6Value *v) {
     return defs == 1 && null_def;
 }
 
-/* D-M1-111: a string or an RtArena register against the register that holds the
+/* D-M1-111, D-M1-113: a string, an RtArena or an RtPtr register against the register that holds the
    NULL literal (typed "NULL" by the language, void* here) is a comparison of
    64-bit words, never strcmp. Only a register defined once, by the literal. */
 static bool null_word_compare_ok(const R6Function *f, const R6Instruction *i,
                                  const char *a, const char *b) {
-    bool a_ref = is_string(a) || is_rtarena(a), b_ref = is_string(b) || is_rtarena(b);
+    bool a_ref = is_string(a) || is_rtarena(a) || is_rtptr(a),
+         b_ref = is_string(b) || is_rtarena(b) || is_rtptr(b);
     return (a_ref && is_void_ptr(b) && null_register(f, &i->operands[1])) ||
            (b_ref && is_void_ptr(a) && null_register(f, &i->operands[0]));
 }
@@ -1581,6 +1584,10 @@ static bool is_string_reg(const R6Function *f, const R6Value *v) {
     return v->kind == R6_VAL_REG && is_string(type_at(f, v->as.i32));
 }
 
+static bool is_rtptr_reg(const R6Function *f, const R6Value *v) {
+    return v->kind == R6_VAL_REG && is_rtptr(type_at(f, v->as.i32));
+}
+
 static bool is_int_reg(const R6Function *f, const R6Value *v) {
     return v->kind == R6_VAL_REG && is_int(type_at(f, v->as.i32));
 }
@@ -1602,6 +1609,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             return fail(d, NULL, "CGEN", "extern function %s has unsupported parameter metadata", f->name);
         for (pc = 0; pc < f->param_count; ++pc)
             if (!is_scalar(f->param_types[pc]) &&
+                !is_rtarena(f->param_types[pc]) && !is_rtptr(f->param_types[pc]) &&
                 !(is_void_ptr(f->param_types[pc]) &&
                   (extern_takes_object(f->name) || extern_object_symbol(f->name))) &&
                 !(is_list(f->param_types[pc]) && extern_object_symbol(f->name)))
@@ -1631,7 +1639,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
     for (pc = 0; pc < f->param_count; ++pc)
         if (!(is_scalar(f->param_types[pc]) || is_list(f->param_types[pc]) ||
               is_model_type(m, f->param_types[pc]) || is_void_ptr(f->param_types[pc]) ||
-              is_rtarena(f->param_types[pc]) ||
+              is_rtarena(f->param_types[pc]) || is_rtptr(f->param_types[pc]) ||
               (is_result(f->param_types[pc]) && strcmp(f->name, "main") != 0)))
             return fail(d, NULL, "CGEN", "parameter type %s is unsupported in M1", f->param_types[pc]);
     /* D-M1-44: a model return is the `Name*` the pin returns (mapTypeToC),
@@ -1685,7 +1693,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             } else if (!value_type(f, &i->operands[1], &vt)) {
                 return fail(d, i, "CGEN", "%s has an unsupported value operand", r6_opcode_name(i->opcode));
             }
-            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_rtarena(vt) ||
+            if (!(is_scalar(vt) || is_list(vt) || is_void_ptr(vt) || is_rtarena(vt) || is_rtptr(vt) ||
                   is_model_type(m, vt) || is_fn_type(vt) || (is_result(vt) && i->operands[1].kind == R6_VAL_REG)) ||
                 !local_info(m, f, name, NULL, &lt, local_buf, sizeof local_buf) || !same_type(vt, lt))
                 return fail(d, i, "CGEN", "%s requires a declared local and a matching scalar, list, void*, model, or function value register",
@@ -1706,7 +1714,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) || !name ||
                 (!param && !local && !tag && (!global || !global_integer(global, &ignored))) ||
                 ((param || local) ? (!same_type(lt, type_at(f, i->dest)) ||
-                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_rtarena(lt) ||
+                          !(is_scalar(lt) || is_list(lt) || is_void_ptr(lt) || is_rtarena(lt) || is_rtptr(lt) ||
                             is_model_type(m, lt) || is_fn_type(lt) || is_result(lt))) :
                  tag ? !is_int(type_at(f, i->dest)) :
                        !same_type(global_type(global), type_at(f, i->dest))))
@@ -1870,6 +1878,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
             if (!valid_dest(f, i, true, d) ||
                 !validate_value_for_register(f, &i->operands[0], i->dest, i, d)) return false;
             if (!is_scalar(type_at(f, i->dest)) && !is_rtarena(type_at(f, i->dest)) &&
+                !is_rtptr(type_at(f, i->dest)) &&
                 !(is_result(type_at(f, i->dest)) && i->operands[0].kind == R6_VAL_REG))
                 return fail(d, i, "CGEN", "copy currently supports scalar and result registers only");
             if (i->operands[0].kind == R6_VAL_STRING &&
@@ -1984,9 +1993,17 @@ static bool validate_function(const R6Module *m, const R6Function *f,
         /* D-M1-110 */
         case R6_OP_STR_OFFSET:
             if (!m->runtime_module || !valid_dest(f, i, true, d) ||
-                !is_string(type_at(f, i->dest)) ||
-                !is_string_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]))
-                return fail(d, i, "CGEN", "str_offset requires a string register, an int offset register and a string destination");
+                !(is_string(type_at(f, i->dest)) ? is_string_reg(f, &i->operands[0])
+                  : is_rtptr(type_at(f, i->dest)) && is_rtptr_reg(f, &i->operands[0])) ||
+                !is_int_reg(f, &i->operands[1]))
+                return fail(d, i, "CGEN", "str_offset requires a string register and a string destination, or an RtPtr register and an RtPtr destination, and an int offset register");
+            break;
+        /* D-M1-113: a 64-bit copy between a string and an RtPtr register. */
+        case R6_OP_REINTERPRET:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !(is_rtptr(type_at(f, i->dest)) ? is_string_reg(f, &i->operands[0])
+                  : is_string(type_at(f, i->dest)) && is_rtptr_reg(f, &i->operands[0])))
+                return fail(d, i, "CGEN", "reinterpret requires a string register and an RtPtr destination, or an RtPtr register and a string destination");
             break;
         case R6_OP_BYTES_COPY:
             if (!m->runtime_module || i->has_dest ||
@@ -2041,7 +2058,7 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     return fail(d, i, "CGEN", "more than 256 pending call arguments are unsupported");
                 if (!value_type(f, &i->operands[0], &t) ||
                     !(is_scalar(t) || is_list(t) || is_model_type(m, t) || is_void_ptr(t) ||
-                      is_rtarena(t) ||
+                      is_rtarena(t) || is_rtptr(t) ||
                       (is_result(t) && i->operands[0].kind == R6_VAL_REG)))
                     return fail(d, i, "CGEN", "arg value type is unsupported");
                 if (i->operands[0].kind == R6_VAL_REG && !type_at(f, i->operands[0].as.i32))
@@ -3639,6 +3656,10 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         /* D-M1-110. No allocation and no check: the pointer moves by i bytes.
            bytes_copy passes memcpy a positive count only. */
+        case R6_OP_REINTERPRET:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), off);
+            break;
         case R6_OP_STR_OFFSET:
             fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
                        "\taddq %%rcx, %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
@@ -4811,7 +4832,7 @@ static bool codegen_module(FILE *out, R6Module *module, R6Diagnostic *diag) {
                     return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
                 continue;
             }
-            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_rtarena(rt) &&
+            if (!is_register_type(rt) && !is_void_ptr(rt) && !is_rtarena(rt) && !is_rtptr(rt) &&
                 !is_model_type(module, rt))
                 return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
         }

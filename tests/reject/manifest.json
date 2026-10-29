@@ -1889,6 +1889,184 @@
       "code": "CGEN",
       "rule": "D-M1-111",
       "note": "a register assigned twice is not the NULL register"
+    },
+    {
+      "file": "cases/rt-rtptr-param-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "RtPtr as a parameter type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtptr-register-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "RtPtr as a register type outside a runtime module"
+    },
+    {
+      "file": "cases/rt-rtptr-extern-ordinary-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "RtPtr on an extern declaration of an ordinary module"
+    },
+    {
+      "file": "cases/rt-reinterpret-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-113",
+      "note": "reinterpret outside a runtime module"
+    },
+    {
+      "file": "cases/rt-reinterpret-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-113",
+      "note": "reinterpret requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-int-source.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret reads a string or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-int-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret produces a string or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-string-to-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret converts between a string and an RtPtr",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-rtptr-to-rtptr.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "reinterpret converts between a string and an RtPtr",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-reinterpret-literal-operand.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an inline literal is not an operand of reinterpret",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-rtptr-string-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "str_offset of an RtPtr produces an RtPtr",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-str-offset-string-rtptr-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "str_offset of a string produces a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-copy-from-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an int register does not copy into an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-decl-int-local-load-as-rtptr.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an int local does not load into an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-lt-null.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "NULL is a word for eq and ne; an RtPtr has no ordering against it",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-eq-voidptr-param.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an RtPtr is compared with the NULL register only, not with any void* word",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-eq-string.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an RtPtr is not compared with a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-bytes-alloc-arena-rtptr.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "bytes_alloc operand2 is an RtPtr register, not an RtArena",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-rtptr-extern-argument-int.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-113",
+      "note": "an int register is not an RtPtr argument",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -2840,6 +3018,14 @@
         "--object"
       ],
       "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"
+    },
+    {
+      "file": "cases/ok-runtime-module-rtptr.json",
+      "rule": "D-M1-113",
+      "args": [
+        "--object"
+      ],
+      "note": "an RtPtr parameter is reinterpreted to and from a string, offset, kept in a local, compared with NULL and passed to an extern next to an RtArena"
     }
   ]
 }

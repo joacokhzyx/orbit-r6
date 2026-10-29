@@ -1904,6 +1904,103 @@ def build_reject():
                       I("ret", -1, Int(0))], ["string", "void*", "bool"])])),
         "D-M1-111", "CGEN", "a register assigned twice is not the NULL register")
 
+    # ---- D-M1-113: RtPtr and reinterpret --------------------------------------
+    def rt_ptr_fn(instrs, types, ptypes=("RtPtr",), params=("p",)):
+        return rt_fn(instrs, types, params=list(params), ptypes=list(ptypes))
+
+    add("rt-rtptr-param-ordinary-module",
+        jd(DOC([FN("take", [I("arg", 0, Int(0)), I("ret", -1, Int(0))], ["RtPtr"],
+                   params=["p"], ptypes=["RtPtr"]), MAIN()])),
+        "D-M1-113", "E_SCHEMA", "RtPtr as a parameter type outside a runtime module")
+    add("rt-rtptr-register-ordinary-module",
+        jd(DOC([MAIN([I("load_const", 1, Int(0)), I("ret", -1, Reg(1))],
+                     ["RtPtr", "int"])])),
+        "D-M1-113", "E_SCHEMA", "RtPtr as a register type outside a runtime module")
+    add("rt-rtptr-extern-ordinary-module",
+        jd(DOC([FN("rtmod_ext", [], [], rtype="int", extern=True, params=["p"],
+                   ptypes=["RtPtr"]), MAIN()])),
+        "D-M1-113", "E_SCHEMA", "RtPtr on an extern declaration of an ordinary module")
+    add("rt-reinterpret-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("reinterpret", 1, Reg(0))],
+                 ["string", "string"]),
+        "D-M1-113", "E_UNSUPPORTED", "reinterpret outside a runtime module")
+    add("rt-reinterpret-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("reinterpret", -1, Reg(0)), I("ret", -1, Int(0))],
+              ["string"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "E_SCHEMA", "reinterpret requires a destination", args=["--object"])
+    add("rt-reinterpret-int-source",
+        rt_fn([I("load_const", 0, Int(1)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "RtPtr"]),
+        "D-M1-113", "CGEN", "reinterpret reads a string or an RtPtr register", args=["--object"])
+    add("rt-reinterpret-int-dest",
+        rt_fn([I("arg", 0, Int(0)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "CGEN", "reinterpret produces a string or an RtPtr register", args=["--object"])
+    add("rt-reinterpret-string-to-string",
+        rt_fn([I("arg", 0, Int(0)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["string", "string"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "CGEN", "reinterpret converts between a string and an RtPtr", args=["--object"])
+    add("rt-reinterpret-rtptr-to-rtptr",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("reinterpret", 1, Reg(0)), I("ret", -1, Int(0))],
+                  ["RtPtr", "RtPtr"]),
+        "D-M1-113", "CGEN", "reinterpret converts between a string and an RtPtr", args=["--object"])
+    add("rt-reinterpret-literal-operand",
+        rt_fn([I("reinterpret", 0, Str("a")), I("ret", -1, Int(0))], ["RtPtr"]),
+        "D-M1-113", "CGEN", "an inline literal is not an operand of reinterpret",
+        args=["--object"])
+    add("rt-str-offset-rtptr-string-dest",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+                   I("str_offset", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "int", "string"]),
+        "D-M1-113", "CGEN", "str_offset of an RtPtr produces an RtPtr", args=["--object"])
+    add("rt-str-offset-string-rtptr-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+               I("str_offset", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "RtPtr"], params=["s"], ptypes=["string"]),
+        "D-M1-113", "CGEN", "str_offset of a string produces a string", args=["--object"])
+    add("rt-rtptr-copy-from-int",
+        rt_fn([I("load_const", 0, Int(1)), I("copy", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "RtPtr"]),
+        "D-M1-113", "CGEN", "an int register does not copy into an RtPtr register",
+        args=["--object"])
+    add("rt-rtptr-decl-int-local-load-as-rtptr",
+        rt_fn([I("load_const", 0, Int(1)), I("decl_var", -1, Sym("v"), Reg(0)),
+               I("load_var", 1, Sym("v")), I("ret", -1, Int(0))],
+              ["int", "RtPtr"]),
+        "D-M1-113", "CGEN", "an int local does not load into an RtPtr register",
+        args=["--object"])
+    add("rt-rtptr-lt-null",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Sym("NULL")),
+                   I("lt", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "NULL", "bool"]),
+        "D-M1-113", "CGEN", "NULL is a word for eq and ne; an RtPtr has no ordering against it",
+        args=["--object"])
+    add("rt-rtptr-eq-voidptr-param",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                   I("eq", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "void*", "bool"], ptypes=("RtPtr", "void*"), params=("p", "q")),
+        "D-M1-113", "CGEN", "an RtPtr is compared with the NULL register only, not with any void* word",
+        args=["--object"])
+    add("rt-rtptr-eq-string",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                   I("eq", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                  ["RtPtr", "string", "bool"], ptypes=("RtPtr", "string"), params=("p", "s")),
+        "D-M1-113", "CGEN", "an RtPtr is not compared with a string", args=["--object"])
+    add("rt-bytes-alloc-arena-rtptr",
+        rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(4)),
+                   I("bytes_alloc", 2, Reg(1), Reg(0)), I("ret", -1, Reg(2))],
+                  ["RtPtr", "int", "string"]),
+        "D-M1-113", "CGEN", "bytes_alloc operand2 is an RtPtr register, not an RtArena",
+        args=["--object"])
+    add("rt-rtptr-extern-argument-int",
+        jd(RTDOC([FN("rtmod_ext", [], [], rtype="int", extern=True, params=["p"],
+                     ptypes=["RtPtr"]),
+                  FN("rtmod_caller", [I("load_const", 0, Int(1)), I("arg", -1, Reg(0)),
+                                      I("call", 1, Str("rtmod_ext"), Int(1)),
+                                      I("ret", -1, Reg(1))],
+                     ["int", "int"], export=True)])),
+        "D-M1-113", "CGEN", "an int register is not an RtPtr argument", args=["--object"])
+
     return cases
 
 
@@ -2590,6 +2687,27 @@ def build_accept_files():
                                 I("byte_load", 5, Reg(2), Reg(3)), I("ret", -1, Reg(5))],
                                ["string", "int", "string", "int", "int", "int"],
                                params=["s"], ptypes=["string"], export=True)]))))
+    files.append(("ok-runtime-module-rtptr",
+                  jd(RTDOC([FN("rtmod_ext_ptr", [], [], rtype="int", extern=True,
+                               params=["a", "p"], ptypes=["RtArena", "RtPtr"]),
+                            FN("rtmod_rtptr",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)), I("arg", 2, Int(2)),
+                                I("load_const", 3, Int(8)),
+                                I("str_offset", 4, Reg(0), Reg(3)),
+                                I("reinterpret", 5, Reg(4)), I("reinterpret", 6, Reg(1)),
+                                I("decl_var", -1, Sym("q"), Reg(6)),
+                                I("load_var", 7, Sym("q")), I("copy", 8, Reg(7)),
+                                I("store_var", -1, Sym("q"), Reg(8)),
+                                I("load_const", 9, Sym("NULL")),
+                                I("eq", 10, Reg(8), Reg(9)), I("ne", 11, Reg(5), Reg(9)),
+                                I("eq", 12, Reg(9), Reg(0)),
+                                I("arg", -1, Reg(2)), I("arg", -1, Reg(8)),
+                                I("call", 13, Str("rtmod_ext_ptr"), Int(2)),
+                                I("ret", -1, Reg(13))],
+                               ["RtPtr", "string", "RtArena", "int", "RtPtr", "string", "RtPtr",
+                                "RtPtr", "RtPtr", "NULL", "bool", "bool", "bool", "int"],
+                               params=["p", "s", "a"], ptypes=["RtPtr", "string", "RtArena"],
+                               export=True)]))))
     return files
 
 
@@ -2992,6 +3110,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-bytes.json", "rule": "D-M1-106",
              "args": ["--object"],
              "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-rtptr.json", "rule": "D-M1-113",
+             "args": ["--object"],
+             "note": "an RtPtr parameter is reinterpreted to and from a string, offset, kept in a local, compared with NULL and passed to an extern next to an RtArena"},
         ],
     }
 
