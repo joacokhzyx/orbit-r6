@@ -1,7 +1,8 @@
 # Contrato interno M1
 
-Fecha: 2026-10-14. Lenguaje: pin de [PIN.md](PIN.md). IR aceptado: versión 1
-del contrato R6 en [IR_SPEC_DRAFT.md](IR_SPEC_DRAFT.md). Este archivo fija
+Fecha: 2026-10-14. Lenguaje: pin de [PIN.md](PIN.md). IR aceptado: IRv1 de
+`orbit-lang/docs/IR_SPEC.md` en el commit del pin (D-F0-06; diferencias en
+[IR_SPEC_ALIGNMENT.md](IR_SPEC_ALIGNMENT.md)). Este archivo fija
 interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 
 ## Representación del loader (`src/loader/ir.h`)
@@ -132,3 +133,14 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - Ningún carril crea shims, implementa runtime o altera `orbit-lang`.
 
 Alternativa descartada: generar C para delegar lowering (prohibido por contrato).
+
+## Ensamblador interno
+
+`win64.c` escribe un texto privado con forma de GAS; `peephole.c` y `regalloc.c`
+lo reescriben y `asm_win64.c` lo codifica a bytes para `coff.c`. Ningún
+ensamblador externo lee ni emite instrucciones de un programa. `asm_win64.c`
+acepta solo las formas que emite el selector y rechaza con error cualquier
+instrucción, directiva o marco de unwind distinto; la lista vigente es el
+código de `asm_win64.c`, no un documento. Los registros `.pdata`/`.xdata` salen
+de los offsets reales del prólogo codificado.
+

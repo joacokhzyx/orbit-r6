@@ -9,8 +9,8 @@ Fuentes comparadas:
   que era el blob en `299eb09`, y ese cambio es solo menciones de ruta por la
   reorg de `compiler/`; D-F0-10 la había movido desde `110ce439…`, que era el
   blob en `0837185`, al reconciliar §5.5 con el árbol).
-- Implementación actual: `src/loader/ir.c` y draft local
-  [IR_SPEC_DRAFT.md](IR_SPEC_DRAFT.md).
+- Implementación actual: `src/loader/ir.c`. El draft local `IR_SPEC_DRAFT.md`
+  se retiró; su último texto está en el commit `3172044`.
 
 Regla adoptada, textual de la spec: *"Where this document and the draft
 disagree, this document prevails; where the language publishes something else,
