@@ -5099,3 +5099,27 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `rt-result-ok-int-dest` refuse the input; `ok-runtime-module-result` builds
   `result_ok` of an RtPtr and of an int and `result_err` in three forms.
 - Status: **applied**.
+
+## D-M1-117 - end-to-end run of the memory, float-bit and result opcodes
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: D-M1-112 to D-M1-116 are admitted by rejection and acceptance cases that
+  only build. `tests/runtime-module` runs them.
+- Decision: `probe-rt.json` gains three exports.
+  - `rtmod_probe_cell(a: RtArena, x: int, mode: int) -> result` allocates 40 bytes
+    with `bytes_alloc`, stores `x` as a word at +0, -3 as 32 bits at +8 and the
+    cell's own address at +24, and reads `x` back through the stored pointer and
+    -3 back sign-extended. A negative `x` returns `result_err` with code 9 and
+    the message `negative`; mode 1 returns `result_ok` of the pointer; otherwise
+    `result_ok` of `x + (-3)`.
+  - `rtmod_probe_float(a: RtArena, y: float) -> result` stores `float_bits(y)`,
+    loads it, converts it with `bits_float` and returns it in `result_ok`.
+  - `rtmod_probe_bits(y: float) -> int` returns `float_bits(y)`.
+- Output added to the program: `2`, `negative`, `1`, `-2.5`, `4609434218613702656`
+  (the pattern of 1.5) and `-9223372036854775808` (the pattern of -0.0).
+- The script also requires that the object has no undefined `orbit_result_*`
+  symbol.
+- Test hook: `rtmod_probe_cell` and `rtmod_probe_float` join the arena-first names
+  of `extern_needs_arena` (D-M1-108), which is also what admits a `result`
+  returned by an extern; no pinned runtime symbol has those names.
+- Status: **applied**.

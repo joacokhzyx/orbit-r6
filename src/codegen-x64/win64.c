@@ -343,7 +343,7 @@ static bool extern_needs_arena(const char *name) {
         /* D-M1-108: the arena-first export of tests/runtime-module, the only way
            an ordinary program obtains an RtArena. */
         "rtmod_probe_lower", "rtmod_probe_copy_in",
-        "rtmod_probe_slice"
+        "rtmod_probe_slice", "rtmod_probe_cell", "rtmod_probe_float"
     };
     size_t n;
     for (n = 0; n < sizeof names / sizeof names[0]; ++n)

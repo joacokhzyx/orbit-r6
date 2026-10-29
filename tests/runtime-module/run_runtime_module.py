@@ -21,9 +21,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 
-EXPECTED_STDOUT = b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\nOrbit\r\nx\r\n"
-EXPORTS = ["rtmod_probe_guard", "rtmod_probe_lower", "rtmod_probe_slice",
-           "rtmod_probe_sum", "rtmod_probe_upper"]
+EXPECTED_STDOUT = (b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\nOrbit\r\nx\r\n"
+                   b"2\r\nnegative\r\n1\r\n-2.5\r\n4609434218613702656\r\n-9223372036854775808\r\n")
+EXPORTS = ["rtmod_probe_bits", "rtmod_probe_cell", "rtmod_probe_float", "rtmod_probe_guard",
+           "rtmod_probe_lower", "rtmod_probe_slice", "rtmod_probe_sum", "rtmod_probe_upper"]
 
 
 def run(cmd, **kw):
@@ -69,6 +70,9 @@ def main():
                  if len(parts) == 2 and parts[0] == "U"}
     check("allocates through orbit_alloc and the global-arena fallback",
           {"orbit_alloc", "orbit_arena_get_global"} <= undefined, str(sorted(undefined)))
+    # D-M1-112, D-M1-117: results are built in place, with no call into types.c.
+    check("builds results without orbit_result_ok or orbit_result_err",
+          not any(n.startswith("orbit_result_") for n in undefined), str(sorted(undefined)))
     check("no entry symbol",
           not any(n in symbols for n in ("main", "orbit_main", "orbit_start")))
 
