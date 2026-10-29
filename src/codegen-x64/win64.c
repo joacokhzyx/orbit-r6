@@ -1998,6 +1998,25 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                 !is_int_reg(f, &i->operands[1]))
                 return fail(d, i, "CGEN", "str_offset requires a string register and a string destination, or an RtPtr register and an RtPtr destination, and an int offset register");
             break;
+        /* D-M1-114: a load or a store through an RtPtr register at a byte
+           offset. elemKind 8 moves a word, elemKind 4 the low 32 bits (a load
+           sign-extends them). A pointer moves only as a word. */
+        case R6_OP_MEM_LOAD:
+            if (!m->runtime_module || !valid_dest(f, i, true, d) ||
+                !is_rtptr_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]) ||
+                !(i->elem_kind == 8 || i->elem_kind == 4) ||
+                !(is_int(type_at(f, i->dest)) ||
+                  (is_rtptr(type_at(f, i->dest)) && i->elem_kind == 8)))
+                return fail(d, i, "CGEN", "mem_load requires an RtPtr register, an int offset register, elemKind 8 or 4, and an int destination (an RtPtr destination with elemKind 8)");
+            break;
+        case R6_OP_MEM_STORE:
+            if (!m->runtime_module || i->has_dest ||
+                !is_rtptr_reg(f, &i->operands[0]) || !is_int_reg(f, &i->operands[1]) ||
+                !(i->elem_kind == 8 || i->elem_kind == 4) ||
+                !(is_int_reg(f, &i->operands[2]) ||
+                  (is_rtptr_reg(f, &i->operands[2]) && i->elem_kind == 8)))
+                return fail(d, i, "CGEN", "mem_store requires an RtPtr register, an int offset register, elemKind 8 or 4, an int value register (an RtPtr value with elemKind 8) and no destination");
+            break;
         /* D-M1-113: a 64-bit copy between a string and an RtPtr register. */
         case R6_OP_REINTERPRET:
             if (!m->runtime_module || !valid_dest(f, i, true, d) ||
@@ -3656,6 +3675,21 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             break;
         /* D-M1-110. No allocation and no check: the pointer moves by i bytes.
            bytes_copy passes memcpy a positive count only. */
+        case R6_OP_MEM_LOAD:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\t%s (%%rax), %%rax\n"
+                       "\tmovq %%rax, -%u(%%rbp)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
+                    i->elem_kind == 8 ? "movq" : "movslq", off);
+            break;
+        case R6_OP_MEM_STORE:
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq -%u(%%rbp), %%rcx\n"
+                       "\taddq %%rcx, %%rax\n\tmovq -%u(%%rbp), %%rdx\n"
+                       "\t%s (%%rax)\n",
+                    operand_slot(f, is_main, i, 0), operand_slot(f, is_main, i, 1),
+                    operand_slot(f, is_main, i, 2),
+                    i->elem_kind == 8 ? "movq %rdx," : "movl %edx,");
+            break;
         case R6_OP_REINTERPRET:
             fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n",
                     operand_slot(f, is_main, i, 0), off);

@@ -2001,6 +2001,85 @@ def build_reject():
                      ["int", "int"], export=True)])),
         "D-M1-113", "CGEN", "an int register is not an RtPtr argument", args=["--object"])
 
+    # ---- D-M1-114: mem_load and mem_store -------------------------------------
+    def mem_fn(instrs, types):
+        return rt_ptr_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(8))] + instrs +
+                         [I("ret", -1, Int(0))], types)
+
+    add("rt-mem-load-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("mem_load", 2, Reg(0), Reg(1), ek=8)], ["string", "int", "int"]),
+        "D-M1-114", "E_UNSUPPORTED", "mem_load outside a runtime module")
+    add("rt-mem-store-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("mem_store", -1, Reg(0), Reg(1), Reg(1), ek=8)], ["string", "int"]),
+        "D-M1-114", "E_UNSUPPORTED", "mem_store outside a runtime module")
+    add("rt-mem-store-with-dest",
+        mem_fn([I("mem_store", 3, Reg(0), Reg(1), Reg(1), ek=8)], ["RtPtr", "int", "int", "int"]),
+        "D-M1-114", "E_SCHEMA", "mem_store has no destination", args=["--object"])
+    add("rt-mem-load-missing-dest",
+        mem_fn([I("mem_load", -1, Reg(0), Reg(1), ek=8)], ["RtPtr", "int"]),
+        "D-M1-114", "E_SCHEMA", "mem_load requires a destination", args=["--object"])
+    add("rt-mem-elemkind-out-of-range",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=9)], ["RtPtr", "int", "int"]),
+        "D-M1-114", "E_RANGE", "elemKind of a memory opcode is an integer in 0..8",
+        args=["--object"])
+    add("rt-elemkind-8-on-list-create",
+        jd(DOC([MAIN([I("list_create", 0, ek=8), I("ret", -1, Reg(0))])])),
+        "D-M1-114", "E_RANGE", "elemKind 8 belongs to the memory opcodes; a list kind stays in 0..5")
+    add("rt-mem-load-elemkind-0",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1))], ["RtPtr", "int", "int"]),
+        "D-M1-114", "CGEN", "mem_load moves 8 or 4 bytes: elemKind 0 is refused", args=["--object"])
+    add("rt-mem-load-elemkind-5",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=5)], ["RtPtr", "int", "int"]),
+        "D-M1-114", "CGEN", "mem_load moves 8 or 4 bytes: a list kind is refused", args=["--object"])
+    add("rt-mem-load-string-pointer",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(8)),
+               I("mem_load", 2, Reg(0), Reg(1), ek=8), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-114", "CGEN", "mem_load reads through an RtPtr register, not a string",
+        args=["--object"])
+    add("rt-mem-load-string-offset",
+        mem_fn([I("reinterpret", 2, Reg(0)), I("mem_load", 3, Reg(0), Reg(2), ek=8)],
+               ["RtPtr", "int", "string", "int"]),
+        "D-M1-114", "CGEN", "mem_load offsets with an int register", args=["--object"])
+    add("rt-mem-load-literal-offset",
+        mem_fn([I("mem_load", 2, Reg(0), Int(8), ek=8)], ["RtPtr", "int", "int"]),
+        "D-M1-114", "CGEN", "an inline literal is not an operand of mem_load", args=["--object"])
+    add("rt-mem-load-string-dest",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=8)], ["RtPtr", "int", "string"]),
+        "D-M1-114", "CGEN", "mem_load produces an int or an RtPtr register", args=["--object"])
+    add("rt-mem-load-bool-dest",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=4)], ["RtPtr", "int", "bool"]),
+        "D-M1-114", "CGEN", "mem_load produces an int or an RtPtr register", args=["--object"])
+    add("rt-mem-load-rtptr-dest-elemkind-4",
+        mem_fn([I("mem_load", 2, Reg(0), Reg(1), ek=4)], ["RtPtr", "int", "RtPtr"]),
+        "D-M1-114", "CGEN", "a pointer is loaded as a word: elemKind 4 produces an int",
+        args=["--object"])
+    add("rt-mem-store-elemkind-0",
+        mem_fn([I("mem_store", -1, Reg(0), Reg(1), Reg(1))], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "mem_store moves 8 or 4 bytes: elemKind 0 is refused",
+        args=["--object"])
+    add("rt-mem-store-int-pointer",
+        rt_fn([I("arg", 0, Int(0)), I("mem_store", -1, Reg(0), Reg(0), Reg(0), ek=8),
+               I("ret", -1, Int(0))], ["int"], params=["n"], ptypes=["int"]),
+        "D-M1-114", "CGEN", "mem_store writes through an RtPtr register, not an int",
+        args=["--object"])
+    add("rt-mem-store-literal-value",
+        mem_fn([I("mem_store", -1, Reg(0), Reg(1), Int(1), ek=8)], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "an inline literal is not an operand of mem_store", args=["--object"])
+    add("rt-mem-store-literal-offset",
+        mem_fn([I("mem_store", -1, Reg(0), Int(8), Reg(1), ek=8)], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "an inline literal is not an operand of mem_store", args=["--object"])
+    add("rt-mem-store-string-value",
+        mem_fn([I("reinterpret", 2, Reg(0)), I("mem_store", -1, Reg(0), Reg(1), Reg(2), ek=8)],
+               ["RtPtr", "int", "string"]),
+        "D-M1-114", "CGEN", "mem_store writes an int or an RtPtr register", args=["--object"])
+    add("rt-mem-store-rtptr-value-elemkind-4",
+        mem_fn([I("mem_store", -1, Reg(0), Reg(1), Reg(0), ek=4)], ["RtPtr", "int"]),
+        "D-M1-114", "CGEN", "a pointer is stored as a word: elemKind 4 stores an int",
+        args=["--object"])
+
     return cases
 
 
@@ -2708,6 +2787,19 @@ def build_accept_files():
                                 "RtPtr", "RtPtr", "NULL", "bool", "bool", "bool", "int"],
                                params=["p", "s", "a"], ptypes=["RtPtr", "string", "RtArena"],
                                export=True)]))))
+    files.append(("ok-runtime-module-mem",
+                  jd(RTDOC([FN("rtmod_mem",
+                               [I("arg", 0, Int(0)),
+                                I("load_const", 1, Int(8)), I("load_const", 2, Int(16)),
+                                I("mem_load", 3, Reg(0), Reg(1), ek=8),
+                                I("mem_load", 4, Reg(0), Reg(1), ek=4),
+                                I("mem_load", 5, Reg(0), Reg(2), ek=8),
+                                I("mem_store", -1, Reg(0), Reg(1), Reg(3), ek=8),
+                                I("mem_store", -1, Reg(0), Reg(2), Reg(4), ek=4),
+                                I("mem_store", -1, Reg(0), Reg(2), Reg(5), ek=8),
+                                I("ret", -1, Reg(3))],
+                               ["RtPtr", "int", "int", "int", "int", "RtPtr"],
+                               params=["p"], ptypes=["RtPtr"], export=True)]))))
     return files
 
 
@@ -3113,6 +3205,9 @@ def build_manifest(reject, accept_files):
             {"file": "cases/ok-runtime-module-rtptr.json", "rule": "D-M1-113",
              "args": ["--object"],
              "note": "an RtPtr parameter is reinterpreted to and from a string, offset, kept in a local, compared with NULL and passed to an extern next to an RtArena"},
+            {"file": "cases/ok-runtime-module-mem.json", "rule": "D-M1-114",
+             "args": ["--object"],
+             "note": "mem_load and mem_store move a word, a sign-extended 32-bit value and a pointer through an RtPtr register (the end-to-end run is tests/runtime-module)"},
         ],
     }
 

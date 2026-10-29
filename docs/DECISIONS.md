@@ -5024,3 +5024,31 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `rt-bytes-alloc-arena-rtptr` and `rt-rtptr-extern-argument-int` refuse the
   input; `ok-runtime-module-rtptr` builds the admitted forms.
 - Status: **applied**.
+
+## D-M1-114 - `mem_load` and `mem_store`
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `OrbitList` is `{data, len, capacity, elem_size, elem_kind, arena}`. The
+  list functions of orbit-lang `runtime/orb/lists.orb` read and write those fields
+  through an `RtPtr` (D-M1-113).
+- Decision: both opcodes follow D-M1-106. Runtime modules only (`E_UNSUPPORTED`
+  elsewhere), every operand a register (an inline literal is `CGEN`).
+
+  | Opcode | dest | operands | `elemKind` 8 | `elemKind` 4 |
+  |---|---|---|---|---|
+  | `mem_load` | int, or `RtPtr` with `elemKind` 8 | `RtPtr` p, int off | `movq (p+off)` | `movslq (p+off)`: sign-extended |
+  | `mem_store` | none (`-1`) | `RtPtr` p, int off, int or `RtPtr` value | `movq` of the word | `movl` of the low 32 bits |
+
+  The address is `p + off` with `off` in bytes. No null test and no bounds test.
+  `mem_store` with a destination is `E_SCHEMA`, as `byte_store`. `elemKind` of a
+  memory opcode is an integer in 0..8 (`E_RANGE` above); of any other opcode it
+  stays 0..5. An `elemKind` other than 8 or 4, a string or int pointer operand, a
+  string or bool destination, and a pointer moved with `elemKind` 4 are `CGEN`.
+  `elemKind` on an opcode that is neither a list nor a memory opcode stays
+  `E_SCHEMA`.
+- Controls: `rt-mem-load-ordinary-module`, `rt-mem-store-ordinary-module`,
+  `rt-mem-store-with-dest`, `rt-mem-load-missing-dest`,
+  `rt-mem-elemkind-out-of-range`, `rt-elemkind-8-on-list-create` and fourteen
+  wrong operands, destinations or kinds refuse the input;
+  `ok-runtime-module-mem` builds both widths and the pointer form.
+- Status: **applied**.

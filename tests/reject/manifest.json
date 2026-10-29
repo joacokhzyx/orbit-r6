@@ -2067,6 +2067,197 @@
       "args": [
         "--object"
       ]
+    },
+    {
+      "file": "cases/rt-mem-load-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-114",
+      "note": "mem_load outside a runtime module"
+    },
+    {
+      "file": "cases/rt-mem-store-ordinary-module.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "D-M1-114",
+      "note": "mem_store outside a runtime module"
+    },
+    {
+      "file": "cases/rt-mem-store-with-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-114",
+      "note": "mem_store has no destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-missing-dest.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "D-M1-114",
+      "note": "mem_load requires a destination",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-elemkind-out-of-range.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "D-M1-114",
+      "note": "elemKind of a memory opcode is an integer in 0..8",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-elemkind-8-on-list-create.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "D-M1-114",
+      "note": "elemKind 8 belongs to the memory opcodes; a list kind stays in 0..5"
+    },
+    {
+      "file": "cases/rt-mem-load-elemkind-0.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load moves 8 or 4 bytes: elemKind 0 is refused",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-elemkind-5.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load moves 8 or 4 bytes: a list kind is refused",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-string-pointer.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load reads through an RtPtr register, not a string",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-string-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load offsets with an int register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-literal-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "an inline literal is not an operand of mem_load",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-string-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load produces an int or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-bool-dest.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_load produces an int or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-load-rtptr-dest-elemkind-4.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "a pointer is loaded as a word: elemKind 4 produces an int",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-elemkind-0.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_store moves 8 or 4 bytes: elemKind 0 is refused",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-int-pointer.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_store writes through an RtPtr register, not an int",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-literal-value.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "an inline literal is not an operand of mem_store",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-literal-offset.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "an inline literal is not an operand of mem_store",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-string-value.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "mem_store writes an int or an RtPtr register",
+      "args": [
+        "--object"
+      ]
+    },
+    {
+      "file": "cases/rt-mem-store-rtptr-value-elemkind-4.json",
+      "exit": 1,
+      "code": "CGEN",
+      "rule": "D-M1-114",
+      "note": "a pointer is stored as a word: elemKind 4 stores an int",
+      "args": [
+        "--object"
+      ]
     }
   ],
   "accept": [
@@ -3026,6 +3217,14 @@
         "--object"
       ],
       "note": "an RtPtr parameter is reinterpreted to and from a string, offset, kept in a local, compared with NULL and passed to an extern next to an RtArena"
+    },
+    {
+      "file": "cases/ok-runtime-module-mem.json",
+      "rule": "D-M1-114",
+      "args": [
+        "--object"
+      ],
+      "note": "mem_load and mem_store move a word, a sign-extended 32-bit value and a pointer through an RtPtr register (the end-to-end run is tests/runtime-module)"
     }
   ]
 }
