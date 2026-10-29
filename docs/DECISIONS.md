@@ -4967,3 +4967,25 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   `runtime-module`, and `scripts/mklib_runtime.py --r6` builds 26 of 26 members
   with it.
 - Status: **applied**.
+
+## D-M1-112 - `result_ok` and `result_err` write the `OrbitResult` in place
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: orbit-lang removes `runtime/types.c` (the five `OrbitResult`
+  constructors become `static inline`), so an R6 program must not reference
+  `orbit_result_ok`, `orbit_result_ok_float` or `orbit_result_err`.
+- Decision: `result_ok` and `result_err` store the four fields of the
+  24-byte result cell directly: `bool ok` at +0 (written as a 32-bit word),
+  `int error_code` at +4, `const char *error_msg` at +8, `void *value` at +16.
+  Layout checked against `runtime/orbit_api.h` of orbit-lang `develop`.
+  `result_ok` writes the value operand as its 64-bit pattern: an int, a pointer,
+  a string address, a bool zero-extended or a float's IEEE-754 bits, which is
+  what `orbit_result_ok_float` boxed. `result_err` writes the code as 32 bits,
+  the message (or NULL) and a NULL value. Every operand form the lowering
+  admitted stays admitted; no new input is accepted.
+- Evidence of the removal: `22-result-ops.json` rebuilt as a runtime module
+  (`runtimeModule: true`, `main` renamed and exported) has no `orbit_result_ok`,
+  `orbit_result_ok_float` or `orbit_result_err` in `nm`; the only result symbol
+  it references is `orbit_result_get_float`, which `result_unwrap` of a float
+  still calls.
+- Status: **applied**.

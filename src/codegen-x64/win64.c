@@ -4166,63 +4166,53 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
             }
             fputs("\tleave\n\tret\n", o);
             break;
+        /* D-M1-112: the OrbitResult cell is written in place (bool ok @0, int
+           error_code @4, const char *error_msg @8, void *value @16). The value
+           is the bit pattern of an int, a float or a pointer, as types.c boxed
+           it; no call reaches the runtime. */
         case R6_OP_RESULT_OK: {
             unsigned cell = result_cell_offset(f, is_main, i->dest);
             value_type(f, v, &t);
-            if (is_float(t)) {
-                /* MS x64 argument registers are positional: the hidden sret
-                   pointer is argument 1 (RCX), so the float value of argument
-                   2 goes to XMM1, not XMM0. The pinned archive reads XMM1. */
-                if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovsd -%u(%%rbp), %%xmm1\n", (unsigned)(v->as.i32 + 1) * 8);
+            if (v->kind == R6_VAL_REG) {
+                if (is_bool(t))
+                    fprintf(o, "\tmovl -%u(%%rbp), %%eax\n", (unsigned)(v->as.i32 + 1) * 8);
                 else
-                    fprintf(o, "\tmovabsq $0x%016llx, %%rax\n\tmovq %%rax, %%xmm1\n",
-                            (unsigned long long)v->as.f64_bits);
-                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_ok_float\n", cell);
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(v->as.i32 + 1) * 8);
+            } else if (v->kind == R6_VAL_STRING) {
+                emit_string(o, v->as.string, string_id);
+                fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rax\n", string_id++);
+            } else if (v->kind == R6_VAL_INT) {
+                emit_int_rax(o, v->as.i64);
+            } else if (v->kind == R6_VAL_FLOAT64) {
+                fprintf(o, "\tmovabsq $0x%016llx, %%rax\n", (unsigned long long)v->as.f64_bits);
             } else {
-                if (v->kind == R6_VAL_REG) {
-                    if (is_bool(t))
-                        fprintf(o, "\tmovl -%u(%%rbp), %%edx\n", (unsigned)(v->as.i32 + 1) * 8);
-                    else
-                        fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(v->as.i32 + 1) * 8);
-                } else if (v->kind == R6_VAL_STRING) {
-                    emit_string(o, v->as.string, string_id);
-                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rdx\n", string_id++);
-                } else if (v->kind == R6_VAL_INT) {
-                    fprintf(o, "\tmovabsq $%lld, %%rax\n\tmovq %%rax, %%rdx\n", (long long)v->as.i64);
-                } else {
-                    fprintf(o, "\tmovl $%d, %%edx\n", v->as.boolean ? 1 : 0);
-                }
-                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_ok\n", cell);
+                fprintf(o, "\tmovl $%d, %%eax\n", v->as.boolean ? 1 : 0);
             }
+            fprintf(o, "\tmovq %%rax, -%u(%%rbp)\n\tmovl $1, -%u(%%rbp)\n"
+                       "\tmovl $0, -%u(%%rbp)\n\tmovq $0, -%u(%%rbp)\n",
+                    cell - 16, cell, cell - 4, cell - 8);
             break;
         }
         case R6_OP_RESULT_ERR: {
             unsigned cell = result_cell_offset(f, is_main, i->dest);
-            if (i->operands[1].kind == R6_VAL_NONE) {
-                /* Single-argument form: O1 is the error code, message NULL. */
-                if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(v->as.i32 + 1) * 8);
+            const R6Value *code = i->operands[1].kind == R6_VAL_NONE ? v : &i->operands[1];
+            const R6Value *msg = i->operands[1].kind == R6_VAL_NONE ? NULL : v;
+            if (msg) {
+                if (msg->kind == R6_VAL_REG)
+                    fprintf(o, "\tmovq -%u(%%rbp), %%rcx\n", (unsigned)(msg->as.i32 + 1) * 8);
                 else {
-                    emit_int_rax(o, v->as.i64);
-                    fputs("\tmovq %rax, %rdx\n", o);
-                }
-                fputs("\tmovl $0, %r8d\n", o);
-            } else {
-                if (v->kind == R6_VAL_REG)
-                    fprintf(o, "\tmovq -%u(%%rbp), %%r8\n", (unsigned)(v->as.i32 + 1) * 8);
-                else {
-                    emit_string(o, v->as.string, string_id);
-                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%r8\n", string_id++);
-                }
-                if (i->operands[1].kind == R6_VAL_REG)
-                    fprintf(o, "\tmovq -%u(%%rbp), %%rdx\n", (unsigned)(i->operands[1].as.i32 + 1) * 8);
-                else {
-                    emit_int_rax(o, i->operands[1].as.i64);
-                    fputs("\tmovq %rax, %rdx\n", o);
+                    emit_string(o, msg->as.string, string_id);
+                    fprintf(o, "\tleaq .LCr6_%llu(%%rip), %%rcx\n", string_id++);
                 }
             }
-            fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_err\n", cell);
+            if (code->kind == R6_VAL_REG)
+                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n", (unsigned)(code->as.i32 + 1) * 8);
+            else
+                emit_int_rax(o, code->as.i64);
+            fprintf(o, "\tmovl %%eax, -%u(%%rbp)\n", cell - 4);
+            if (msg) fprintf(o, "\tmovq %%rcx, -%u(%%rbp)\n", cell - 8);
+            else fprintf(o, "\tmovq $0, -%u(%%rbp)\n", cell - 8);
+            fprintf(o, "\tmovl $0, -%u(%%rbp)\n\tmovq $0, -%u(%%rbp)\n", cell, cell - 16);
             break;
         }
         case R6_OP_RESULT_IS_OK: {
