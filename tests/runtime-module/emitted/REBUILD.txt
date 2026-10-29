@@ -1,0 +1,9 @@
+arena.json and upper.json are the IR that the language emits for
+tests/runtime_module/arena.orb and upper.orb in orbit-lang (branch runtime-module):
+
+  set ORBIT_R6=<this repo>\.r6-build\r6.exe
+  orbit build --runtime-module tests/runtime_module/arena.orb --emit-ir arena.json -o x.o
+
+Parameters reach the body through load_var, so the files exercise that path.
+They were emitted by the fixed point 1769474c12 of that branch and are inputs,
+not outputs: nothing in this repo regenerates them.

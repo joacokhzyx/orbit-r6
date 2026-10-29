@@ -66,9 +66,10 @@ def I(op, dest=-1, o1=None, o2=None, o3=None, ek=0, line=None):
     return ins
 
 
-def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None, route=None):
+def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None, route=None,
+       export=False):
     r = route or {}
-    return {"name": name, "params": params or [], "paramTypes": ptypes or [],
+    fn = {"name": name, "params": params or [], "paramTypes": ptypes or [],
             "instructions": instrs,
             "registerCount": len(types), "registerTypes": list(types),
             "returnType": rtype, "isExtern": extern,
@@ -77,6 +78,9 @@ def FN(name, instrs, types, rtype="int", extern=False, params=None, ptypes=None,
             "routeLimitRate": r.get("limit_rate", 0),
             "routeLimitWindowMs": r.get("limit_window_ms", 0),
             "routeLimitBurst": r.get("limit_burst", 0)}
+    if export:
+        fn["export"] = True
+    return fn
 
 
 def MAIN(instrs=None, types=None, route=None, **kw):
@@ -85,8 +89,22 @@ def MAIN(instrs=None, types=None, route=None, **kw):
     return FN("main", instrs, ["int"] if types is None else types, route=route, **kw)
 
 
-def MOD(fns):
-    return {"functions": fns, "globals": [], "models": [], "types": [], "migrations": []}
+def MOD(fns, runtime=False):
+    mod = {"functions": fns, "globals": [], "models": [], "types": [], "migrations": []}
+    if runtime:
+        mod["runtimeModule"] = True
+    return mod
+
+
+def RTDOC(fns):
+    return {"irVersion": "1", "module": MOD(fns, runtime=True)}
+
+
+def RT_ADD(export=True):
+    return FN("rtmod_probe_add",
+              [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+               I("add", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+              Types(3), params=["a", "b"], ptypes=["int", "int"], export=export)
 
 
 def G(name, type_name, value):
@@ -1681,6 +1699,211 @@ def build_reject():
         jd(DOC([FN("orbit_unlisted", [], [], rtype="object", extern=True), MAIN()])),
         "D-M1-78", "CGEN", "an extern outside the JSON getters returns no object")
 
+    # ---- D-M1-105: runtime modules and exported functions ---------------------
+    add("rt-export-outside-runtime-module",
+        jd(DOC([MAIN(), RT_ADD()])), "D-M1-105", "E_SCHEMA",
+        "export on a function of an ordinary module")
+    add("rt-main-in-runtime-module",
+        jd(RTDOC([MAIN(), RT_ADD()])), "D-M1-105", "E_SCHEMA",
+        "a runtime module defines no main", args=["--object"])
+    add("rt-export-name-not-identifier",
+        jd(RTDOC([FN("rtmod-probe", [I("ret", -1, Int(0))], ["int"], export=True)])),
+        "D-M1-105", "E_SCHEMA", "an exported name is a C identifier", args=["--object"])
+    add("rt-export-name-digit-first",
+        jd(RTDOC([FN("1probe", [I("ret", -1, Int(0))], ["int"], export=True)])),
+        "D-M1-105", "E_SCHEMA", "an exported name does not start with a digit",
+        args=["--object"])
+    add("rt-export-extern",
+        jd(RTDOC([FN("rtmod_ext", [], [], rtype="int", extern=True, export=True)])),
+        "D-M1-105", "E_SCHEMA", "an extern declaration is not exported", args=["--object"])
+    export_flag = RTDOC([RT_ADD()])
+    export_flag["module"]["functions"][0]["export"] = 1
+    add("rt-export-not-boolean", jd(export_flag), "D-M1-105", "E_SCHEMA",
+        "export is a JSON boolean", args=["--object"])
+    flag = RTDOC([RT_ADD()])
+    flag["module"]["runtimeModule"] = "yes"
+    add("rt-runtime-module-not-boolean", jd(flag), "D-M1-105", "E_SCHEMA",
+        "runtimeModule is a JSON boolean", args=["--object"])
+    add("rt-runtime-module-without-object",
+        jd(RTDOC([RT_ADD()])), "D-M1-105", "CLI",
+        "a runtime module has no main and builds only with --object")
+    add("rt-object-of-ordinary-module",
+        jd(DOC()), "D-M1-105", "CLI",
+        "--object builds runtime modules only", args=["--object"])
+    add("rt-runtime-module-arena",
+        jd(RTDOC([FN("rtmod_list",
+                     [I("load_const", 1, Int(4)),
+                      I("list_create", 0, Int(8), Reg(1), ek=1),
+                      I("ret", -1, Int(0))],
+                     ["list", "int"], export=True)])),
+        "D-M1-105", "CGEN",
+        "the executable arena is not available to an archive member", args=["--object"])
+
+    # ---- D-M1-106: the byte opcodes exist in runtime modules only -------------
+    def ordinary(instrs, types):
+        return jd(DOC([MAIN(instrs + [I("ret", -1, Int(0))], types)]))
+
+    def rt_fn(instrs, types, params=None, ptypes=None):
+        return jd(RTDOC([FN("rtmod_bytes", instrs, types, params=params, ptypes=ptypes,
+                            export=True)]))
+
+    add("rt-str-len-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("str_len", 1, Reg(0))],
+                 ["string", "int"]),
+        "D-M1-106", "E_UNSUPPORTED", "str_len outside a runtime module")
+    add("rt-byte-load-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("byte_load", 2, Reg(0), Reg(1))], ["string", "int", "int"]),
+        "D-M1-106", "E_UNSUPPORTED", "byte_load outside a runtime module")
+    add("rt-byte-store-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("byte_store", -1, Reg(0), Reg(1), Reg(1))], ["string", "int"]),
+        "D-M1-106", "E_UNSUPPORTED", "byte_store outside a runtime module")
+    add("rt-bytes-alloc-ordinary-module",
+        ordinary([I("load_const", 0, Int(4)), I("bytes_alloc", 1, Reg(0))],
+                 ["int", "string"]),
+        "D-M1-106", "E_UNSUPPORTED", "bytes_alloc outside a runtime module")
+    add("rt-byte-store-with-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("byte_store", 2, Reg(0), Reg(1), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "E_SCHEMA", "byte_store has no destination", args=["--object"])
+    add("rt-byte-load-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("byte_load", -1, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "E_SCHEMA", "byte_load requires a destination", args=["--object"])
+    add("rt-str-len-int-operand",
+        rt_fn([I("load_const", 0, Int(1)), I("str_len", 1, Reg(0)), I("ret", -1, Reg(1))],
+              ["int", "int"]),
+        "D-M1-106", "CGEN", "str_len reads a string register", args=["--object"])
+    add("rt-byte-load-string-index",
+        rt_fn([I("arg", 0, Int(0)), I("byte_load", 1, Reg(0), Reg(0)),
+               I("ret", -1, Reg(1))], ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "CGEN", "byte_load indexes with an int register", args=["--object"])
+    add("rt-byte-load-literal-index",
+        rt_fn([I("arg", 0, Int(0)), I("byte_load", 1, Reg(0), Int(0)),
+               I("ret", -1, Reg(1))], ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "CGEN", "an inline literal is not an operand of byte_load",
+        args=["--object"])
+    add("rt-byte-store-string-value",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("byte_store", -1, Reg(0), Reg(1), Reg(0)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-106", "CGEN", "byte_store writes an int register", args=["--object"])
+    add("rt-bytes-alloc-int-dest",
+        rt_fn([I("load_const", 0, Int(4)), I("bytes_alloc", 1, Reg(0)), I("ret", -1, Reg(1))],
+              ["int", "int"]),
+        "D-M1-106", "CGEN", "bytes_alloc produces a string register", args=["--object"])
+
+    # ---- D-M1-108: RtArena, the arena operand of bytes_alloc ------------------
+    add("rt-rtarena-param-ordinary-module",
+        jd(DOC([FN("take", [I("arg", 0, Int(0)), I("ret", -1, Int(0))], ["RtArena"],
+                   params=["a"], ptypes=["RtArena"]), MAIN()])),
+        "D-M1-108", "E_SCHEMA", "RtArena as a parameter type outside a runtime module")
+    add("rt-rtarena-register-ordinary-module",
+        jd(DOC([MAIN([I("load_const", 1, Int(0)), I("ret", -1, Reg(1))],
+                     ["RtArena", "int"])])),
+        "D-M1-108", "E_SCHEMA", "RtArena as a register type outside a runtime module")
+    add("rt-rtarena-extern-ordinary-module",
+        jd(DOC([FN("rtmod_ext", [], [], rtype="int", extern=True, params=["a"],
+                   ptypes=["RtArena"]), MAIN()])),
+        "D-M1-108", "E_SCHEMA", "RtArena on an extern declaration of an ordinary module")
+    add("rt-bytes-alloc-arena-int",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(4)),
+               I("bytes_alloc", 2, Reg(1), Reg(0)), I("ret", -1, Reg(2))],
+              ["int", "int", "string"], params=["a"], ptypes=["int"]),
+        "D-M1-108", "CGEN", "bytes_alloc operand2 is an int register, not an RtArena",
+        args=["--object"])
+    add("rt-bytes-alloc-arena-string",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(4)),
+               I("bytes_alloc", 2, Reg(1), Reg(0)), I("ret", -1, Reg(2))],
+              ["string", "int", "string"], params=["a"], ptypes=["string"]),
+        "D-M1-108", "CGEN", "bytes_alloc operand2 is a string register, not an RtArena",
+        args=["--object"])
+    add("rt-bytes-alloc-arena-literal",
+        rt_fn([I("load_const", 0, Int(4)), I("bytes_alloc", 1, Reg(0), Int(0)),
+               I("ret", -1, Reg(1))], ["int", "string"]),
+        "D-M1-108", "CGEN", "bytes_alloc operand2 is a literal, not an RtArena register",
+        args=["--object"])
+    add("rt-rtarena-copy-from-int",
+        rt_fn([I("load_const", 0, Int(1)), I("copy", 1, Reg(0)), I("ret", -1, Int(0))],
+              ["int", "RtArena"]),
+        "D-M1-109", "CGEN", "an int register does not copy into an RtArena register",
+        args=["--object"])
+    add("rt-rtarena-decl-int-local-load-as-rtarena",
+        rt_fn([I("load_const", 0, Int(1)), I("decl_var", -1, Sym("v"), Reg(0)),
+               I("load_var", 1, Sym("v")), I("ret", -1, Int(0))],
+              ["int", "RtArena"]),
+        "D-M1-109", "CGEN", "an int local does not load into an RtArena register",
+        args=["--object"])
+
+    # ---- D-M1-110: str_offset and bytes_copy --------------------------------
+    add("rt-str-offset-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("str_offset", 2, Reg(0), Reg(1))], ["string", "int", "string"]),
+        "D-M1-110", "E_UNSUPPORTED", "str_offset outside a runtime module")
+    add("rt-bytes-copy-ordinary-module",
+        ordinary([I("load_const", 0, Str("a")), I("load_const", 1, Int(0)),
+                  I("bytes_copy", -1, Reg(0), Reg(0), Reg(1))], ["string", "int"]),
+        "D-M1-110", "E_UNSUPPORTED", "bytes_copy outside a runtime module")
+    add("rt-bytes-copy-with-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("bytes_copy", 2, Reg(0), Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "E_SCHEMA", "bytes_copy has no destination", args=["--object"])
+    add("rt-str-offset-missing-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(0)),
+               I("str_offset", -1, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "E_SCHEMA", "str_offset requires a destination", args=["--object"])
+    add("rt-str-offset-literal-offset",
+        rt_fn([I("arg", 0, Int(0)), I("str_offset", 1, Reg(0), Int(1)), I("ret", -1, Reg(1))],
+              ["string", "string"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "an inline literal is not an operand of str_offset",
+        args=["--object"])
+    add("rt-str-offset-int-source",
+        rt_fn([I("load_const", 0, Int(1)), I("str_offset", 1, Reg(0), Reg(0)),
+               I("ret", -1, Int(0))], ["int", "string"]),
+        "D-M1-110", "CGEN", "str_offset offsets a string register", args=["--object"])
+    add("rt-str-offset-int-dest",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+               I("str_offset", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "str_offset produces a string register", args=["--object"])
+    add("rt-bytes-copy-literal-count",
+        rt_fn([I("arg", 0, Int(0)), I("bytes_copy", -1, Reg(0), Reg(0), Int(1)),
+               I("ret", -1, Int(0))], ["string"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "an inline literal is not an operand of bytes_copy",
+        args=["--object"])
+    add("rt-bytes-copy-int-source",
+        rt_fn([I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
+               I("bytes_copy", -1, Reg(0), Reg(1), Reg(1)), I("ret", -1, Int(0))],
+              ["string", "int"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "bytes_copy reads a string source register", args=["--object"])
+    add("rt-bytes-copy-string-count",
+        rt_fn([I("arg", 0, Int(0)), I("bytes_copy", -1, Reg(0), Reg(0), Reg(0)),
+               I("ret", -1, Int(0))], ["string"], params=["s"], ptypes=["string"]),
+        "D-M1-110", "CGEN", "bytes_copy counts with an int register", args=["--object"])
+
+    # ---- D-M1-111: a string against NULL compares words ----------------------
+    add("x-string-lt-null",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")), I("load_const", 1, Sym("NULL")),
+                      I("lt", 2, Reg(0), Reg(1)), I("ret", -1, Int(0))],
+                     ["string", "void*", "bool"])])),
+        "D-M1-111", "CGEN", "NULL is a word for eq and ne; a string has no ordering against it")
+    add("x-string-eq-voidptr-param",
+        jd(DOC([FN("cmp", [I("arg", 0, Int(0)), I("load_const", 1, Str("a")),
+                           I("eq", 2, Reg(1), Reg(0)), I("ret", -1, Int(0))],
+                   ["void*", "string", "bool"], params=["p"], ptypes=["void*"]),
+                MAIN()])),
+        "D-M1-111", "CGEN", "a string is compared with the NULL register only, not with any void* word")
+    add("x-string-eq-null-register-redefined",
+        jd(DOC([MAIN([I("load_const", 0, Str("a")), I("load_const", 1, Sym("NULL")),
+                      I("load_const", 1, Sym("NULL")), I("eq", 2, Reg(0), Reg(1)),
+                      I("ret", -1, Int(0))], ["string", "void*", "bool"])])),
+        "D-M1-111", "CGEN", "a register assigned twice is not the NULL register")
+
     return cases
 
 
@@ -2269,6 +2492,104 @@ def build_accept_files():
                                       I("call", 4, Str("echo"), Int(1)),
                                       I("ret", -1, Reg(4))],
                                      ["list", "int", "int", "unknown", "int"])]))))
+    twice = FN("rtmod_twice", [I("arg", 0, Int(0)), I("add", 1, Reg(0), Reg(0)),
+                               I("ret", -1, Reg(1))],
+               Types(2), params=["a"], ptypes=["int"])
+    via = FN("rtmod_probe_twice_sum",
+             [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+              I("add", 2, Reg(0), Reg(1)), I("arg", -1, Reg(2)),
+              I("call", 3, Sym("rtmod_twice"), Int(1)), I("ret", -1, Reg(3))],
+             Types(4), params=["a", "b"], ptypes=["int", "int"], export=True)
+    files.append(("ok-runtime-module-object", jd(RTDOC([twice, via, RT_ADD()]))))
+    is_null = FN("is_null", [I("arg", 0, Int(0)), I("load_const", 1, Sym("NULL")),
+                             I("eq", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+                 ["string", "NULL", "bool"], rtype="bool", params=["s"], ptypes=["string"])
+    not_null = FN("not_null", [I("arg", 0, Int(0)), I("load_const", 1, Sym("NULL")),
+                               I("ne", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
+                  ["string", "NULL", "bool"], rtype="bool", params=["s"], ptypes=["string"])
+    files.append(("ok-string-null-compare",
+                  jd(DOC([is_null, not_null, MAIN([
+                      I("load_const", 0, Str("here")), I("load_const", 1, Str("")),
+                      I("arg", -1, Reg(0)), I("call", 2, Str("is_null"), Int(1)),
+                      I("jump_if_false", -1, Reg(2), Lab(1)), I("ret", -1, Int(11)),
+                      I("label", -1, Lab(1)),
+                      I("arg", -1, Reg(1)), I("call", 3, Str("is_null"), Int(1)),
+                      I("jump_if_false", -1, Reg(3), Lab(2)), I("ret", -1, Int(12)),
+                      I("label", -1, Lab(2)),
+                      I("arg", -1, Reg(0)), I("call", 4, Str("not_null"), Int(1)),
+                      I("jump_if_false", -1, Reg(4), Lab(3)),
+                      I("load_const", 5, Sym("NULL")),
+                      I("eq", 6, Reg(1), Reg(5)),
+                      I("jump_if_false", -1, Reg(6), Lab(4)), I("ret", -1, Int(14)),
+                      I("label", -1, Lab(4)),
+                      I("ne", 7, Reg(1), Reg(5)),
+                      I("jump_if_false", -1, Reg(7), Lab(3)),
+                      I("arg", -1, Reg(0)), I("call", 8, Str("print"), Int(1)),
+                      I("arg", -1, Str("not null")), I("call", 9, Str("print"), Int(1)),
+                      I("ret", -1, Int(42)),
+                      I("label", -1, Lab(3)), I("ret", -1, Int(13))],
+                      ["string", "string", "bool", "bool", "bool", "NULL", "bool", "bool",
+                       "void", "void"])]))))
+    files.append(("ok-string-null-argument",
+                  jd(DOC([is_null, MAIN([I("load_const", 0, Sym("NULL")),
+                                         I("arg", -1, Reg(0)),
+                                         I("call", 1, Str("is_null"), Int(1)),
+                                         I("jump_if_false", -1, Reg(1), Lab(1)),
+                                         I("ret", -1, Int(42)),
+                                         I("label", -1, Lab(1)),
+                                         I("ret", -1, Int(1))],
+                                        ["NULL", "bool"])]))))
+    files.append(("ok-runtime-module-null-compare",
+                  jd(RTDOC([FN("rtmod_null_compare",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("load_const", 2, Sym("NULL")),
+                                I("eq", 3, Reg(1), Reg(2)), I("ne", 4, Reg(0), Reg(2)),
+                                I("ne", 5, Reg(1), Reg(2)), I("eq", 6, Reg(2), Reg(0)),
+                                I("ret", -1, Int(0))],
+                               ["RtArena", "string", "NULL", "bool", "bool", "bool", "bool"],
+                               params=["a", "s"], ptypes=["RtArena", "string"],
+                               export=True)]))))
+    files.append(("ok-runtime-module-arena-var",
+                  jd(RTDOC([FN("rtmod_arena_var",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("decl_var", -1, Sym("a"), Reg(0)),
+                                I("load_var", 2, Sym("a")), I("copy", 3, Reg(2)),
+                                I("decl_var", -1, Sym("b"), Reg(3)),
+                                I("load_var", 4, Sym("b")), I("store_var", -1, Sym("b"), Reg(4)),
+                                I("load_var", 5, Sym("b")),
+                                I("str_len", 6, Reg(1)), I("bytes_alloc", 7, Reg(6), Reg(5)),
+                                I("ret", -1, Reg(7))],
+                               ["RtArena", "string", "RtArena", "RtArena", "RtArena",
+                                "RtArena", "int", "string"], rtype="string",
+                               params=["a", "s"], ptypes=["RtArena", "string"],
+                               export=True)]))))
+    files.append(("ok-runtime-module-slice",
+                  jd(RTDOC([FN("rtmod_slice_tail",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("str_offset", 2, Reg(0), Reg(1)), I("str_len", 3, Reg(2)),
+                                I("bytes_alloc", 4, Reg(3)),
+                                I("bytes_copy", -1, Reg(4), Reg(2), Reg(3)),
+                                I("ret", -1, Reg(4))],
+                               ["string", "int", "string", "int", "string"], rtype="string",
+                               params=["s", "from"], ptypes=["string", "int"],
+                               export=True)]))))
+    files.append(("ok-runtime-module-arena",
+                  jd(RTDOC([FN("rtmod_bytes_in",
+                               [I("arg", 0, Int(0)), I("arg", 1, Int(1)),
+                                I("str_len", 2, Reg(1)), I("bytes_alloc", 3, Reg(2), Reg(0)),
+                                I("ret", -1, Reg(3))],
+                               ["RtArena", "string", "int", "string"], rtype="string",
+                               params=["a", "s"], ptypes=["RtArena", "string"],
+                               export=True)]))))
+    files.append(("ok-runtime-module-bytes",
+                  jd(RTDOC([FN("rtmod_bytes_copy_first",
+                               [I("arg", 0, Int(0)), I("str_len", 1, Reg(0)),
+                                I("bytes_alloc", 2, Reg(1)), I("load_const", 3, Int(0)),
+                                I("byte_load", 4, Reg(0), Reg(3)),
+                                I("byte_store", -1, Reg(2), Reg(3), Reg(4)),
+                                I("byte_load", 5, Reg(2), Reg(3)), I("ret", -1, Reg(5))],
+                               ["string", "int", "string", "int", "int", "int"],
+                               params=["s"], ptypes=["string"], export=True)]))))
     return files
 
 
@@ -2639,6 +2960,38 @@ def build_manifest(reject, accept_files):
              "run_stdout": "api\r\n42\r\n1.5\r\n1\r\n7\r\n6\r\nb\r\n9\r\n0\r\n",
              "rule": "D-M1-78",
              "note": "a parsed JSON object bound by try, passed, returned and read through every getter"},
+            {"file": "cases/ok-runtime-module-object.json", "rule": "D-M1-105",
+             "args": ["--object"],
+             "note": "a runtime module with two exports and a file-local helper builds an object (build only: the object has no entry)"},
+            {"file": "cases/ok-string-null-argument.json", "run_exit": 42, "rule": "D-M1-111",
+             "note": "NULL passed as a string argument equals NULL (R6 only: the pinned C backend runs strcmp on it and crashes)"},
+            {"file": "cases/ok-runtime-module-null-compare.json", "rule": "D-M1-111",
+             "args": ["--object"],
+             "note": "a string and an RtArena register compared with the NULL register in eq and ne, in both orders"},
+            {"file": "cases/ok-string-null-compare.json", "run_exit": 42,
+             "run_stdout": "here\r\nnot null\r\n", "rule": "D-M1-111",
+             "note": "eq and ne of a string with NULL compare the pointer word: a literal and the empty string are not NULL"},
+            {"file": "../runtime-module/emitted/strings.json", "rule": "D-M1-111",
+             "args": ["--object"],
+             "note": "the IR the language emits for runtime/orb/strings.orb, which compares strings and arenas with NULL"},
+            {"file": "cases/ok-runtime-module-arena-var.json", "rule": "D-M1-109",
+             "args": ["--object"],
+             "note": "an RtArena parameter is declared, loaded, copied and stored through locals"},
+            {"file": "../runtime-module/emitted/arena.json", "rule": "D-M1-109",
+             "args": ["--object"],
+             "note": "the IR the language emits for an arena-first export loads its RtArena parameter with load_var"},
+            {"file": "../runtime-module/emitted/upper.json", "rule": "D-M1-109",
+             "args": ["--object"],
+             "note": "the IR the language emits for an upper-casing export builds as a runtime module"},
+            {"file": "cases/ok-runtime-module-slice.json", "rule": "D-M1-110",
+             "args": ["--object"],
+             "note": "str_offset and bytes_copy build in a runtime module (the end-to-end run is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-arena.json", "rule": "D-M1-108",
+             "args": ["--object"],
+             "note": "an RtArena parameter is the arena operand of bytes_alloc (the end-to-end run is tests/runtime-module)"},
+            {"file": "cases/ok-runtime-module-bytes.json", "rule": "D-M1-106",
+             "args": ["--object"],
+             "note": "str_len, bytes_alloc, byte_load and byte_store build in a runtime module (the end-to-end run is tests/runtime-module)"},
         ],
     }
 
