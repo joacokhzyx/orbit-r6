@@ -4306,11 +4306,9 @@ static bool emit_function(FILE *o, const R6Module *m, const R6Function *f,
         }
         case R6_OP_RESULT_UNWRAP: {
             unsigned cell = result_cell_offset(f, is_main, i->operands[0].as.i32);
-            if (is_float(type_at(f, i->dest)))
-                fprintf(o, "\tleaq -%u(%%rbp), %%rcx\n\tcall orbit_result_get_float\n\tmovsd %%xmm0, -%u(%%rbp)\n",
-                        cell, off);
-            else
-                fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", cell - 16, off);
+            /* D-M1-118: a float travels in the value word as its bit pattern,
+               so the read is the same copy for every type. */
+            fprintf(o, "\tmovq -%u(%%rbp), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", cell - 16, off);
             break;
         }
         case R6_OP_RESULT_UNWRAP_ERR: {

@@ -12,6 +12,7 @@ Usage: python tests/runtime-module/run_runtime_module.py [--r6 .r6-build/r6.exe]
 """
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -75,6 +76,28 @@ def main():
           not any(n.startswith("orbit_result_") for n in undefined), str(sorted(undefined)))
     check("no entry symbol",
           not any(n in symbols for n in ("main", "orbit_main", "orbit_start")))
+
+    # D-M1-118: an ordinary fixture that builds ok, err and a float unwrap,
+    # recompiled as a runtime module, must not reference any orbit_result_*.
+    doc = json.loads((REPO / "docs" / "proposed-ir" / "m1" / "22-result-ops.json").read_text())
+    doc["module"]["runtimeModule"] = True
+    for fn in doc["module"]["functions"]:
+        if fn["name"] == "main":
+            fn["name"] = "rtmod_result_ops"
+        if not fn["isExtern"]:
+            fn["export"] = True
+    ops_json = out / "result-ops-rt.json"
+    ops_json.write_bytes((json.dumps(doc) + "\n").encode())
+    ops_obj = out / "result-ops-rt.o"
+    p = run([args.r6, "build", "--object", ops_json, "-o", ops_obj])
+    check("result-ops fixture builds as a runtime module", p.returncode == 0, p.stderr.strip())
+    if p.returncode == 0:
+        p = run([nm, ops_obj])
+        ops_undefined = {ln.split()[1] for ln in p.stdout.splitlines()
+                         if len(ln.split()) == 2 and ln.split()[0] == "U"}
+        check("ok, err and a float unwrap reference no orbit_result_*",
+              not any(n.startswith("orbit_result_") for n in ops_undefined),
+              str(sorted(ops_undefined)))
 
     # The IR the language emits for tests/runtime_module in orbit-lang
     # (REBUILD.txt): parameters travel through load_var, as for any program.

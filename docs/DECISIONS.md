@@ -5123,3 +5123,20 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   of `extern_needs_arena` (D-M1-108), which is also what admits a `result`
   returned by an extern; no pinned runtime symbol has those names.
 - Status: **applied**.
+
+## D-M1-118 - `result_unwrap` of a float reads the value word
+
+- Date: 2026-10-28. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `orbit_result_get_float` is the last symbol of `runtime/types.c` that R6
+  still called. With the file removed (D-M1-112), a program that unwraps a float
+  would fail to link.
+- Decision: `result_unwrap` copies the `value` word of the result cell into the
+  destination slot for every type. A float is stored there as its bit pattern
+  (`orbit_result_ok_float` boxed it so, and D-M1-112 stores it so), and a float
+  slot holds a bit pattern, so no conversion is needed. The call and the
+  `movsd` of `xmm0` are gone.
+- Control: `tests/runtime-module` rebuilds `22-result-ops.json` (ok of a float,
+  its unwrap, err with a message, its unwrap) as a runtime module and requires
+  that its object has no undefined `orbit_result_*`; it references `strcmp`
+  only. `run_diff.py` runs the same fixture as a program against the oracle.
+- Status: **applied**.
