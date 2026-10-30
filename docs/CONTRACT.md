@@ -113,8 +113,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 ## Driver y diagnósticos
 
 - CLI M1: `r6 <input.ir> -o <output.exe>`. Driver escribe archivos temporales
-  solo bajo su build/temp local, invoca el assembler/linker toolchain y borra
-  temporales al completar; conserva salida solo cuando link tuvo éxito.
+  solo bajo su build/temp local, invoca el assembler/linker toolchain, borra los
+  temporales al terminar con éxito y los conserva cuando el build falla;
+  conserva la salida solo cuando el link tuvo éxito.
 - Diagnóstico de una línea a stderr:
   `r6: <archivo>:<linea>:<columna>: error[<codigo>]: <mensaje>`; exit no cero.
   Errores de JSON apuntan al token; errores semánticos/codegen, al índice de
