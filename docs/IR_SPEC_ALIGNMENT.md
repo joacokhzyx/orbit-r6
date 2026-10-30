@@ -5,7 +5,8 @@ Fecha: 2026-10-15. Decisión de adopción: [DECISIONS.md](DECISIONS.md) D-F0-06.
 Fuentes comparadas:
 
 - `orbit-lang` `docs/IR_SPEC.md`, blob `371f873eb9713ae2849ca35a761ee7ec0d47260f`
-  en `main` `862f257` (el pin actual; D-F0-11 movió la cita desde `16f26a9d…`,
+  en `main` `862f257` (el pin de este documento, 2026-10-15; el pin actual es
+  `01e31e8`; D-F0-11 movió la cita desde `16f26a9d…`,
   que era el blob en `299eb09`, y ese cambio es solo menciones de ruta por la
   reorg de `compiler/`; D-F0-10 la había movido desde `110ce439…`, que era el
   blob en `0837185`, al reconciliar §5.5 con el árbol).
