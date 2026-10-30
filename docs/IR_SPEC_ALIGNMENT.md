@@ -30,8 +30,8 @@ migraron; el resultado final está en §7.
   hoy con `E_UNSPECIFIED` (la spec lo exige en V-15/V-17).
 - Exclusión de DB: los cuatro `db_*` se rechazan (D-F0-03); la spec lo confirma
   en §4 y V-19 con recuento propio (4 opcodes, 0 archivos removidos).
-- Corpus: 67 ejecutables + 1 support en `tests/suite/`, 22 en `tests/std/`
-  (89 ejecutables), idéntico a [PIN.md](PIN.md).
+- Corpus: 71 ejecutables + 1 support en `tests/suite/`, 22 en `tests/std/`
+  (93 ejecutables).
 - `int` de 32 bits (V-06) y enteros fuera de rango rechazados.
 
 ## 2. Forma del documento: incompatible hoy
