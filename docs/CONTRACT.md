@@ -53,8 +53,8 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   (`c_backend.orb:674`) para los opcodes del subconjunto, en tres pasadas.
   Solo sustituye `unknown`, nunca un tipo declarado, y un registro que ninguna
   regla explica sigue rechazado con el mismo `CGEN`. Decisión D-M1-20.
-- Evidencia semántica entera: `runtime/orbit_api.h:114` declara
-  `typedef int orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
+- Evidencia semántica entera: `runtime/orbit_api.h:115` declara
+  `typedef int64_t orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
   `div/mod` vía `orbit_int` signed y comparaciones relacionales vía `intptr_t`.
   R6 refleja esas conversiones para el subconjunto medido; casos no cubiertos
   por el diferencial no se generalizan.
