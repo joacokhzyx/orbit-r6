@@ -1,11 +1,11 @@
 # AGENTS.md — R6
 
-R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21,
-8 commits past D-F0-20 `bf38b38`: the runtime archive is one member per module
-(25, and 27 with the database), a program starts only what it uses
-(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions; the
-corpus is 143+1 documents).
+R6 is a native x86-64 code generator for the Orbit language IR. It is pinned to
+`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21),
+8 commits past D-F0-20 `bf38b38`. The runtime archive is one member per module
+(25, and 27 with the database). A program starts only what it uses
+(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions. The
+corpus is 143+1 documents.
 The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 This is a separate repo from the language:
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
