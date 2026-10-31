@@ -1,12 +1,13 @@
-# Informe M1 — Windows x86-64
+# Informe M1 — Windows x86-64 y Linux x86-64
 
 Fecha: 2026-10-14. El diferencial de fixtures manuales está verde para dieciocho
 casos en Windows x86-64 (los cinco iniciales fueron aceptados para IRv1). El diferencial compara exit y stdout crudos; stderr se conserva
 para diagnósticos. Los `.orb` se compilaron con el fixed-point Orbit del pin y
 GCC como oráculo; R6 parseó IRv1 JSON, bajó a su representación assembler
 interna, codificó bytes/COFF sin GCC ni GAS y enlazó con GNU `ld` y el runtime
-oficial reconstruido del commit pineado. El enlazador/CRT MinGW sigue siendo
-dependencia de plataforma.
+oficial reconstruido del commit pineado. En Windows, el enlazador/CRT MinGW
+sigue siendo dependencia de plataforma; en Linux lo es el `ld` de binutils y el
+CRT de glibc.
 
 ## Evidencia
 
@@ -70,7 +71,8 @@ $env:R6_CC = 'C:\missing\gcc.exe'
 
 ## Alcance y límites
 
-- Implementado en R6: JSON IRv1 estricto; Win64 x64; `load_const`, `add`
+- Implementado en R6: JSON IRv1 estricto; Win64 x64 y System V x86-64, un
+  target por binario (D-M1-119); `load_const`, `add`
   (int/float/string), `sub/mul/div` (int/float), `mod` (int), `eq`
   (numérico/bool/string), `ne` (int/float/string), `lt/le/gt/ge` (int/float),
   `and_op/or_op/not_op` (bool), `neg` (int/float),
@@ -78,15 +80,17 @@ $env:R6_CC = 'C:\missing\gcc.exe'
   (locales escalares/list y lectura de globals literales int/bool),
   `list_create/list_push/list_len` (solo list<int> en main), `arg`, `call` y
   `ret` para combinaciones probadas; llamadas directas permiten hasta 256
-  argumentos escalares y usan slots Win64 para posiciones 5+. Stack
-  slots; sin
-  optimizaciones.
-- No se midió la suite completa de Orbit. No hay `--emit-ir`, spec upstream ni
-  corpus emitido por Orbit en el pin. Los dieciocho JSON son fixtures manuales
-  comparados contra sus fuentes `.orb`; los trece añadidos extienden cobertura
-  de aritmética entera/float, comparación signed/float, lógica, negación,
-  control de flujo/copia/loops, variables locales, globals int/bool,
-  comparación string por contenido, llamadas con argumentos de pila y lista int.
+  argumentos escalares y siguen la convención del target: cuatro slots y
+  shadow space en Win64, banco entero y banco vectorial en System V. Cada slot
+  del IR vive en un frame de 8 bytes; `peephole.c` y `regalloc.c` reescriben el
+  texto generado antes de codificarlo.
+- El pin emite su propio corpus con `orbit build --emit-ir`:
+  `tests/corpus/manifest.json` fija 144 documentos (143 ejecutables y un módulo
+  de soporte), 6 992 633 bytes y `filesSha256 a533ace1`, y
+  `tests/corpus/run_corpus.py --check` exige 143 construcciones y 143
+  coincidencias. Los dieciocho pares `.json`/`.orb` de `docs/proposed-ir/m1/`
+  siguen siendo fixtures manuales del diferencial; documentan la forma del IR
+  y no dependen del emisor.
 - Casos de overflow/extremos fuera de los fixtures siguen sin cobertura. El
   fixture 10 confirma comparación IEEE unordered para NaN y equivalencia de
   `+0.0`/`-0.0`; fixture 11 cubre negación finita, no todos los payloads NaN.
@@ -94,9 +98,11 @@ $env:R6_CC = 'C:\missing\gcc.exe'
   pares; los fixtures 14–18 añaden globals int/bool literales, comparaciones
   string, llamadas con argumentos en pila y lista int. No extrapolar a todos
   los bordes de IRv1.
-- Linux runtime/toolchain no verificados en este host. DB queda fuera hasta M3
-  salvo variante oficial compatible. ARM64 macOS comienza en M3. Multihilo y
-  benchmarks no se evaluaron.
+- Las dos plataformas medidas son Windows x86-64 y Linux x86-64. Linux se
+  midió en WSL2 Ubuntu con GCC 15.2.0 y GNU ld.bfd; la sección «objetivo Linux
+  x86-64» lista los conteos. ARM64 macOS comienza en M3. Multihilo y
+  benchmarks no se evaluaron. No hay compilación cruzada: cada binario
+  construye el target del host (D-M1-119).
 
 ## Reproducción
 
@@ -105,9 +111,18 @@ $env:R6_CC = 'C:\w64devkit\bin\gcc.exe'
 .\scripts\build-r6.ps1
 ```
 
+En Linux, el mismo árbol construye el driver ELF y los archivos de runtime
+desde un checkout del pin:
+
+```bash
+./scripts/build-r6.sh                                   # -> .r6-build/r6
+./scripts/build-runtime-linux.sh <checkout del pin>     # -> .r6-build/runtime-linux-x64
+```
+
 Alternativa descartada: generar C o llamar a un compilador/assembler externo
-por programa. La máquina/COFF se codifica internamente; la representación
-textual GAS intermedia es privada al backend y el linker MinGW permanece.
+por programa. La máquina se codifica internamente y el objeto se escribe como
+COFF en Win64 o ELF64 en Linux; la representación textual GAS intermedia es
+privada al backend y el linker del target permanece (MinGW `ld`, GNU `ld.bfd`).
 
 ## Actualización de M1 — list_get (2026-10-14)
 
@@ -1873,3 +1888,72 @@ Diferencial **100/100**; loader **341/341**; corpus **137 build / 137 match over
 self-host C `70129F41...` igual a `PUBLISHED_C`; el archivo de runtime define 343
 simbolos. La unica apertura de D-M1-94, el `int` plano de un extern, se cierra en
 `bf38b38`: el runtime devuelve `orbit_int` y `68-string-index` pasa.
+
+## Actualización de M1 - objetivo Linux x86-64 (2026-10-31)
+
+D-M1-119 y D-M1-120. `src/codegen-x64/target.h` deriva `R6_TARGET_WIN64` de
+`_WIN32` y cada etapa lo consulta. Un binario construye un target: COFF y el
+`ld` de MinGW en Windows, ELF64 y GNU `ld.bfd` en Linux. El IR, los opcodes y
+los códigos de diagnóstico no cambian con el target. `src/codegen-x64/elf64.c`
+escribe ET_REL desde el mismo modelo de objeto que el escritor COFF: `.text`,
+`.rdata`, `.data`, `.note.GNU-stack`, una `.rela.<sección>`, `.symtab`, `.strtab`
+y `.shstrtab`. El control del escritor es `tests/elf/probe.c`; `readelf -a` y
+`ld` aceptan el objeto y el programa sale 42 (`tests/elf/README.md`).
+
+Las dos corridas usan el pin `01e31e88` y el mismo corpus: 144 documentos (143
+ejecutables y un módulo de soporte), 6 992 633 bytes, `filesSha256 a533ace1`. La
+corrida de Linux retiene ese hash y el trinquete sigue en 143. El self-host
+imprime `SELFHOST OK` en los dos targets, con el C que hashea a
+`PUBLISHED_C E794E2DBF070AD5EA04DC2617E888694D37069896AC3B67BE2A22A9D857E92B1`.
+En Linux, `scripts/build-runtime-linux.sh` construye `libruntime_net.a` con 25
+miembros y `libruntime_net_db.a` con 27.
+
+| Puerta | Windows x86-64 | Linux x86-64 |
+|---|---|---|
+| `tests/reject/run_reject.py` | 452/452 | 452/452 |
+| `tests/diff/run_diff.py` | 100/100 | 100/100 |
+| `tests/corpus/run_corpus.py --check` | 143/143, trinquete 143 | 143/143, trinquete 143 |
+| self-host (`scripts/selfhost.ps1`, `scripts/selfhost.sh`) | SELFHOST OK | SELFHOST OK |
+
+Tiempos de compilación con `tests/perf/run_perf.py --reps 5`, entradas copiadas
+al directorio temporal del host. «Corpus en R6» suma load, codegen, peephole,
+regalloc, asm y objeto, sin el enlace.
+
+| Plataforma | Corpus total | Corpus en R6 | Self-host R6 | Self-host completo |
+|---|---|---|---|---|
+| win64, antes de D-M1-120 | 7 701.3 ms | 1 378.7 ms | 3 624.3 ms | 18 467.0 ms |
+| win64, después | 6 377.8 ms | 979.1 ms | 2 181.9 ms | 16 962.4 ms |
+| linux-x64, antes de D-M1-120 | 9 543.5 ms | 877.8 ms | 2 921.2 ms | 9 791.6 ms |
+| linux-x64, después | 10 681.4 ms | 885.2 ms | 1 694.8 ms | 8 726.7 ms |
+
+La línea base de win64 se volvió a medir el 2026-10-31 con el driver previo a
+D-M1-120 (`22f73c2`) en el mismo estado de máquina que la corrida de después:
+7 701.3 ms frente a los 7 276.2 ms del primer registro. Los totales de pared
+siguen la caché de páginas, así que el trinquete compara las dos corridas que
+se tomaron seguidas. Contra la línea registrada, el corpus total baja -17.2%,
+el corpus en R6 -29.0% y el self-host R6 -39.8%; contra el primer registro es
+-12.3%, -24.9% y -36.3%.
+
+El total del corpus de Linux no mejora con `-O2` (9 543.5 -> 10 681.4 ms)
+porque el enlace no es trabajo de R6. En ese host GNU `ld` toma el 73% de cada
+compilación, 57.0 ms de un promedio de 78.7 ms sobre 143 compilaciones. El
+mismo comando de enlace mide 13 ms con la caché de páginas caliente y 90 ms en
+frío. El total del corpus de Linux es una propiedad del linker y de la caché de
+páginas del invitado, no de R6.
+
+La lectura de la biblioteca de runtime pesa en ese enlace. Con el archivo en el
+sistema de archivos de Windows (`/mnt/c`, DrvFs) el mismo enlace mide 61.6 ms;
+con el archivo copiado a `/tmp` (ext4) mide 18.5 ms, mínimo de 9 corridas sobre
+el objeto de `tests/std/test_regex.ir`. El arnés copia el IR al temporal del
+host y deja el archivo de runtime en su ruta por defecto.
+
+```bash
+python tests/reject/run_reject.py
+python tests/diff/run_diff.py --compiler <fixed point> --cc gcc \
+  --orbit-root <checkout del pin> \
+  --r6-command .r6-build/r6 build '{ir}' -o '{exe}'
+python tests/corpus/run_corpus.py --compiler <fixed point> --cc gcc \
+  --orbit-root <checkout del pin> --check \
+  --r6-command .r6-build/r6 build '{ir}' -o '{exe}'
+bash scripts/selfhost.sh <checkout del pin> <fixed point> .r6-build/r6
+```
