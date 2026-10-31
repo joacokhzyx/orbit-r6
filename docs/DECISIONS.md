@@ -151,6 +151,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-121 | the Linux link drops unused `DT_NEEDED` entries | active |
 | D-M1-122 | the Win64 link drops three import libraries no symbol comes from | active |
 | D-M1-123 | the assembler text is buffered and written once | active |
+| D-M1-124 | the duplicate-function check keeps its scan | rejected |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5514,3 +5515,49 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   No fixture or reject case is added. The emitted bytes and the admitted
   language are unchanged, so neither suite has a new case to describe.
 - Status: **applied**.
+
+## D-M1-124 - the duplicate-function check keeps its scan
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `codegen_module` compared each function name against every earlier
+  name, 597,871 `strcmp` calls for the compiler's 1,094 functions
+  (`1094 * 1093 / 2`). `function_table_build` already hashes the same names in
+  one pass for call lookup.
+- Rejected: recording the first repeated index during `function_table_build`
+  and replacing the nested loop with one `n == function_table_duplicate` check
+  after `local_table_build` and the `main_found` assignment. The measured
+  codegen median does not drop. The change passed the four gates and was
+  reverted before the commit, so `src/codegen-x64/win64.c` is unchanged at
+  `55c6bdc`.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Codegen run medians (ms) | 3-run median | Range |
+  |---|---|---:|---:|
+  | HEAD (`17AD0CA8…DE3F`) | 248.160, 249.428, 252.271 | 249.428 | 239.139-269.836 |
+  | indexed check (`7DEFFA7A…C910`) | 254.329, 248.559, 249.557 | 249.557 | 235.461-287.507 |
+
+  The after median is 0.129 ms above the before median. Acceptance required a
+  drop of 3 ms. The task estimate was 262 ms or less, and both medians meet it.
+
+  An interleaved A/B in one session, three pairs alternating the two binaries,
+  agrees. The after medians are 252.977, 247.361 and 256.668, median 252.977.
+  The before medians are 252.316, 253.898 and 252.875, median 252.875. The
+  difference is 0.102 ms. Rebuilding the reverted source produces the HEAD
+  binary byte for byte (`17AD0CA8…DE3F`), so the two sides differ only in the
+  check being measured.
+
+  Gates at the indexed build: differential 100/100, loader 452/452, corpus
+  143/143 with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  The check has no reject case. `fn_index_build` in `src/loader/ir.c` refuses a
+  duplicate name first, so the suite exercises the loader's `E_DUPLICATE` and
+  never reaches codegen. A direct call of `r6_codegen_win64` on a module whose
+  names are `a,b,a,b` returns `CGEN duplicate function a`. On `a,b` it returns
+  the later `module must define one non-extern main`. The check fires at the
+  first repeat and is silent otherwise.
+
+  The 597,871 comparisons cost less than the run-to-run spread of the stage on
+  this host. The removal is not measurable here, so the scan stays.
+- Status: **rejected**.
