@@ -133,9 +133,11 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   runtime net-only más `-lws2_32`.
 - Enlace Linux: `ld` recibe la opción `-dynamic-linker` con
   `/lib64/ld-linux-x86-64.so.2` (o `/lib/ld-linux-x86-64.so.2`), y luego
-  `crt1.o`, `crti.o`, `crtbegin.o`, el objeto del módulo,
+  `crt1.o`, `crti.o`, `crtbegin.o`, el objeto del módulo, `--as-needed`,
   `--start-group libruntime_net.a [-lsqlite3] --end-group`,
-  `-lc -lm -ldl -lpthread`, `crtend.o` y `crtn.o`. `R6_CRT_DIR` sustituye el
+  `-lc -lm -ldl -lpthread`, `crtend.o` y `crtn.o`. `--as-needed` deja fuera de
+  `DT_NEEDED` las bibliotecas de las que no sale ningún símbolo; los símbolos y
+  la salida del programa no cambian (D-M1-121). `R6_CRT_DIR` sustituye el
   directorio de arranque y `R6_LD` el enlazador; `crtbegin.o` y `crtend.o` se
   buscan bajo `/usr/lib/gcc/x86_64-linux-gnu/*/` cuando el directorio de glibc
   no los tiene. El directorio del runtime por defecto es

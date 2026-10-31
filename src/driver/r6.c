@@ -615,6 +615,11 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = crti;
     link_argv[link_argc++] = crtbegin;
     link_argv[link_argc++] = obj_path;
+    /* A program that uses no symbol from libm, libdl or libpthread should not
+     * carry the DT_NEEDED entry for it. ld still opens the libraries it needs,
+     * and the three are stubs in glibc 2.34 and later; recording only the ones
+     * a symbol comes from saves 3.4 ms of every link (D-M1-121). */
+    link_argv[link_argc++] = "--as-needed";
     link_argv[link_argc++] = "--start-group";
     link_argv[link_argc++] = runtime_a;
     if (uses_db) link_argv[link_argc++] = "-lsqlite3";

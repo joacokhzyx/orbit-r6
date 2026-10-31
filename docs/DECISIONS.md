@@ -5230,13 +5230,43 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   143/143, `PUBLISHED_C E794E2DB…`).
 - Correction, 2026-10-31, later measurement. The Linux entry of the first run
   was taken before `22f73c2` staged the IR into the host temporary directory,
-  so it is not comparable with the run that followed. With both drivers
-  measured under the same harness: corpus total 12 180.8 -> 11 073.1 ms
-  (-9.1%), corpus in R6 1 088.5 -> 910.7 ms (-16.3%), self-host R6 2 924.4 ->
-  1 676.9 ms (-42.7%). The wall moves less than the stages because each Linux
-  build is 77.4 ms of wall and 6.4 ms inside R6; the rest is the process and
-  GNU `ld`, which reads the runtime archive from the shared folder. The win64
-  entry was re-taken the same way: 7 701.3 -> 6 377.8 ms (-17.2%), 1 378.7 ->
-  979.1 ms (-29.0%), self-host R6 3 624.3 -> 2 181.9 ms (-39.8%). Both entries
-  of `tests/perf/baseline.json` carry the re-taken line.
+  and both entries were taken before the runtime archives were staged
+  (D-M1-121). Under the final harness, with both drivers measured back to
+  back: win64 7 545.1 -> 6 324.5 ms (-16.2%), 1 384.2 -> 989.5 ms (-28.5%),
+  self-host R6 3 582.6 -> 2 223.4 ms (-37.9%); linux-x64 6 039.8 -> 4 800.9 ms
+  (-20.5%), 1 075.3 -> 860.2 ms (-20.0%), self-host R6 2 873.7 -> 1 608.4 ms
+  (-44.0%). Both entries of `tests/perf/baseline.json` carry the re-taken line.
+- Status: **applied**.
+
+## D-M1-121 - the Linux link drops unused `DT_NEEDED` entries
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Linux corpus wall included 43.1 ms per link spent reading the
+  runtime archive through the shared folder (61.6 ms against 18.5 ms for the
+  same link with the archive on ext4, minimum of 9 runs). Separately, `ld`
+  recorded `libm`, `libdl` and `libpthread` in `DT_NEEDED` for every program
+  even when no symbol came from them.
+- Decision: `tests/perf/run_perf.py` copies `libruntime_net.a`,
+  `libruntime_net_db.a` and `sqlite3.lib` into the host temporary directory
+  and builds with `R6_RUNTIME_DIR` pointing there, as it already did for the
+  IR. The Linux link in `src/driver/r6.c` passes `--as-needed` before the
+  library list, so `ld` records a library only when a symbol comes from it.
+  The symbol set, the generated code and the program's exit and stdout do not
+  change; only unused `DT_NEEDED` entries disappear from the ELF.
+- Rejected: removing `-lm`, `-ldl` and `-lpthread` from the list (7.0 ms per
+  link, but a program that uses `libm` would stop linking); `gold` and `lld`
+  (another linker); static linking (slower links and larger binaries).
+- Evidence, same machine, the driver from `22f73c2` and the current tree,
+  `run_perf.py --reps 5` with the staged harness:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 545.1 -> 6 324.5 ms (-16.2%) | 1 384.2 -> 989.5 ms (-28.5%) | 3 582.6 -> 2 223.4 ms (-37.9%) |
+  | linux-x64 | 6 039.8 -> 4 800.9 ms (-20.5%) | 1 075.3 -> 860.2 ms (-20.0%) | 2 873.7 -> 1 608.4 ms (-44.0%) |
+
+  The link of `tests/std/test_regex.ir` measures 19.7 ms with the current
+  flags, 16.3 ms with `--as-needed` and 12.7 ms with `-lc` alone. Gates on
+  both hosts at this change: loader 452/452, differential 100/100, corpus
+  143/143 with the ratchet holding, self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…`.
 - Status: **applied**.
