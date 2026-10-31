@@ -5567,16 +5567,19 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
 - Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
 - Reason: `parse_instruction` compared each instruction's opcode name against
-  `opcode_names` from index 0, one `strcmp` per entry until the match. The
-  array holds 77 names, and the compiler's own IR holds 116,508 instructions,
-  34 of the 77 opcodes among them. Those instructions cost 2,404,515
-  comparisons, 20.6 per instruction.
+  all 77 entries of `opcode_names`, one `strcmp` per entry. The loop had no
+  `break`, so every instruction paid 77 comparisons, not the index of its
+  match: `77 * 116,508 = 8,971,116` comparisons, 77.0 per instruction. The
+  compiler's own IR holds 116,508 instructions, 34 of the 77 opcodes among
+  them.
 - Decision: build a 256-slot open-addressed table once from `opcode_names` and
-  probe it. `opcode_hash` is FNV-1a over the name bytes, and a length table
-  rejects a different-length name before `memcmp` runs. A name that is empty,
-  longer than 255 bytes or absent from the table returns -1, and
-  `parse_instruction` reports `E_OPCODE` with the same text at the same point.
-  The `str` copy of the opcode text and its `free` are unchanged.
+  probe it. The lookup hashes the name and probes the table once; a collision
+  moves the probe to the next slot, so a lookup may visit several slots.
+  `opcode_hash` is FNV-1a over the name bytes, and a length table rejects a
+  different-length name before `memcmp` runs. A name that is empty, longer than
+  255 bytes or absent from the table returns -1, and `parse_instruction`
+  reports `E_OPCODE` with the same text at the same point. The `str` copy of
+  the opcode text and its `free` are unchanged.
 - Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
   driver, `.r6-build\selfhost\main.ir`, from the repository root:
 
@@ -5585,12 +5588,21 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   | HEAD (`17AD0CA8…DE3F`) | 530.620, 535.111, 538.519 | 535.111 | 523.055-588.637 |
   | hash table (`00397A3A…FB08`) | 488.240, 487.895, 495.010 | 488.240 | 471.125-625.900 |
 
-  The median drops by 46.871 ms, 8.8% of the before median. Acceptance for this
-  change was a drop of at least 3 ms. The task estimate was a before median of
-  490-495 ms and an after median of 500 ms or less; the measured before median
-  is 40.111 ms above the estimate and the after median is inside it. One after
-  run reached 625.900 ms, above the before maximum of 588.637 ms. The
-  comparison is between the run medians.
+  The median drops by 46.871 ms, 8.8% of the before median, which is 5.2 ns
+  per comparison (`46.871 ms / 8,971,116`). That corroborates the count.
+  Acceptance for this change was a drop of at least 3 ms. The task estimate
+  was a before median of 490-495 ms and an after median of 500 ms or less; the
+  measured before median is 40.111 ms above the estimate and the after median
+  is inside it.
+
+  The plan's non-overlap rule is unmet on one rep. The before maximum is
+  588.637 ms and one after rep reached 625.900 ms. The task is kept because
+  the run medians separate: the closest before/after pair is 35.610 ms apart
+  and the farthest is 50.624 ms. The 3-run medians differ by 46.871 ms, 15.6
+  times the 3 ms acceptance. The 625.900 ms rep is the only after rep above
+  the before maximum; the other two runs stayed below 498.933 ms. The loader
+  group after Task 5 needs an interleaved A/B or a re-run before its 65.6 ms
+  acceptance is read.
 
   The emitted bytes are unchanged. The `.s` sha256 of `selfhost\main.ir` stays
   `CEB1A36A…6137` and its `.o` stays `B655B026…8E22`, equal to
