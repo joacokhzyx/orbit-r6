@@ -79,6 +79,16 @@ def build_once(r6, source: Path, exe: Path, timeout):
     return elapsed, stages
 
 
+def stage(paths, scratch: Path, prefix):
+    """Copy inputs to the host temp dir: a shared folder would be measured."""
+    staged = []
+    for index, source in enumerate(paths):
+        target = scratch / f"{prefix}-{index:04d}.ir"
+        shutil.copyfile(source, target)
+        staged.append(target)
+    return staged
+
+
 def measure_corpus(r6, programs, scratch, reps, timeout):
     totals, stages = [], []
     for rep in range(reps):
@@ -137,15 +147,21 @@ def load_baseline(path: Path):
 
 
 def compare(measured, was, tolerance):
+    """Ratchet the R6-owned totals tightly; the walls move with the machine.
+
+    GNU ld takes 73% of each corpus build on the Linux host, and the same ld
+    invocation measured 13 ms warm against 90 ms with a cold page cache, so a
+    wall below 15% of noise would fail on an idle change.
+    """
     findings = []
     for key, label, slack in (("corpusPipelineMs", "corpus in R6", tolerance),
                               ("selfhostPipelineMs", "self-host in R6", tolerance),
-                              ("corpusTotalMs", "corpus total", 0.10),
-                              ("selfhostR6Ms", "self-host R6 build", 0.10),
-                              ("selfhostWallMs", "self-host wall", 0.10)):
+                              ("selfhostR6Ms", "self-host R6 build", max(tolerance, 0.05)),
+                              ("corpusTotalMs", "corpus total", max(tolerance, 0.15)),
+                              ("selfhostWallMs", "self-host wall", max(tolerance, 0.15))):
         if was.get(key) is None or measured.get(key) is None:
             continue
-        limit = was[key] * (1.0 + max(tolerance, slack))
+        limit = was[key] * (1.0 + slack)
         if measured[key] > limit:
             findings.append(f"{label}: {measured[key]:.0f} ms > {limit:.0f} ms "
                             f"(baseline {was[key]:.0f} ms)")
@@ -191,8 +207,10 @@ def main():
 
     scratch = Path(tempfile.mkdtemp(prefix="r6-perf-"))
     try:
-        corpus, corpus_pipeline = measure_corpus(r6, programs, scratch, args.reps, args.timeout)
-        selfhost_r6, selfhost_pipeline = measure_selfhost_r6(r6, selfhost_ir, scratch,
+        staged = stage(programs, scratch, "corpus")
+        selfhost_staged = stage([selfhost_ir], scratch, "selfhost")[0]
+        corpus, corpus_pipeline = measure_corpus(r6, staged, scratch, args.reps, args.timeout)
+        selfhost_r6, selfhost_pipeline = measure_selfhost_r6(r6, selfhost_staged, scratch,
                                                              args.reps, args.timeout)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)

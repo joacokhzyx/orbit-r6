@@ -7,7 +7,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cc=${R6_CC:-${CC:-gcc}}
 out="$root/.r6-build/r6"
 mkdir -p "$root/.r6-build"
-"$cc" -std=c11 -Wall -Wextra -Werror \
+"$cc" -std=c11 -O2 -Wall -Wextra -Werror \
     "$root/src/driver/r6.c" "$root/src/loader/ir.c" \
     "$root/src/codegen-x64/win64.c" "$root/src/codegen-x64/asm_win64.c" \
     "$root/src/codegen-x64/coff.c" "$root/src/codegen-x64/elf64.c" \

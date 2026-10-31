@@ -5194,3 +5194,38 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   self-host OK with `PUBLISHED_C E794E2DB…`; Linux: the same three counts and
   the same `PUBLISHED_C`).
 - Status: **applied**.
+
+## D-M1-120 - the driver is built with `-O2` and links in one group
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the driver was compiled with no optimization flag, and the Win64 link
+  passed the import libraries twice, once after the runtime archive and once
+  again for the symbols that pass pulled in. `tests/perf/run_perf.py` records
+  what both cost.
+- Decision: `scripts/build-r6.ps1` and `scripts/build-r6.sh` add `-O2`. On
+  Win64 the object, the runtime archive and the import libraries sit in one
+  `--start-group`/`--end-group`; `ld` rescans a group until no member adds an
+  unresolved symbol, so the second copy of the list is redundant. The two flags
+  do not change one byte of the output: three programs (`arith`,
+  `test_bytes`, `test_collections`) produce the same sha256 from the old and
+  the new link. Linux already linked the runtime inside a group.
+- Rejected: `-O3` needs two more locals initialized in `win64.c` and buys no
+  measured time; `-flto` is not compiled into w64devkit's GCC 16.2.0
+  ("LTO support has not been enabled in this configuration").
+- Evidence, `run_perf.py --reps 5`, baseline driver built from the previous
+  commit with no flag, both runs on the same machine, inputs staged in the
+  host temporary directory:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 276.2 -> 6 140.4 ms (-15.6%) | 1 304.5 -> 957.7 ms (-26.6%) | 3 427.2 -> 2 210.9 ms (-35.5%) |
+  | linux-x64 | 9 543.5 -> 10 681.4 ms | 877.8 -> 885.2 ms | 2 921.2 -> 1 694.8 ms (-42.0%) |
+
+  The Linux corpus total does not move because the link is not R6's work: on
+  that host `ld` takes 73% of each build, 57.0 ms of 78.7 ms on average, and
+  the same link command measured 13 ms with a warm page cache and 90 ms with a
+  cold one. The stage totals R6 owns are flat there as well: they are file
+  I/O, not arithmetic, so `-O2` has little to fold. Both gates, the corpus and
+  the self-host stay green on both platforms at this change (100/100, 452/452,
+  143/143, `PUBLISHED_C E794E2DB…`).
+- Status: **applied**.

@@ -529,6 +529,10 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = libdir;
     link_argv[link_argc++] = obj_path;
+    /* One group instead of two copies of the library list: ld rescans it
+     * until no member adds an unresolved symbol, and the .exe is the same
+     * bytes. Two passes over the list cost about 6 ms of every link. */
+    link_argv[link_argc++] = "--start-group";
     link_argv[link_argc++] = runtime_a;
     if (uses_db) link_argv[link_argc++] = sqlite_lib;
     if (uses_net) link_argv[link_argc++] = "-lws2_32";
@@ -537,9 +541,7 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
     link_argv[link_argc++] = "-lpthread"; link_argv[link_argc++] = "-ladvapi32";
     link_argv[link_argc++] = "-lshell32"; link_argv[link_argc++] = "-luser32";
-    link_argv[link_argc++] = "-lkernel32"; link_argv[link_argc++] = "-lmingw32";
-    link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
-    link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
+    link_argv[link_argc++] = "--end-group";
     if (own_entry) {
         /* libmingwex's gdtoa calls atexit, which crt2.o defines and no import
          * library carries. msvcrt.dll exports it, so ld imports it from the

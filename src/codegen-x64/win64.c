@@ -1576,10 +1576,15 @@ static bool resolve_pack_field(const R6Module *m, const R6Function *f,
         if (!t->kind || strcmp(t->kind, "union_type") != 0) continue;
         for (v = 0; v < t->variant_count; ++v) {
             char joined[512];
+            size_t owner, variant_len;
             if (!t->variants[v]) continue;
-            name_len = strlen(t->name) + 1 + strlen(t->variants[v]);
+            owner = strlen(t->name);
+            variant_len = strlen(t->variants[v]);
+            name_len = owner + 1 + variant_len;
             if (name_len >= sizeof joined) continue;
-            snprintf(joined, sizeof joined, "%s_%s", t->name, t->variants[v]);
+            memcpy(joined, t->name, owner);
+            joined[owner] = '_';
+            memcpy(joined + owner + 1, t->variants[v], variant_len + 1);
             if (owner_len == name_len && memcmp(joined, ref, owner_len) == 0) {
                 pack = t;
                 matched_variant = v;
