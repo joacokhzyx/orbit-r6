@@ -152,6 +152,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-122 | the Win64 link drops three import libraries no symbol comes from | active |
 | D-M1-123 | the assembler text is buffered and written once | active |
 | D-M1-124 | the duplicate-function check keeps its scan | rejected |
+| D-M1-125 | the opcode lookup is a hash table | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5561,3 +5562,45 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   The 597,871 comparisons cost less than the run-to-run spread of the stage on
   this host. The removal is not measurable here, so the scan stays.
 - Status: **rejected**.
+
+## D-M1-125 - the opcode lookup is a hash table
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `parse_instruction` compared each instruction's opcode name against
+  `opcode_names` from index 0, one `strcmp` per entry until the match. The
+  array holds 77 names, and the compiler's own IR holds 116,508 instructions,
+  34 of the 77 opcodes among them. Those instructions cost 2,404,515
+  comparisons, 20.6 per instruction.
+- Decision: build a 256-slot open-addressed table once from `opcode_names` and
+  probe it. `opcode_hash` is FNV-1a over the name bytes, and a length table
+  rejects a different-length name before `memcmp` runs. A name that is empty,
+  longer than 255 bytes or absent from the table returns -1, and
+  `parse_instruction` reports `E_OPCODE` with the same text at the same point.
+  The `str` copy of the opcode text and its `free` are unchanged.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Load run medians (ms) | 3-run median | Range |
+  |---|---|---:|---:|
+  | HEAD (`17AD0CA8…DE3F`) | 530.620, 535.111, 538.519 | 535.111 | 523.055-588.637 |
+  | hash table (`00397A3A…FB08`) | 488.240, 487.895, 495.010 | 488.240 | 471.125-625.900 |
+
+  The median drops by 46.871 ms, 8.8% of the before median. Acceptance for this
+  change was a drop of at least 3 ms. The task estimate was a before median of
+  490-495 ms and an after median of 500 ms or less; the measured before median
+  is 40.111 ms above the estimate and the after median is inside it. One after
+  run reached 625.900 ms, above the before maximum of 588.637 ms. The
+  comparison is between the run medians.
+
+  The emitted bytes are unchanged. The `.s` sha256 of `selfhost\main.ir` stays
+  `CEB1A36A…6137` and its `.o` stays `B655B026…8E22`, equal to
+  `C:\Temp\r6-perf\baseline-hashes.txt`.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged: every
+  name the scan accepted the table accepts, and the two `E_OPCODE` reject cases
+  (`v03-unknown-opcode`, `v03-case-folded-opcode`) still fail with that code.
+- Status: **applied**.

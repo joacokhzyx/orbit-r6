@@ -17,6 +17,45 @@ static const char *const opcode_names[R6_OP_COUNT] = {
  "float_bits","bits_float"
 };
 const char *r6_opcode_name(R6Opcode op) { return op >= 0 && op < R6_OP_COUNT ? opcode_names[op] : "<invalid>"; }
+/* D-M1-125: every instruction compared its opcode name against the 77 names in
+ * order. The table is built once and a probe compares only names whose length
+ * matches. */
+static uint32_t opcode_hash(const char *s, size_t n) {
+    uint32_t h = 2166136261u;
+    size_t i;
+    for (i = 0; i < n; ++i) {
+        h ^= (unsigned char)s[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int opcode_lookup(const char *s, size_t n) {
+    static int16_t slots[256];
+    static uint8_t lengths[R6_OP_COUNT];
+    static bool ready;
+    uint32_t h;
+    if (!ready) {
+        int i;
+        for (i = 0; i < 256; ++i) slots[i] = -1;
+        for (i = 0; i < R6_OP_COUNT; ++i) {
+            size_t len = strlen(opcode_names[i]);
+            lengths[i] = (uint8_t)len;
+            h = opcode_hash(opcode_names[i], len) & 255u;
+            while (slots[h] >= 0) h = (h + 1u) & 255u;
+            slots[h] = (int16_t)i;
+        }
+        ready = true;
+    }
+    if (n == 0 || n > 255) return -1;
+    h = opcode_hash(s, n) & 255u;
+    while (slots[h] >= 0) {
+        int id = slots[h];
+        if (lengths[id] == n && memcmp(opcode_names[id], s, n) == 0) return id;
+        h = (h + 1u) & 255u;
+    }
+    return -1;
+}
 
 typedef enum { J_OBJ, J_ARR, J_STR, J_NUM, J_TRUE, J_FALSE, J_NULL } JKind;
 typedef struct JNode { JKind kind; size_t line,col,slen; char *s; struct JNode **v; size_t n,cap; } JNode;
@@ -56,7 +95,7 @@ static bool float_bits(Parser*p,JNode*x,uint64_t*out){if(!x||x->kind!=J_NUM){fai
 static bool parse_value(Parser*p,JNode*x,R6Value*out){static const char*const kinds[]={"Int","Float","String","Sym","Bool","Register","Label","None"};if(!x||x->kind!=J_OBJ){fail(p,"E_SCHEMA","value must be a kind/value object");return false;}JNode*k=NULL,*v=NULL;for(size_t i=0;i<x->n;i+=2){if(eq(x->v[i],"kind")){if(k){fail(p,"E_DUPLICATE","duplicate object key");return false;}k=x->v[i+1];}else if(eq(x->v[i],"value")){if(v){fail(p,"E_DUPLICATE","duplicate object key");return false;}v=x->v[i+1];}else{fail(p,"E_SCHEMA","unexpected object key in value");return false;}}if(!k){fail(p,"E_SCHEMA","value object is missing its kind");return false;}int found=-1;for(int i=0;i<8;i++)if(eq(k,kinds[i]))found=i;if(found<0){fail(p,"E_SCHEMA","unknown value kind");return false;}if(found==7){if(v){fail(p,"E_SCHEMA","None value must not carry a payload");return false;}out->kind=R6_VAL_NONE;return true;}if(!v){fail(p,"E_SCHEMA","value object is missing its value");return false;}int64_t z;switch(found){case 0:if(!number(p,v,INT64_MIN,INT64_MAX,&z))return false;out->as.i64=z;out->kind=R6_VAL_INT;break;case 1:if(!float_bits(p,v,&out->as.f64_bits))return false;out->kind=R6_VAL_FLOAT64;break;case 2:case 3:if(v->kind!=J_STR){fail(p,"E_SCHEMA","expected string value");return false;}out->as.string=malloc(v->slen+1);if(!out->as.string){fail(p,"E_MEMORY","out of memory");return false;}memcpy(out->as.string,v->s,v->slen+1);out->string_len=v->slen;out->kind=found==2?R6_VAL_STRING:R6_VAL_SYMBOL;break;case 4:if(!boolean(p,v,&out->as.boolean))return false;out->kind=R6_VAL_BOOL;break;case 5:case 6:if(!number(p,v,0,INT32_MAX,&z))return false;out->as.i64=z;out->kind=found==5?R6_VAL_REG:R6_VAL_LABEL;break;}return true;}
 
 static bool strings(Parser*p,JNode*x,char***out,size_t*count){if(!arr(p,x))return false;*count=x->n;*out=calloc(x->n?x->n:1,sizeof(char*));if(!*out){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<x->n;i++)if(!str(p,x->v[i],&(*out)[i]))return false;return true;}
-static bool parse_instruction(Parser*p,JNode*x,R6Instruction*i){static const char*const keys[]={"opcode","dest","operand1","operand2","operand3","elemKind","line"};if(!exact_opt(p,x,keys,7,6))return false;char*op=NULL;int64_t z;if(!str(p,field(p,x,"opcode"),&op))return false;int found=-1;for(int k=0;k<R6_OP_COUNT;k++)if(!strcmp(op,opcode_names[k]))found=k;if(found<0){fail(p,"E_OPCODE","opcode is not in IRv1");free(op);return false;}free(op);i->opcode=(R6Opcode)found;JNode*ln=has_key(x,"line")?field(p,x,"line"):NULL;if(ln){if(i->opcode!=R6_OP_DIV&&i->opcode!=R6_OP_MOD){fail(p,"E_SCHEMA","line is only allowed on div and mod");return false;}if(!number(p,ln,1,INT64_MAX,&z))return false;i->source_line=z;}if(!number(p,field(p,x,"dest"),-1,INT32_MAX,&z))return false;i->dest=(int32_t)z;i->has_dest=z>=0;if(!parse_value(p,field(p,x,"operand1"),&i->operands[0])||!parse_value(p,field(p,x,"operand2"),&i->operands[1])||!parse_value(p,field(p,x,"operand3"),&i->operands[2]))return false;if(!number(p,field(p,x,"elemKind"),0,(i->opcode==R6_OP_MEM_LOAD||i->opcode==R6_OP_MEM_STORE)?8:5,&z))return false;i->elem_kind=(int32_t)z;i->line=x->line;i->column=x->col;return true;}
+static bool parse_instruction(Parser*p,JNode*x,R6Instruction*i){static const char*const keys[]={"opcode","dest","operand1","operand2","operand3","elemKind","line"};if(!exact_opt(p,x,keys,7,6))return false;char*op=NULL;int64_t z;if(!str(p,field(p,x,"opcode"),&op))return false;int found=opcode_lookup(op,strlen(op));if(found<0){fail(p,"E_OPCODE","opcode is not in IRv1");free(op);return false;}free(op);i->opcode=(R6Opcode)found;JNode*ln=has_key(x,"line")?field(p,x,"line"):NULL;if(ln){if(i->opcode!=R6_OP_DIV&&i->opcode!=R6_OP_MOD){fail(p,"E_SCHEMA","line is only allowed on div and mod");return false;}if(!number(p,ln,1,INT64_MAX,&z))return false;i->source_line=z;}if(!number(p,field(p,x,"dest"),-1,INT32_MAX,&z))return false;i->dest=(int32_t)z;i->has_dest=z>=0;if(!parse_value(p,field(p,x,"operand1"),&i->operands[0])||!parse_value(p,field(p,x,"operand2"),&i->operands[1])||!parse_value(p,field(p,x,"operand3"),&i->operands[2]))return false;if(!number(p,field(p,x,"elemKind"),0,(i->opcode==R6_OP_MEM_LOAD||i->opcode==R6_OP_MEM_STORE)?8:5,&z))return false;i->elem_kind=(int32_t)z;i->line=x->line;i->column=x->col;return true;}
 static bool parse_function(Parser*p,JNode*x,R6Function*f){static const char*const keys[]={"name","params","paramTypes","instructions","registerCount","registerTypes","returnType","isExtern","routeMethod","routePath","routeHasLimit","routeLimitRate","routeLimitWindowMs","routeLimitBurst","export"};if(!exact_opt(p,x,keys,15,14))return false;size_t pt_len=0;int64_t z;if(!str(p,field(p,x,"name"),&f->name)||!strings(p,field(p,x,"params"),&f->params,&f->param_count)||!strings(p,field(p,x,"paramTypes"),&f->param_types,&pt_len))return false;if(pt_len!=f->param_count){fail(p,"E_SCHEMA","params and paramTypes length mismatch");return false;}JNode*ins=field(p,x,"instructions");if(!arr(p,ins))return false;f->instruction_count=ins->n;f->instructions=calloc(ins->n?ins->n:1,sizeof*f->instructions);if(!f->instructions){fail(p,"E_MEMORY","out of memory");return false;}for(size_t k=0;k<ins->n;k++)if(!parse_instruction(p,ins->v[k],&f->instructions[k]))return false;if(!number(p,field(p,x,"registerCount"),0,INT32_MAX,&z))return false;f->register_count=(int32_t)z;if(!strings(p,field(p,x,"registerTypes"),&f->register_types,&f->register_type_count))return false;if(f->register_type_count!=(size_t)f->register_count){fail(p,"E_SCHEMA","registerCount and registerTypes length mismatch");return false;}if(!str(p,field(p,x,"returnType"),&f->return_type)||!boolean(p,field(p,x,"isExtern"),&f->is_extern))return false;if(has_key(x,"export")&&!boolean(p,field(p,x,"export"),&f->is_export))return false;if(!str(p,field(p,x,"routeMethod"),&f->route.method)||!str(p,field(p,x,"routePath"),&f->route.path)||!boolean(p,field(p,x,"routeHasLimit"),&f->route.has_limit))return false;if(!number(p,field(p,x,"routeLimitRate"),INT32_MIN,INT32_MAX,&f->route.limit_rate)||!number(p,field(p,x,"routeLimitWindowMs"),INT32_MIN,INT32_MAX,&f->route.limit_window_ms)||!number(p,field(p,x,"routeLimitBurst"),INT32_MIN,INT32_MAX,&f->route.limit_burst))return false;bool plain=!f->route.method[0],empty_path=!f->route.path[0];if(plain!=empty_path||(plain&&(f->route.has_limit||f->route.limit_rate||f->route.limit_window_ms||f->route.limit_burst))){fail(p,"E_SCHEMA","route fields are inconsistent");return false;}f->has_route=!plain;return true;}
 static bool parse_model(Parser*p,JNode*x,R6Model*m){static const char*const keys[]={"name","fields","typeParams"};static const char*const fk[]={"name","typeName"};if(!exact(p,x,keys,3)||!str(p,field(p,x,"name"),&m->name))return false;JNode*fs=field(p,x,"fields");if(!arr(p,fs))return false;m->field_count=fs->n;m->fields=calloc(fs->n?fs->n:1,sizeof*m->fields);if(!m->fields){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<fs->n;i++){JNode*y=fs->v[i];if(!exact(p,y,fk,2)||!str(p,field(p,y,"name"),&m->fields[i].name)||!str(p,field(p,y,"typeName"),&m->fields[i].type_name))return false;}if(!strings(p,field(p,x,"typeParams"),&m->type_params,&m->type_param_count))return false;if(m->type_param_count){fail(p,"E_UNSPECIFIED","generic model parameters are UNSPECIFIED");return false;}return true;}
 static bool parse_type(Parser*p,JNode*x,R6Type*t){static const char*const keys[]={"name","kind","variants","richVariants","methods"};if(!exact(p,x,keys,5)||!str(p,field(p,x,"name"),&t->name)||!str(p,field(p,x,"kind"),&t->kind)||!strings(p,field(p,x,"variants"),&t->variants,&t->variant_count)||!strings(p,field(p,x,"richVariants"),&t->rich_variants,&t->rich_variant_count)||!strings(p,field(p,x,"methods"),&t->methods,&t->method_count))return false;if(t->method_count){fail(p,"E_UNSPECIFIED","type methods are UNSPECIFIED");return false;}return true;}
