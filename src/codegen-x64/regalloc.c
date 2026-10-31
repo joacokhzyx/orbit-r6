@@ -20,7 +20,7 @@
  * where the plain slots end with a `# r6.slots` line, and this stage removes
  * it. */
 
-/* Win64 keeps seven integer registers across a call and six vector ones.
+/* Win64 keeps seven integer registers across a call and nine vector ones.
  * System V keeps five integer registers (rbx, r12-r15); rdi/rsi are argument
  * registers there, and every vector register is caller-saved, so none is
  * allocated. */
