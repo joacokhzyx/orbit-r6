@@ -274,7 +274,7 @@ has the `readelf -a` and `ld` commands, and the linked program exits 42.
 - On Windows, MinGW CRT/lib dirs come from `R6_MINGW_ROOT` (default
   `C:/w64devkit`) and `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging
   paths only. Just `ld.exe` is executed. On Linux the driver links glibc's
-  `crt1.o`, `crti.o`, `crtbegin.o`, the runtime archive,
+  `crt1.o`, `crti.o`, `crtbegin.o`, the runtime archive, `--as-needed` with
   `-lc -lm -ldl -lpthread`, `crtend.o` and `crtn.o`, then
   `-dynamic-linker /lib64/ld-linux-x86-64.so.2`. `R6_CRT_DIR` overrides the
   start-up directory and `R6_LD` the linker (D-M1-119).
