@@ -19,7 +19,7 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-FIXTURES = REPO / "docs" / "proposed-ir" / "m1"
+FIXTURES = REPO / "tests" / "diff" / "fixtures"
 ORACLE_CACHE = REPO / ".r6-build" / "oracle-cache.json"
 
 sys.path.insert(0, str(HERE.parent))
@@ -50,7 +50,7 @@ def main() -> int:
                         help="pinned Orbit checkout (default: ORBIT_ROOT or sibling orbit-lang)")
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--case", action="append", dest="cases",
-                        help="fixture basename without extension; repeatable, default: all five")
+                        help="fixture basename without extension; repeatable, default: every pair")
     parser.add_argument("--no-oracle-cache", action="store_true",
                         help=f"rebuild and rerun every oracle instead of reading {ORACLE_CACHE}")
     args = parser.parse_args()
