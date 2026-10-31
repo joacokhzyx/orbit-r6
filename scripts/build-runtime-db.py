@@ -10,10 +10,10 @@ same with two files beside the plain archive:
     .r6-build/runtime-win64/sqlite3.lib
 
 The archive is the one `scripts/mklib_runtime.py --db` of the pin writes: one
-member per module, 21 members. The driver picks it when a module declares an
+member per module, 27 members. The driver picks it when a module declares an
 orbit_db_* extern. Nothing here is committed; both files are build output.
 
-    python scripts/build-runtime-db.py --orbit-root C:\\Temp\\orbit-pin-cc6b167-git \\
+    python scripts/build-runtime-db.py --orbit-root C:\\Temp\\orbit-pin-01e31e8-git \\
         --cc C:\\w64devkit\\bin\\gcc.exe
 """
 

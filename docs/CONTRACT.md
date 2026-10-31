@@ -53,8 +53,8 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   (`c_backend.orb:674`) para los opcodes del subconjunto, en tres pasadas.
   Solo sustituye `unknown`, nunca un tipo declarado, y un registro que ninguna
   regla explica sigue rechazado con el mismo `CGEN`. Decisión D-M1-20.
-- Evidencia semántica entera: `runtime/orbit_api.h:114` declara
-  `typedef int orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
+- Evidencia semántica entera: `runtime/orbit_api.h:115` declara
+  `typedef int64_t orbit_int`; `c_backend.orb` baja `add/sub/mul` vía `uintptr_t`,
   `div/mod` vía `orbit_int` signed y comparaciones relacionales vía `intptr_t`.
   R6 refleja esas conversiones para el subconjunto medido; casos no cubiertos
   por el diferencial no se generalizan.
@@ -113,8 +113,9 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 ## Driver y diagnósticos
 
 - CLI M1: `r6 <input.ir> -o <output.exe>`. Driver escribe archivos temporales
-  solo bajo su build/temp local, invoca el assembler/linker toolchain y borra
-  temporales al completar; conserva salida solo cuando link tuvo éxito.
+  solo bajo su build/temp local, invoca el assembler/linker toolchain, borra los
+  temporales al terminar con éxito y los conserva cuando el build falla;
+  conserva la salida solo cuando el link tuvo éxito.
 - Diagnóstico de una línea a stderr:
   `r6: <archivo>:<linea>:<columna>: error[<codigo>]: <mensaje>`; exit no cero.
   Errores de JSON apuntan al token; errores semánticos/codegen, al índice de

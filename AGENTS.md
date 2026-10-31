@@ -1,11 +1,11 @@
 # AGENTS.md — R6
 
-R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21,
-8 commits past D-F0-20 `bf38b38`: the runtime archive is one member per module
-(25, and 27 with the database), a program starts only what it uses
-(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions; the
-corpus is 143+1 documents).
+R6 is a native x86-64 code generator for the Orbit language IR. It is pinned to
+`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21),
+8 commits past D-F0-20 `bf38b38`. The runtime archive is one member per module
+(25, and 27 with the database). A program starts only what it uses
+(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions. The
+corpus is 143+1 documents.
 The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 This is a separate repo from the language:
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
@@ -62,11 +62,11 @@ python tests/diff/run_diff.py `
 
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
 case in `tests/reject/manifest.json` names the decision it pins in its `rule`
-field, and `docs/DECISIONS.md` holds the decisions. Verified 341/341 on
-2026-10-28:
+field, and `docs/DECISIONS.md` holds the decisions. Verified 452/452 on
+2026-10-30:
 
 ```powershell
-python tests/reject/run_reject.py            # 215 rejections + 126 acceptance controls
+python tests/reject/run_reject.py            # 311 rejections + 141 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
 ```
