@@ -1,0 +1,24 @@
+{
+  "platforms": {
+    "win64": {
+      "corpusPrograms": 143,
+      "corpusTotalMs": 7401.4,
+      "selfhostR6Ms": 3517.9,
+      "selfhostWallMs": 18182.6,
+      "reps": 3,
+      "wallReps": 1,
+      "date": "2026-10-31",
+      "tolerance": 0.03
+    },
+    "linux-x64": {
+      "corpusPrograms": 143,
+      "corpusTotalMs": 11848.7,
+      "selfhostR6Ms": 3028.2,
+      "selfhostWallMs": 9809.9,
+      "reps": 3,
+      "wallReps": 1,
+      "date": "2026-10-31",
+      "tolerance": 0.03
+    }
+  }
+}
