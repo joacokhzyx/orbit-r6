@@ -11,7 +11,7 @@ compared byte-for-byte.
 The driver runs with the repository root as CWD because R6 resolves the
 default runtime archive path relative to the current directory. A case may
 carry "args" and "env"; {empty} and {runtime} expand to a directory without
-archives and to .r6-build/runtime-win64 (D-M1-98).
+archives and to the host's default runtime directory (D-M1-98).
 
 Usage (from anywhere):
     python tests/reject/run_reject.py [--r6 .r6-build/r6.exe] [--case STEM]...
@@ -27,14 +27,17 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
+WINDOWS = os.name == "nt"
+DRIVER = REPO / ".r6-build" / ("r6.exe" if WINDOWS else "r6")
+RUNTIME = REPO / ".r6-build" / ("runtime-win64" if WINDOWS else "runtime-linux-x64")
 
 DIAG = re.compile(r"^r6: .+:\d+:\d+: error\[([A-Z][A-Z0-9_]*)\]: .+$")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--r6", default=str(REPO / ".r6-build" / "r6.exe"),
-                    help="driver binary (default: .r6-build/r6.exe)")
+    ap.add_argument("--r6", default=str(DRIVER),
+                    help="driver binary (default: the host's .r6-build driver)")
     ap.add_argument("--case", action="append", default=[],
                     help="run only cases whose stem contains this text (repeatable)")
     args = ap.parse_args()
@@ -54,7 +57,7 @@ def main() -> int:
     empty = outdir / "empty-runtime"
     empty.mkdir(parents=True, exist_ok=True)
     subst = {"{empty}": str(empty),
-             "{runtime}": str(REPO / ".r6-build" / "runtime-win64")}
+             "{runtime}": str(RUNTIME)}
 
     def expand(text: str) -> str:
         for key, value in subst.items():
@@ -105,8 +108,12 @@ def main() -> int:
         detail = "build"
         if ok and "run_exit" in case:
             run = subprocess.run([str(exe)], capture_output=True)
-            want_stdout = case.get("run_stdout", "").encode("utf-8")
-            ok = run.returncode == case["run_exit"] and run.stdout == want_stdout
+            # The manifest pins the text msvcrt produces; glibc writes LF only.
+            # POSIX reports an exit status modulo 256, Windows keeps 32 bits.
+            want_exit = case["run_exit"] if WINDOWS else case["run_exit"] & 0xFF
+            want_stdout = case.get("run_stdout", "").replace("\r\n", "\n").encode("utf-8")
+            got_stdout = run.stdout.replace(b"\r\n", b"\n")
+            ok = run.returncode == want_exit and got_stdout == want_stdout
             if ok and "run_stderr" in case:
                 ok = run.stderr.decode("utf-8", "replace").strip() == case["run_stderr"]
             detail = f"run exit={run.returncode} stdout={run.stdout!r}"

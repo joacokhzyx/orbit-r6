@@ -7,7 +7,7 @@ branches. The same rules hold in `orbit-lang` and in `orbit-r6`.
 
 | Branch | Holds | Receives | Gate before the merge |
 |---|---|---|---|
-| `main` | Released states only. Every commit on it is tagged `vMAJOR.MINOR.PATCH`. | A `--no-ff` merge of `develop` | The release gate, from a clean clone |
+| `main` | Released states only. A release tags the commit it ships `vMAJOR.MINOR.PATCH`. | A `--no-ff` merge of `develop` | The release gate, from a clean clone |
 | `develop` | The integration line. Every commit on it passed its gates. | `--no-ff` merges of `feature/*` | The full gate of the repo |
 | `feature/<topic>` | One piece of work: a feature, a fix, a cleanup or a document. | Commits, one decision each (AGENTS.md) | Cheap checks while writing; the full gate before it merges |
 
@@ -58,7 +58,7 @@ patch release.
 
 R6 pins an `orbit-lang` commit (`docs/PIN.md`).
 
-- The pin is a commit on `orbit-lang` `develop` that is pushed. A pin to a
+- The pin is a commit on `orbit-lang` `main` that is pushed. A pin to a
   commit no remote has cannot be reproduced.
 - A pin move pushes the language commit first, then the R6 commit that moves
   the pin.
@@ -72,4 +72,4 @@ R6 pins an `orbit-lang` commit (`docs/PIN.md`).
 
 GitHub branch protection is a repository setting, not a file. For both repos
 it is: `main` and `develop` accept no force push and no deletion, and the
-default branch is `develop`.
+default branch is `main`.

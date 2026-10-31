@@ -1,5 +1,7 @@
 #include "regalloc.h"
 
+#include "target.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,31 +9,46 @@
 
 /* D-M1-68: the generator keeps every IR register in an 8-byte frame slot. This
  * stage runs over the finished text of each function. It gives the slots that
- * the function reads and writes most to rbx, rsi, rdi and r12-r15, which every
- * callee preserves. A slot keeps its register from its first to its last
- * reference, so two slots whose references do not overlap share one. A slot
- * whose address is taken, whose reference the assembler cannot encode with a
- * register, or that lies outside the 8-byte slots stays in memory.
+ * the function reads and writes most to the registers the host calling
+ * convention makes callee-saved. A slot keeps its register from its first to
+ * its last reference, so two slots whose references do not overlap share one.
+ * A slot whose address is taken, whose reference the assembler cannot encode
+ * with a register, or that lies outside the 8-byte slots stays in memory.
  *
  * The registers a function uses are pushed after the frame pointer is set,
  * so the slots move down by the size of the push area. The generator marks
  * where the plain slots end with a `# r6.slots` line, and this stage removes
  * it. */
 
+/* Win64 keeps seven integer registers across a call and nine vector ones.
+ * System V keeps five integer registers (rbx, r12-r15); rdi/rsi are argument
+ * registers there, and every vector register is caller-saved, so none is
+ * allocated. */
+#if R6_TARGET_WIN64
 #define REG_COUNT 7
-/* D-M1-80: float slots take xmm6-xmm14, which every callee preserves. The
- * generator itself uses xmm0-xmm3 and xmm15. */
 #define XMM_COUNT 9
+#define XMM_USABLE XMM_COUNT
+#else
+#define REG_COUNT 5
+#define XMM_COUNT 9
+#define XMM_USABLE 0
+#endif
 #define MAX_REFS 4
 /* A register costs a push and a reload; it is kept when the weights of its
  * slots sum to at least this much. */
 #define MIN_REGISTER_WEIGHT 6
 
 static const char *const REG_NAMES[REG_COUNT][3] = {
+#if R6_TARGET_WIN64
     {"%rbx", "%ebx", "%bl"},    {"%rsi", "%esi", "%sil"},
     {"%rdi", "%edi", "%dil"},   {"%r12", "%r12d", "%r12b"},
     {"%r13", "%r13d", "%r13b"}, {"%r14", "%r14d", "%r14b"},
     {"%r15", "%r15d", "%r15b"}};
+#else
+    {"%rbx", "%ebx", "%bl"},    {"%r12", "%r12d", "%r12b"},
+    {"%r13", "%r13d", "%r13b"}, {"%r14", "%r14d", "%r14b"},
+    {"%r15", "%r15d", "%r15b"}};
+#endif
 
 static const char *const XMM_NAMES[XMM_COUNT] = {"%xmm6", "%xmm7", "%xmm8", "%xmm9", "%xmm10",
                                                  "%xmm11", "%xmm12", "%xmm13", "%xmm14"};
@@ -278,6 +295,7 @@ static bool mentions_saved_register(const char *line, size_t len) {
                                                               line[start + 3] == 'w' ||
                                                               line[start + 3] == 'b'))))
             return true;
+#if R6_TARGET_WIN64
         if ((n == 3 && (memcmp(line + start, "rbx", 3) == 0 || memcmp(line + start, "ebx", 3) == 0 ||
                         memcmp(line + start, "rsi", 3) == 0 || memcmp(line + start, "esi", 3) == 0 ||
                         memcmp(line + start, "sil", 3) == 0 || memcmp(line + start, "rdi", 3) == 0 ||
@@ -286,6 +304,13 @@ static bool mentions_saved_register(const char *line, size_t len) {
                         memcmp(line + start, "bx", 2) == 0 || memcmp(line + start, "si", 2) == 0 ||
                         memcmp(line + start, "di", 2) == 0)))
             return true;
+#else
+        /* rdi/rsi carry arguments here, so the generator names them. */
+        if ((n == 3 && (memcmp(line + start, "rbx", 3) == 0 || memcmp(line + start, "ebx", 3) == 0)) ||
+            (n == 2 && (memcmp(line + start, "bl", 2) == 0 || memcmp(line + start, "bh", 2) == 0 ||
+                        memcmp(line + start, "bx", 2) == 0)))
+            return true;
+#endif
     }
     return false;
 }
@@ -590,7 +615,7 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
         } while (changed);
         qsort(cand, ncand, sizeof *cand, candidate_compare);
         for (cls = 0; cls < 2; ++cls) {
-            int nregs = cls ? XMM_COUNT : REG_COUNT;
+            int nregs = cls ? XMM_USABLE : REG_COUNT;
             int owner_of[XMM_COUNT];
             for (k = 0; k < (size_t)nregs; ++k) owner_of[k] = -1;
             for (k = 0; k < ncand; ++k) {

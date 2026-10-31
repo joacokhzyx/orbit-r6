@@ -3,3 +3,6 @@
 # caller's core.autocrlf.
 *.json text eol=lf
 *.orb text eol=lf
+
+# A shell script checked out with CRLF cannot be executed by bash.
+*.sh text eol=lf

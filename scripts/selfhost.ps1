@@ -11,9 +11,14 @@ param(
     [Parameter(Mandatory = $true)][string]$OrbitRoot,
     [Parameter(Mandatory = $true)][string]$Compiler,
     [Parameter(Mandatory = $true)][string]$R6,
-    [string]$Repo = (Join-Path $PSScriptRoot '..')
+    [string]$Repo = ''
 )
 $ErrorActionPreference = 'Continue'
+if (-not $Repo) {
+    # $PSScriptRoot is empty under `powershell -File`; the command path is not.
+    $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $Repo = Join-Path $here '..'
+}
 $root = (Resolve-Path $Repo).Path
 $OrbitRoot = (Resolve-Path $OrbitRoot).Path
 $Compiler = (Resolve-Path $Compiler).Path

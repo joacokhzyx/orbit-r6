@@ -1,5 +1,7 @@
 #include "asm_win64.h"
 
+#include "target.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -662,9 +664,11 @@ static bool emit_byte_directive(Asm *a, char *s) {
     return true;
 }
 
+#if R6_TARGET_WIN64
 static bool append_u32(R6CoffObject *o, int sec, uint32_t v) {
     return r6_coff_section_u32(o, sec, v);
 }
+#endif
 
 static bool resolve_local_branches(Asm *a) {
     size_t i;
@@ -745,6 +749,7 @@ static bool finalize_object(Asm *a) {
             l->global ? 0x20 : 0, l->global ? 2 : 3);
         if (l->symbol < 0) return bad(a, "%s", r6_coff_error(a->obj));
     }
+#if R6_TARGET_WIN64
     for (i = 0; i < a->nfuncs; ++i) {
         Function *f = &a->funcs[i];
         char endname[192], uwname[192];
@@ -815,6 +820,11 @@ static bool finalize_object(Asm *a) {
             !r6_coff_add_relocation(a->obj, pdata, (uint32_t)(i * 12 + 8), uw_symbol, 3))
             return bad(a, "%s", r6_coff_error(a->obj));
     }
+#else
+    /* The System V object carries no unwind tables: R6 raises no exceptions
+       and the Linux crash handler does not walk frames. */
+    (void)j;
+#endif
     if (!symbol_index_build(&index, a->obj, a->nrelocs))
         return bad(a, "out of memory indexing COFF symbols");
     for (i = 0; i < a->nrelocs; ++i) {

@@ -3,6 +3,160 @@
 All entries are R6 proposals/decisions scoped to the commit in [PIN.md](PIN.md).
 They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 
+## Index
+
+| ID | Decision | Status |
+|---|---|---|
+| D-F0-01 | Pin language inputs | pin moved; see D-F0-21 |
+| D-F0-02 | Accept the R6 IRv1 contract | serialization superseded by D-F0-06 |
+| D-F0-03 | DB excluded until a published compatible runtime exists | active |
+| D-F0-04 | Target matrix | extended by D-M1-119 (Linux implemented) |
+| D-F0-05 | Unknown semantics fail closed | active |
+| D-M1-01 | Lower pinned literal globals as immediate loads | active |
+| D-M1-02 | Use the target CRT for string equality | active |
+| D-M1-03 | Lower Win64 arguments beyond positional registers to stack slots | active |
+| D-M1-04 | Call official runtime for int-list creation and push | active |
+| D-M1-05 | Lower checked int-list reads with official runtime errors | active |
+| D-F0-06 | Adopt the language-side IRv1 textual format | active |
+| D-F0-07 | IRv1 migration outcome: loader, fixtures and call arity | active |
+| D-M1-06 | Loader contract suite as the second gate | active |
+| D-M1-07 | `nop`/`begin_block`/`end_block` admitted as no-ops | active |
+| D-M1-08 | `result_*` opcodes lowered against the official runtime | active |
+| D-M1-09 | `list_set`/`list_pop`, list kinds 1–4 and the arena outside `main` | active |
+| D-M1-10 | `map_*` stays outside the native subset | active |
+| D-M1-11 | Model constructors and field access inside the measured subset | active |
+| D-M1-12 | Union tag dispatch and payload packs inside the measured subset | active |
+| D-M1-13 | `alloc`/`free` stay outside the native subset | active |
+| D-M1-14 | Function values and indirect calls inside the measured subset | active |
+| D-M1-15 | Register-valued globals stay rejected | active |
+| D-M1-16 | The spec edge cases E-03/E-04/E-06 stay fail-closed | list create superseded by D-M1-30 |
+| D-F0-08 | Language-side answers to P1–P5 and emitter authorization | active |
+| D-M1-17 | The language-emitted corpus is pinned as a measurement (2/89) | active |
+| D-M1-18 | The builder's direct-call form: a `String` target is a named call | active |
+| D-M1-19 | Literal forms: raw `Sym` text in `load_const` and inline `decl_var` initializers | active |
+| D-M1-20 | Register types left `unknown`: a mirror of the language backend | active |
+| D-F0-09 | Local re-pin: the language pin stays at `5c01cea` and the emitter is an added local input | superseded by D-F0-21 |
+| D-F0-10 | Re-pin to the merged language: `main` `299eb09`, spec blob `16f26a9d`, corpus `93+1` | superseded by D-F0-21 |
+| D-F0-11 | Re-pin to `main` `862f257` (H-ARENA, Oracle removal, loader fix, `compiler/` reorg): all IR-neutral | superseded by D-F0-21 |
+| D-M1-21 | The inline literal operand: materialized into a frame scratch slot | active |
+| D-F0-12 | Re-pin to the language `main` at `ce87d508` (five commits, runtime-only) | superseded by D-F0-21 |
+| D-M1-22 | `load_var` of a parameter: the value of its `arg` binding | active |
+| D-M1-23 | The string `add`: spread on one side, concat on both, and the non-main arena | active |
+| D-M1-24 | list read labels: the id carries the function ordinal | active |
+| D-M1-25 | `list_len`: the length slot is written 64-bit | active |
+| D-M1-26 | The builtin `print`: one line per call, destination never stored | active |
+| D-M1-27 | Arena-injected runtime externs: the arena is the first C argument | active |
+| D-M1-28 | A void function returns without reading the value its `ret` carries | active |
+| D-M1-29 | The runtime string helpers the builder calls without declaring | active |
+| D-M1-30 | An empty list literal is created opaque (`elemKind 0`) | active |
+| D-M1-31 | Comparisons follow the pinned arms (bool operands, word eq/ne) | active |
+| D-M1-32 | A list spelling is the list pointer (parameters, returns, registers) | active |
+| D-M1-33 | A top-level constant is a #define whose text is the type | active |
+| D-F0-13 | Re-pin to 17ed624: corpus 97+1, canonical 6C26A19E | superseded by D-F0-21 |
+| D-M1-34 | The compiler's own IR is the second measured target | active |
+| D-F0-14 | Re-pin to 33abf7a: the emitter appends instead of copying | superseded by D-F0-21 |
+| D-M1-35 | An enumeration is an int whose tag constant is the variant index | active |
+| D-M1-36 | An int is 32 bits, and the slot keeps the sign | superseded by D-M1-94 (64-bit int) |
+| D-M1-37 | The entry point stores argc and argv for the runtime | active |
+| D-M1-38 | An opaque list read takes the type of the parameter it feeds | active |
+| D-M1-39 | A list field is an eight-byte list pointer | active |
+| D-M1-40 | A model parameter is the model pointer | active |
+| D-M1-41 | `movslq` carries REX.R and REX.B | active |
+| D-M1-42 | A C `bool` return is read from `al` | active |
+| D-M1-43 | A result crosses a call, and `try` types its unwrap | active |
+| D-M1-44 | A model return is the model pointer | active |
+| D-M1-45 | A result local is a 24-byte cell | active |
+| D-M1-46 | A register no instruction touches is a word | active |
+| D-M1-47 | A union type is its cell pointer, and a match arm binds its payload | active |
+| D-M1-48 | A runtime extern returns a result or a list | active |
+| D-M1-49 | A bare `ret` in a value function returns the zero of the type | active |
+| D-M1-50 | `Result` and `OrbitResult` are the result type | active |
+| D-M1-51 | An opaque list read compared with an int is an int | active |
+| D-M1-52 | An int negates at 32 bits | superseded by D-M1-94 (64-bit neg) |
+| D-F0-15 | Re-pin to a5cdf77: the first public pin, typed registers | superseded by D-F0-21 |
+| D-M1-53 | A multi-payload arm reads its pack | active |
+| D-F0-16 | Re-pin to ca3eb91: typed unwraps, payloads and list reads | superseded by D-F0-21 |
+| D-M1-54 | A model or union payload is a pointer word | active |
+| D-M1-55 | A union return is its cell word | active |
+| D-M1-56 | A model or union field is a pointer word | active |
+| D-M1-57 | A ref list holds pointer words | active |
+| D-M1-58 | An untyped list moves bare words | active |
+| D-M1-59 | NULL is the zero word and pointer words compare | active |
+| D-M1-60 | indexOf and find call orbit_string_indexOf | active |
+| D-M1-61 | A void main exits 0 | active |
+| D-M1-62 | s.length on a string is its byte length | active |
+| D-M1-63 | The assembler grows its tables | active |
+| D-F0-17 | Re-pin to 0cfce74: R6 builds the Orbit compiler | superseded by D-F0-21 |
+| D-M1-64 | R6 builds the compiler in 5 s | active |
+| D-M1-65 | Only the functions main reaches are emitted | active |
+| D-M1-66 | A branch on a comparison reads the flags | active |
+| D-M1-67 | A load right after the store of its slot reads the register | active |
+| D-M1-68 | The hottest frame slots live in callee-saved registers | active |
+| D-M1-69 | The arena loads with one RIP-relative movq | active |
+| D-M1-70 | A comparison read only by its branch stores no result | active |
+| D-M1-71 | A string comparison read only by its branch tests strcmp directly | active |
+| D-M1-72 | A string equality tests the first byte and the pointers before it calls strcmp | active |
+| D-M1-73 | An int argument of a float parameter widens at the call | active |
+| D-M1-74 | A union variant carries up to four payloads | active |
+| D-M1-75 | A result passes as an argument to a declared function | active |
+| D-M1-76 | A copy moves a result register into a result register | active |
+| D-M1-77 | An int pushed into a list<float> converts to a float | active |
+| D-M1-78 | An object is a pointer word for the JSON getters | active |
+| D-M1-79 | A frame of one page or more is probed before rsp moves | active |
+| D-M1-80 | Float slots live in xmm6-xmm14 | active |
+| D-M1-81 | Division and remainder by a constant are a multiply and shifts | active |
+| D-M1-82 | Stores nothing reads and register copies are removed after allocation | active |
+| D-M1-83 | Float constants load from .rdata and xmm moves are fused | active |
+| D-M1-84 | A void* register is recovered like an unknown one and a call converts through the word | active |
+| D-F0-18 | Re-pin to e34833a: complete, typed IR | superseded by D-F0-21 |
+| D-M1-85 | The six bitwise opcodes | active |
+| D-M1-86 | Object literals and keyed object reads | active |
+| D-M1-87 | Database programs link the DB variant of the runtime | active |
+| D-M1-88 | A result unwrapped into a list | active |
+| D-M1-89 | An untyped list element bound to a local | active |
+| D-M1-90 | Elements of nested lists | active |
+| D-M1-91 | Arithmetic over words and a printed word | active |
+| D-M1-92 | Migrations of a database module | active |
+| D-M1-93 | An int register copied into a float register | active |
+| D-F0-19 | Re-pin to 6a9ddaf: the open language bugs closed | superseded by D-F0-21 |
+| D-M1-94 | An int is 64 bits | active |
+| D-M1-95 | Division by zero and INT64_MIN / -1 stop the program | active |
+| D-M1-96 | Division and remainder by a constant at 64 bits | active |
+| D-M1-97 | Source name and line in the IR, and the stack reserve | active |
+| D-M1-98 | Runtime directory and temporary directory of the driver | active |
+| D-M1-99 | User symbols are emitted as `o_<name>` | active |
+| D-M1-100 | Version handshake: `r6 --version` | protocol number superseded by D-M1-107 |
+| D-M1-101 | String literals over 64 bytes span several `.byte` lines | active |
+| D-F0-20 | Re-pin to bf38b38: 64-bit int, `o_` symbols, native default | superseded by D-F0-21 |
+| D-M1-102 | Start-up per program, as docs/STARTUP.md of the pin | active |
+| D-M1-103 | The database archive is the pin's per-module archive | active |
+| D-M1-104 | R6 owns the process entry of a program that needs no MinGW start-up | active |
+| D-F0-21 | Re-pin to 01e31e8: per-module runtime and per-program start-up | active |
+| D-M1-105 | Runtime modules: `runtimeModule`, `export` and `build --object` | active |
+| D-M1-106 | Byte opcodes of a runtime module: `str_len`, `byte_load`, `byte_store`, `bytes_alloc` | active |
+| D-M1-107 | `ir-protocol 3` | active |
+| D-M1-108 | `RtArena`: the arena a runtime function allocates from | active |
+| D-M1-109 | `RtArena` through locals: `load_var`, `decl_var`, `store_var`, `copy` | active |
+| D-M1-110 | `str_offset` and `bytes_copy` | active |
+| D-M1-111 | `eq` and `ne` of a string or an `RtArena` with `NULL` | active |
+| D-M1-112 | `result_ok` and `result_err` write the `OrbitResult` in place | active |
+| D-M1-113 | `RtPtr` and `reinterpret` | active |
+| D-M1-114 | `mem_load` and `mem_store` | active |
+| D-M1-115 | `float_bits` and `bits_float` | active |
+| D-M1-116 | `result_ok` of an `RtPtr`, `result_err` with the code first, an export that returns `result` | active |
+| D-M1-117 | end-to-end run of the memory, float-bit and result opcodes | active |
+| D-M1-118 | `result_unwrap` of a float reads the value word | active |
+| D-M1-119 | the host selects the target: Win64 or System V x86-64 | active |
+| D-M1-120 | the driver is built with `-O2` and links in one group | active |
+| D-M1-121 | the Linux link drops unused `DT_NEEDED` entries | active |
+| D-M1-122 | the Win64 link drops three import libraries no symbol comes from | active |
+
+An entry keeps the text it was written with. A later decision replaces an
+earlier one by a new dated entry, and this index names the replacement.
+Entries written before 2026-10-31 are Spanish; entries written after it are
+English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
+`IR_SPEC_ALIGNMENT.md`, remain in the git history that created them.
+
 ## D-F0-01 — Pin language inputs
 
 - Date: 2026-10-14.
@@ -5139,4 +5293,171 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   its unwrap, err with a message, its unwrap) as a runtime module and requires
   that its object has no undefined `orbit_result_*`; it references `strcmp`
   only. `run_diff.py` runs the same fixture as a program against the oracle.
+- Status: **applied**.
+
+## D-M1-119 - the host selects the target: Win64 or System V x86-64
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: every stage emitted AMD64 COFF and the driver linked with MinGW `ld`,
+  so R6 only ran on Windows. A Linux x64 host had no object writer, no calling
+  convention and no link path, and the documents said so.
+- Decision: `src/codegen-x64/target.h` derives `R6_TARGET_WIN64` from the
+  compiler's `_WIN32`, and each stage reads it. One binary builds one target:
+  no `--target` flag, no cross build, no dual output. The IR, the opcode set
+  and the diagnostic codes do not change with the target.
+  - Arguments. Win64 fills four positional slots (`rcx`, `rdx`, `r8`, `r9`), and
+    a float in one of them counts as a slot; System V fills an integer bank
+    (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`) and a vector bank (`xmm0`-`xmm7`)
+    independently, and spills only a full bank. The hidden `OrbitResult`
+    pointer and the hidden arena parameter move through the same cursor, so
+    they are the first slot on both.
+  - Stack. Win64 keeps 32 bytes of shadow space and reads an incoming stack
+    argument at `rbp+48`; System V keeps none and reads it at `rbp+16`. The
+    frame is `(used + shadow + outgoing stack + 15) & ~15` in both cases, and
+    `chkstk` is emitted on Win64 only.
+  - Live registers. `regalloc.c` gives six slots to seven registers on Win64
+    and to five on System V: `rdi`/`rsi` are argument registers there, so only
+    `rbx` and `r12`-`r15` survive a call. Win64 keeps nine vector registers
+    across a call and System V keeps none, so the XMM allocation is off there.
+    `peephole.c` uses per-target call use/def sets; a System V call defines
+    every caller-saved register and every vector register, and uses `rdi`,
+    `rsi` and `xmm0`-`xmm7`. That set is what keeps the argument setup alive.
+  - Object. `elf64.c` writes ET_REL from the same `R6CoffObject` the COFF
+    writer takes: `.text`, `.rdata`, `.data` by name, a `.note.GNU-stack`, one
+    `.rela.<section>`, `.symtab` (locals first), `.strtab` and `.shstrtab`. An
+    R6 REL32 becomes `R_X86_64_PC32` against a defined symbol and
+    `R_X86_64_PLT32` against an undefined one, with addend -4; a 32S becomes
+    `R_X86_64_32S`. The assembler still parses the `.seh_*` directives and
+    writes none of them: ELF has no unwind data here.
+  - Link. The driver `fork`s and `execvp`s `ld` (not the assembler, not GCC)
+    with `-dynamic-linker`, the glibc `crt1.o`/`crti.o`/`crtbegin.o`,
+    `--start-group libruntime_net.a [ -lsqlite3 ] --end-group -lc -lm -ldl
+    -lpthread`, then `crtend.o` and `crtn.o`. `R6_CRT_DIR` overrides the
+    start-up directory and `R6_LD` the linker; `crtbegin.o` is found through
+    `/usr/lib/gcc/x86_64-linux-gnu/*/` when glibc's own directory has none.
+    The runtime directory defaults to `.r6-build/runtime-linux-x64`.
+  - Entry. Linux always keeps `main` and the glibc start-up: R6's own
+    `orbit_start` (D-M1-104) writes an argument it does not have there, and
+    the PE check for `.ctors`/`.dtors` reads a PE header. The general wrapper,
+    which opens the arena, calls `orbit_main` and destroys the arena, is the
+    same text on both targets.
+- Control: `tests/elf/probe.c` builds one object with the writer and runs it
+  under `readelf -a` and `ld`; the object links and the program exits 42. The
+  two gates, the corpus and the self-host ran on both targets at this decision
+  (Windows: `run_diff.py` 100/100, `run_reject.py` 452/452, corpus 143/143,
+  self-host OK with `PUBLISHED_C E794E2DB…`; Linux: the same three counts and
+  the same `PUBLISHED_C`).
+- Status: **applied**.
+
+## D-M1-120 - the driver is built with `-O2` and links in one group
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the driver was compiled with no optimization flag, and the Win64 link
+  passed the import libraries twice, once after the runtime archive and once
+  again for the symbols that pass pulled in. `tests/perf/run_perf.py` records
+  what both cost.
+- Decision: `scripts/build-r6.ps1` and `scripts/build-r6.sh` add `-O2`. On
+  Win64 the object, the runtime archive and the import libraries sit in one
+  `--start-group`/`--end-group`; `ld` rescans a group until no member adds an
+  unresolved symbol, so the second copy of the list is redundant. The two flags
+  do not change one byte of the output: three programs (`arith`,
+  `test_bytes`, `test_collections`) produce the same sha256 from the old and
+  the new link. Linux already linked the runtime inside a group.
+- Rejected: `-O3` needs two more locals initialized in `win64.c` and buys no
+  measured time; `-flto` is not compiled into w64devkit's GCC 16.2.0
+  ("LTO support has not been enabled in this configuration").
+- Evidence, `run_perf.py --reps 5`, baseline driver built from the previous
+  commit with no flag, both runs on the same machine, inputs staged in the
+  host temporary directory:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 276.2 -> 6 140.4 ms (-15.6%) | 1 304.5 -> 957.7 ms (-26.6%) | 3 427.2 -> 2 210.9 ms (-35.5%) |
+  | linux-x64 | 9 543.5 -> 10 681.4 ms | 877.8 -> 885.2 ms | 2 921.2 -> 1 694.8 ms (-42.0%) |
+
+  The Linux corpus total does not move because the link is not R6's work: on
+  that host `ld` takes 73% of each build, 57.0 ms of 78.7 ms on average, and
+  the same link command measured 13 ms with a warm page cache and 90 ms with a
+  cold one. The stage totals R6 owns are flat there as well: they are file
+  I/O, not arithmetic, so `-O2` has little to fold. Both gates, the corpus and
+  the self-host stay green on both platforms at this change (100/100, 452/452,
+  143/143, `PUBLISHED_C E794E2DB…`).
+- Correction, 2026-10-31, later measurement. The Linux entry of the first run
+  was taken before `22f73c2` staged the IR into the host temporary directory,
+  and both entries were taken before the runtime archives were staged
+  (D-M1-121). Under the final harness, with both drivers measured back to
+  back: win64 7 545.1 -> 6 324.5 ms (-16.2%), 1 384.2 -> 989.5 ms (-28.5%),
+  self-host R6 3 582.6 -> 2 223.4 ms (-37.9%); linux-x64 6 039.8 -> 4 800.9 ms
+  (-20.5%), 1 075.3 -> 860.2 ms (-20.0%), self-host R6 2 873.7 -> 1 608.4 ms
+  (-44.0%). Both entries of `tests/perf/baseline.json` carry the re-taken line.
+- Status: **applied**.
+
+## D-M1-121 - the Linux link drops unused `DT_NEEDED` entries
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Linux corpus wall included 43.1 ms per link spent reading the
+  runtime archive through the shared folder (61.6 ms against 18.5 ms for the
+  same link with the archive on ext4, minimum of 9 runs). Separately, `ld`
+  recorded `libm`, `libdl` and `libpthread` in `DT_NEEDED` for every program
+  even when no symbol came from them.
+- Decision: `tests/perf/run_perf.py` copies `libruntime_net.a`,
+  `libruntime_net_db.a` and `sqlite3.lib` into the host temporary directory
+  and builds with `R6_RUNTIME_DIR` pointing there, as it already did for the
+  IR. The Linux link in `src/driver/r6.c` passes `--as-needed` before the
+  library list, so `ld` records a library only when a symbol comes from it.
+  The symbol set, the generated code and the program's exit and stdout do not
+  change; only unused `DT_NEEDED` entries disappear from the ELF.
+- Rejected: removing `-lm`, `-ldl` and `-lpthread` from the list (7.0 ms per
+  link, but a program that uses `libm` would stop linking); `gold` and `lld`
+  (another linker); static linking (slower links and larger binaries).
+- Evidence, same machine, the driver from `22f73c2` and the current tree,
+  `run_perf.py --reps 5` with the staged harness:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 545.1 -> 6 324.5 ms (-16.2%) | 1 384.2 -> 989.5 ms (-28.5%) | 3 582.6 -> 2 223.4 ms (-37.9%) |
+  | linux-x64 | 6 039.8 -> 4 800.9 ms (-20.5%) | 1 075.3 -> 860.2 ms (-20.0%) | 2 873.7 -> 1 608.4 ms (-44.0%) |
+
+  The link of `tests/std/test_regex.ir` measures 19.7 ms with the current
+  flags, 16.3 ms with `--as-needed` and 12.7 ms with `-lc` alone. Gates on
+  both hosts at this change: loader 452/452, differential 100/100, corpus
+  143/143 with the ratchet holding, self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…`. D-M1-122 stages the driver as well; the same
+  comparison under that harness is in its table.
+- Status: **applied**.
+
+## D-M1-122 - the Win64 link drops three import libraries no symbol comes from
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: every Win64 link opened `user32`, `shell32` and `pthread`, and no
+  symbol of any program comes from them. The undefined symbols of the runtime
+  archive cover `kernel32`, `msvcrt`, `ws2_32` when the module uses the
+  network, and `advapi32` through `SystemFunction036` when it uses crypto. No
+  `extern fn` in the pinned `compiler/` and `std/` sources names a function
+  from the three. Each import library costs about 1 ms of every link: 31.2 ms
+  with all of them, 28.3 ms without the three, on the object of
+  `tests/std/test_regex.ir`.
+- Decision: remove `-lpthread`, `-lshell32` and `-luser32` from the Win64 link
+  list in `src/driver/r6.c`. The remaining list is `mingw32`, `gcc`,
+  `mingwex`, `msvcrt`, `kernel32` and `advapi32`, plus `ws2_32` for a module
+  that uses the network and `sqlite3.lib` for one that uses the database.
+  `tests/perf/run_perf.py` also copies the driver into the host temporary
+  directory: `exec` measured 7.6 ms from `/mnt/c` against 0.5 ms from ext4,
+  and a Linux build pays that once per program.
+- Rejected: dropping `mingw32`, `gcc`, `mingwex`, `msvcrt`, `kernel32` or
+  `advapi32` (each resolves symbols the runtime uses); keeping the three and
+  accepting the cost (6% of the Win64 corpus wall).
+- Evidence: the driver from `22f73c2` and the current tree, `run_perf.py
+  --reps 5`, driver, IR and runtime archives staged:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 275.5 -> 5 925.9 ms (-18.5%) | 1 325.5 -> 978.8 ms (-26.2%) | 3 419.9 -> 2 231.7 ms (-34.7%) |
+  | linux-x64 | 3 997.4 -> 3 233.7 ms (-19.1%) | 955.9 -> 562.1 ms (-41.2%) | 2 775.6 -> 1 609.8 ms (-42.0%) |
+
+  Three further Win64 runs of the current driver measured 5 737.5, 5 753.7 and
+  5 925.9 ms of corpus total, all above -18%. Gates on Win64 at this change:
+  loader 452/452, differential 100/100, corpus 143/143 with the ratchet
+  holding, self-host `SELFHOST OK` with `PUBLISHED_C E794E2DB…`. The change is
+  inside the Win64 branch; the Linux gates measured in D-M1-121 still apply.
 - Status: **applied**.
