@@ -2,11 +2,11 @@
   "platforms": {
     "win64": {
       "corpusPrograms": 143,
-      "corpusTotalMs": 7276.2,
-      "corpusPipelineMs": 1304.5,
-      "selfhostR6Ms": 3427.2,
-      "selfhostPipelineMs": 3325.2,
-      "selfhostWallMs": 18828.9,
+      "corpusTotalMs": 7701.3,
+      "corpusPipelineMs": 1378.7,
+      "selfhostR6Ms": 3624.3,
+      "selfhostPipelineMs": 3525.1,
+      "selfhostWallMs": 18467.0,
       "reps": 5,
       "wallReps": 1,
       "date": "2026-10-31",
