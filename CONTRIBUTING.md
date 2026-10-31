@@ -3,7 +3,8 @@
 `.github/workflows/ci.yml` runs the build, the reject-case drift check and the
 loader suite on every push and pull request. It does not run the differential or
 the corpus ratchet by default. The gates below are the contract, and a
-contribution runs them locally before it is sent.
+contribution runs them locally before it is sent. A contribution keeps both
+platforms green: Windows x64 and Linux x64 (D-M1-119).
 
 `AGENTS.md` holds the full working rules; this file does not replace it. The
 pin, the oracle and the fixed point are defined in `README.md` (Status and The
@@ -27,10 +28,13 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 
 ## Setup
 
-- Build the driver with `.\scripts\build-r6.ps1`. GCC builds the driver only and
-  never an R6 program.
-- Rebuild `.r6-build\runtime-win64\libruntime_net.a` from the pinned Orbit
-  checkout as `docs/PIN.md` describes. Do not commit the archive or any binary.
+- Build the driver with `.\scripts\build-r6.ps1` on Windows or
+  `./scripts/build-r6.sh` on Linux. GCC builds the driver only and never an R6
+  program.
+- Rebuild the runtime archive from the pinned Orbit checkout as `docs/PIN.md`
+  describes for Windows. On Linux, `./scripts/build-runtime-linux.sh <checkout>`
+  writes `libruntime_net.a` (25 members) and `libruntime_net_db.a` (27 members)
+  into `.r6-build/runtime-linux-x64`. Do not commit an archive or any binary.
 - Materialize a checkout of `orbit-lang` at the pinned commit and build its
   fixed-point compiler. Do not use a working tree that is ahead of the pin.
 - Never write to the Orbit checkout. Read pinned bytes with
@@ -40,9 +44,10 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 
 Run from the repository root. `--r6-command` must be the last argument. The paths
 are those of one machine; substitute yours. The current counts are in the
-README status table.
+README status table. The counts here were measured on 2026-10-31 on Windows x64
+and Linux x64.
 
-Differential, the primary gate:
+Differential, the primary gate, 100/100:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -52,10 +57,20 @@ python tests/diff/run_diff.py `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-`--case <stem>` runs one fixture. The verdict is identical exit code and stdout
-bytes against the oracle. A build failure counts as a failure.
+```bash
+python3 tests/diff/run_diff.py \
+  --compiler <fixed-point> \
+  --cc gcc \
+  --orbit-root <pinned checkout> \
+  --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
+```
 
-Loader contract suite, the second gate:
+In a POSIX shell the r6 command is separate argv tokens, and only `{ir}` and
+`{exe}` are quoted. `--case <stem>` runs one fixture. The verdict is identical
+exit code and stdout bytes against the oracle. A build failure counts as a
+failure.
+
+Loader contract suite, the second gate, 452/452:
 
 ```powershell
 python tests/reject/run_reject.py
@@ -63,10 +78,17 @@ python tests/reject/run_reject.py --case v13
 python tests/reject/make_cases.py --check
 ```
 
-Every rejection exits 1 with exactly one `r6: <file>:<line>:<col>:
-error[CODE]: <msg>` line carrying the manifest code.
+```bash
+python3 tests/reject/run_reject.py
+python3 tests/reject/run_reject.py --case v13
+python3 tests/reject/make_cases.py --check
+```
 
-Corpus, a measurement with a one-way ratchet:
+On Linux the runner defaults to `.r6-build/r6` and
+`.r6-build/runtime-linux-x64`. Every rejection exits 1 with exactly one `r6:
+<file>:<line>:<col>: error[CODE]: <msg>` line carrying the manifest code.
+
+Corpus, a measurement with a one-way ratchet, 143/143 with the ratchet holding:
 
 ```powershell
 python tests/corpus/run_corpus.py `
@@ -77,9 +99,39 @@ python tests/corpus/run_corpus.py `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
+```bash
+python3 tests/corpus/run_corpus.py \
+  --compiler <fixed-point> \
+  --cc gcc \
+  --orbit-root <pinned checkout> \
+  --check \
+  --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
+```
+
 Only corpus drift from the pin and a drop of `r6BuildOk` or `match` below
 `tests/corpus/baseline.json` fail the run. Do not run `--write-baseline` on a
 change you are reviewing.
+
+Self-host check, both hosts print `SELFHOST OK` with `PUBLISHED_C E794E2DB…`:
+
+```powershell
+.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-01e31e8-git `
+  -Compiler C:\Temp\orbit-fp-ee60c8af43.exe -R6 $PWD\.r6-build\r6.exe
+```
+
+```bash
+./scripts/selfhost.sh <pinned checkout> <fixed-point> ./.r6-build/r6
+```
+
+Compile time is a measurement, not a gate:
+
+```bash
+python tests/perf/run_perf.py --r6 <driver> --orbit-root <pinned checkout> \
+  --compiler <fixed-point> --check
+```
+
+`python3` takes the place of `python` on Linux. `tests/perf/baseline.json` holds
+one entry per platform, and `--write-baseline` re-takes only the host's entry.
 
 The compiler-IR census (`tests/compiler-ir/run_census.py`, 2 build over 27
 modules) is also a measurement. Its ratchet forbids `r6BuildOk` going down.
@@ -87,12 +139,14 @@ modules) is also a measurement. Its ratchet forbids `r6BuildOk` going down.
 ## Rules for the code
 
 - C11, four spaces, no tabs, braces on the same line. The driver builds with
-  `-Wall -Wextra -Werror`; a warning is a failure.
+  `-std=c11 -O2 -Wall -Wextra -Werror`; a warning is a failure.
 - Fail closed: an unsupported opcode, version, type or platform is a diagnostic
   and a nonzero exit. No stubs, invented semantics or fallback.
 - Do not generalize beyond what `docs/M1_REPORT.md` states as measured. That is
   a new decision with its own evidence.
-- Programs are never lowered through C and never assembled by GAS or GCC.
+- Programs are never lowered through C and never assembled by GAS or GCC. The
+  object writer is AMD64 COFF on Windows and ELF64 ET_REL on Linux. GNU `ld`
+  only links, on both hosts.
 - Contract prose in `docs/` is Spanish. Match the file you edit.
 
 ## Commits
@@ -124,8 +178,8 @@ the commit body with what the gates print. A different count is the finding.
    that the program builds.
 2. Is it silent on the control? A change that admits one more program must not
    admit the one next to it.
-3. Does it survive both gates and the corpus without a regression? The ratchet
-   only goes up.
+3. Does it survive both gates and the corpus on both hosts without a regression?
+   The ratchet only goes up.
 
 A NO to any question means the author redoes the work. A defect in another file
 is written up as separate work. A reviewer that cannot run the gates says so and

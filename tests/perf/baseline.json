@@ -1,0 +1,28 @@
+{
+  "platforms": {
+    "win64": {
+      "corpusPrograms": 143,
+      "corpusTotalMs": 7275.5,
+      "corpusPipelineMs": 1325.5,
+      "selfhostR6Ms": 3419.9,
+      "selfhostPipelineMs": 3320.4,
+      "selfhostWallMs": 17484.2,
+      "reps": 5,
+      "wallReps": 1,
+      "date": "2026-10-31",
+      "tolerance": 0.03
+    },
+    "linux-x64": {
+      "corpusPrograms": 143,
+      "corpusTotalMs": 3997.4,
+      "corpusPipelineMs": 955.9,
+      "selfhostR6Ms": 2775.6,
+      "selfhostPipelineMs": 2713.0,
+      "selfhostWallMs": 9827.4,
+      "reps": 5,
+      "wallReps": 1,
+      "date": "2026-10-31",
+      "tolerance": 0.03
+    }
+  }
+}

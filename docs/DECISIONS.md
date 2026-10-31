@@ -5140,3 +5140,170 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   that its object has no undefined `orbit_result_*`; it references `strcmp`
   only. `run_diff.py` runs the same fixture as a program against the oracle.
 - Status: **applied**.
+
+## D-M1-119 - the host selects the target: Win64 or System V x86-64
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: every stage emitted AMD64 COFF and the driver linked with MinGW `ld`,
+  so R6 only ran on Windows. A Linux x64 host had no object writer, no calling
+  convention and no link path, and the documents said so.
+- Decision: `src/codegen-x64/target.h` derives `R6_TARGET_WIN64` from the
+  compiler's `_WIN32`, and each stage reads it. One binary builds one target:
+  no `--target` flag, no cross build, no dual output. The IR, the opcode set
+  and the diagnostic codes do not change with the target.
+  - Arguments. Win64 fills four positional slots (`rcx`, `rdx`, `r8`, `r9`), and
+    a float in one of them counts as a slot; System V fills an integer bank
+    (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`) and a vector bank (`xmm0`-`xmm7`)
+    independently, and spills only a full bank. The hidden `OrbitResult`
+    pointer and the hidden arena parameter move through the same cursor, so
+    they are the first slot on both.
+  - Stack. Win64 keeps 32 bytes of shadow space and reads an incoming stack
+    argument at `rbp+48`; System V keeps none and reads it at `rbp+16`. The
+    frame is `(used + shadow + outgoing stack + 15) & ~15` in both cases, and
+    `chkstk` is emitted on Win64 only.
+  - Live registers. `regalloc.c` gives six slots to seven registers on Win64
+    and to five on System V: `rdi`/`rsi` are argument registers there, so only
+    `rbx` and `r12`-`r15` survive a call. Win64 keeps nine vector registers
+    across a call and System V keeps none, so the XMM allocation is off there.
+    `peephole.c` uses per-target call use/def sets; a System V call defines
+    every caller-saved register and every vector register, and uses `rdi`,
+    `rsi` and `xmm0`-`xmm7`. That set is what keeps the argument setup alive.
+  - Object. `elf64.c` writes ET_REL from the same `R6CoffObject` the COFF
+    writer takes: `.text`, `.rdata`, `.data` by name, a `.note.GNU-stack`, one
+    `.rela.<section>`, `.symtab` (locals first), `.strtab` and `.shstrtab`. An
+    R6 REL32 becomes `R_X86_64_PC32` against a defined symbol and
+    `R_X86_64_PLT32` against an undefined one, with addend -4; a 32S becomes
+    `R_X86_64_32S`. The assembler still parses the `.seh_*` directives and
+    writes none of them: ELF has no unwind data here.
+  - Link. The driver `fork`s and `execvp`s `ld` (not the assembler, not GCC)
+    with `-dynamic-linker`, the glibc `crt1.o`/`crti.o`/`crtbegin.o`,
+    `--start-group libruntime_net.a [ -lsqlite3 ] --end-group -lc -lm -ldl
+    -lpthread`, then `crtend.o` and `crtn.o`. `R6_CRT_DIR` overrides the
+    start-up directory and `R6_LD` the linker; `crtbegin.o` is found through
+    `/usr/lib/gcc/x86_64-linux-gnu/*/` when glibc's own directory has none.
+    The runtime directory defaults to `.r6-build/runtime-linux-x64`.
+  - Entry. Linux always keeps `main` and the glibc start-up: R6's own
+    `orbit_start` (D-M1-104) writes an argument it does not have there, and
+    the PE check for `.ctors`/`.dtors` reads a PE header. The general wrapper,
+    which opens the arena, calls `orbit_main` and destroys the arena, is the
+    same text on both targets.
+- Control: `tests/elf/probe.c` builds one object with the writer and runs it
+  under `readelf -a` and `ld`; the object links and the program exits 42. The
+  two gates, the corpus and the self-host ran on both targets at this decision
+  (Windows: `run_diff.py` 100/100, `run_reject.py` 452/452, corpus 143/143,
+  self-host OK with `PUBLISHED_C E794E2DB…`; Linux: the same three counts and
+  the same `PUBLISHED_C`).
+- Status: **applied**.
+
+## D-M1-120 - the driver is built with `-O2` and links in one group
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the driver was compiled with no optimization flag, and the Win64 link
+  passed the import libraries twice, once after the runtime archive and once
+  again for the symbols that pass pulled in. `tests/perf/run_perf.py` records
+  what both cost.
+- Decision: `scripts/build-r6.ps1` and `scripts/build-r6.sh` add `-O2`. On
+  Win64 the object, the runtime archive and the import libraries sit in one
+  `--start-group`/`--end-group`; `ld` rescans a group until no member adds an
+  unresolved symbol, so the second copy of the list is redundant. The two flags
+  do not change one byte of the output: three programs (`arith`,
+  `test_bytes`, `test_collections`) produce the same sha256 from the old and
+  the new link. Linux already linked the runtime inside a group.
+- Rejected: `-O3` needs two more locals initialized in `win64.c` and buys no
+  measured time; `-flto` is not compiled into w64devkit's GCC 16.2.0
+  ("LTO support has not been enabled in this configuration").
+- Evidence, `run_perf.py --reps 5`, baseline driver built from the previous
+  commit with no flag, both runs on the same machine, inputs staged in the
+  host temporary directory:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 276.2 -> 6 140.4 ms (-15.6%) | 1 304.5 -> 957.7 ms (-26.6%) | 3 427.2 -> 2 210.9 ms (-35.5%) |
+  | linux-x64 | 9 543.5 -> 10 681.4 ms | 877.8 -> 885.2 ms | 2 921.2 -> 1 694.8 ms (-42.0%) |
+
+  The Linux corpus total does not move because the link is not R6's work: on
+  that host `ld` takes 73% of each build, 57.0 ms of 78.7 ms on average, and
+  the same link command measured 13 ms with a warm page cache and 90 ms with a
+  cold one. The stage totals R6 owns are flat there as well: they are file
+  I/O, not arithmetic, so `-O2` has little to fold. Both gates, the corpus and
+  the self-host stay green on both platforms at this change (100/100, 452/452,
+  143/143, `PUBLISHED_C E794E2DB…`).
+- Correction, 2026-10-31, later measurement. The Linux entry of the first run
+  was taken before `22f73c2` staged the IR into the host temporary directory,
+  and both entries were taken before the runtime archives were staged
+  (D-M1-121). Under the final harness, with both drivers measured back to
+  back: win64 7 545.1 -> 6 324.5 ms (-16.2%), 1 384.2 -> 989.5 ms (-28.5%),
+  self-host R6 3 582.6 -> 2 223.4 ms (-37.9%); linux-x64 6 039.8 -> 4 800.9 ms
+  (-20.5%), 1 075.3 -> 860.2 ms (-20.0%), self-host R6 2 873.7 -> 1 608.4 ms
+  (-44.0%). Both entries of `tests/perf/baseline.json` carry the re-taken line.
+- Status: **applied**.
+
+## D-M1-121 - the Linux link drops unused `DT_NEEDED` entries
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the Linux corpus wall included 43.1 ms per link spent reading the
+  runtime archive through the shared folder (61.6 ms against 18.5 ms for the
+  same link with the archive on ext4, minimum of 9 runs). Separately, `ld`
+  recorded `libm`, `libdl` and `libpthread` in `DT_NEEDED` for every program
+  even when no symbol came from them.
+- Decision: `tests/perf/run_perf.py` copies `libruntime_net.a`,
+  `libruntime_net_db.a` and `sqlite3.lib` into the host temporary directory
+  and builds with `R6_RUNTIME_DIR` pointing there, as it already did for the
+  IR. The Linux link in `src/driver/r6.c` passes `--as-needed` before the
+  library list, so `ld` records a library only when a symbol comes from it.
+  The symbol set, the generated code and the program's exit and stdout do not
+  change; only unused `DT_NEEDED` entries disappear from the ELF.
+- Rejected: removing `-lm`, `-ldl` and `-lpthread` from the list (7.0 ms per
+  link, but a program that uses `libm` would stop linking); `gold` and `lld`
+  (another linker); static linking (slower links and larger binaries).
+- Evidence, same machine, the driver from `22f73c2` and the current tree,
+  `run_perf.py --reps 5` with the staged harness:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 545.1 -> 6 324.5 ms (-16.2%) | 1 384.2 -> 989.5 ms (-28.5%) | 3 582.6 -> 2 223.4 ms (-37.9%) |
+  | linux-x64 | 6 039.8 -> 4 800.9 ms (-20.5%) | 1 075.3 -> 860.2 ms (-20.0%) | 2 873.7 -> 1 608.4 ms (-44.0%) |
+
+  The link of `tests/std/test_regex.ir` measures 19.7 ms with the current
+  flags, 16.3 ms with `--as-needed` and 12.7 ms with `-lc` alone. Gates on
+  both hosts at this change: loader 452/452, differential 100/100, corpus
+  143/143 with the ratchet holding, self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…`. D-M1-122 stages the driver as well; the same
+  comparison under that harness is in its table.
+- Status: **applied**.
+
+## D-M1-122 - the Win64 link drops three import libraries no symbol comes from
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: every Win64 link opened `user32`, `shell32` and `pthread`, and no
+  symbol of any program comes from them. The undefined symbols of the runtime
+  archive cover `kernel32`, `msvcrt`, `ws2_32` when the module uses the
+  network, and `advapi32` through `SystemFunction036` when it uses crypto. No
+  `extern fn` in the pinned `compiler/` and `std/` sources names a function
+  from the three. Each import library costs about 1 ms of every link: 31.2 ms
+  with all of them, 28.3 ms without the three, on the object of
+  `tests/std/test_regex.ir`.
+- Decision: remove `-lpthread`, `-lshell32` and `-luser32` from the Win64 link
+  list in `src/driver/r6.c`. The remaining list is `mingw32`, `gcc`,
+  `mingwex`, `msvcrt`, `kernel32` and `advapi32`, plus `ws2_32` for a module
+  that uses the network and `sqlite3.lib` for one that uses the database.
+  `tests/perf/run_perf.py` also copies the driver into the host temporary
+  directory: `exec` measured 7.6 ms from `/mnt/c` against 0.5 ms from ext4,
+  and a Linux build pays that once per program.
+- Rejected: dropping `mingw32`, `gcc`, `mingwex`, `msvcrt`, `kernel32` or
+  `advapi32` (each resolves symbols the runtime uses); keeping the three and
+  accepting the cost (6% of the Win64 corpus wall).
+- Evidence: the driver from `22f73c2` and the current tree, `run_perf.py
+  --reps 5`, driver, IR and runtime archives staged:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 275.5 -> 5 925.9 ms (-18.5%) | 1 325.5 -> 978.8 ms (-26.2%) | 3 419.9 -> 2 231.7 ms (-34.7%) |
+  | linux-x64 | 3 997.4 -> 3 233.7 ms (-19.1%) | 955.9 -> 562.1 ms (-41.2%) | 2 775.6 -> 1 609.8 ms (-42.0%) |
+
+  Three further Win64 runs of the current driver measured 5 737.5, 5 753.7 and
+  5 925.9 ms of corpus total, all above -18%. Gates on Win64 at this change:
+  loader 452/452, differential 100/100, corpus 143/143 with the ratchet
+  holding, self-host `SELFHOST OK` with `PUBLISHED_C E794E2DB…`. The change is
+  inside the Win64 branch; the Linux gates measured in D-M1-121 still apply.
+- Status: **applied**.

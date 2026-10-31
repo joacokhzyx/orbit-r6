@@ -1,11 +1,12 @@
 # AGENTS.md — R6
 
-R6 is a native x86-64 code generator for the Orbit language IR. It is pinned to
-`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21),
-8 commits past D-F0-20 `bf38b38`. The runtime archive is one member per module
-(25, and 27 with the database). A program starts only what it uses
-(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions. The
-corpus is 143+1 documents.
+R6 is a native x86-64 code generator for the Orbit language IR, pinned to
+`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21,
+8 commits past D-F0-20 `bf38b38`: the runtime archive is one member per module
+(25, and 27 with the database), a program starts only what it uses
+(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions; the
+corpus is 143+1 documents). It builds and runs on Windows x64 and Linux x64,
+and the host fixes the target when the driver is built (D-M1-119).
 The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.
 This is a separate repo from the language:
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
@@ -23,13 +24,32 @@ stop below.
 Driver build (GCC is used only here, never for R6 programs):
 
 ```powershell
-.\scripts\build-r6.ps1          # -> .r6-build\r6.exe
+.\scripts\build-r6.ps1          # Windows -> .r6-build\r6.exe
 ```
 
-Uses `$env:R6_CC`, else `$env:CC`, else `gcc` on PATH; flags `-std=c11 -Wall
--Wextra -Werror`. This is the only build step in the repo.
+```bash
+./scripts/build-r6.sh           # Linux -> .r6-build/r6
+```
 
-Primary gate: differential — verified 100/100 on 2026-10-28 at the D-F0-21 pin with:
+Windows uses w64devkit GCC 16.2.0. Linux uses GCC 15.2.0. Both scripts use
+`R6_CC`, else `CC`, else `gcc` on PATH, with
+`-std=c11 -O2 -Wall -Wextra -Werror` (D-M1-120). This is the only build step
+in the repo.
+
+Linux runtime archives, built from the pinned checkout. Neither is committed
+and neither is byte-reproducible:
+
+```bash
+./scripts/build-runtime-linux.sh <pinned checkout> [output-dir]
+```
+
+The default output directory is `.r6-build/runtime-linux-x64`. It holds
+`libruntime_net.a` (25 members) and `libruntime_net_db.a` (27 members).
+
+Primary gate: differential — verified 100/100 on 2026-10-31 at the D-F0-21 pin
+on Windows x64 and Linux x64.
+
+Windows x64:
 
 ```powershell
 python tests/diff/run_diff.py `
@@ -39,8 +59,19 @@ python tests/diff/run_diff.py `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
-- `--r6-command` must be the last argument (argparse `REMAINDER`); keep the
-  `'{ir}'`/`'{exe}'` quoting in PowerShell.
+Linux x64:
+
+```bash
+python3 tests/diff/run_diff.py \
+  --compiler <fixed-point> \
+  --cc gcc \
+  --orbit-root <pinned checkout> \
+  --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
+```
+
+- `--r6-command` must be the last argument (argparse `REMAINDER`). In
+  PowerShell keep the `'{ir}'`/`'{exe}'` quoting; in a POSIX shell the r6
+  command is separate argv tokens, and only the two placeholders are quoted.
 - The harnesses set `ORBIT_BACKEND=c` for the oracle build, because the pin
   makes native the default backend on Windows (D-F0-20).
 - `--case 19-int-list-get` runs one fixture (repeatable). Default = every
@@ -63,12 +94,18 @@ python tests/diff/run_diff.py `
 Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
 case in `tests/reject/manifest.json` names the decision it pins in its `rule`
 field, and `docs/DECISIONS.md` holds the decisions. Verified 452/452 on
-2026-10-30:
+2026-10-31 on Windows x64 and Linux x64:
 
 ```powershell
 python tests/reject/run_reject.py            # 311 rejections + 141 acceptance controls
 python tests/reject/run_reject.py --case v13 # one case (stem substring)
 python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
+```
+
+```bash
+python3 tests/reject/run_reject.py
+python3 tests/reject/run_reject.py --case v13
+python3 tests/reject/make_cases.py --check
 ```
 
 - `tests/reject/manifest.json` is the suite truth (expected exit, expected
@@ -80,12 +117,18 @@ python tests/reject/make_cases.py --check    # cases/ + manifest.json drift chec
   manifest declares `run_exit`/`run_stdout`.
 - The runner executes the driver with the repo root as CWD (the runtime
   archive path is resolved relative to the CWD).
+- On Linux the runner defaults to `.r6-build/r6` and
+  `.r6-build/runtime-linux-x64`, normalizes CRLF to LF when it compares run
+  stdout, and compares exit codes modulo 256.
 
 Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **143 build / 143 match over 143
-programs** on 2026-10-28 at the D-F0-21 pin: 144 documents, 6 992 633 bytes,
+D-M1-17) — a **measurement, not a gate**. Measured **143 build / 143 match over
+143 programs** on 2026-10-31 at the D-F0-21 pin on Windows x64 and Linux x64,
+with the ratchet holding on both: 144 documents, 6 992 633 bytes,
 `filesSha256 a533ace1…`. The rounds that took the count from 2/89 at the
-D-M1-17 pin to there are in `docs/M1_REPORT.md`:
+D-M1-17 pin to there are in `docs/M1_REPORT.md`.
+
+Windows x64:
 
 ```powershell
 python tests/corpus/run_corpus.py `
@@ -94,6 +137,17 @@ python tests/corpus/run_corpus.py `
   --orbit-root C:\Temp\orbit-pin-01e31e8-git `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
+```
+
+Linux x64:
+
+```bash
+python3 tests/corpus/run_corpus.py \
+  --compiler <fixed-point> \
+  --cc gcc \
+  --orbit-root <pinned checkout> \
+  --check \
+  --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
 ```
 
 - Regenerates the 143+1 corpus with the pinned compiler (`--orbit-root` is the
@@ -114,29 +168,57 @@ python tests/corpus/run_corpus.py `
   `ERROR_INVALID_NAME`); `ORBIT_CCACHE=0`, the harness's own escape hatch,
   takes the wrapper out of one run and is what the D-M1-21 round used.
 - The oracle's exit, stdout and stderr are cached in
-  `.r6-build\oracle-cache.json`, shared with `run_diff.py`. The corpus keys
+  `.r6-build/oracle-cache.json`, shared with `run_diff.py`. The corpus keys
   an entry by the manifest sha256, the fixed point sha256 and the program
   path; the differential keys it by the `.orb`+`.json` pair and the fixed
-  point. `--no-oracle-cache` rebuilds every oracle. On 2026-10-28 the corpus
-  took 120 s without the cache and 37 s with it; run_diff.py took 66 s and
-  18 s.
+  point. `--no-oracle-cache` rebuilds every oracle. On Windows x64 on
+  2026-10-28 the corpus took 120 s without the cache and 37 s with it.
+  `run_diff.py` took 66 s and 18 s.
 - `--axes` adds six axes per matching program: correctness, section bytes,
   best-of-5 wall ms, best-of-5 R6 build ms, peak working set, and a CPU-time
   energy proxy. `--check-axes` compares them with
   `tests/corpus/axes-baseline.json`; `--write-axes-baseline` re-takes it.
 
 Self-host check: R6 builds the pinned compiler, and that compiler's C must
-hash to `PUBLISHED_C` in the pin's `scripts/verify_seed.py` (20 s):
+hash to `PUBLISHED_C` in the pin's `scripts/verify_seed.py` (20 s). Both hosts
+print `SELFHOST OK` with `PUBLISHED_C E794E2DB…` on 2026-10-31.
 
 ```powershell
 .\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-01e31e8-git `
   -Compiler C:\Temp\orbit-fp-ee60c8af43.exe -R6 $PWD\.r6-build\r6.exe
 ```
 
+```bash
+./scripts/selfhost.sh <pinned checkout> <fixed-point> ./.r6-build/r6
+```
+
 `scripts\ci.ps1 -Selfhost` runs it as a CI stage. `scripts\bisect.ps1` is the
 `git bisect run` verdict: driver build (125 when it does not compile),
 `run_reject.py`, `run_diff.py` and the self-host (1 at the first failure).
 Copy it with `selfhost.ps1` outside the tree first; older commits lack both.
+
+Compile-time baseline — a measurement, not a gate. `tests/perf/baseline.json`
+holds one entry per platform, Windows x64 and Linux x64. The harness stages the
+IR in the host temp directory because a shared folder on Linux would put the
+hypervisor's read path inside the number:
+
+```bash
+python tests/perf/run_perf.py --r6 <driver> --orbit-root <pinned checkout> \
+  --compiler <fixed-point> --check
+```
+
+`python3` takes the place of `python` on Linux, and `--write-baseline` re-takes
+the entry for the host platform. The harness copies the driver, the IR and the
+runtime archives into the host temporary directory and builds with
+`R6_RUNTIME_DIR` pointing at the copy; a checkout under a shared folder would
+otherwise put the hypervisor's read inside every build. Both entries were
+re-taken on 2026-10-31 with the driver from `22f73c2`: 7 275.5 ms corpus total
+and 1 325.5 ms inside R6 on win64, 3 997.4 ms and 955.9 ms on linux-x64. The
+driver built with `-O2`, `--as-needed` and the reduced Win64 import list
+measures 5 925.9 ms and 978.8 ms on win64 (-18.5%, -26.2%), and 3 233.7 ms and
+562.1 ms on linux-x64 (-19.1%, -41.2%). The self-host R6 build drops from
+3 419.9 to 2 231.7 ms on win64 (-34.7%) and from 2 775.6 to 1 609.8 ms on
+linux-x64 (-42.0%).
 
 Compiler-IR census (D-M1-34) — a measurement, not a gate. It emits every
 `compiler/**/*.orb` at the pin and records R6's first refusal on each; the
@@ -157,30 +239,46 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 # asm_probe.c is the same but adds src/codegen-x64/asm_win64.c; argv: <in.s> <out.o>
 ```
 
+`tests/elf/probe.c` is the writer-only probe for `elf64.c`; `tests/elf/README.md`
+has the `readelf -a` and `ld` commands, and the linked program exits 42.
+
 ## Running the driver
 
 - `r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>]`. The runtime
   directory is the flag, else `R6_RUNTIME_DIR`, else `.r6-build\runtime-win64`
-  relative to the CWD (D-M1-98), so run it from the repo root unless one is set.
-  Temps `r6-<pid>.s/.o` go to `R6_TMPDIR`, else the system temp dir. A
-  successful build deletes them; a failed one keeps them.
+  on Windows or `.r6-build/runtime-linux-x64` on Linux, relative to the CWD
+  (D-M1-98, D-M1-119), so run it from the repo root unless one is set. Temps
+  `r6-<pid>.s/.o` go to `R6_TMPDIR`, else the system temp dir. A successful
+  build deletes them; a failed one keeps them.
 - `--timings` or `R6_TIMINGS=1` prints one stderr line per stage: load,
-  codegen, peephole, regalloc, asm, coff, ld.
-- Needs `.r6-build\runtime-win64\libruntime_net.a`, which is **gitignored and
-  not in the repo**. A fresh clone must rebuild it from the pinned checkout
-  with its `scripts/mklib_runtime.py --out ...` (expected hash/symbols in
-  `docs/PIN.md`), otherwise linking fails with `error[LINK]`.
+  codegen, peephole, regalloc, asm, object, ld.
+- Needs `.r6-build\runtime-win64\libruntime_net.a` on Windows, which is
+  **gitignored and not in the repo**. A fresh clone must rebuild it from the
+  pinned checkout with its `scripts/mklib_runtime.py --out ...` (expected
+  hash/symbols in `docs/PIN.md`), otherwise linking fails with `error[LINK]`.
+  On Linux, `./scripts/build-runtime-linux.sh <pinned checkout>` writes
+  `libruntime_net.a` and `libruntime_net_db.a` into
+  `.r6-build/runtime-linux-x64`; neither is committed or byte-reproducible.
 - A module with an `orbit_db_*` extern links `libruntime_net_db.a` and
-  `sqlite3.lib` from the same directory, built by `python
+  `sqlite3.lib` from the same Windows directory, built by `python
   scripts/build-runtime-db.py --orbit-root <pin checkout>` (D-M1-87); the
-  executable finds `sqlite3.dll` on `PATH` (`runtime/vendor/win-x64`).
-- Entry point (D-M1-104): a module with no argv, network, database or
-  migrations has R6's own `orbit_start` and links without the MinGW start-up
-  objects; any other module keeps `main` and `crt2.o`. The driver deletes an
-  executable that carries `.ctors` or `.dtors` and reports `error[LINK]`.
-- MinGW CRT/lib dirs come from `R6_MINGW_ROOT` (default `C:/w64devkit`) and
-  `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging paths only; just
-  `ld.exe` is executed.
+  executable finds `sqlite3.dll` on `PATH` (`runtime/vendor/win-x64`). On
+  Linux the same `build-runtime-linux.sh` writes the db archive and the link
+  adds `-lsqlite3`.
+- Entry point (D-M1-104), Win64 only: a module with no argv, network, database
+  or migrations has R6's own `orbit_start` and links without the MinGW start-up
+  objects; any other module keeps `main` and `crt2.o`. On Win64 the driver
+  deletes an executable that carries `.ctors` or `.dtors` and reports
+  `error[LINK]`. On Linux every program keeps `main` and the glibc start-up,
+  because `orbit_start` calls msvcrt's `__set_app_type` and the start-up check
+  reads a PE header.
+- On Windows, MinGW CRT/lib dirs come from `R6_MINGW_ROOT` (default
+  `C:/w64devkit`) and `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging
+  paths only. Just `ld.exe` is executed. On Linux the driver links glibc's
+  `crt1.o`, `crti.o`, `crtbegin.o`, the runtime archive, `--as-needed` with
+  `-lc -lm -ldl -lpthread`, `crtend.o` and `crtn.o`, then
+  `-dynamic-linker /lib64/ld-linux-x86-64.so.2`. `R6_CRT_DIR` overrides the
+  start-up directory and `R6_LD` the linker (D-M1-119).
 - Diagnostics are one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`;
   exit 2 = CLI misuse, 1 = everything else. CI is `.github/workflows/ci.yml`,
   which runs `scripts/ci.ps1`.
@@ -189,16 +287,20 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 
 - Fail closed: any opcode, version, type or platform not explicitly supported
   gets a diagnostic and nonzero exit. No stubs, invented semantics or fallback.
+- The target is the host: `src/codegen-x64/target.h` derives `R6_TARGET_WIN64`
+  from `_WIN32`. One binary builds one target. There is no `--target` flag and
+  no cross build (D-M1-119).
 - Programs are never lowered through C and never assembled by GAS/GCC:
   `win64.c` emits a private GAS-shaped text, `peephole.c` drops reloads of a
   slot just stored, `regalloc.c` moves the hottest slots into callee-saved
-  registers, `asm_win64.c` encodes it to bytes, `coff.c` writes AMD64 COFF; GNU
-  `ld` is only the linker.
+  registers, `asm_win64.c` encodes it to bytes, and the object writer is
+  `coff.c` (AMD64 COFF) on Windows and `elf64.c` (ELF64 ET_REL) on Linux. GNU
+  `ld` is only the linker on both.
 - Never write to the Orbit checkout; moving the pin requires a dated entry in
   `docs/DECISIONS.md`.
 - Do not generalize semantics that pass in fixtures beyond what
   `docs/M1_REPORT.md` states is measured (overflow, NaN payloads, other list
-  kinds, Linux/macOS are currently out of evidence).
+  kinds and macOS are currently out of evidence).
 
 ## Layout
 
@@ -207,11 +309,18 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
 - `src/codegen-x64/win64.{c,h}` — IR → private asm text; `peephole.{c,h}` —
   rewrites that text in place (D-M1-67); `regalloc.{c,h}` — assigns registers
   to slots on that text (D-M1-68); `asm_win64.{c,h}` — encodes only the
-  selector's instruction subset; `coff.{c,h}` — AMD64 COFF writer (sections,
-  symbols, REL32/ADDR32NB relocations, unwind data).
-- `src/driver/r6.c` — CLI, temporaries in `R6_TMPDIR` or the system temp dir, direct `ld` link.
+  selector's instruction subset; `target.h` — derives `R6_TARGET_WIN64` from
+  `_WIN32` (D-M1-119); `coff.{c,h}` — AMD64 COFF writer (sections, symbols,
+  REL32/ADDR32NB relocations, unwind data); `elf64.{c,h}` — ELF64 ET_REL
+  writer for Linux x64 (sections, symbols, RELA relocations).
+- `src/driver/r6.c` — CLI, temporaries in `R6_TMPDIR` or the system temp dir,
+  direct `ld` link for the host target.
 - `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — historical
   COFF probes.
+- `tests/elf/probe.c` — writer-only ELF64 probe; `readelf -a` reads the object
+  and `ld` links it to a program that exits 42.
+- `tests/perf/run_perf.py` — compile-time baseline; `tests/perf/baseline.json`
+  holds one entry per platform.
 - `tests/reject/` — loader contract suite: `run_reject.py` (second gate),
   `make_cases.py` (deterministic case builder), `cases/` + `manifest.json`.
 - `tests/corpus/` — the language-emitted corpus (`run_corpus.py`, the second
@@ -220,8 +329,10 @@ gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o 
   `run_census.py` emits every `compiler/**/*.orb` at the pin and records R6's
   first refusal on each; `baseline.json` is the one-way ratchet over
   `r6BuildOk`.
-- `scripts/` — `build-r6.ps1` (driver build), `ci.ps1` (the CI steps, runnable
-  locally), `migrate-m1-fixtures.py`
+- `scripts/` — `build-r6.ps1` (Windows driver build), `build-r6.sh` (Linux
+  driver build), `build-runtime-linux.sh` (Linux runtime archives),
+  `selfhost.ps1`/`selfhost.sh` (self-host check), `ci.ps1` (the CI steps,
+  runnable locally), `migrate-m1-fixtures.py`
   (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
   pre-migration revision, `06d7d2c^`, skipping fixtures newer than the base).
 - `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module
@@ -317,8 +428,8 @@ Message:
 
 - Four spaces, no tabs. Braces on the same line for functions and control flow,
   as the tree writes them.
-- The driver builds with `-std=c11 -Wall -Wextra -Werror`; a warning there is a
-  failure.
+- The driver builds with `-std=c11 -O2 -Wall -Wextra -Werror`; a warning there
+  is a failure.
 - Comments explain why the code is like this, not what it says. No new comment
   unless it says something the code cannot.
 - Fail closed: an unsupported opcode, version, type or platform is a diagnostic
@@ -395,9 +506,11 @@ Stop and ask rather than push on, when:
 - A public R6 cannot pin a commit no remote has. The pin `01e31e8` is on
   `https://github.com/joacokhzyx/orbit-lang` (PIN.md), so the corpus is
   reproducible from public bytes. A pin move pushes the language commit first.
-- The runtime archive is not committed and is not byte-reproducible (PIN.md). A
-  fresh clone rebuilds it with the pinned recipe and checks the 268-symbol set.
-  Do not add the archive or any other binary to the repository.
+- The runtime archives are not committed and are not byte-reproducible
+  (PIN.md, D-M1-119). A fresh Windows clone rebuilds `libruntime_net.a` with
+  the pinned recipe and checks the 268-symbol set;
+  `scripts/build-runtime-linux.sh` writes both Linux archives. Do not add an
+  archive or any other binary to the repository.
 - CI (`.github/workflows/ci.yml`) builds the driver, the runtime archive and
   the loader suite on every push and pull request through `scripts/ci.ps1`.
   The differential and the corpus need the Orbit oracle and run only on

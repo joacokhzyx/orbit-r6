@@ -1,8 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "../loader/ir.h"
 #include "../codegen-x64/asm_win64.h"
+#include "../codegen-x64/elf64.h"
 #include "../codegen-x64/peephole.h"
 #include "../codegen-x64/regalloc.h"
+#include "../codegen-x64/target.h"
 #include "../codegen-x64/win64.h"
 
 #include <errno.h>
@@ -22,11 +24,11 @@
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <glob.h>
 #define R6_PID getpid
-#define R6_SPAWN _spawnvp
-#define R6_WAIT 0
 #endif
 
 static void print_error(const char *path, const R6Diagnostic *d) {
@@ -35,9 +37,9 @@ static void print_error(const char *path, const R6Diagnostic *d) {
             d->message[0] ? d->message : "operation failed");
 }
 
-enum { T_LOAD, T_CODEGEN, T_PEEPHOLE, T_REGALLOC, T_ASM, T_COFF, T_LD, T_COUNT };
+enum { T_LOAD, T_CODEGEN, T_PEEPHOLE, T_REGALLOC, T_ASM, T_OBJECT, T_LD, T_COUNT };
 static const char *const stage_names[T_COUNT] = {
-    "load", "codegen", "peephole", "regalloc", "asm", "coff", "ld"
+    "load", "codegen", "peephole", "regalloc", "asm", "object", "ld"
 };
 static double stage_ms[T_COUNT];
 static bool stage_ran[T_COUNT];
@@ -85,11 +87,35 @@ static int run(const char *tool, char *const argv[]) {
     }
     return (int)status;
 #else
-    (void)tool; (void)argv;
-    return -1;
+    pid_t pid = fork();
+    int status, code;
+    if (pid < 0) {
+        fprintf(stderr, "r6: error[TOOLCHAIN]: could not fork for '%s' (errno=%d)\n",
+                tool, errno);
+        return -1;
+    }
+    if (pid == 0) {
+        execvp(tool, argv);
+        fprintf(stderr, "r6: error[TOOLCHAIN]: could not run '%s' (errno=%d)\n",
+                tool, errno);
+        _exit(127);
+    }
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) return -1;
+    }
+    if (WIFEXITED(status)) {
+        code = WEXITSTATUS(status);
+        if (code == 127) {
+            fprintf(stderr, "r6: error[TOOLCHAIN]: could not run '%s'\n", tool);
+            return -1;
+        }
+        return code;
+    }
+    return 128;
 #endif
 }
 
+#if R6_TARGET_WIN64
 /* D-M1-104: a module linked without the MinGW start-up must not carry what only
  * that start-up runs: constructors and destructors. Thread-local storage stays,
  * because the loader reads the TLS directory itself. Returns the name of the
@@ -140,6 +166,62 @@ out:
     fclose(fp);
     return found;
 }
+#else
+/* The multiarch directory glibc's crt1.o lives in, on the layouts R6 has
+ * measured: Debian/Ubuntu, Fedora/RHEL and a plain /usr/lib. */
+static bool find_crt_dir(char *out, size_t cap) {
+    static const char *const dirs[] = {
+        "/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib", NULL
+    };
+    char probe[1024];
+    size_t k;
+    for (k = 0; dirs[k]; ++k) {
+        snprintf(probe, sizeof probe, "%s/crt1.o", dirs[k]);
+        if (file_exists(probe)) {
+            snprintf(out, cap, "%s", dirs[k]);
+            return true;
+        }
+    }
+    return false;
+}
+
+/* crtbegin.o/crtend.o define __dso_handle, which libc_nonshared's atexit
+ * member needs. They live in the GCC version directory, and R6 cannot ask gcc
+ * for it. R6_CRT_DIR may name the directory that holds all five objects. */
+static bool find_gcc_crt(char *begin, size_t bcap, char *end, size_t ecap) {
+    static const char *const patterns[] = {
+        "/usr/lib/gcc/x86_64-linux-gnu/*/crtbegin.o",
+        "/usr/lib64/gcc/x86_64-linux-gnu/*/crtbegin.o",
+        "/usr/lib/gcc/x86_64-pc-linux-gnu/*/crtbegin.o",
+        NULL
+    };
+    char endpat[1024];
+    glob_t g;
+    size_t k, pick;
+    bool ok = false;
+    for (k = 0; patterns[k] && !ok; ++k) {
+        const char *slash;
+        if (glob(patterns[k], 0, NULL, &g) != 0) continue;
+        if (g.gl_pathc == 0) { globfree(&g); continue; }
+        pick = g.gl_pathc - 1;
+        snprintf(begin, bcap, "%s", g.gl_pathv[pick]);
+        slash = strrchr(begin, '/');
+        if (slash) {
+            size_t dir = (size_t)(slash - begin) + 1;
+            if (dir + 10 < sizeof endpat) {
+                memcpy(endpat, begin, dir);
+                snprintf(endpat + dir, sizeof endpat - dir, "crtend.o");
+                if (file_exists(endpat)) {
+                    snprintf(end, ecap, "%s", endpat);
+                    ok = true;
+                }
+            }
+        }
+        globfree(&g);
+    }
+    return ok;
+}
+#endif
 
 /* D-M1-100: the line `--version` prints. The protocol number is what the
  * language checks before it hands r6 a module; docs/DECISIONS.md says what
@@ -148,7 +230,7 @@ out:
 #define R6_IR_PROTOCOL 3
 
 int main(int argc, char **argv) {
-    const char *input, *output = NULL, *root, *version;
+    const char *input, *output = NULL;
     FILE *file = NULL, *asm_file = NULL, *obj_file = NULL;
     char *data = NULL;
     long file_len;
@@ -159,7 +241,16 @@ int main(int argc, char **argv) {
     char tmpdir[900], runtime_a[1024], sqlite_lib[1024], full[1024];
     const char *runtime_dir = NULL, *tmp_env;
     size_t tmp_len;
+#if R6_TARGET_WIN64
+    const char *root, *version;
     char crt2[1024], crtbegin[1024], crtend[1024], libdir[1024], gcclibdir[1024];
+    char bad_section[64], msvcrt_dll[1024];
+    const char *bad;
+#else
+    const char *crt_dir_env, *ld_env;
+    char crt1[1024], crti[1024], crtn[1024], libdir[1000], ldso[1024];
+    char crtbegin[1024], crtend[1024];
+#endif
     char pidbuf[32];
     char *link_argv[64];
     size_t link_argc = 0;
@@ -168,8 +259,6 @@ int main(int argc, char **argv) {
     int argi = 1, rc = 1, stage;
     bool uses_db = false, uses_net, own_entry, timings, object_mode = false;
     const char *obj_out;
-    char bad_section[64], msvcrt_dll[1024];
-    const char *bad;
     const char *timings_env = getenv("R6_TIMINGS");
     double t0;
     size_t fn;
@@ -181,13 +270,15 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (argi < argc && (strcmp(argv[argi], "--help") == 0 || strcmp(argv[argi], "-h") == 0)) {
-        fputs("usage: r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>] [--timings]\n"
+        fputs("usage: r6 [build] <input.ir> -o <output> [--runtime-dir <dir>] [--timings]\n"
               "       r6 build --object <runtime-module.ir> -o <output.o>   no linking\n"
               "       r6 --version   prints `r6 <semver> ir-protocol <N>` and exits 0\n"
               "  --runtime-dir <dir>  directory with libruntime_net.a, libruntime_net_db.a and\n"
-              "                       sqlite3.lib (else R6_RUNTIME_DIR, else .r6-build/runtime-win64)\n"
+              "                       (Windows) sqlite3.lib (else R6_RUNTIME_DIR, else\n"
+              "                       .r6-build/runtime-win64 on Windows, runtime-linux-x64 on Linux)\n"
               "  --timings            print per-stage timings (or R6_TIMINGS=1)\n"
-              "  R6_TMPDIR            directory of the .s/.o temporaries (else the system temp dir)\n",
+              "  R6_TMPDIR            directory of the .s/.o temporaries (else the system temp dir)\n"
+              "  Linux only: R6_CRT_DIR overrides the glibc start-up directory, R6_LD the linker.\n",
               stdout);
         return 0;
     }
@@ -338,22 +429,15 @@ int main(int argc, char **argv) {
     }
     stage_add(T_PEEPHOLE, t0);
 
-    root = getenv("R6_MINGW_ROOT");
-    if (!root || !*root) root = "C:/w64devkit";
-    version = getenv("R6_MINGW_GCC_VERSION");
-    if (!version || !*version) version = "16.2.0";
-    snprintf(ld_path, sizeof ld_path, "%s/bin/ld.exe", root);
-    snprintf(crt2, sizeof crt2, "%s/lib/crt2.o", root);
-    snprintf(crtbegin, sizeof crtbegin, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtbegin.o", root, version);
-    snprintf(crtend, sizeof crtend, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtend.o", root, version);
-    snprintf(libdir, sizeof libdir, "%s/lib", root);
-    snprintf(gcclibdir, sizeof gcclibdir, "%s/lib/gcc/x86_64-w64-mingw32/%s", root, version);
     if (!runtime_dir) {
         runtime_dir = getenv("R6_RUNTIME_DIR");
-        if (!runtime_dir || !*runtime_dir) runtime_dir = ".r6-build/runtime-win64";
+        if (!runtime_dir || !*runtime_dir)
+            runtime_dir = R6_TARGET_WIN64 ? ".r6-build/runtime-win64"
+                                          : ".r6-build/runtime-linux-x64";
     }
     snprintf(runtime_a, sizeof runtime_a, "%s/%s", runtime_dir,
              uses_db ? "libruntime_net_db.a" : "libruntime_net.a");
+#if R6_TARGET_WIN64
     snprintf(sqlite_lib, sizeof sqlite_lib, "%s/sqlite3.lib", runtime_dir);
     if (!object_mode && (!file_exists(runtime_a) || (uses_db && !file_exists(sqlite_lib)))) {
         full_path(file_exists(runtime_a) ? sqlite_lib : runtime_a, full, sizeof full);
@@ -361,6 +445,17 @@ int main(int argc, char **argv) {
                 input, full);
         goto free_module;
     }
+#else
+    (void)uses_net;
+    (void)own_entry;
+    (void)sqlite_lib;
+    if (!object_mode && !file_exists(runtime_a)) {
+        full_path(runtime_a, full, sizeof full);
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: runtime archive not found: %s\n",
+                input, full);
+        goto free_module;
+    }
+#endif
     t0 = now_ms();
     asm_file = fopen(asm_path, "rb");
     if (!asm_file) {
@@ -377,7 +472,11 @@ int main(int argc, char **argv) {
     t0 = now_ms();
     obj_out = object_mode ? output : obj_path;
     obj_file = fopen(obj_out, "wb");
+#if R6_TARGET_WIN64
     if (!obj_file || !r6_coff_write(&object, obj_file)) {
+#else
+    if (!obj_file || !r6_elf_write(&object, obj_file)) {
+#endif
         fprintf(stderr, "r6: %s:0:0: error[OBJECT]: %s\n", input,
                 obj_file ? r6_coff_error(&object) : strerror(errno));
         if (obj_file) fclose(obj_file);
@@ -387,18 +486,29 @@ int main(int argc, char **argv) {
     }
     if (fclose(obj_file) != 0) {
         obj_file = NULL;
-        fprintf(stderr, "r6: %s:0:0: error[OBJECT]: failed closing COFF object\n", input);
+        fprintf(stderr, "r6: %s:0:0: error[OBJECT]: failed closing the object file\n", input);
         r6_coff_free(&object);
         goto free_module;
     }
     obj_file = NULL;
     r6_coff_free(&object);
-    stage_add(T_COFF, t0);
+    stage_add(T_OBJECT, t0);
     if (object_mode) {
         remove(asm_path);
         rc = 0;
         goto free_module;
     }
+#if R6_TARGET_WIN64
+    root = getenv("R6_MINGW_ROOT");
+    if (!root || !*root) root = "C:/w64devkit";
+    version = getenv("R6_MINGW_GCC_VERSION");
+    if (!version || !*version) version = "16.2.0";
+    snprintf(ld_path, sizeof ld_path, "%s/bin/ld.exe", root);
+    snprintf(crt2, sizeof crt2, "%s/lib/crt2.o", root);
+    snprintf(crtbegin, sizeof crtbegin, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtbegin.o", root, version);
+    snprintf(crtend, sizeof crtend, "%s/lib/gcc/x86_64-w64-mingw32/%s/crtend.o", root, version);
+    snprintf(libdir, sizeof libdir, "%s/lib", root);
+    snprintf(gcclibdir, sizeof gcclibdir, "%s/lib/gcc/x86_64-w64-mingw32/%s", root, version);
     link_argv[link_argc++] = ld_path;
     link_argv[link_argc++] = "-m"; link_argv[link_argc++] = "i386pep";
     link_argv[link_argc++] = "-Bdynamic";
@@ -419,17 +529,18 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = gcclibdir;
     link_argv[link_argc++] = "-L"; link_argv[link_argc++] = libdir;
     link_argv[link_argc++] = obj_path;
+    /* One group instead of two copies of the library list: ld rescans it
+     * until no member adds an unresolved symbol, and the .exe is the same
+     * bytes. Two passes over the list cost about 6 ms of every link. */
+    link_argv[link_argc++] = "--start-group";
     link_argv[link_argc++] = runtime_a;
     if (uses_db) link_argv[link_argc++] = sqlite_lib;
     if (uses_net) link_argv[link_argc++] = "-lws2_32";
     link_argv[link_argc++] = "-lmingw32";
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
-    link_argv[link_argc++] = "-lpthread"; link_argv[link_argc++] = "-ladvapi32";
-    link_argv[link_argc++] = "-lshell32"; link_argv[link_argc++] = "-luser32";
-    link_argv[link_argc++] = "-lkernel32"; link_argv[link_argc++] = "-lmingw32";
-    link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
-    link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
+    link_argv[link_argc++] = "-ladvapi32";
+    link_argv[link_argc++] = "--end-group";
     if (own_entry) {
         /* libmingwex's gdtoa calls atexit, which crt2.o defines and no import
          * library carries. msvcrt.dll exports it, so ld imports it from the
@@ -454,6 +565,78 @@ int main(int argc, char **argv) {
                         "(section %s)\n", input, bad);
         goto free_module;
     }
+#else
+    crt_dir_env = getenv("R6_CRT_DIR");
+    ld_env = getenv("R6_LD");
+    snprintf(ld_path, sizeof ld_path, "%s", ld_env && *ld_env ? ld_env : "ld");
+    if (crt_dir_env && *crt_dir_env) {
+        snprintf(crt1, sizeof crt1, "%s/crt1.o", crt_dir_env);
+        snprintf(crti, sizeof crti, "%s/crti.o", crt_dir_env);
+        snprintf(crtn, sizeof crtn, "%s/crtn.o", crt_dir_env);
+    } else if (!find_crt_dir(libdir, sizeof libdir)) {
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: glibc start-up objects not found (set R6_CRT_DIR)\n",
+                input);
+        goto free_module;
+    } else {
+        snprintf(crt1, sizeof crt1, "%s/crt1.o", libdir);
+        snprintf(crti, sizeof crti, "%s/crti.o", libdir);
+        snprintf(crtn, sizeof crtn, "%s/crtn.o", libdir);
+    }
+    if (!file_exists(crt1) || !file_exists(crti) || !file_exists(crtn)) {
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: crt1.o/crti.o/crtn.o not found in %s\n",
+                input, crt_dir_env && *crt_dir_env ? crt_dir_env : libdir);
+        goto free_module;
+    }
+    snprintf(crtbegin, sizeof crtbegin, "%s/crtbegin.o",
+             crt_dir_env && *crt_dir_env ? crt_dir_env : libdir);
+    snprintf(crtend, sizeof crtend, "%s/crtend.o",
+             crt_dir_env && *crt_dir_env ? crt_dir_env : libdir);
+    if (!file_exists(crtbegin) || !file_exists(crtend)) {
+        if (!find_gcc_crt(crtbegin, sizeof crtbegin, crtend, sizeof crtend)) {
+            fprintf(stderr, "r6: %s:0:0: error[LINK]: crtbegin.o/crtend.o not found (set R6_CRT_DIR)\n",
+                    input);
+            goto free_module;
+        }
+    }
+    snprintf(ldso, sizeof ldso, "%s",
+             file_exists("/lib64/ld-linux-x86-64.so.2") ? "/lib64/ld-linux-x86-64.so.2"
+                                                        : "/lib/ld-linux-x86-64.so.2");
+    if (!file_exists(ldso)) {
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: dynamic linker not found\n", input);
+        goto free_module;
+    }
+    link_argv[link_argc++] = ld_path;
+    link_argv[link_argc++] = "-o";
+    link_argv[link_argc++] = (char *)output;
+    link_argv[link_argc++] = "-dynamic-linker";
+    link_argv[link_argc++] = ldso;
+    link_argv[link_argc++] = crt1;
+    link_argv[link_argc++] = crti;
+    link_argv[link_argc++] = crtbegin;
+    link_argv[link_argc++] = obj_path;
+    /* A program that uses no symbol from libm, libdl or libpthread should not
+     * carry the DT_NEEDED entry for it. ld still opens the libraries it needs,
+     * and the three are stubs in glibc 2.34 and later; recording only the ones
+     * a symbol comes from saves 3.4 ms of every link (D-M1-121). */
+    link_argv[link_argc++] = "--as-needed";
+    link_argv[link_argc++] = "--start-group";
+    link_argv[link_argc++] = runtime_a;
+    if (uses_db) link_argv[link_argc++] = "-lsqlite3";
+    link_argv[link_argc++] = "--end-group";
+    link_argv[link_argc++] = "-lc";
+    link_argv[link_argc++] = "-lm";
+    link_argv[link_argc++] = "-ldl";
+    link_argv[link_argc++] = "-lpthread";
+    link_argv[link_argc++] = crtend;
+    link_argv[link_argc++] = crtn;
+    link_argv[link_argc] = NULL;
+    t0 = now_ms();
+    if (run(ld_path, link_argv) != 0) {
+        fprintf(stderr, "r6: %s:0:0: error[LINK]: linker failed (Linux x64 runtime and glibc required)\n", input);
+        goto free_module;
+    }
+    stage_add(T_LD, t0);
+#endif
     /* A failed build keeps its .s/.o for inspection; a good one owes nothing. */
     remove(asm_path);
     remove(obj_path);

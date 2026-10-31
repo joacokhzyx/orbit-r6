@@ -24,20 +24,33 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 
 ## Codegen
 
-- Límite actual: Windows x86-64; `load_const`, `add`, `sub`, `mul`, `div`,
-  `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`,
-  `and_op`, `or_op`, `not_op`, `neg`, `copy`, `jump`, `load_var`, `decl_var`,
-  `store_var`, `list_create`, `list_push`, `list_len`, `list_get`, `call` y `ret`, solo para
-  las combinaciones validadas en codegen.
+- Objetivo: x86-64 Win64 o System V, elegido por el host al compilar el
+  driver (`src/codegen-x64/target.h` deriva `R6_TARGET_WIN64` de `_WIN32`). Un
+  binario emite un solo objetivo: no hay `--target` ni compilación cruzada.
+  El IR, los opcodes y los códigos de diagnóstico son idénticos en ambos;
+  cambian el escritor de objeto y las entradas del enlazador (D-M1-119).
+  Opcodes con lowering: `load_const`, `add`, `sub`, `mul`, `div`, `mod`, `eq`,
+  `ne`, `lt`, `le`, `gt`, `ge`, `jump_if_false`, `label`, `arg`, `and_op`,
+  `or_op`, `not_op`, `neg`, `copy`, `jump`, `load_var`, `decl_var`,
+  `store_var`, `list_create`, `list_push`, `list_len`, `list_get`, `call` y
+  `ret`. Cada opcode solo para las combinaciones validadas en codegen.
   Un opcode no implementado produce error con nombre e instrucción.
-- Emisión nativa: el codegen Win64 baja IR a una representación interna
-  temporal; `asm_win64.c` codifica bytes x86-64 y `coff.c` escribe AMD64 COFF.
-  No genera/parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve
-  símbolos del runtime oficial/CRT. Cada registro IR vive en un slot de 8
-  bytes. Un salto lee los flags de la comparación anterior (D-M1-66),
-  `peephole.c` quita la recarga de un slot recién guardado (D-M1-67) y
-  `regalloc.c` pasa los slots más usados de cada función a rbx, rsi, rdi y
-  r12-r15 (D-M1-68).
+- Emisión nativa: el codegen baja IR a una representación interna temporal;
+  `asm_win64.c` codifica bytes x86-64 y el escritor de objeto es `coff.c`
+  (AMD64 COFF) en Win64 y `elf64.c` (ELF64 ET_REL) en System V. No genera ni
+  parsea C ni llama GCC/GAS al compilar programas. GNU `ld` resuelve símbolos
+  del runtime oficial/CRT. Cada registro IR vive en un slot de 8 bytes. Un
+  salto lee los flags de la comparación anterior (D-M1-66). `peephole.c` quita
+  la recarga de un slot recién guardado (D-M1-67). `regalloc.c` pasa los slots
+  más usados de cada función a los registros que sobreviven a una llamada:
+  siete en Win64 (rbx, rsi, rdi y r12-r15) con nueve vectoriales, y cinco en
+  System V (rbx y r12-r15) sin vectoriales (D-M1-68, D-M1-119).
+- `peephole.c` usa conjuntos de uso y definición de `call` por objetivo. En
+  System V la llamada usa el banco entero de argumentos (`rdi`, `rsi`, `rdx`,
+  `rcx`, `r8`, `r9`) y `xmm0`-`xmm7`. Define todo registro volátil y todo
+  registro vectorial. En Win64 usa los cuatro slots posicionales y
+  `xmm0`-`xmm3`. Ese conjunto conserva la preparación de argumentos en System V
+  (D-M1-119).
 - `load_const` baja literales `Int`/`String`/`Bool`/`Float` y valores de
   función (un `Symbol` que nombra una función del módulo, D-M1-14). Un `Symbol`
   que es `true`/`false`, o un texto numérico con fracción o exponente, es el
@@ -81,7 +94,7 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   `int`/`bool` literales: el pin serializa esos `IRGlobal.value` como String
   decimal (`builder.orb:2288-2304,2333-2338`; `c_backend.orb:1481-1505`). Otros
   globals, params por nombre y captures fallan explícitamente.
-- Listas: Win64 M1 soporta únicamente `list<int>` en `main`, usando
+- Listas: M1 soporta únicamente `list<int>` en `main`, usando
   `list_create` (8-byte slots y `elem_kind=2`), `list_push` int y `list_len`.
   Creación y push llaman `orbit_list_create_typed`/`orbit_list_push_int` del
   runtime fijado. El retorno C `OrbitResult` usa sret; `ok` está en byte 0 y
@@ -95,27 +108,65 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
 - Registros IR son slots de stack con tipo estático; no se promete asignación a
   registros físicos. Argumentos `arg` se encolan hasta `call` y se vacían en
   cada llamada; binding param se baja al prólogo de la función. Se admiten hasta
-  256 parámetros escalares: Win64 ubica posiciones 0–3 en registros y las
-  restantes en slots de 8 bytes a partir de `[rsp+32]`; el callee los recibe
-  desde `[rbp+48]`. Se reserva el área saliente por función y se conserva la
-  alineación de 16 bytes. Se admiten llamadas directas por nombre —target
+  256 parámetros escalares. Win64 ubica las posiciones 0–3 en `rcx`, `rdx`,
+  `r8` y `r9` —un float ocupa uno de esos slots— y las restantes en slots de 8
+  bytes a partir de `[rsp+32]`. El callee las recibe desde `[rbp+48]` y el
+  caller reserva 32 bytes de shadow space. System V llena por separado el banco
+  entero `rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9` y el vectorial `xmm0`-`xmm7`, y
+  solo derrama un argumento cuando su banco se agota. No hay shadow space y el
+  callee lee los argumentos de pila desde `[rbp+16]`. Se reserva el área
+  saliente por función. El marco es `(usados + shadow + pila + 15) & ~15` en
+  ambos objetivos y `chkstk` se emite solo en Win64. Se admiten llamadas
+  directas por nombre —target
   `String` o `Sym`, resuelto a función declarada, constructor de modelo o
   variante de unión (D-M1-18)— y llamadas indirectas por un registro `fn(...)`
   (D-M1-14); un callee void puede llevar destino declarado `void`.
-- ABI externa: C ABI del target. Win64: los primeros cuatro argumentos usan
-  slots posicionales RCX/RDX/R8/R9 o XMM0-XMM3 según su tipo; caller reserva
-  32 bytes de shadow space y mantiene alineación de stack; retorno entero en
-  RAX, float en XMM0. `orbit_print` es `void(const char*)`. Enlace runtime oficial net-only
-  más `-lws2_32`.
-- `main` del módulo se exporta como C `main`; retorno int32 determina exit
-  status. No soportar `main` faltante o duplicado.
+- ABI externa: C ABI del objetivo. Win64: los primeros cuatro argumentos usan
+  slots posicionales `RCX`/`RDX`/`R8`/`R9` o `XMM0`-`XMM3` según su tipo. El
+  caller reserva 32 bytes de shadow space y mantiene la alineación de stack. El
+  retorno entero va en `RAX` y el float en `XMM0`. Siete registros enteros y
+  nueve vectoriales sobreviven a una llamada. System V: el banco entero
+  `rdi`/`rsi`/`rdx`/`rcx`/`r8`/`r9` y el vectorial `xmm0`-`xmm7` se llenan por
+  separado; no hay shadow space; sobreviven cinco registros enteros (`rbx`,
+  `r12`-`r15`) y ningún vectorial; el retorno entero va en `RAX` y el float en
+  `XMM0`. `orbit_print` es `void(const char*)` en ambos. Win64 enlaza el
+  runtime net-only más `-lws2_32`.
+- Enlace Win64: `ld -m i386pep -Bdynamic --stack 16777216`, el objeto del
+  módulo, `--start-group libruntime_net.a [sqlite3.lib] [-lws2_32] -lmingw32
+  -lgcc -lmingwex -lmsvcrt -lkernel32 -ladvapi32 --end-group` y, según la
+  entrada, `crt2.o`/`crtbegin.o`/`crtend.o` o `msvcrt.dll` (D-M1-104). No
+  incluye `user32`, `shell32` ni `pthread`: ningún miembro del runtime ni
+  ningún `extern fn` del pin referencia un símbolo suyo, y cada biblioteca
+  cuesta cerca de 1 ms por enlace (D-M1-122).
+- Enlace Linux: `ld` recibe la opción `-dynamic-linker` con
+  `/lib64/ld-linux-x86-64.so.2` (o `/lib/ld-linux-x86-64.so.2`), y luego
+  `crt1.o`, `crti.o`, `crtbegin.o`, el objeto del módulo, `--as-needed`,
+  `--start-group libruntime_net.a [-lsqlite3] --end-group`,
+  `-lc -lm -ldl -lpthread`, `crtend.o` y `crtn.o`. `--as-needed` deja fuera de
+  `DT_NEEDED` las bibliotecas de las que no sale ningún símbolo; los símbolos y
+  la salida del programa no cambian (D-M1-121). `R6_CRT_DIR` sustituye el
+  directorio de arranque y `R6_LD` el enlazador; `crtbegin.o` y `crtend.o` se
+  buscan bajo `/usr/lib/gcc/x86_64-linux-gnu/*/` cuando el directorio de glibc
+  no los tiene. El directorio del runtime por defecto es
+  `.r6-build/runtime-linux-x64` (D-M1-119).
+- Entrada: Linux conserva siempre `main` y el arranque de glibc; no usa el
+  `orbit_start` propio porque llama a `__set_app_type` de msvcrt y la
+  comprobación de arranque del driver lee una cabecera PE. Win64 usa ese
+  `orbit_start` (D-M1-104) cuando el módulo no tiene argv, red, base de datos
+  ni migraciones, y `main` en caso contrario. Un módulo que conserva `main` lo
+  emite como C `main` y su retorno int32 determina el exit status. No soportar
+  `main` faltante o duplicado.
 
 ## Driver y diagnósticos
 
-- CLI M1: `r6 <input.ir> -o <output.exe>`. Driver escribe archivos temporales
-  solo bajo su build/temp local, invoca el assembler/linker toolchain, borra los
-  temporales al terminar con éxito y los conserva cuando el build falla;
-  conserva la salida solo cuando el link tuvo éxito.
+- CLI M1: `r6 [build] <input.ir> -o <salida> [--runtime-dir <dir>]
+  [--timings]`. La salida es un PE `.exe` en Win64 y un ejecutable ELF en
+  System V. El directorio del runtime es `--runtime-dir`, luego
+  `R6_RUNTIME_DIR`, luego `.r6-build/runtime-win64` en Windows o
+  `.r6-build/runtime-linux-x64` en Linux. El driver escribe archivos temporales
+  solo bajo su build/temp local, invoca GNU `ld`, borra los temporales al
+  completar con éxito y los conserva cuando el build falla; conserva la salida
+  solo cuando el enlace tuvo éxito.
 - Diagnóstico de una línea a stderr:
   `r6: <archivo>:<linea>:<columna>: error[<codigo>]: <mensaje>`; exit no cero.
   Errores de JSON apuntan al token; errores semánticos/codegen, al índice de
@@ -138,10 +189,16 @@ Alternativa descartada: generar C para delegar lowering (prohibido por contrato)
 ## Ensamblador interno
 
 `win64.c` escribe un texto privado con forma de GAS; `peephole.c` y `regalloc.c`
-lo reescriben y `asm_win64.c` lo codifica a bytes para `coff.c`. Ningún
-ensamblador externo lee ni emite instrucciones de un programa. `asm_win64.c`
-acepta solo las formas que emite el selector y rechaza con error cualquier
-instrucción, directiva o marco de unwind distinto; la lista vigente es el
-código de `asm_win64.c`, no un documento. Los registros `.pdata`/`.xdata` salen
-de los offsets reales del prólogo codificado.
+lo reescriben y `asm_win64.c` lo codifica a bytes para `coff.c` (AMD64 COFF) o
+`elf64.c` (ELF64 ET_REL). Ningún ensamblador externo lee ni emite instrucciones
+de un programa. `asm_win64.c` acepta solo las formas que emite el selector y
+rechaza con error cualquier instrucción, directiva o marco de unwind distinto;
+la lista vigente es el código de `asm_win64.c`, no un documento. En Win64 los
+registros `.pdata`/`.xdata` salen de los offsets reales del prólogo codificado.
+El escritor ELF parte del mismo modelo de objeto y emite `.text`, `.rdata` y
+`.data` por nombre, `.note.GNU-stack`, una `.rela.<sección>` por sección con
+relocations, `.symtab` (locales primero), `.strtab` y `.shstrtab`. Un REL32 de
+R6 es `R_X86_64_PC32` contra un símbolo definido y `R_X86_64_PLT32` contra uno
+indefinido, con addend -4; un 32S es `R_X86_64_32S`. Las directivas `.seh_*` se
+parsean y no se escriben: ELF no lleva datos de unwind (D-M1-119).
 
