@@ -154,6 +154,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-124 | the duplicate-function check keeps its scan | rejected |
 | D-M1-125 | the opcode lookup is a hash table | active |
 | D-M1-126 | instruction and value objects are read in one pass | active |
+| D-M1-127 | module, function, model, type and global objects are read in one pass | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5683,4 +5684,71 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   both drivers. Three differ only in the message text for a malformed value
   object, and all three keep `E_SCHEMA` at the same position. Two further
   probes carry an embedded NUL: p2 changes its code and p7 stops compiling.
+- Status: **applied**.
+
+## D-M1-127 - module, function, model, type and global objects are read in one pass
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `parse_function`, `parse_module`, `parse_model`, `parse_type` and
+  `parse_global` each walked their object once for the schema and once per
+  field through `field`. The selfhost IR holds 1,094 function objects with
+  fourteen pairs each, 95 models and 16 globals with three, 419 model fields
+  with two and 4 types with five. A function object cost 497 comparisons in
+  `exact_opt` plus 224 in fifteen `field` scans and `has_key("export")`, 721
+  in total. The module, model, type and global objects cost 135, 30, 85 and
+  30.
+- Decision: the five parsers read each object once through `obj_view`, the
+  helper D-M1-126 added. `has_key`, `exact_opt` and `exact` are deleted. The
+  root object's `exact` call was the last caller of `exact`, so the root now
+  calls `obj_view` with a two-key table and keeps `field` for its two reads.
+  `eq` and `field` stay.
+  Every schema carries a `_Static_assert` against `OBJ_KEYS_MAX = 16`: root 2,
+  module 7, function 15, model 3, model field 2, type 5, global 3, instruction
+  7, value 2. The bound is checked by the compiler, so no count is validated at
+  run time. A lookup now costs one length comparison per schema entry before
+  `memcmp`, up to fifteen for a function object and seven for a module or an
+  instruction.
+  Diagnostic text and order are unchanged for the five schemas and the root.
+  Eighteen hand-written IRs cover a value that is not an object, an unknown
+  key, a missing required key, a duplicate known key, a duplicate unknown key
+  and a route mismatch. Seventeen print the same line from both drivers. The
+  eighteenth carries an embedded NUL, `"name\u0000x"` after `"name"`:
+  `E_DUPLICATE duplicate object key` becomes `E_SCHEMA unexpected object key`,
+  the class D-M1-126 records, at the same position.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Load run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`F519001C…F55B`) | 324.215, 324.052, 313.921 | 324.052 | 303.897-380.093 |
+  | one pass (`E5535AA4…783E`) | 317.147, 311.153, 312.081 | 312.081 | 302.529-415.666 |
+
+  The median drops by 11.971 ms, 3.7% of the before median. That is inside the
+  run-to-run spread of this machine, so the loader group is measured by an
+  interleaved A/B instead: seven iterations per driver, alternating the Task 0
+  driver `2D7A55A9…BCF4` and `E5535AA4…783E` on the same IR.
+
+  | Driver | Load median (ms) | Rep range |
+  |---|---:|---:|
+  | before, original loader (`2D7A55A9…BCF4`) | 536.613 | 521.433-682.366 |
+  | after (`E5535AA4…783E`) | 310.525 | 302.670-316.476 |
+
+  The group drop is 226.088 ms against an acceptance of 65.6 ms, and the two
+  rep ranges do not overlap. Measured against the D-M1-125 before median of
+  490.460 ms the drop is 178.379 ms.
+
+  No stage regressed outside its before rep range. Codegen's 3-run median is
+  5.793 ms higher while its rep ranges overlap (before 243.543-345.492, after
+  249.947-290.701), and the emitted bytes are identical.
+
+  The emitted bytes are unchanged. The `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
 - Status: **applied**.

@@ -84,8 +84,6 @@ static JNode *compound(Parser*p,JKind k){char end=k==J_OBJ?'}':']';take(p);JNode
 static JNode *value(Parser*p){ws(p);char c=peek(p);if(c=='{')return compound(p,J_OBJ);if(c=='[')return compound(p,J_ARR);if(c=='"')return string_node(p);JKind k;const char*lit;if(c=='t'){k=J_TRUE;lit="true";}else if(c=='f'){k=J_FALSE;lit="false";}else if(c=='n'){k=J_NULL;lit="null";}else if(c=='-'||(c>='0'&&c<='9')){JNode*x=node(p,J_NUM);size_t st=p->i;if(c=='-')take(p);if(peek(p)=='0'){take(p);if(peek(p)>='0'&&peek(p)<='9'){jfree(x);fail(p,"E_JSON","leading zero in number");return NULL;}}else{if(peek(p)<'1'||peek(p)>'9'){jfree(x);fail(p,"E_JSON","invalid number");return NULL;}while(peek(p)>='0'&&peek(p)<='9')take(p);}if(peek(p)=='.'){take(p);if(peek(p)<'0'||peek(p)>'9'){jfree(x);fail(p,"E_JSON","fraction requires digits");return NULL;}while(peek(p)>='0'&&peek(p)<='9')take(p);}if(peek(p)=='e'||peek(p)=='E'){take(p);if(peek(p)=='+'||peek(p)=='-')take(p);if(peek(p)<'0'||peek(p)>'9'){jfree(x);fail(p,"E_JSON","exponent requires digits");return NULL;}while(peek(p)>='0'&&peek(p)<='9')take(p);}size_t n=p->i-st;x->s=arena_alloc(p,n+1);if(!x->s){jfree(x);fail(p,"E_MEMORY","out of memory");return NULL;}memcpy(x->s,p->p+st,n);x->s[n]=0;return x;}else{fail(p,"E_JSON","unexpected token");return NULL;}size_t n=strlen(lit);for(size_t i=0;i<n;i++)if(take(p)!=lit[i]){fail(p,"E_JSON","invalid literal");return NULL;}return node(p,k);}
 static bool eq(const JNode*x,const char*s){return x&&x->kind==J_STR&&x->slen==strlen(s)&&!memcmp(x->s,s,x->slen);}
 static JNode *field(Parser*p,JNode*x,const char*k){if(!x||x->kind!=J_OBJ){fail(p,"E_SCHEMA","expected object");return NULL;}JNode*r=NULL;for(size_t i=0;i<x->n;i+=2)if(eq(x->v[i],k)){if(r){fail(p,"E_DUPLICATE","duplicate object key");return NULL;}r=x->v[i+1];}if(!r){char b[160];snprintf(b,sizeof b,"missing field '%s'",k);fail(p,"E_SCHEMA",b);}return r;}
-static bool exact_opt(Parser*p,JNode*x,const char*const*keys,size_t n,size_t req){if(!x||x->kind!=J_OBJ){fail(p,"E_SCHEMA","expected object");return false;}for(size_t i=0;i<x->n;i+=2){for(size_t j=0;j<i;j+=2)if(x->v[i]->kind==J_STR&&x->v[j]->kind==J_STR&&!strcmp(x->v[i]->s,x->v[j]->s)){fail(p,"E_DUPLICATE","duplicate object key");return false;}bool found=false;for(size_t j=0;j<n;j++)if(eq(x->v[i],keys[j]))found=true;if(!found){fail(p,"E_SCHEMA","unexpected object key");return false;}}for(size_t j=0;j<req;j++){bool found=false;for(size_t i=0;i<x->n;i+=2)if(eq(x->v[i],keys[j]))found=true;if(!found){fail(p,"E_SCHEMA","required object key missing");return false;}}return true;}
-static bool has_key(JNode*x,const char*k){for(size_t i=0;i<x->n;i+=2)if(eq(x->v[i],k))return true;return false;}
 /* D-M1-126: instruction and value objects were walked once for the schema and
  * again per field. One pass records each value by index. */
 typedef struct {
@@ -141,7 +139,12 @@ static bool obj_view(Parser *p, JNode *x, const Key *keys, size_t count,
     return true;
 }
 
-static bool exact(Parser*p,JNode*x,const char*const*keys,size_t n){return exact_opt(p,x,keys,n,n);}
+/* D-M1-127: the root object's view checks the schema and its two required
+ * keys; the reads stay on `field`, which no other parser calls. */
+enum { ROOT_IRVERSION, ROOT_MODULE, ROOT_KEY_COUNT };
+static const Key root_keys[ROOT_KEY_COUNT] = { KEY("irVersion"), KEY("module") };
+_Static_assert(ROOT_KEY_COUNT <= OBJ_KEYS_MAX, "root schema exceeds the view");
+
 static bool arr(Parser*p,JNode*x){if(!x||x->kind!=J_ARR){fail(p,"E_SCHEMA","expected array");return false;}return true;}
 static bool str(Parser*p,JNode*x,char**out){if(!x||x->kind!=J_STR){fail(p,"E_SCHEMA","expected string");return false;}*out=dupstr(x->s);if(!*out){fail(p,"E_MEMORY","out of memory");return false;}return true;}
 static bool number(Parser*p,JNode*x,int64_t lo,int64_t hi,int64_t*out){if(!x||x->kind!=J_NUM){fail(p,"E_SCHEMA","expected integer");return false;}for(const char*q=x->s;*q;q++)if(*q=='.'||*q=='e'||*q=='E'){fail(p,"E_SCHEMA","integer value has a fraction or exponent");return false;}char*end;errno=0;long long n=strtoll(x->s,&end,10);if(errno||*end||n<lo||n>hi){fail(p,"E_RANGE","integer outside allowed range");return false;}*out=(int64_t)n;return true;}
@@ -149,6 +152,7 @@ static bool boolean(Parser*p,JNode*x,bool*out){if(x&&x->kind==J_TRUE){*out=true;
 static bool float_bits(Parser*p,JNode*x,uint64_t*out){if(!x||x->kind!=J_NUM){fail(p,"E_SCHEMA","expected float value");return false;}char*end;errno=0;double v=strtod(x->s,&end);if(*end||!isfinite(v)){fail(p,"E_RANGE","float value must be finite");return false;}memcpy(out,&v,sizeof v);return true;}
 enum { V_KIND, V_VALUE, V_KEY_COUNT };
 static const Key value_keys[V_KEY_COUNT] = { KEY("kind"), KEY("value") };
+_Static_assert(V_KEY_COUNT <= OBJ_KEYS_MAX, "value schema exceeds the view");
 
 static bool parse_value(Parser*p,JNode*x,R6Value*out){
     static const char*const kinds[]={"Int","Float","String","Sym","Bool","Register","Label","None"};
@@ -173,6 +177,7 @@ static const Key instruction_keys[I_KEY_COUNT] = {
     KEY("opcode"), KEY("dest"), KEY("operand1"), KEY("operand2"),
     KEY("operand3"), KEY("elemKind"), KEY("line")
 };
+_Static_assert(I_KEY_COUNT <= OBJ_KEYS_MAX, "instruction schema exceeds the view");
 
 static bool parse_instruction(Parser *p, JNode *x, R6Instruction *i) {
     ObjView ov;
@@ -213,11 +218,141 @@ static bool parse_instruction(Parser *p, JNode *x, R6Instruction *i) {
     i->column = x->col;
     return true;
 }
-static bool parse_function(Parser*p,JNode*x,R6Function*f){static const char*const keys[]={"name","params","paramTypes","instructions","registerCount","registerTypes","returnType","isExtern","routeMethod","routePath","routeHasLimit","routeLimitRate","routeLimitWindowMs","routeLimitBurst","export"};if(!exact_opt(p,x,keys,15,14))return false;size_t pt_len=0;int64_t z;if(!str(p,field(p,x,"name"),&f->name)||!strings(p,field(p,x,"params"),&f->params,&f->param_count)||!strings(p,field(p,x,"paramTypes"),&f->param_types,&pt_len))return false;if(pt_len!=f->param_count){fail(p,"E_SCHEMA","params and paramTypes length mismatch");return false;}JNode*ins=field(p,x,"instructions");if(!arr(p,ins))return false;f->instruction_count=ins->n;f->instructions=calloc(ins->n?ins->n:1,sizeof*f->instructions);if(!f->instructions){fail(p,"E_MEMORY","out of memory");return false;}for(size_t k=0;k<ins->n;k++)if(!parse_instruction(p,ins->v[k],&f->instructions[k]))return false;if(!number(p,field(p,x,"registerCount"),0,INT32_MAX,&z))return false;f->register_count=(int32_t)z;if(!strings(p,field(p,x,"registerTypes"),&f->register_types,&f->register_type_count))return false;if(f->register_type_count!=(size_t)f->register_count){fail(p,"E_SCHEMA","registerCount and registerTypes length mismatch");return false;}if(!str(p,field(p,x,"returnType"),&f->return_type)||!boolean(p,field(p,x,"isExtern"),&f->is_extern))return false;if(has_key(x,"export")&&!boolean(p,field(p,x,"export"),&f->is_export))return false;if(!str(p,field(p,x,"routeMethod"),&f->route.method)||!str(p,field(p,x,"routePath"),&f->route.path)||!boolean(p,field(p,x,"routeHasLimit"),&f->route.has_limit))return false;if(!number(p,field(p,x,"routeLimitRate"),INT32_MIN,INT32_MAX,&f->route.limit_rate)||!number(p,field(p,x,"routeLimitWindowMs"),INT32_MIN,INT32_MAX,&f->route.limit_window_ms)||!number(p,field(p,x,"routeLimitBurst"),INT32_MIN,INT32_MAX,&f->route.limit_burst))return false;bool plain=!f->route.method[0],empty_path=!f->route.path[0];if(plain!=empty_path||(plain&&(f->route.has_limit||f->route.limit_rate||f->route.limit_window_ms||f->route.limit_burst))){fail(p,"E_SCHEMA","route fields are inconsistent");return false;}f->has_route=!plain;return true;}
-static bool parse_model(Parser*p,JNode*x,R6Model*m){static const char*const keys[]={"name","fields","typeParams"};static const char*const fk[]={"name","typeName"};if(!exact(p,x,keys,3)||!str(p,field(p,x,"name"),&m->name))return false;JNode*fs=field(p,x,"fields");if(!arr(p,fs))return false;m->field_count=fs->n;m->fields=calloc(fs->n?fs->n:1,sizeof*m->fields);if(!m->fields){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<fs->n;i++){JNode*y=fs->v[i];if(!exact(p,y,fk,2)||!str(p,field(p,y,"name"),&m->fields[i].name)||!str(p,field(p,y,"typeName"),&m->fields[i].type_name))return false;}if(!strings(p,field(p,x,"typeParams"),&m->type_params,&m->type_param_count))return false;if(m->type_param_count){fail(p,"E_UNSPECIFIED","generic model parameters are UNSPECIFIED");return false;}return true;}
-static bool parse_type(Parser*p,JNode*x,R6Type*t){static const char*const keys[]={"name","kind","variants","richVariants","methods"};if(!exact(p,x,keys,5)||!str(p,field(p,x,"name"),&t->name)||!str(p,field(p,x,"kind"),&t->kind)||!strings(p,field(p,x,"variants"),&t->variants,&t->variant_count)||!strings(p,field(p,x,"richVariants"),&t->rich_variants,&t->rich_variant_count)||!strings(p,field(p,x,"methods"),&t->methods,&t->method_count))return false;if(t->method_count){fail(p,"E_UNSPECIFIED","type methods are UNSPECIFIED");return false;}return true;}
-static bool parse_global(Parser*p,JNode*x,R6Global*g){static const char*const keys[]={"name","value","typeName"};if(!exact(p,x,keys,3)||!str(p,field(p,x,"name"),&g->name)||!parse_value(p,field(p,x,"value"),&g->value)||!str(p,field(p,x,"typeName"),&g->type_name))return false;return true;}
-static bool parse_module(Parser*p,JNode*x,R6Module*m){static const char*const keys[]={"functions","globals","models","types","migrations","sourceName","runtimeModule"};if(!exact_opt(p,x,keys,7,5))return false;if(has_key(x,"runtimeModule")&&!boolean(p,field(p,x,"runtimeModule"),&m->runtime_module))return false;if(has_key(x,"sourceName")){if(!str(p,field(p,x,"sourceName"),&m->source_name))return false;}else{m->source_name=dupstr("");if(!m->source_name){fail(p,"E_MEMORY","out of memory");return false;}}JNode*a=field(p,x,"functions");if(!arr(p,a))return false;m->function_count=a->n;m->functions=calloc(a->n?a->n:1,sizeof*m->functions);if(!m->functions){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<a->n;i++)if(!parse_function(p,a->v[i],&m->functions[i]))return false;a=field(p,x,"globals");if(!arr(p,a))return false;m->global_count=a->n;m->globals=calloc(a->n?a->n:1,sizeof*m->globals);if(!m->globals){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<a->n;i++)if(!parse_global(p,a->v[i],&m->globals[i]))return false;a=field(p,x,"models");if(!arr(p,a))return false;m->model_count=a->n;m->models=calloc(a->n?a->n:1,sizeof*m->models);if(!m->models){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<a->n;i++)if(!parse_model(p,a->v[i],&m->models[i]))return false;a=field(p,x,"types");if(!arr(p,a))return false;m->type_count=a->n;m->types=calloc(a->n?a->n:1,sizeof*m->types);if(!m->types){fail(p,"E_MEMORY","out of memory");return false;}for(size_t i=0;i<a->n;i++)if(!parse_type(p,a->v[i],&m->types[i]))return false;if(!strings(p,field(p,x,"migrations"),&m->migrations,&m->migration_count))return false;return true;}
+enum {
+    F_NAME, F_PARAMS, F_PARAMTYPES, F_INSTRUCTIONS, F_REGISTERCOUNT,
+    F_REGISTERTYPES, F_RETURNTYPE, F_ISEXTERN, F_ROUTEMETHOD, F_ROUTEPATH,
+    F_ROUTEHASLIMIT, F_ROUTELIMITRATE, F_ROUTELIMITWINDOWMS,
+    F_ROUTELIMITBURST, F_EXPORT, F_KEY_COUNT
+};
+static const Key function_keys[F_KEY_COUNT] = {
+    KEY("name"), KEY("params"), KEY("paramTypes"), KEY("instructions"),
+    KEY("registerCount"), KEY("registerTypes"), KEY("returnType"),
+    KEY("isExtern"), KEY("routeMethod"), KEY("routePath"), KEY("routeHasLimit"),
+    KEY("routeLimitRate"), KEY("routeLimitWindowMs"), KEY("routeLimitBurst"),
+    KEY("export")
+};
+_Static_assert(F_KEY_COUNT <= OBJ_KEYS_MAX, "function schema exceeds the view");
+
+enum { M_NAME, M_FIELDS, M_TYPEPARAMS, M_KEY_COUNT };
+static const Key model_keys[M_KEY_COUNT] = {
+    KEY("name"), KEY("fields"), KEY("typeParams")
+};
+_Static_assert(M_KEY_COUNT <= OBJ_KEYS_MAX, "model schema exceeds the view");
+enum { MF_NAME, MF_TYPENAME, MF_KEY_COUNT };
+static const Key model_field_keys[MF_KEY_COUNT] = {
+    KEY("name"), KEY("typeName")
+};
+_Static_assert(MF_KEY_COUNT <= OBJ_KEYS_MAX, "model field schema exceeds the view");
+
+enum {
+    T_NAME, T_KIND, T_VARIANTS, T_RICHVARIANTS, T_METHODS, T_KEY_COUNT
+};
+static const Key type_keys[T_KEY_COUNT] = {
+    KEY("name"), KEY("kind"), KEY("variants"), KEY("richVariants"), KEY("methods")
+};
+_Static_assert(T_KEY_COUNT <= OBJ_KEYS_MAX, "type schema exceeds the view");
+
+enum { G_NAME, G_VALUE, G_TYPENAME, G_KEY_COUNT };
+static const Key global_keys[G_KEY_COUNT] = {
+    KEY("name"), KEY("value"), KEY("typeName")
+};
+_Static_assert(G_KEY_COUNT <= OBJ_KEYS_MAX, "global schema exceeds the view");
+
+enum {
+    MOD_FUNCTIONS, MOD_GLOBALS, MOD_MODELS, MOD_TYPES, MOD_MIGRATIONS,
+    MOD_SOURCENAME, MOD_RUNTIMEMODULE, MOD_KEY_COUNT
+};
+static const Key module_keys[MOD_KEY_COUNT] = {
+    KEY("functions"), KEY("globals"), KEY("models"), KEY("types"),
+    KEY("migrations"), KEY("sourceName"), KEY("runtimeModule")
+};
+_Static_assert(MOD_KEY_COUNT <= OBJ_KEYS_MAX, "module schema exceeds the view");
+
+static bool parse_function(Parser*p,JNode*x,R6Function*f){
+    ObjView ov;
+    size_t pt_len=0;
+    int64_t z;
+    JNode*ins;
+    if(!obj_view(p,x,function_keys,F_KEY_COUNT,14,&ov))return false;
+    if(!str(p,ov.v[F_NAME],&f->name)||!strings(p,ov.v[F_PARAMS],&f->params,&f->param_count)||!strings(p,ov.v[F_PARAMTYPES],&f->param_types,&pt_len))return false;
+    if(pt_len!=f->param_count){fail(p,"E_SCHEMA","params and paramTypes length mismatch");return false;}
+    ins=ov.v[F_INSTRUCTIONS];
+    if(!arr(p,ins))return false;
+    f->instruction_count=ins->n;
+    f->instructions=calloc(ins->n?ins->n:1,sizeof*f->instructions);
+    if(!f->instructions){fail(p,"E_MEMORY","out of memory");return false;}
+    for(size_t k=0;k<ins->n;k++)if(!parse_instruction(p,ins->v[k],&f->instructions[k]))return false;
+    if(!number(p,ov.v[F_REGISTERCOUNT],0,INT32_MAX,&z))return false;
+    f->register_count=(int32_t)z;
+    if(!strings(p,ov.v[F_REGISTERTYPES],&f->register_types,&f->register_type_count))return false;
+    if(f->register_type_count!=(size_t)f->register_count){fail(p,"E_SCHEMA","registerCount and registerTypes length mismatch");return false;}
+    if(!str(p,ov.v[F_RETURNTYPE],&f->return_type)||!boolean(p,ov.v[F_ISEXTERN],&f->is_extern))return false;
+    if((ov.present&(1u<<F_EXPORT))&&!boolean(p,ov.v[F_EXPORT],&f->is_export))return false;
+    if(!str(p,ov.v[F_ROUTEMETHOD],&f->route.method)||!str(p,ov.v[F_ROUTEPATH],&f->route.path)||!boolean(p,ov.v[F_ROUTEHASLIMIT],&f->route.has_limit))return false;
+    if(!number(p,ov.v[F_ROUTELIMITRATE],INT32_MIN,INT32_MAX,&f->route.limit_rate)||!number(p,ov.v[F_ROUTELIMITWINDOWMS],INT32_MIN,INT32_MAX,&f->route.limit_window_ms)||!number(p,ov.v[F_ROUTELIMITBURST],INT32_MIN,INT32_MAX,&f->route.limit_burst))return false;
+    bool plain=!f->route.method[0],empty_path=!f->route.path[0];
+    if(plain!=empty_path||(plain&&(f->route.has_limit||f->route.limit_rate||f->route.limit_window_ms||f->route.limit_burst))){fail(p,"E_SCHEMA","route fields are inconsistent");return false;}
+    f->has_route=!plain;
+    return true;
+}
+static bool parse_model(Parser*p,JNode*x,R6Model*m){
+    ObjView ov,fov;
+    JNode*fs;
+    if(!obj_view(p,x,model_keys,M_KEY_COUNT,3,&ov)||!str(p,ov.v[M_NAME],&m->name))return false;
+    fs=ov.v[M_FIELDS];
+    if(!arr(p,fs))return false;
+    m->field_count=fs->n;
+    m->fields=calloc(fs->n?fs->n:1,sizeof*m->fields);
+    if(!m->fields){fail(p,"E_MEMORY","out of memory");return false;}
+    for(size_t i=0;i<fs->n;i++){JNode*y=fs->v[i];if(!obj_view(p,y,model_field_keys,MF_KEY_COUNT,2,&fov)||!str(p,fov.v[MF_NAME],&m->fields[i].name)||!str(p,fov.v[MF_TYPENAME],&m->fields[i].type_name))return false;}
+    if(!strings(p,ov.v[M_TYPEPARAMS],&m->type_params,&m->type_param_count))return false;
+    if(m->type_param_count){fail(p,"E_UNSPECIFIED","generic model parameters are UNSPECIFIED");return false;}
+    return true;
+}
+static bool parse_type(Parser*p,JNode*x,R6Type*t){
+    ObjView ov;
+    if(!obj_view(p,x,type_keys,T_KEY_COUNT,5,&ov)||!str(p,ov.v[T_NAME],&t->name)||!str(p,ov.v[T_KIND],&t->kind)||!strings(p,ov.v[T_VARIANTS],&t->variants,&t->variant_count)||!strings(p,ov.v[T_RICHVARIANTS],&t->rich_variants,&t->rich_variant_count)||!strings(p,ov.v[T_METHODS],&t->methods,&t->method_count))return false;
+    if(t->method_count){fail(p,"E_UNSPECIFIED","type methods are UNSPECIFIED");return false;}
+    return true;
+}
+static bool parse_global(Parser*p,JNode*x,R6Global*g){
+    ObjView ov;
+    if(!obj_view(p,x,global_keys,G_KEY_COUNT,3,&ov)||!str(p,ov.v[G_NAME],&g->name)||!parse_value(p,ov.v[G_VALUE],&g->value)||!str(p,ov.v[G_TYPENAME],&g->type_name))return false;
+    return true;
+}
+static bool parse_module(Parser*p,JNode*x,R6Module*m){
+    ObjView ov;
+    JNode*a;
+    if(!obj_view(p,x,module_keys,MOD_KEY_COUNT,5,&ov))return false;
+    if((ov.present&(1u<<MOD_RUNTIMEMODULE))&&!boolean(p,ov.v[MOD_RUNTIMEMODULE],&m->runtime_module))return false;
+    if(ov.present&(1u<<MOD_SOURCENAME)){if(!str(p,ov.v[MOD_SOURCENAME],&m->source_name))return false;}else{m->source_name=dupstr("");if(!m->source_name){fail(p,"E_MEMORY","out of memory");return false;}}
+    a=ov.v[MOD_FUNCTIONS];
+    if(!arr(p,a))return false;
+    m->function_count=a->n;
+    m->functions=calloc(a->n?a->n:1,sizeof*m->functions);
+    if(!m->functions){fail(p,"E_MEMORY","out of memory");return false;}
+    for(size_t i=0;i<a->n;i++)if(!parse_function(p,a->v[i],&m->functions[i]))return false;
+    a=ov.v[MOD_GLOBALS];
+    if(!arr(p,a))return false;
+    m->global_count=a->n;
+    m->globals=calloc(a->n?a->n:1,sizeof*m->globals);
+    if(!m->globals){fail(p,"E_MEMORY","out of memory");return false;}
+    for(size_t i=0;i<a->n;i++)if(!parse_global(p,a->v[i],&m->globals[i]))return false;
+    a=ov.v[MOD_MODELS];
+    if(!arr(p,a))return false;
+    m->model_count=a->n;
+    m->models=calloc(a->n?a->n:1,sizeof*m->models);
+    if(!m->models){fail(p,"E_MEMORY","out of memory");return false;}
+    for(size_t i=0;i<a->n;i++)if(!parse_model(p,a->v[i],&m->models[i]))return false;
+    a=ov.v[MOD_TYPES];
+    if(!arr(p,a))return false;
+    m->type_count=a->n;
+    m->types=calloc(a->n?a->n:1,sizeof*m->types);
+    if(!m->types){fail(p,"E_MEMORY","out of memory");return false;}
+    for(size_t i=0;i<a->n;i++)if(!parse_type(p,a->v[i],&m->types[i]))return false;
+    if(!strings(p,ov.v[MOD_MIGRATIONS],&m->migrations,&m->migration_count))return false;
+    return true;
+}
 
 /* D-M1-64: validation finds functions by name and labels by number through
  * hash tables built once, instead of scanning the module for every call and
@@ -243,4 +378,4 @@ static bool validate_module(Parser*p,R6Module*m,const FnIndex*fx,LabelSet*ls){fo
 static bool validate(Parser*p,R6Module*m){FnIndex fx={NULL,0};LabelSet ls={NULL,NULL,0,0};bool dup=false,ok;if(!fn_index_build(&fx,m,&dup)){fail(p,"E_MEMORY","out of memory");fn_index_free(&fx);return false;}if(dup){fail(p,"E_DUPLICATE","duplicate function name");fn_index_free(&fx);return false;}ok=validate_module(p,m,&fx,&ls);fn_index_free(&fx);label_set_free(&ls);return ok;}
 void r6_module_free(R6Module*m){if(!m)return;free(m->source_name);for(size_t f=0;f<m->function_count;f++){R6Function*x=&m->functions[f];free(x->name);for(size_t i=0;i<x->param_count;i++){free(x->params[i]);free(x->param_types[i]);}free(x->params);free(x->param_types);for(size_t i=0;i<x->instruction_count;i++)for(int a=0;a<3;a++)if(x->instructions[i].operands[a].kind==R6_VAL_STRING||x->instructions[i].operands[a].kind==R6_VAL_SYMBOL)free(x->instructions[i].operands[a].as.string);free(x->instructions);for(size_t i=0;i<x->register_type_count;i++)free(x->register_types[i]);free(x->register_types);free(x->return_type);free(x->route.method);free(x->route.path);}free(m->functions);for(size_t i=0;i<m->global_count;i++){free(m->globals[i].name);free(m->globals[i].type_name);if(m->globals[i].value.kind==R6_VAL_STRING||m->globals[i].value.kind==R6_VAL_SYMBOL)free(m->globals[i].value.as.string);}free(m->globals);for(size_t i=0;i<m->model_count;i++){free(m->models[i].name);for(size_t j=0;j<m->models[i].field_count;j++){free(m->models[i].fields[j].name);free(m->models[i].fields[j].type_name);}free(m->models[i].fields);for(size_t j=0;j<m->models[i].type_param_count;j++)free(m->models[i].type_params[j]);free(m->models[i].type_params);}free(m->models);for(size_t i=0;i<m->type_count;i++){R6Type*t=&m->types[i];free(t->name);free(t->kind);for(size_t j=0;j<t->variant_count;j++)free(t->variants[j]);for(size_t j=0;j<t->rich_variant_count;j++)free(t->rich_variants[j]);for(size_t j=0;j<t->method_count;j++)free(t->methods[j]);free(t->variants);free(t->rich_variants);free(t->methods);}free(m->types);for(size_t i=0;i<m->migration_count;i++)free(m->migrations[i]);free(m->migrations);memset(m,0,sizeof*m);}
 static bool elision_marker(const char*data,size_t n){for(size_t i=0;i+4<n;i++)if((unsigned char)data[i]==0xe2&&(unsigned char)data[i+1]==0x80&&(unsigned char)data[i+2]==0xa6&&data[i+3]=='['){size_t j=i+4;while(j<n&&data[j]>='0'&&data[j]<='9')j++;if(j>i+4&&j+7<=n&&!memcmp(data+j," chars]",7))return true;}return false;}
-bool r6_ir_parse(const char*data,size_t length,R6Module*out,R6Diagnostic*d){if(!out||(!data&&length))return false;memset(out,0,sizeof*out);if(d)memset(d,0,sizeof*d);Parser p={data,length,0,1,1,d,NULL};if(!length||data[length-1]!='\n'){fail(&p,"E_JSON","document must end with LF");return false;}if(length>=3&&(unsigned char)data[0]==0xef&&(unsigned char)data[1]==0xbb&&(unsigned char)data[2]==0xbf){fail(&p,"E_JSON","UTF-8 BOM is not allowed");return false;}if(elision_marker(data,length)){fail(&p,"E_JSON","document contains an authoring-tool elision marker");return false;}JNode*root=value(&p);if(root){ws(&p);if(p.i!=p.n){fail(&p,"E_JSON","trailing bytes after root value");root=NULL;}}if(!root){arena_free(&p);return false;}bool ok=true;if(root->kind==J_OBJ)for(size_t i=0;i<root->n;i+=2)if(eq(root->v[i],"format")){fail(&p,"E_FORMAT","superseded R6 draft format; expected irVersion + module");ok=false;}if(ok){static const char*const rk[]={"irVersion","module"};ok=exact(&p,root,rk,2);if(ok&&!eq(field(&p,root,"irVersion"),"1")){fail(&p,"E_VERSION","unsupported IR version (R6 supports the string \"1\")");ok=false;}if(ok)ok=parse_module(&p,field(&p,root,"module"),out);}if(ok)ok=validate(&p,out);arena_free(&p);if(!ok)r6_module_free(out);return ok;}
+bool r6_ir_parse(const char*data,size_t length,R6Module*out,R6Diagnostic*d){if(!out||(!data&&length))return false;memset(out,0,sizeof*out);if(d)memset(d,0,sizeof*d);Parser p={data,length,0,1,1,d,NULL};if(!length||data[length-1]!='\n'){fail(&p,"E_JSON","document must end with LF");return false;}if(length>=3&&(unsigned char)data[0]==0xef&&(unsigned char)data[1]==0xbb&&(unsigned char)data[2]==0xbf){fail(&p,"E_JSON","UTF-8 BOM is not allowed");return false;}if(elision_marker(data,length)){fail(&p,"E_JSON","document contains an authoring-tool elision marker");return false;}JNode*root=value(&p);if(root){ws(&p);if(p.i!=p.n){fail(&p,"E_JSON","trailing bytes after root value");root=NULL;}}if(!root){arena_free(&p);return false;}bool ok=true;if(root->kind==J_OBJ)for(size_t i=0;i<root->n;i+=2)if(eq(root->v[i],"format")){fail(&p,"E_FORMAT","superseded R6 draft format; expected irVersion + module");ok=false;}if(ok){ObjView rov;ok=obj_view(&p,root,root_keys,ROOT_KEY_COUNT,2,&rov);if(ok&&!eq(field(&p,root,"irVersion"),"1")){fail(&p,"E_VERSION","unsupported IR version (R6 supports the string \"1\")");ok=false;}if(ok)ok=parse_module(&p,field(&p,root,"module"),out);}if(ok)ok=validate(&p,out);arena_free(&p);if(!ok)r6_module_free(out);return ok;}
