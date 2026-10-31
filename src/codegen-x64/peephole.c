@@ -165,14 +165,73 @@ static const char *const G64[16] = {"rax", "rcx", "rdx", "rbx", "rsp", "rbp", "r
                                     "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15"};
 static const char *const G32[16] = {"eax", "ecx",  "edx",  "ebx",  "esp",  "ebp",  "esi",  "edi",
                                     "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"};
-static const char *const G8[16] = {"al",  "cl",  "dl",   "bl",   "spl",  "bpl",  "sil",  "dil",
-                                   "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b"};
+
+typedef struct {
+    const char *name;
+    uint8_t len;
+    int8_t width;
+    int8_t id;
+} RegName;
+
+#define RNAME(n, w, i) { n, (uint8_t)(sizeof(n) - 1), w, i }
+
+static const RegName REG_NAMES[48] = {
+    RNAME("rax", 64, 0), RNAME("rcx", 64, 1), RNAME("rdx", 64, 2), RNAME("rbx", 64, 3),
+    RNAME("rsp", 64, 4), RNAME("rbp", 64, 5), RNAME("rsi", 64, 6), RNAME("rdi", 64, 7),
+    RNAME("r8", 64, 8), RNAME("r9", 64, 9), RNAME("r10", 64, 10), RNAME("r11", 64, 11),
+    RNAME("r12", 64, 12), RNAME("r13", 64, 13), RNAME("r14", 64, 14), RNAME("r15", 64, 15),
+    RNAME("eax", 32, 0), RNAME("ecx", 32, 1), RNAME("edx", 32, 2), RNAME("ebx", 32, 3),
+    RNAME("esp", 32, 4), RNAME("ebp", 32, 5), RNAME("esi", 32, 6), RNAME("edi", 32, 7),
+    RNAME("r8d", 32, 8), RNAME("r9d", 32, 9), RNAME("r10d", 32, 10), RNAME("r11d", 32, 11),
+    RNAME("r12d", 32, 12), RNAME("r13d", 32, 13), RNAME("r14d", 32, 14), RNAME("r15d", 32, 15),
+    RNAME("al", 8, 0), RNAME("cl", 8, 1), RNAME("dl", 8, 2), RNAME("bl", 8, 3),
+    RNAME("spl", 8, 4), RNAME("bpl", 8, 5), RNAME("sil", 8, 6), RNAME("dil", 8, 7),
+    RNAME("r8b", 8, 8), RNAME("r9b", 8, 9), RNAME("r10b", 8, 10), RNAME("r11b", 8, 11),
+    RNAME("r12b", 8, 12), RNAME("r13b", 8, 13), RNAME("r14b", 8, 14), RNAME("r15b", 8, 15)
+};
+
+static uint32_t token_hash(const char *s, size_t n) {
+    uint32_t h = 2166136261u;
+    size_t i;
+    for (i = 0; i < n; ++i) {
+        h ^= (unsigned char)s[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int reg_token_lookup(const char *s, size_t n) {
+    static int16_t slots[128];
+    static bool ready;
+    uint32_t h;
+    if (!ready) {
+        int i;
+        for (i = 0; i < 128; ++i) slots[i] = -1;
+        for (i = 0; i < 48; ++i) {
+            h = token_hash(REG_NAMES[i].name, REG_NAMES[i].len) & 127u;
+            while (slots[h] >= 0) h = (h + 1u) & 127u;
+            slots[h] = (int16_t)i;
+        }
+        ready = true;
+    }
+    h = token_hash(s, n) & 127u;
+    while (slots[h] >= 0) {
+        const RegName *r = &REG_NAMES[slots[h]];
+        if (r->len == n && memcmp(r->name, s, n) == 0) return slots[h];
+        h = (h + 1u) & 127u;
+    }
+    return -1;
+}
 
 /* Register of a token written after `%`: its number and width, -2 for a name
  * that is not a general register but harmless (xmm, rip), -1 for an unknown. */
 static int token_reg(const char *s, size_t n, int *width) {
-    int r;
+    int k = reg_token_lookup(s, n);
     *width = 0;
+    if (k >= 0) {
+        *width = REG_NAMES[k].width;
+        return REG_NAMES[k].id;
+    }
     if (n >= 4 && n <= 5 && memcmp(s, "xmm", 3) == 0) {
         int v = 0;
         size_t d;
@@ -185,20 +244,6 @@ static int token_reg(const char *s, size_t n, int *width) {
         return 16 + v;
     }
     if (n == 3 && memcmp(s, "rip", 3) == 0) return -2;
-    for (r = 0; r < 16; ++r) {
-        if (strlen(G64[r]) == n && memcmp(G64[r], s, n) == 0) {
-            *width = 64;
-            return r;
-        }
-        if (strlen(G32[r]) == n && memcmp(G32[r], s, n) == 0) {
-            *width = 32;
-            return r;
-        }
-        if (strlen(G8[r]) == n && memcmp(G8[r], s, n) == 0) {
-            *width = 8;
-            return r;
-        }
-    }
     return -1;
 }
 

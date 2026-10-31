@@ -155,6 +155,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-125 | the opcode lookup is a hash table | active |
 | D-M1-126 | instruction and value objects are read in one pass | active |
 | D-M1-127 | module, function, model, type and global objects are read in one pass | active |
+| D-M1-128 | the peephole register names are indexed | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5767,4 +5768,44 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   comparison count in this entry were re-taken: codegen 256.938, peephole
   735.389, asm 318.725 and object 18.854, and 707 comparisons per function
   object. Nine after reps sit above their stage's before maximum.
+- Status: **applied**.
+
+## D-M1-128 - the peephole register names are indexed
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `token_reg` compared one operand token against three arrays of
+  sixteen names and called `strlen` once per comparison, up to 48 times per
+  token. The final pass calls it for every register of every operand of every
+  line it analyzes, so the comparison cost dominated the pass.
+- Decision: the 48 general-register names, with their lengths, widths and
+  numbers, are one table, `REG_NAMES`. `reg_token_lookup` hashes the token with
+  FNV-1a and probes a 128-slot open table built on the first call. `token_reg`
+  reads the width and number from the hit and keeps the `xmm` and `rip`
+  branches unchanged. `G8` is deleted with the old scan; `G64` and `G32` stay
+  because `rename_register` spells a name from them.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Peephole run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`E5535AA4…783E`) | 735.446, 747.453, 745.422 | 745.422 | 724.482-839.356 |
+  | indexed (`47FA98B5…623C`) | 355.052, 350.941, 348.039 | 350.941 | 341.565-429.466 |
+
+  The median drops by 394.481 ms, 52.9% of the before median, and the two rep
+  ranges do not overlap. Wall time follows it, 1866.3 -> 1474.2 ms. No other
+  stage moves by more than 7.1 ms and every one stays inside its before rep
+  range: load 314.767 -> 321.872, codegen 254.734 -> 254.942, regalloc 111.193
+  -> 111.363, asm 329.792 -> 324.790, object 18.131 -> 19.678 and ld 70.954 ->
+  71.111.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
 - Status: **applied**.
