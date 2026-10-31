@@ -5140,3 +5140,57 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   that its object has no undefined `orbit_result_*`; it references `strcmp`
   only. `run_diff.py` runs the same fixture as a program against the oracle.
 - Status: **applied**.
+
+## D-M1-119 - the host selects the target: Win64 or System V x86-64
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: every stage emitted AMD64 COFF and the driver linked with MinGW `ld`,
+  so R6 only ran on Windows. A Linux x64 host had no object writer, no calling
+  convention and no link path, and the documents said so.
+- Decision: `src/codegen-x64/target.h` derives `R6_TARGET_WIN64` from the
+  compiler's `_WIN32`, and each stage reads it. One binary builds one target:
+  no `--target` flag, no cross build, no dual output. The IR, the opcode set
+  and the diagnostic codes do not change with the target.
+  - Arguments. Win64 fills four positional slots (`rcx`, `rdx`, `r8`, `r9`), and
+    a float in one of them counts as a slot; System V fills an integer bank
+    (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`) and a vector bank (`xmm0`-`xmm7`)
+    independently, and spills only a full bank. The hidden `OrbitResult`
+    pointer and the hidden arena parameter move through the same cursor, so
+    they are the first slot on both.
+  - Stack. Win64 keeps 32 bytes of shadow space and reads an incoming stack
+    argument at `rbp+48`; System V keeps none and reads it at `rbp+16`. The
+    frame is `(used + shadow + outgoing stack + 15) & ~15` in both cases, and
+    `chkstk` is emitted on Win64 only.
+  - Live registers. `regalloc.c` gives six slots to seven registers on Win64
+    and to five on System V: `rdi`/`rsi` are argument registers there, so only
+    `rbx` and `r12`-`r15` survive a call. Win64 keeps nine vector registers
+    across a call and System V keeps none, so the XMM allocation is off there.
+    `peephole.c` uses per-target call use/def sets; a System V call defines
+    every caller-saved register and every vector register, and uses `rdi`,
+    `rsi` and `xmm0`-`xmm7`. That set is what keeps the argument setup alive.
+  - Object. `elf64.c` writes ET_REL from the same `R6CoffObject` the COFF
+    writer takes: `.text`, `.rdata`, `.data` by name, a `.note.GNU-stack`, one
+    `.rela.<section>`, `.symtab` (locals first), `.strtab` and `.shstrtab`. An
+    R6 REL32 becomes `R_X86_64_PC32` against a defined symbol and
+    `R_X86_64_PLT32` against an undefined one, with addend -4; a 32S becomes
+    `R_X86_64_32S`. The assembler still parses the `.seh_*` directives and
+    writes none of them: ELF has no unwind data here.
+  - Link. The driver `fork`s and `execvp`s `ld` (not the assembler, not GCC)
+    with `-dynamic-linker`, the glibc `crt1.o`/`crti.o`/`crtbegin.o`,
+    `--start-group libruntime_net.a [ -lsqlite3 ] --end-group -lc -lm -ldl
+    -lpthread`, then `crtend.o` and `crtn.o`. `R6_CRT_DIR` overrides the
+    start-up directory and `R6_LD` the linker; `crtbegin.o` is found through
+    `/usr/lib/gcc/x86_64-linux-gnu/*/` when glibc's own directory has none.
+    The runtime directory defaults to `.r6-build/runtime-linux-x64`.
+  - Entry. Linux always keeps `main` and the glibc start-up: R6's own
+    `orbit_start` (D-M1-104) writes an argument it does not have there, and
+    the PE check for `.ctors`/`.dtors` reads a PE header. The general wrapper,
+    which opens the arena, calls `orbit_main` and destroys the arena, is the
+    same text on both targets.
+- Control: `tests/elf/probe.c` builds one object with the writer and runs it
+  under `readelf -a` and `ld`; the object links and the program exits 42. The
+  two gates, the corpus and the self-host ran on both targets at this decision
+  (Windows: `run_diff.py` 100/100, `run_reject.py` 452/452, corpus 143/143,
+  self-host OK with `PUBLISHED_C E794E2DB…`; Linux: the same three counts and
+  the same `PUBLISHED_C`).
+- Status: **applied**.

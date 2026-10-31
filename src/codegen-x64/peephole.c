@@ -1,5 +1,7 @@
 #include "peephole.h"
 
+#include "target.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -306,11 +308,16 @@ static void analyze_line(const char *line, size_t len, PInfo *pi) {
     }
     if (span_eq(mn, "ret")) {
         pi->kind = K_RET;
+#if R6_TARGET_WIN64
         pi->use = BIT(0) | BIT(3) | BIT(6) | BIT(7) | BIT(12) | BIT(13) | BIT(14) | BIT(15) | BIT(16);
         {
             int x;
             for (x = 6; x < 16; ++x) pi->use |= BIT(16 + x);
         }
+#else
+        /* System V preserves rbx and r12-r15; a float return rides xmm0. */
+        pi->use = BIT(0) | BIT(3) | BIT(12) | BIT(13) | BIT(14) | BIT(15) | BIT(16);
+#endif
         return;
     }
     if (span_eq(mn, "ud2")) {
@@ -337,9 +344,23 @@ static void analyze_line(const char *line, size_t len, PInfo *pi) {
         return;
     }
     if (span_eq(mn, "call") || span_eq(mn, "callq")) {
+#if R6_TARGET_WIN64
         pi->use = BIT(1) | BIT(2) | BIT(8) | BIT(9) | BIT(16) | BIT(17) | BIT(18) | BIT(19);
         pi->def = BIT(0) | BIT(1) | BIT(2) | BIT(8) | BIT(9) | BIT(10) | BIT(11) | BIT(16) |
                   BIT(17) | BIT(18) | BIT(19) | BIT(20) | BIT(21);
+#else
+        /* System V arguments ride rdi, rsi, rdx, rcx, r8 and r9; AL carries
+         * the vector count of a variadic call; every xmm register is
+         * caller-saved. */
+        pi->use = BIT(0) | BIT(1) | BIT(2) | BIT(6) | BIT(7) | BIT(8) | BIT(9) |
+                  BIT(16) | BIT(17) | BIT(18) | BIT(19) |
+                  BIT(20) | BIT(21) | BIT(22) | BIT(23);
+        pi->def = BIT(0) | BIT(1) | BIT(2) | BIT(6) | BIT(7) | BIT(8) | BIT(9) | BIT(10) | BIT(11);
+        {
+            int x;
+            for (x = 0; x < 16; ++x) pi->def |= BIT(16 + x);
+        }
+#endif
         if (a.n > 0 && a.p[0] == '*') pi->use |= operand_mask(a, &unknown);
         if (span_eq(a, "___chkstk_ms")) pi->use |= BIT(0);
         if (unknown) pi->use = ALL_REGS;
