@@ -5694,9 +5694,10 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   field through `field`. The selfhost IR holds 1,094 function objects with
   fourteen pairs each, 95 models and 16 globals with three, 419 model fields
   with two and 4 types with five. A function object cost 497 comparisons in
-  `exact_opt` plus 224 in fifteen `field` scans and `has_key("export")`, 721
-  in total. The module, model, type and global objects cost 135, 30, 85 and
-  30.
+  `exact_opt`, 196 in the fourteen `field` scans and 14 in
+  `has_key("export")`: 707 in total. The fifteenth `field` call reads `export`
+  only when the key is present, and no function carries it. The module, model,
+  type and global objects cost 135, 30, 85 and 30.
 - Decision: the five parsers read each object once through `obj_view`, the
   helper D-M1-126 added. `has_key`, `exact_opt` and `exact` are deleted. The
   root object's `exact` call was the last caller of `exact`, so the root now
@@ -5715,6 +5716,12 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   eighteenth carries an embedded NUL, `"name\u0000x"` after `"name"`:
   `E_DUPLICATE duplicate object key` becomes `E_SCHEMA unexpected object key`,
   the class D-M1-126 records, at the same position.
+  Two root probes print the same line from the Task 0 driver `2D7A55A9…BCF4`
+  (`C:\Temp\r6-perf\r6-before.exe`), the before driver `F519001C…F55B` and the
+  after driver `E5535AA4…783E`. A root object with a duplicate `irVersion`,
+  `{"irVersion":"1","irVersion":"1","module":{}}`, prints
+  `E_DUPLICATE duplicate object key`. A root that is not an object, `[]`,
+  prints `E_SCHEMA expected object`. Both print at 2:1 and exit 1.
 - Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
   driver, `.r6-build\selfhost\main.ir`, from the repository root:
 
@@ -5734,12 +5741,16 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   | after (`E5535AA4…783E`) | 310.525 | 302.670-316.476 |
 
   The group drop is 226.088 ms against an acceptance of 65.6 ms, and the two
-  rep ranges do not overlap. Measured against the D-M1-125 before median of
+  rep ranges do not overlap. Measured against the D-M1-126 before median of
   490.460 ms the drop is 178.379 ms.
 
-  No stage regressed outside its before rep range. Codegen's 3-run median is
-  5.793 ms higher while its rep ranges overlap (before 243.543-345.492, after
-  249.947-290.701), and the emitted bytes are identical.
+  Each stage's after 3-run median sits inside its before union rep range. The
+  emitted bytes are identical. Codegen's after 3-run median is 256.938 ms,
+  5.528 ms above the before 251.410 ms and inside the before union range
+  243.543-345.492, against an after union range of 243.858-291.028. Five
+  stages had one after rep above the before maximum: load 415.666 against
+  380.093, regalloc 125.737 against 123.994, asm 409.511 against 340.068,
+  object 28.191 against 27.659 and ld 94.542 against 77.494.
 
   The emitted bytes are unchanged. The `.s` and `.o` sha256 of
   `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
