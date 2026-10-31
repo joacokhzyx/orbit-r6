@@ -208,16 +208,17 @@ python tests/perf/run_perf.py --r6 <driver> --orbit-root <pinned checkout> \
 ```
 
 `python3` takes the place of `python` on Linux, and `--write-baseline` re-takes
-the entry for the host platform. The harness copies the IR and the runtime
-archives into the host temporary directory and builds with `R6_RUNTIME_DIR`
-pointing at the copy; a checkout under a shared folder would otherwise put the
-hypervisor's read inside every link. Both entries were re-taken on 2026-10-31
-with the driver from `22f73c2`: 7 545.1 ms corpus total and 1 384.2 ms inside
-R6 on win64, 6 039.8 ms and 1 075.3 ms on linux-x64. The driver built with
-`-O2` and `--as-needed` measures 6 324.5 ms and 989.5 ms on win64 (-16.2%,
--28.5%), and 4 800.9 ms and 860.2 ms on linux-x64 (-20.5%, -20.0%). The
-self-host R6 build drops from 3 582.6 to 2 223.4 ms on win64 (-37.9%) and from
-2 873.7 to 1 608.4 ms on linux-x64 (-44.0%).
+the entry for the host platform. The harness copies the driver, the IR and the
+runtime archives into the host temporary directory and builds with
+`R6_RUNTIME_DIR` pointing at the copy; a checkout under a shared folder would
+otherwise put the hypervisor's read inside every build. Both entries were
+re-taken on 2026-10-31 with the driver from `22f73c2`: 7 275.5 ms corpus total
+and 1 325.5 ms inside R6 on win64, 3 997.4 ms and 955.9 ms on linux-x64. The
+driver built with `-O2`, `--as-needed` and the reduced Win64 import list
+measures 5 925.9 ms and 978.8 ms on win64 (-18.5%, -26.2%), and 3 233.7 ms and
+562.1 ms on linux-x64 (-19.1%, -41.2%). The self-host R6 build drops from
+3 419.9 to 2 231.7 ms on win64 (-34.7%) and from 2 775.6 to 1 609.8 ms on
+linux-x64 (-42.0%).
 
 Compiler-IR census (D-M1-34) — a measurement, not a gate. It emits every
 `compiler/**/*.orb` at the pin and records R6's first refusal on each; the

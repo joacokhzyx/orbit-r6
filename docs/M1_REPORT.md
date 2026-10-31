@@ -1916,34 +1916,38 @@ miembros y `libruntime_net_db.a` con 27.
 | self-host (`scripts/selfhost.ps1`, `scripts/selfhost.sh`) | SELFHOST OK | SELFHOST OK |
 
 Tiempos de compilación con `tests/perf/run_perf.py --reps 5`. El arnés copia
-el IR y los archivos de runtime al directorio temporal del host y construye con
-`R6_RUNTIME_DIR` apuntando a la copia, porque un checkout en el sistema de
-archivos compartido pone la lectura del hipervisor dentro de cada enlace.
-«Corpus en R6» suma load, codegen, peephole, regalloc, asm y objeto, sin el
-enlace.
+el driver, el IR y los archivos de runtime al directorio temporal del host y
+construye con `R6_RUNTIME_DIR` apuntando a la copia, porque un checkout en el
+sistema de archivos compartido pone la lectura del hipervisor dentro de cada
+compilación. «Corpus en R6» suma load, codegen, peephole, regalloc, asm y
+objeto, sin el enlace.
 
 | Plataforma | Corpus total | Corpus en R6 | Self-host R6 | Self-host completo |
 |---|---|---|---|---|
-| win64, antes de D-M1-120/121 | 7 545.1 ms | 1 384.2 ms | 3 582.6 ms | 19 603.2 ms |
-| win64, después | 6 324.5 ms | 989.5 ms | 2 223.4 ms | 17 035.5 ms |
-| linux-x64, antes de D-M1-120/121 | 6 039.8 ms | 1 075.3 ms | 2 873.7 ms | 9 574.9 ms |
-| linux-x64, después | 4 800.9 ms | 860.2 ms | 1 608.4 ms | 8 404.8 ms |
+| win64, antes de D-M1-120/121/122 | 7 275.5 ms | 1 325.5 ms | 3 419.9 ms | 17 484.2 ms |
+| win64, después | 5 925.9 ms | 978.8 ms | 2 231.7 ms | 16 587.4 ms |
+| linux-x64, antes de D-M1-120/121/122 | 3 997.4 ms | 955.9 ms | 2 775.6 ms | 9 827.4 ms |
+| linux-x64, después | 3 233.7 ms | 562.1 ms | 1 609.8 ms | 8 386.4 ms |
 
 Las dos líneas base se volvieron a medir el 2026-10-31 con el driver previo a
 D-M1-120 (`22f73c2`) bajo el mismo arnés y en el mismo estado de máquina que la
-corrida de después. Contra esa línea, el corpus total baja -16.2% en win64 y
--20.5% en linux-x64; el corpus en R6 baja -28.5% y -20.0%; el self-host R6 baja
--37.9% y -44.0%.
+corrida de después. Contra esa línea, el corpus total baja -18.5% en win64 y
+-19.1% en linux-x64; el corpus en R6 baja -26.2% y -41.2%; el self-host R6 baja
+-34.7% y -42.0%.
 
-El total del corpus de Linux incluye trabajo que no es de R6. Con el archivo de
-runtime en el sistema de archivos de Windows (`/mnt/c`, DrvFs) el enlace de
+El total del corpus incluye trabajo que no es de R6. Con el archivo de runtime
+en el sistema de archivos de Windows (`/mnt/c`, DrvFs) el enlace de
 `tests/std/test_regex.ir` mide 61.6 ms; con el archivo copiado a `/tmp` (ext4)
-mide 18.5 ms, mínimo de 9 corridas. Por eso el arnés lo copia. Además, el
-enlace de Linux pasa `--as-needed` antes de la lista de bibliotecas: `ld` deja
-de registrar `DT_NEEDED` para `libm`, `libdl` o `libpthread` cuando ningún
-símbolo sale de ellas, y eso quita 3.4 ms de cada enlace (19.7 -> 16.3 ms en la
-misma prueba). Los símbolos, el código y la salida del programa no cambian
-(D-M1-121).
+mide 18.5 ms, mínimo de 9 corridas. El ejecutable del driver mide 7.6 ms por
+`exec` desde `/mnt/c` y 0.5 ms desde `/tmp`. Por eso el arnés copia los tres.
+Además, el enlace de Linux pasa `--as-needed` antes de la lista de bibliotecas:
+`ld` deja de registrar `DT_NEEDED` para `libm`, `libdl` o `libpthread` cuando
+ningún símbolo sale de ellas, y eso quita 3.4 ms de cada enlace (19.7 -> 16.3 ms
+en la misma prueba). Los símbolos, el código y la salida del programa no
+cambian (D-M1-121). En Win64 el enlace ya no abre `user32`, `shell32` ni
+`pthread`: ningún miembro del runtime ni ningún `extern fn` del pin referencia
+un símbolo suyo, y cada biblioteca cuesta cerca de 1 ms por enlace (31.2 ->
+28.3 ms en la misma prueba, D-M1-122).
 
 ```bash
 python tests/reject/run_reject.py

@@ -5268,5 +5268,42 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   flags, 16.3 ms with `--as-needed` and 12.7 ms with `-lc` alone. Gates on
   both hosts at this change: loader 452/452, differential 100/100, corpus
   143/143 with the ratchet holding, self-host `SELFHOST OK` with
-  `PUBLISHED_C E794E2DB…`.
+  `PUBLISHED_C E794E2DB…`. D-M1-122 stages the driver as well; the same
+  comparison under that harness is in its table.
+- Status: **applied**.
+
+## D-M1-122 - the Win64 link drops three import libraries no symbol comes from
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: every Win64 link opened `user32`, `shell32` and `pthread`, and no
+  symbol of any program comes from them. The undefined symbols of the runtime
+  archive cover `kernel32`, `msvcrt`, `ws2_32` when the module uses the
+  network, and `advapi32` through `SystemFunction036` when it uses crypto. No
+  `extern fn` in the pinned `compiler/` and `std/` sources names a function
+  from the three. Each import library costs about 1 ms of every link: 31.2 ms
+  with all of them, 28.3 ms without the three, on the object of
+  `tests/std/test_regex.ir`.
+- Decision: remove `-lpthread`, `-lshell32` and `-luser32` from the Win64 link
+  list in `src/driver/r6.c`. The remaining list is `mingw32`, `gcc`,
+  `mingwex`, `msvcrt`, `kernel32` and `advapi32`, plus `ws2_32` for a module
+  that uses the network and `sqlite3.lib` for one that uses the database.
+  `tests/perf/run_perf.py` also copies the driver into the host temporary
+  directory: `exec` measured 7.6 ms from `/mnt/c` against 0.5 ms from ext4,
+  and a Linux build pays that once per program.
+- Rejected: dropping `mingw32`, `gcc`, `mingwex`, `msvcrt`, `kernel32` or
+  `advapi32` (each resolves symbols the runtime uses); keeping the three and
+  accepting the cost (6% of the Win64 corpus wall).
+- Evidence: the driver from `22f73c2` and the current tree, `run_perf.py
+  --reps 5`, driver, IR and runtime archives staged:
+
+  | Platform | Corpus total | Corpus in R6 | Self-host R6 |
+  |---|---|---|---|
+  | win64 | 7 275.5 -> 5 925.9 ms (-18.5%) | 1 325.5 -> 978.8 ms (-26.2%) | 3 419.9 -> 2 231.7 ms (-34.7%) |
+  | linux-x64 | 3 997.4 -> 3 233.7 ms (-19.1%) | 955.9 -> 562.1 ms (-41.2%) | 2 775.6 -> 1 609.8 ms (-42.0%) |
+
+  Three further Win64 runs of the current driver measured 5 737.5, 5 753.7 and
+  5 925.9 ms of corpus total, all above -18%. Gates on Win64 at this change:
+  loader 452/452, differential 100/100, corpus 143/143 with the ratchet
+  holding, self-host `SELFHOST OK` with `PUBLISHED_C E794E2DB…`. The change is
+  inside the Win64 branch; the Linux gates measured in D-M1-121 still apply.
 - Status: **applied**.

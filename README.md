@@ -40,9 +40,9 @@ The loader suite is 452 cases at this pin; `tests/reject/manifest.json` is the
 source of that count. The compiler-IR census (`tests/compiler-ir/run_census.py`)
 was last measured on 2026-10-28: 2 build over 27 modules, a measurement with a
 one-way ratchet. The compile-time baseline holds the driver from before
-D-M1-120 and D-M1-121: the current build measures 16.2% less wall over the
-corpus and 37.9% less on the self-host R6 build on Windows x64, and 20.5% and
-44.0% on Linux x64.
+D-M1-120 to D-M1-122: the current build measures 18.5% less wall over the
+corpus and 34.7% less on the self-host R6 build on Windows x64, and 19.1% and
+42.0% on Linux x64.
 
 R6 builds the Orbit compiler itself (`compiler/host/main.orb`, 1038
 functions). The compiler it produces translates its own source to C

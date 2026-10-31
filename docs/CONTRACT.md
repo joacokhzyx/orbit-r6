@@ -131,6 +131,13 @@ interfaces entre loader, codegen, driver y diferencial; no amplía semántica.
   `r12`-`r15`) y ningún vectorial; el retorno entero va en `RAX` y el float en
   `XMM0`. `orbit_print` es `void(const char*)` en ambos. Win64 enlaza el
   runtime net-only más `-lws2_32`.
+- Enlace Win64: `ld -m i386pep -Bdynamic --stack 16777216`, el objeto del
+  módulo, `--start-group libruntime_net.a [sqlite3.lib] [-lws2_32] -lmingw32
+  -lgcc -lmingwex -lmsvcrt -lkernel32 -ladvapi32 --end-group` y, según la
+  entrada, `crt2.o`/`crtbegin.o`/`crtend.o` o `msvcrt.dll` (D-M1-104). No
+  incluye `user32`, `shell32` ni `pthread`: ningún miembro del runtime ni
+  ningún `extern fn` del pin referencia un símbolo suyo, y cada biblioteca
+  cuesta cerca de 1 ms por enlace (D-M1-122).
 - Enlace Linux: `ld` recibe la opción `-dynamic-linker` con
   `/lib64/ld-linux-x86-64.so.2` (o `/lib/ld-linux-x86-64.so.2`), y luego
   `crt1.o`, `crti.o`, `crtbegin.o`, el objeto del módulo, `--as-needed`,

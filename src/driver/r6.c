@@ -539,8 +539,7 @@ int main(int argc, char **argv) {
     link_argv[link_argc++] = "-lmingw32";
     link_argv[link_argc++] = "-lgcc"; link_argv[link_argc++] = "-lmingwex";
     link_argv[link_argc++] = "-lmsvcrt"; link_argv[link_argc++] = "-lkernel32";
-    link_argv[link_argc++] = "-lpthread"; link_argv[link_argc++] = "-ladvapi32";
-    link_argv[link_argc++] = "-lshell32"; link_argv[link_argc++] = "-luser32";
+    link_argv[link_argc++] = "-ladvapi32";
     link_argv[link_argc++] = "--end-group";
     if (own_entry) {
         /* libmingwex's gdtoa calls atexit, which crt2.o defines and no import
