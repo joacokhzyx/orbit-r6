@@ -5744,15 +5744,16 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   rep ranges do not overlap. Measured against the D-M1-126 before median of
   490.460 ms the drop is 178.379 ms.
 
-  Each stage's after 3-run median sits inside its before union rep range. The
-  emitted bytes are identical. Codegen's after 3-run median is 256.938 ms,
-  5.528 ms above the before 251.410 ms and inside the before union range
-  243.543-345.492, against an after union range of 243.858-291.028. Five
-  stages had one after rep above the before maximum: load 415.666 against
-  380.093, regalloc 125.737 against 123.994, asm 409.511 against 340.068,
-  object 28.191 against 27.659 and ld 94.542 against 77.494.
+  Each stage's after 3-run median sits inside its before union rep range. Nine
+  after reps sit above their stage's before maximum, in five stages: load has
+  two (382.392 and 415.666 against 380.093), asm three (346.150, 355.405 and
+  409.511 against 340.068), ld two (89.778 and 94.542 against 77.494),
+  regalloc one (125.737 against 123.994) and object one (28.191 against
+  27.659). Codegen's after 3-run median is 256.938 ms, 5.528 ms above the
+  before 251.410 ms and inside the before union range 243.543-345.492, against
+  an after union range of 243.858-291.028.
 
-  The emitted bytes are unchanged. The `.s` and `.o` sha256 of
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
   `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
   `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
   runs each.
@@ -5762,4 +5763,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   `PUBLISHED_C E794E2DB…92B1`.
 
   No fixture or reject case is added. The admitted language is unchanged.
+- Correction, 2026-10-31, later measurement. The stage medians and the
+  comparison count in this entry were re-taken: codegen 256.938, peephole
+  735.389, asm 318.725 and object 18.854, and 707 comparisons per function
+  object. Nine after reps sit above their stage's before maximum.
 - Status: **applied**.
