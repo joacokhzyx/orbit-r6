@@ -1,521 +1,158 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21,
-8 commits past D-F0-20 `bf38b38`: the runtime archive is one member per module
-(25, and 27 with the database), a program starts only what it uses
-(`docs/STARTUP.md`), and `arena` is a core member plus seven extensions; the
-corpus is 143+1 documents). It builds and runs on Windows x64 and Linux x64,
-and the host fixes the target when the driver is built (D-M1-119).
-The commit is on the public remote `https://github.com/joacokhzyx/orbit-lang`.
-This is a separate repo from the language:
+`orbit-lang` `main` commit `01e31e882610cea21fbfbf4fe02fee00051fab2e` (D-F0-21).
+[`docs/PIN.md`](docs/PIN.md) lists every pinned input and its hash;
+[`CONTRIBUTING.md`](CONTRIBUTING.md) owns the commands. This file holds the
+rules that a command list cannot express.
+
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
-the pin — note the working tree there can be **ahead** of the pin and
-**dirty**; the pin rests on the commit, so read pinned bytes with
-`git cat-file blob 01e31e8:<path>`, never from the working tree. Do not write
-there.
+the pin. The working tree there can be ahead of the pin and dirty, so pinned
+bytes come from `git cat-file blob 01e31e8:<path>`, never from the working
+tree. Do not write there.
 
-The `orbit-lang` writing and commit rules apply here, adapted to the pin and
-the corpus; they are in Writing, Commits, The read-only reviewer and When to
-stop below.
+## Working rules
 
-## Commands
-
-Driver build (GCC is used only here, never for R6 programs):
-
-```powershell
-.\scripts\build-r6.ps1          # Windows -> .r6-build\r6.exe
-```
-
-```bash
-./scripts/build-r6.sh           # Linux -> .r6-build/r6
-```
-
-Windows uses w64devkit GCC 16.2.0. Linux uses GCC 15.2.0. Both scripts use
-`R6_CC`, else `CC`, else `gcc` on PATH, with
-`-std=c11 -O2 -Wall -Wextra -Werror` (D-M1-120). This is the only build step
-in the repo.
-
-Linux runtime archives, built from the pinned checkout. Neither is committed
-and neither is byte-reproducible:
-
-```bash
-./scripts/build-runtime-linux.sh <pinned checkout> [output-dir]
-```
-
-The default output directory is `.r6-build/runtime-linux-x64`. It holds
-`libruntime_net.a` (25 members) and `libruntime_net_db.a` (27 members).
-
-Primary gate: differential — verified 100/100 on 2026-10-31 at the D-F0-21 pin
-on Windows x64 and Linux x64.
-
-Windows x64:
-
-```powershell
-python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
-  --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
-  --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
-```
-
-Linux x64:
-
-```bash
-python3 tests/diff/run_diff.py \
-  --compiler <fixed-point> \
-  --cc gcc \
-  --orbit-root <pinned checkout> \
-  --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
-```
-
-- `--r6-command` must be the last argument (argparse `REMAINDER`). In
-  PowerShell keep the `'{ir}'`/`'{exe}'` quoting; in a POSIX shell the r6
-  command is separate argv tokens, and only the two placeholders are quoted.
-- The harnesses set `ORBIT_BACKEND=c` for the oracle build, because the pin
-  makes native the default backend on Windows (D-F0-20).
-- `--case 19-int-list-get` runs one fixture (repeatable). Default = every
-  `.json` with a matching `.orb` in `docs/proposed-ir/m1/`.
-- `--orbit-root` is a checkout **at the pinned commit**: the sibling `orbit-lang`
-  tree can be ahead of the pin and keeps advancing, and a `C:\Temp` fixed point
-  named `orbit-fp-<sha256(checkout path)>.exe` is rebuilt in place when that
-  path moves, so it then fails the whole corpus. The pinned fixed point is
-  `C:\Temp\orbit-fp-ee60c8af43.exe` (sha256 in `docs/PIN.md`), built from
-  `C:\Temp\orbit-pin-01e31e8-git` with `python scripts/dev.py fp`, which
-  rebuilds it in a pinned checkout. Read
-  pinned bytes with `git cat-file blob 01e31e8:<path>`, never from the working
-  tree.
-- Verdict = identical process exit + stdout bytes vs the gcc/Orbit oracle; a
-  build failure counts as a failure. `R6_CC` only affects the driver build —
-  the R6 program path must never invoke GCC.
-- `python tests/diff/run_diff.py --help` — remaining flags mirror the pinned
-  `scripts/test_suite.py`.
-
-Second gate: loader contract suite (`tests/reject/`, decision D-M1-06). Each
-case in `tests/reject/manifest.json` names the decision it pins in its `rule`
-field, and `docs/DECISIONS.md` holds the decisions. Verified 452/452 on
-2026-10-31 on Windows x64 and Linux x64:
-
-```powershell
-python tests/reject/run_reject.py            # 311 rejections + 141 acceptance controls
-python tests/reject/run_reject.py --case v13 # one case (stem substring)
-python tests/reject/make_cases.py --check    # cases/ + manifest.json drift check
-```
-
-```bash
-python3 tests/reject/run_reject.py
-python3 tests/reject/run_reject.py --case v13
-python3 tests/reject/make_cases.py --check
-```
-
-- `tests/reject/manifest.json` is the suite truth (expected exit, expected
-  diagnostic code, spec rule); `make_cases.py` renders it together with
-  `cases/` deterministically — do not hand-edit the byte-exact cases.
-- Every rejection must exit 1 with exactly one
-  `r6: <file>:<line>:<col>: error[CODE]: <msg>` line carrying the manifest
-  code; acceptance controls build, and run with byte-compared stdout when the
-  manifest declares `run_exit`/`run_stdout`.
-- The runner executes the driver with the repo root as CWD (the runtime
-  archive path is resolved relative to the CWD).
-- On Linux the runner defaults to `.r6-build/r6` and
-  `.r6-build/runtime-linux-x64`, normalizes CRLF to LF when it compares run
-  stdout, and compares exit codes modulo 256.
-
-Corpus differential: the language-emitted corpus (`tests/corpus/`, decision
-D-M1-17) — a **measurement, not a gate**. Measured **143 build / 143 match over
-143 programs** on 2026-10-31 at the D-F0-21 pin on Windows x64 and Linux x64,
-with the ratchet holding on both: 144 documents, 6 992 633 bytes,
-`filesSha256 a533ace1…`. The rounds that took the count from 2/89 at the
-D-M1-17 pin to there are in `docs/M1_REPORT.md`.
-
-Windows x64:
-
-```powershell
-python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
-  --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
-  --check `
-  --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
-```
-
-Linux x64:
-
-```bash
-python3 tests/corpus/run_corpus.py \
-  --compiler <fixed-point> \
-  --cc gcc \
-  --orbit-root <pinned checkout> \
-  --check \
-  --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
-```
-
-- Regenerates the 143+1 corpus with the pinned compiler (`--orbit-root` is the
-  tree carrying the language's `scripts/emit_ir_corpus.py`; `--ir-dir` measures
-  an already-emitted one), verifies every `sha256` against
-  `tests/corpus/manifest.json`, then builds both sides per program and requires
-  identical exit + stdout bytes.
-- Only two things go red: corpus drift from the pin, and `--check` when
-  `r6BuildOk`/`match` drop below `tests/corpus/baseline.json` (one-way
-  ratchet). Failing corpus programs are the measurement, never a failure.
-- `--json report.json` keeps the per-case detail; `--write-baseline` re-takes
-  the baseline after the check passes.
-- Trust the ratchet when the oracle looks broken: a whole-corpus
-  `oracle-fail` (with `r6BuildOk 0`) means the *language* side failed to
-  build, not R6 — the check then refuses to write a baseline. That happened
-  on 2026-10-17 while the checkout's C-cache wrapper was mid-edit (a quoted
-  multi-token `ORBIT_CC` the pinned fixed point cannot spawn:
-  `ERROR_INVALID_NAME`); `ORBIT_CCACHE=0`, the harness's own escape hatch,
-  takes the wrapper out of one run and is what the D-M1-21 round used.
-- The oracle's exit, stdout and stderr are cached in
-  `.r6-build/oracle-cache.json`, shared with `run_diff.py`. The corpus keys
-  an entry by the manifest sha256, the fixed point sha256 and the program
-  path; the differential keys it by the `.orb`+`.json` pair and the fixed
-  point. `--no-oracle-cache` rebuilds every oracle. On Windows x64 on
-  2026-10-28 the corpus took 120 s without the cache and 37 s with it.
-  `run_diff.py` took 66 s and 18 s.
-- `--axes` adds six axes per matching program: correctness, section bytes,
-  best-of-5 wall ms, best-of-5 R6 build ms, peak working set, and a CPU-time
-  energy proxy. `--check-axes` compares them with
-  `tests/corpus/axes-baseline.json`; `--write-axes-baseline` re-takes it.
-
-Self-host check: R6 builds the pinned compiler, and that compiler's C must
-hash to `PUBLISHED_C` in the pin's `scripts/verify_seed.py` (20 s). Both hosts
-print `SELFHOST OK` with `PUBLISHED_C E794E2DB…` on 2026-10-31.
-
-```powershell
-.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-01e31e8-git `
-  -Compiler C:\Temp\orbit-fp-ee60c8af43.exe -R6 $PWD\.r6-build\r6.exe
-```
-
-```bash
-./scripts/selfhost.sh <pinned checkout> <fixed-point> ./.r6-build/r6
-```
-
-`scripts\ci.ps1 -Selfhost` runs it as a CI stage. `scripts\bisect.ps1` is the
-`git bisect run` verdict: driver build (125 when it does not compile),
-`run_reject.py`, `run_diff.py` and the self-host (1 at the first failure).
-Copy it with `selfhost.ps1` outside the tree first; older commits lack both.
-
-Compile-time baseline — a measurement, not a gate. `tests/perf/baseline.json`
-holds one entry per platform, Windows x64 and Linux x64. The harness stages the
-IR in the host temp directory because a shared folder on Linux would put the
-hypervisor's read path inside the number:
-
-```bash
-python tests/perf/run_perf.py --r6 <driver> --orbit-root <pinned checkout> \
-  --compiler <fixed-point> --check
-```
-
-`python3` takes the place of `python` on Linux, and `--write-baseline` re-takes
-the entry for the host platform. The harness copies the driver, the IR and the
-runtime archives into the host temporary directory and builds with
-`R6_RUNTIME_DIR` pointing at the copy; a checkout under a shared folder would
-otherwise put the hypervisor's read inside every build. Both entries were
-re-taken on 2026-10-31 with the driver from `22f73c2`: 7 275.5 ms corpus total
-and 1 325.5 ms inside R6 on win64, 3 997.4 ms and 955.9 ms on linux-x64. The
-driver built with `-O2`, `--as-needed` and the reduced Win64 import list
-measures 5 925.9 ms and 978.8 ms on win64 (-18.5%, -26.2%), and 3 233.7 ms and
-562.1 ms on linux-x64 (-19.1%, -41.2%). The self-host R6 build drops from
-3 419.9 to 2 231.7 ms on win64 (-34.7%) and from 2 775.6 to 1 609.8 ms on
-linux-x64 (-42.0%).
-
-Compiler-IR census (D-M1-34) — a measurement, not a gate. It emits every
-`compiler/**/*.orb` at the pin and records R6's first refusal on each; the
-ratchet in `tests/compiler-ir/baseline.json` only forbids `r6BuildOk` going
-down:
-
-```powershell
-python tests/compiler-ir/run_census.py `
-  --compiler <fixed point of the pin, docs/PIN.md> `
-  --tree <checkout at that commit> `
-  --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
-```
-
-Probe binaries (historical COFF/assembler probes, not part of the gate):
-
-```powershell
-gcc -std=c11 -Wall -Wextra -Werror tests/coff/probe.c src/codegen-x64/coff.c -o .r6-build\coff-probe.exe
-# asm_probe.c is the same but adds src/codegen-x64/asm_win64.c; argv: <in.s> <out.o>
-```
-
-`tests/elf/probe.c` is the writer-only probe for `elf64.c`; `tests/elf/README.md`
-has the `readelf -a` and `ld` commands, and the linked program exits 42.
-
-## Running the driver
-
-- `r6 [build] <input.ir> -o <output.exe> [--runtime-dir <dir>]`. The runtime
-  directory is the flag, else `R6_RUNTIME_DIR`, else `.r6-build\runtime-win64`
-  on Windows or `.r6-build/runtime-linux-x64` on Linux, relative to the CWD
-  (D-M1-98, D-M1-119), so run it from the repo root unless one is set. Temps
-  `r6-<pid>.s/.o` go to `R6_TMPDIR`, else the system temp dir. A successful
-  build deletes them; a failed one keeps them.
-- `--timings` or `R6_TIMINGS=1` prints one stderr line per stage: load,
-  codegen, peephole, regalloc, asm, object, ld.
-- Needs `.r6-build\runtime-win64\libruntime_net.a` on Windows, which is
-  **gitignored and not in the repo**. A fresh clone must rebuild it from the
-  pinned checkout with its `scripts/mklib_runtime.py --out ...` (expected
-  hash/symbols in `docs/PIN.md`), otherwise linking fails with `error[LINK]`.
-  On Linux, `./scripts/build-runtime-linux.sh <pinned checkout>` writes
-  `libruntime_net.a` and `libruntime_net_db.a` into
-  `.r6-build/runtime-linux-x64`; neither is committed or byte-reproducible.
-- A module with an `orbit_db_*` extern links `libruntime_net_db.a` and
-  `sqlite3.lib` from the same Windows directory, built by `python
-  scripts/build-runtime-db.py --orbit-root <pin checkout>` (D-M1-87); the
-  executable finds `sqlite3.dll` on `PATH` (`runtime/vendor/win-x64`). On
-  Linux the same `build-runtime-linux.sh` writes the db archive and the link
-  adds `-lsqlite3`.
-- Entry point (D-M1-104), Win64 only: a module with no argv, network, database
-  or migrations has R6's own `orbit_start` and links without the MinGW start-up
-  objects; any other module keeps `main` and `crt2.o`. On Win64 the driver
-  deletes an executable that carries `.ctors` or `.dtors` and reports
-  `error[LINK]`. On Linux every program keeps `main` and the glibc start-up,
-  because `orbit_start` calls msvcrt's `__set_app_type` and the start-up check
-  reads a PE header.
-- On Windows, MinGW CRT/lib dirs come from `R6_MINGW_ROOT` (default
-  `C:/w64devkit`) and `R6_MINGW_GCC_VERSION` (default `16.2.0`) — packaging
-  paths only. Just `ld.exe` is executed. On Linux the driver links glibc's
-  `crt1.o`, `crti.o`, `crtbegin.o`, the runtime archive, `--as-needed` with
-  `-lc -lm -ldl -lpthread`, `crtend.o` and `crtn.o`, then
-  `-dynamic-linker /lib64/ld-linux-x86-64.so.2`. `R6_CRT_DIR` overrides the
-  start-up directory and `R6_LD` the linker (D-M1-119).
-- Diagnostics are one line: `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`;
-  exit 2 = CLI misuse, 1 = everything else. CI is `.github/workflows/ci.yml`,
-  which runs `scripts/ci.ps1`.
-
-## Hard rules (docs/DECISIONS.md, docs/CONTRACT.md)
-
-- Fail closed: any opcode, version, type or platform not explicitly supported
-  gets a diagnostic and nonzero exit. No stubs, invented semantics or fallback.
-- The target is the host: `src/codegen-x64/target.h` derives `R6_TARGET_WIN64`
-  from `_WIN32`. One binary builds one target. There is no `--target` flag and
-  no cross build (D-M1-119).
-- Programs are never lowered through C and never assembled by GAS/GCC:
-  `win64.c` emits a private GAS-shaped text, `peephole.c` drops reloads of a
-  slot just stored, `regalloc.c` moves the hottest slots into callee-saved
-  registers, `asm_win64.c` encodes it to bytes, and the object writer is
-  `coff.c` (AMD64 COFF) on Windows and `elf64.c` (ELF64 ET_REL) on Linux. GNU
-  `ld` is only the linker on both.
-- Never write to the Orbit checkout; moving the pin requires a dated entry in
-  `docs/DECISIONS.md`.
-- Do not generalize semantics that pass in fixtures beyond what
-  `docs/M1_REPORT.md` states is measured (overflow, NaN payloads, other list
-  kinds and macOS are currently out of evidence).
-
-## Layout
-
-- `src/loader/ir.{h,c}` — strict JSON IRv1 parser/validator, owns `R6Module`;
-  also gates which opcodes are admitted (`E_UNSUPPORTED` outside the range).
-- `src/codegen-x64/win64.{c,h}` — IR → private asm text; `peephole.{c,h}` —
-  rewrites that text in place (D-M1-67); `regalloc.{c,h}` — assigns registers
-  to slots on that text (D-M1-68); `asm_win64.{c,h}` — encodes only the
-  selector's instruction subset; `target.h` — derives `R6_TARGET_WIN64` from
-  `_WIN32` (D-M1-119); `coff.{c,h}` — AMD64 COFF writer (sections, symbols,
-  REL32/ADDR32NB relocations, unwind data); `elf64.{c,h}` — ELF64 ET_REL
-  writer for Linux x64 (sections, symbols, RELA relocations).
-- `src/driver/r6.c` — CLI, temporaries in `R6_TMPDIR` or the system temp dir,
-  direct `ld` link for the host target.
-- `tests/diff/run_diff.py` — differential harness; `tests/coff/*.c` — historical
-  COFF probes.
-- `tests/elf/probe.c` — writer-only ELF64 probe; `readelf -a` reads the object
-  and `ld` links it to a program that exits 42.
-- `tests/perf/run_perf.py` — compile-time baseline; `tests/perf/baseline.json`
-  holds one entry per platform.
-- `tests/reject/` — loader contract suite: `run_reject.py` (second gate),
-  `make_cases.py` (deterministic case builder), `cases/` + `manifest.json`.
-- `tests/corpus/` — the language-emitted corpus (`run_corpus.py`, the second
-  measurement and its ratchet; `manifest.json` is the pin).
-- `tests/compiler-ir/` — census of the compiler's own IR (D-M1-34):
-  `run_census.py` emits every `compiler/**/*.orb` at the pin and records R6's
-  first refusal on each; `baseline.json` is the one-way ratchet over
-  `r6BuildOk`.
-- `scripts/` — `build-r6.ps1` (Windows driver build), `build-r6.sh` (Linux
-  driver build), `build-runtime-linux.sh` (Linux runtime archives),
-  `selfhost.ps1`/`selfhost.sh` (self-host check), `ci.ps1` (the CI steps,
-  runnable locally), `migrate-m1-fixtures.py`
-  (one-shot D-F0-06 fixture converter; `--check` re-verifies against the
-  pre-migration revision, `06d7d2c^`, skipping fixtures newer than the base).
-- `docs/` — `PIN.md` (pinned inputs + hashes), `CONTRACT.md` (module
-  interfaces and the internal assembler boundary), `IR_SPEC_ALIGNMENT.md`
-  (adopted spec vs implementation, D-F0-06), `DECISIONS.md` (dated rulings),
-  `M1_REPORT.md` (evidence), `BRANCHES.md` (branches and releases).
-  Contract prose is Spanish; match the file you edit.
-
-## Adding IR support
-
-1. Fixtures are hand-written `.json` + `.orb` pairs in `docs/proposed-ir/m1/`;
-   they predate the emitter and stay manual. The pinned language does emit its
-   own corpus with `orbit build --emit-ir` (`tests/corpus/`, D-F0-10).
-2. **Format (migrated 2026-10-15, commit `06d7d2c`)**: the loader implements
-   the language-side `orbit-lang/docs/IR_SPEC.md` format (blob `371f873e…`):
-   root `{"irVersion":"1","module":M}`, instructions
-   `opcode`/`dest`/`operand1..3`/`elemKind`, values `{"kind":K,"value":V}`
-   (`{"kind":"None"}` bare), `dest` `-1` for none, flat `route*` fields, ints
-   and floats as JSON numbers (floats must be finite, V-08). The draft
-   serialization (`{"format":"orbit-ir","version":1,...}`) is rejected with
-   `E_FORMAT`; there is no dual acceptance (D-F0-06/D-F0-07 in
-   `DECISIONS.md`, extraction in `IR_SPEC_ALIGNMENT.md`). Keep `.json`/`.orb`
-   LF (pinned by `.gitattributes`); fixtures convert mechanically with
-   `python scripts/migrate-m1-fixtures.py --check` (re-verifies against the
-   pre-migration revision, `06d7d2c^`).
-3. Support for something new = loader's allowed-opcode range + codegen +
-   fixture pair + the table in `docs/proposed-ir/m1/README.md`, then record the
-   decision and differential count in `DECISIONS.md` / `M1_REPORT.md`.
-4. Commit style follows history: `feat: lower <thing> (N/N diff)`, `fix:`,
-   `test:`, `docs:`.
-
-## Writing
-
-Write for the person who takes the pin tomorrow. They have the repository and
-the gates; they do not have this session.
-
-- Documentation is impersonal. The page says what was measured, not who measured
-  it. A commit body may say "I".
-- One idea per sentence. Average under 22 words, none over 40. A semicolon
-  usually means two sentences.
-- Every claim carries a command, a number or a line. "Faster", "cleaner" and
-  "more robust" carry nothing.
-- Name the thing: "the 39/93 corpus", not "the coverage"; "the first refusal at
-  `list_create`", not "the gap".
-- A table is for more than two columns. Two facts are a sentence.
-- No hedges. "Should", "likely" and "probably" become a measurement or a
-  question.
-- Do not explain the sentence you are about to write, or the one you just wrote.
-- Banned in new text: shape, surface, lane, load-bearing, battery, premise,
-  clause, witness, residual, honest, and their inflections. They are metaphors a
-  reader cannot look up.
-- Defined once, used freely: **pin** (the Orbit commit and the inputs listed in
-  PIN.md), **corpus** (the executable documents in `tests/corpus/`), **ratchet**
-  (the one-way baseline in `tests/corpus/baseline.json`), **decision** (a dated
-  entry in DECISIONS.md with an ID).
-- Contract prose is Spanish; match the file you edit. This file is English.
-
-## Commits
-
-One decision, one commit. A commit is how a change is found again, reviewed and
-undone.
-
-- Branches, merges and releases follow `docs/BRANCHES.md`: work happens on `feature/<topic>`, it merges into `develop` after the full gate, and `main` receives only tagged releases.
-- Commit when the change is small, verified and complete. A correction that
-  changes behaviour or a document's claim gets its own commit, even if it is one
-  line.
-- Do not wait for the rest of the work. A verified fix left in the working tree
-  is a fix nobody can find in the history.
-- Do not mix. A code change and a documentation change are two commits, unless
-  the document is the reason the code changed. A decision that needs both
-  DECISIONS.md and code is one commit: the decision is the reason.
-- Do not commit a state you have not gated. The body names the gate and what it
-  printed.
-- A pin move is one commit: PIN.md, DECISIONS.md, the regenerated corpus
-  manifest and the re-taken baseline together. They describe one tree, and a
-  commit that splits them describes a tree that never existed.
-- A pushed commit is a record. Fix forward; do not rewrite history.
-
-Message:
-
-- Subject: `area: what changed`, imperative, under 60 characters, no period. Use
-  the prefixes the history uses: `feat`, `fix`, `test`, `docs`.
-- The body says why. The diff says what.
-- One claim per sentence. Every number is one the reader can reproduce.
-- End with an Evidence block: one line per command and what it printed. A
-  lowering change carries `run_diff.py` N/N, `run_reject.py` N/N, the corpus
-  count and the ratchet delta.
-- Never: "this commit", "as requested", a list of the files, a summary of the
-  diff, or a round/phase label (`p7`, `round 7`). `D-M1-xx` and fixture names are
-  stable identifiers: keep them.
-
-## C style
-
-- Four spaces, no tabs. Braces on the same line for functions and control flow,
-  as the tree writes them.
-- The driver builds with `-std=c11 -O2 -Wall -Wextra -Werror`; a warning there
-  is a failure.
-- Comments explain why the code is like this, not what it says. No new comment
-  unless it says something the code cannot.
-- Fail closed: an unsupported opcode, version, type or platform is a diagnostic
-  and a nonzero exit. No stubs, no invented semantics, no fallback.
-- Do not generalize semantics beyond what M1_REPORT.md states is measured.
-- Preserve existing conventions: naming, allocation ownership, diagnostic codes,
-  the one-line `r6: <file>:<line>:<col>: error[CODE]: <msg>` format.
-
-## Working with other agents
-
-- One writer of the pin at a time. PIN.md, DECISIONS.md,
+- **Fail closed.** An opcode, version, type or platform outside the supported
+  set gets one diagnostic and a nonzero exit. No stubs, invented semantics or
+  fallback.
+- **The target is the host.** `src/codegen-x64/target.h` derives
+  `R6_TARGET_WIN64` from `_WIN32`. One binary builds one target; there is no
+  `--target` flag and no cross build (D-M1-119).
+- **No C and no assembler in the program path.** `win64.c` emits a private
+  GAS-syntax text, `peephole.c` and `regalloc.c` rewrite it, `asm_win64.c`
+  encodes it, `coff.c` or `elf64.c` writes the object. GNU `ld` only links.
+- **Do not generalize.** The measured subset is
+  [`docs/CONTRACT.md`](docs/CONTRACT.md#measured-subset). Overflow, NaN
+  payloads, other list kinds, macOS and threading are not evidence.
+- **Never commit a build artifact.** The runtime archives are rebuilt from the
+  pin and are not byte-reproducible (D-M1-119).
+- **One writer of the pin at a time.** `docs/PIN.md`, `docs/DECISIONS.md`,
   `tests/corpus/manifest.json` and `tests/corpus/baseline.json` move together.
-  Before moving the pin, check who moved it last:
+  Check who moved the pin last:
 
-  ```powershell
+  ```bash
   git log -1 --format='%h %ad %s' --date=short -- docs/PIN.md
   ```
 
-  If that is within the hour, ask.
-- Parallel zones: `src/loader`, `src/codegen-x64` and `src/driver` are separate
-  files, but the codegen pipeline takes one writer and `win64.c` is one file.
-  `tests/reject/manifest.json` is the suite truth and `make_cases.py` renders
-  `cases/` from it; edit the manifest, never the cases, and one writer at a
-  time.
-- The Orbit checkout is read-only. Pinned bytes come from
-  `git cat-file blob <pin>:<path>`, never from the working tree, which advances
-  past the pin.
-- Do not compare two corpus measurements taken against different `--orbit-root`
-  trees. Materialize the pin and use it.
+## Commands
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) carries the build, the gates and the
+runtime setup. The two facts agents get wrong:
+
+- Run the driver from the repository root unless `--runtime-dir` or
+  `R6_RUNTIME_DIR` names the archive directory; the default is relative to the
+  current directory (D-M1-98).
+- `--r6-command` is the last argument of the harnesses, and only `{ir}` and
+  `{exe}` are quoted in a POSIX shell.
+
+A diagnostic is `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`. Exit 2 is CLI
+misuse and exit 1 is every other failure.
+
+## Layout
+
+| Path | Content |
+|---|---|
+| `src/loader/ir.{h,c}` | Strict IRv1 parser and validator; owns `R6Module` |
+| `src/codegen-x64/` | `target.h`, `win64.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c` |
+| `src/driver/r6.c` | CLI, temporaries, direct `ld` link |
+| `tests/diff/` | Differential harness; `fixtures/` holds the 100 pairs and their catalogue |
+| `tests/reject/` | Loader suite; `manifest.json` is the truth, `cases/` is rendered |
+| `tests/corpus/` | Language-emitted corpus, manifest and one-way ratchet |
+| `tests/compiler-ir/` | Census of the compiler's own IR |
+| `tests/perf/` | Compile-time measurement and per-platform baseline |
+| `scripts/` | `build-r6.ps1`, `build-r6.sh`, `build-runtime-linux.sh`, `selfhost.ps1`, `selfhost.sh`, `ci.ps1`, `bisect.ps1` |
+| `docs/` | `README.md` index, `PIN.md`, `CONTRACT.md`, `DECISIONS.md`, `BRANCHES.md` |
+
+## Adding IR support
+
+1. Add the fixture pair (`.json` plus `.orb`) to `tests/diff/fixtures/` and its
+   row to `tests/diff/fixtures/README.md`. Add the reject cases to
+   `tests/reject/manifest.json`; a new admission needs a positive and a
+   negative control.
+2. Record the decision in `docs/DECISIONS.md` with the evidence that supports
+   it.
+3. Widen the loader's admitted range, lower the opcode, and update
+   `docs/CONTRACT.md`.
+4. Run the differential, the loader suite and the corpus on both hosts.
+
+## Working with other agents
+
+| Zone | Parallel | Reason |
+|---|---|---|
+| `src/**` and promoting | no | one codegen pipeline, one writer |
+| `tests/reject/manifest.json` | no | it is the suite truth; `make_cases.py` renders `cases/` |
+| `tests/diff/fixtures/` for different cases | yes | additive |
+| `src/loader`, `src/codegen-x64`, `src/driver`, separate files | yes, carefully | the pipeline takes one writer and `win64.c` is one file |
+| `docs/*.md` | yes, different files | |
+| `docs/PIN.md`, `docs/DECISIONS.md`, corpus manifest and baseline | no | they move together as one pin |
+
+Do not compare two corpus measurements taken against different `--orbit-root`
+trees. Materialize the pin and use it.
 
 ## The read-only reviewer
 
-A reviewer edits nothing. It edits its answer, and the answer obliges the author
-to redo the work.
+A reviewer edits nothing. It reads the source diff, the fixture or reject case,
+the decision and the commit body with its Evidence block. A count in the body
+that differs from what the gate prints is the finding.
 
-- It reads the source diff, the fixture or corpus case the change adds, the
-  decision in DECISIONS.md, and the commit body with its Evidence block. If a
-  count in the body differs from what the gate prints, that is the finding.
 - It runs `tests/diff/run_diff.py` and `tests/reject/run_reject.py` with the
-  pinned inputs. It does not move the pin and does not `--write-baseline`: a
-  reviewer that re-takes the baseline has made the change and is no longer a
-  second pair of eyes.
+  pinned inputs. It does not move the pin and does not `--write-baseline`.
 - Three questions:
   1. Does the change do what the fixture claims? A new admission needs a
-     positive and a negative control in the same commit; one positive proves
-     only that it can build.
-  2. Is it silent on the control? A change that admits one more program must not
-     admit the one next to it.
-  3. Does it survive both gates and the corpus without a regression? The ratchet
-     only goes up.
-- A NO to any of the three means redo. If it finds a defect in another file, it
-  writes it up as separate work; it does not fix it. If it cannot run the gates,
-  it says so and does not sign.
+     positive and a negative control in the same commit.
+  2. Is it silent on the control? Admitting one program must not admit the one
+     next to it.
+  3. Does it survive both gates and the corpus without a regression? The
+     ratchet only goes up.
+- A NO means redo. A defect in another file is separate work. A reviewer that
+  cannot run the gates says so and does not sign.
 
 ## When to stop and hand back
 
 Stop and ask rather than push on, when:
 
 - **A first refusal disappears without a change you made.** The corpus moved
-  under you, usually because the checkout advanced. Materialize the pin and
-  re-run before recording the count.
-- **A gate fails only on a case you did not touch.** PIN.md and the corpus
-  manifest are the authority; the advancing checkout is not.
-- **DECISIONS.md or PIN.md says something your change contradicts.** They are
-  the contract. Update them in the same commit, or ask first.
-- **A change needs a second first refusal to pass.** One decision is one commit.
-  When opening the second, stop.
-- **You are about to generalize beyond what M1_REPORT.md states is measured.**
-  That is a new decision with its own evidence, not a line in this one.
+  under you, usually because the checkout advanced.
+- **A gate fails only on a case you did not touch.** `docs/PIN.md` and the
+  corpus manifest are the authority.
+- **`docs/DECISIONS.md` or `docs/PIN.md` contradicts your change.** They are the
+  contract. Update them in the same commit, or ask first.
+- **A change needs a second first refusal to pass.** One decision is one
+  commit.
+- **You are about to generalize beyond the measured subset.** That is a new
+  decision with its own evidence.
 
-## Open source
+## Writing
 
-- License: MIT, the same as `orbit-lang` (`LICENSE`).
-- A public R6 cannot pin a commit no remote has. The pin `01e31e8` is on
-  `https://github.com/joacokhzyx/orbit-lang` (PIN.md), so the corpus is
-  reproducible from public bytes. A pin move pushes the language commit first.
-- The runtime archives are not committed and are not byte-reproducible
-  (PIN.md, D-M1-119). A fresh Windows clone rebuilds `libruntime_net.a` with
-  the pinned recipe and checks the 268-symbol set;
-  `scripts/build-runtime-linux.sh` writes both Linux archives. Do not add an
-  archive or any other binary to the repository.
-- CI (`.github/workflows/ci.yml`) builds the driver, the runtime archive and
-  the loader suite on every push and pull request through `scripts/ci.ps1`.
-  The differential and the corpus need the Orbit oracle and run only on
-  manual dispatch; run them locally before a lowering change.
-- A contribution arrives with its fixture, its decision and its evidence. A pull
-  request that changes `src/` without a case and a decision is not reviewable.
-- Do not commit secrets or build artifacts. The absolute paths in PIN.md are
-  observations of one machine, not requirements.
+Both repositories write English. Write for the person who takes the pin
+tomorrow: they have the repository and the gates, not this session.
+
+- Documentation is impersonal. A commit body may say "I".
+- One idea per sentence. Average under 22 words, none over 40. A semicolon
+  usually means two sentences.
+- Every claim carries a command, a number or a line. "Faster", "cleaner" and
+  "more robust" carry nothing.
+- Name the thing: "the 39/93 corpus", not "the coverage"; "the first refusal at
+  `list_create`", not "the gap".
+- No hedges. "Should", "likely" and "probably" become a measurement or a
+  question.
+- A table is for more than two columns. Two facts are a sentence.
+- Do not explain the sentence you are about to write, or the one you just wrote.
+- Banned in new text: shape, surface, lane, load-bearing, battery, premise,
+  clause, witness, residual, honest, and their inflections.
+- Defined once, used freely: **pin** (the Orbit commit and the inputs in
+  `docs/PIN.md`), **corpus** (the executable documents in `tests/corpus/`),
+  **ratchet** (the one-way baseline), **decision** (a dated entry in
+  `docs/DECISIONS.md`).
+- New entries in `docs/DECISIONS.md` are English. Entries written before
+  2026-10-31 stay as they are.
+
+## Commits
+
+One decision, one commit. [`CONTRIBUTING.md`](CONTRIBUTING.md#commits) carries
+the message format and the Evidence block. Two rules the format does not say:
+
+- A pin move is one commit: `docs/PIN.md`, `docs/DECISIONS.md`, the regenerated
+  corpus manifest and the re-taken baseline together.
+- Never rewrite a pushed commit. Fix forward.
