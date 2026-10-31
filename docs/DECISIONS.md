@@ -150,6 +150,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-120 | the driver is built with `-O2` and links in one group | active |
 | D-M1-121 | the Linux link drops unused `DT_NEEDED` entries | active |
 | D-M1-122 | the Win64 link drops three import libraries no symbol comes from | active |
+| D-M1-123 | the assembler text is buffered and written once | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5460,4 +5461,56 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   loader 452/452, differential 100/100, corpus 143/143 with the ratchet
   holding, self-host `SELFHOST OK` with `PUBLISHED_C E794E2DB…`. The change is
   inside the Win64 branch; the Linux gates measured in D-M1-121 still apply.
+- Status: **applied**.
+
+## D-M1-123 - the assembler text is buffered and written once
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the codegen stage formatted each line of assembler text straight into
+  a `FILE`. `src/codegen-x64/win64.c` held 262 `fprintf` call sites, 28 `fputs`
+  call sites and one `fputc` per string byte, and every one took the stdio lock.
+  The stage is 427.304 ms of the 2,185.2 ms self-host pipeline. The 2,185.2 ms
+  figure is the Task 0 planning baseline; the codegen medians below come from
+  the Task 1 runs.
+- Decision: format into a growable `Buf` and write it once with a single
+  `fwrite`. Every internal emit function takes `Buf *`. The public
+  `r6_codegen_win64(FILE *out, ...)` keeps its signature and returns false with
+  a `CGEN` diagnostic on a null argument, a buffer failure or a write failure.
+  All four `ferror` sites became `->oom`; write failure is now detected by the
+  single `fwrite` in the public entry, so the buffer failure and the write
+  failure each report their own `CGEN` message.
+- Rejected: `setvbuf` with a larger buffer on the assembler `FILE`. It removes
+  write calls, not the 262 format-and-lock calls this change removes. Not
+  measured.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Codegen run medians (ms) | 3-run median | Range |
+  |---|---|---:|---:|
+  | `r6-before.exe` | 419.877, 430.254, 427.304 | 427.304 | 393.515-505.016 |
+  | `r6-after.exe` | 253.493, 254.147, 245.812 | 253.493 | 235.287-324.833 |
+
+  The median drops by 173.811 ms, 40.7% of the before median. The after
+  maximum of 324.833 ms is 68.682 ms below the before minimum of 393.515 ms,
+  so the two do not overlap. Driver sha256: `2D7A55A9…BCF4` before,
+  `17AD0CA8…DE3F` after.
+
+  The task estimate was a 250 ms after median. The first after measurement,
+  taken before the review fixes, was 267.555 ms and missed it by 17.555 ms.
+  The task is kept because the binding acceptance is the 65.6 ms drop, and that
+  first measurement showed a drop of 159.749 ms. The re-measured driver gives
+  253.493 ms, a drop of 173.811 ms and 3.493 ms above the estimate.
+
+  The assembly text is byte-identical. The `.s` sha256 of
+  `selfhost\main.ir` stays `CEB1A36A…6137`, of
+  `tests/suite/arena_sink_scope.ir` stays `8FA37A26…5E0B`, and of
+  `tests/suite/arith.ir` stays `4F390E3E…A562`, each equal to both baseline
+  runs in `C:\Temp\r6-perf\baseline-hashes.txt`.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The emitted bytes and the admitted
+  language are unchanged, so neither suite has a new case to describe.
 - Status: **applied**.
