@@ -63,33 +63,47 @@ def run(cmd, cwd, timeout, env=None):
 
 
 def build_once(r6, source: Path, exe: Path, timeout):
+    """Wall time and R6's own stage time (load..object, link excluded)."""
     start = time.perf_counter()
-    proc = run([str(r6), "build", str(source), "-o", str(exe)], REPO, timeout)
+    proc = run([str(r6), "build", str(source), "-o", str(exe)], REPO, timeout,
+               env=dict(os.environ, R6_TIMINGS="1"))
     elapsed = (time.perf_counter() - start) * 1000.0
     if proc.returncode != 0 or not exe.is_file():
         detail = (proc.stderr or proc.stdout).strip()[-400:]
         sys.exit(f"r6 failed on {source} (rc={proc.returncode}): {detail}")
-    return elapsed
+    stages = 0.0
+    for line in proc.stderr.splitlines():
+        fields = line.split()
+        if len(fields) >= 5 and fields[1] == "timing" and fields[2] != "ld":
+            stages += float(fields[3])
+    return elapsed, stages
 
 
 def measure_corpus(r6, programs, scratch, reps, timeout):
-    totals = []
+    totals, stages = [], []
     for rep in range(reps):
-        total = 0.0
+        total = pipeline = 0.0
         for index, source in enumerate(programs):
-            total += build_once(r6, source, scratch / f"corpus-{rep}-{index}{exe_suffix()}", timeout)
+            spent, stage_ms = build_once(r6, source,
+                                         scratch / f"corpus-{rep}-{index}{exe_suffix()}", timeout)
+            total += spent
+            pipeline += stage_ms
         totals.append(total)
-        print(f"  corpus rep {rep + 1}/{reps}: {total:.0f} ms", flush=True)
-    return min(totals)
+        stages.append(pipeline)
+        print(f"  corpus rep {rep + 1}/{reps}: {total:.0f} ms wall, "
+              f"{pipeline:.0f} ms in R6", flush=True)
+    return min(totals), min(stages)
 
 
 def measure_selfhost_r6(r6, ir: Path, scratch, reps, timeout):
-    times = []
+    times, stages = [], []
     for rep in range(reps):
-        spent = build_once(r6, ir, scratch / f"selfhost-{rep}{exe_suffix()}", timeout)
+        spent, stage_ms = build_once(r6, ir, scratch / f"selfhost-{rep}{exe_suffix()}", timeout)
         times.append(spent)
-        print(f"  self-host R6 build rep {rep + 1}/{reps}: {spent:.0f} ms", flush=True)
-    return min(times)
+        stages.append(stage_ms)
+        print(f"  self-host R6 build rep {rep + 1}/{reps}: {spent:.0f} ms wall, "
+              f"{stage_ms:.0f} ms in R6", flush=True)
+    return min(times), min(stages)
 
 
 def measure_selfhost_wall(script: Path, orbit_root, compiler, r6, reps, timeout):
@@ -124,12 +138,14 @@ def load_baseline(path: Path):
 
 def compare(measured, was, tolerance):
     findings = []
-    for key, label in (("corpusTotalMs", "corpus total"),
-                       ("selfhostR6Ms", "self-host R6 build"),
-                       ("selfhostWallMs", "self-host wall")):
+    for key, label, slack in (("corpusPipelineMs", "corpus in R6", tolerance),
+                              ("selfhostPipelineMs", "self-host in R6", tolerance),
+                              ("corpusTotalMs", "corpus total", 0.10),
+                              ("selfhostR6Ms", "self-host R6 build", 0.10),
+                              ("selfhostWallMs", "self-host wall", 0.10)):
         if was.get(key) is None or measured.get(key) is None:
             continue
-        limit = was[key] * (1.0 + tolerance)
+        limit = was[key] * (1.0 + max(tolerance, slack))
         if measured[key] > limit:
             findings.append(f"{label}: {measured[key]:.0f} ms > {limit:.0f} ms "
                             f"(baseline {was[key]:.0f} ms)")
@@ -175,8 +191,9 @@ def main():
 
     scratch = Path(tempfile.mkdtemp(prefix="r6-perf-"))
     try:
-        corpus = measure_corpus(r6, programs, scratch, args.reps, args.timeout)
-        selfhost_r6 = measure_selfhost_r6(r6, selfhost_ir, scratch, args.reps, args.timeout)
+        corpus, corpus_pipeline = measure_corpus(r6, programs, scratch, args.reps, args.timeout)
+        selfhost_r6, selfhost_pipeline = measure_selfhost_r6(r6, selfhost_ir, scratch,
+                                                             args.reps, args.timeout)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
     selfhost_wall = measure_selfhost_wall(script, args.orbit_root, args.compiler, r6,
@@ -185,15 +202,21 @@ def main():
     record = {
         "corpusPrograms": len(programs),
         "corpusTotalMs": round(corpus, 1),
+        "corpusPipelineMs": round(corpus_pipeline, 1),
         "selfhostR6Ms": round(selfhost_r6, 1),
+        "selfhostPipelineMs": round(selfhost_pipeline, 1),
         "selfhostWallMs": round(selfhost_wall, 1),
         "reps": args.reps,
         "wallReps": args.wall_reps,
     }
     print(f"\ncorpus total     {record['corpusTotalMs']:9.1f} ms  "
-          f"({len(programs)} programs)")
-    print(f"self-host R6     {record['selfhostR6Ms']:9.1f} ms")
-    print(f"self-host wall   {record['selfhostWallMs']:9.1f} ms")
+          f"({len(programs)} programs, link included)")
+    print(f"corpus in R6     {record['corpusPipelineMs']:9.1f} ms  "
+          f"(load, codegen, peephole, regalloc, asm, object)")
+    print(f"self-host R6     {record['selfhostR6Ms']:9.1f} ms  (link included)")
+    print(f"self-host in R6  {record['selfhostPipelineMs']:9.1f} ms")
+    print(f"self-host wall   {record['selfhostWallMs']:9.1f} ms  "
+          f"(fixed point and the built compiler included)")
 
     if args.json:
         Path(args.json).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

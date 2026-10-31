@@ -2,20 +2,24 @@
   "platforms": {
     "win64": {
       "corpusPrograms": 143,
-      "corpusTotalMs": 7401.4,
-      "selfhostR6Ms": 3517.9,
-      "selfhostWallMs": 18182.6,
-      "reps": 3,
+      "corpusTotalMs": 7053.8,
+      "corpusPipelineMs": 1278.6,
+      "selfhostR6Ms": 3410.0,
+      "selfhostPipelineMs": 3306.0,
+      "selfhostWallMs": 18272.5,
+      "reps": 5,
       "wallReps": 1,
       "date": "2026-10-31",
       "tolerance": 0.03
     },
     "linux-x64": {
       "corpusPrograms": 143,
-      "corpusTotalMs": 11848.7,
-      "selfhostR6Ms": 3028.2,
-      "selfhostWallMs": 9809.9,
-      "reps": 3,
+      "corpusTotalMs": 11845.0,
+      "corpusPipelineMs": 1553.6,
+      "selfhostR6Ms": 3274.3,
+      "selfhostPipelineMs": 3102.1,
+      "selfhostWallMs": 11501.2,
+      "reps": 5,
       "wallReps": 1,
       "date": "2026-10-31",
       "tolerance": 0.03

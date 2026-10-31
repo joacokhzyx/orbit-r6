@@ -1,9 +1,13 @@
 # Compile-time baseline
 
-`run_perf.py` measures two R6 numbers, on the machine that runs it:
+`run_perf.py` measures three things per build, on the machine that runs it:
 
 - **corpus total**: every executable program of the pinned corpus built by R6,
-  summed, best of `--reps`.
+  summed, best of `--reps`. It includes the `ld` invocation.
+- **corpus in R6**: the sum of the driver's own stage times (load, codegen,
+  peephole, regalloc, asm, object) over the same builds, read from
+  `R6_TIMINGS=1`. The link is the one stage R6 does not run, and on a machine
+  with a small page cache it is most of the wall time.
 - **self-host R6 build**: R6 builds the IR of `compiler/host/main.orb`, best of
   `--reps`. `selfhostWallMs` records the whole `scripts/selfhost.ps1` or
   `scripts/selfhost.sh` run; the rest of that wall is the fixed point emitting
