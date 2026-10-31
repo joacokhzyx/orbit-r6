@@ -12,7 +12,7 @@ The documents are a function of the language commit, so `--tree` must be a
 checkout at the pinned commit, and the baseline carries that commit plus the
 hash of the documents.  The emitter may be the patched fixed point: the
 emission fix (orb-lang `33abf7a`) does not change a byte of the documents, and
-`docs/M1_REPORT.md` records the equality.
+`docs/CONTRACT.md` records the equality.
 
 Nothing here fails because R6 builds fewer modules than the compiler has: the
 gap is the measurement.  Two things do fail: an emission that cannot run, and

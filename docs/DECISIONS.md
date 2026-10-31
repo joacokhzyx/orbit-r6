@@ -3,6 +3,160 @@
 All entries are R6 proposals/decisions scoped to the commit in [PIN.md](PIN.md).
 They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 
+## Index
+
+| ID | Decision | Status |
+|---|---|---|
+| D-F0-01 | Pin language inputs | pin moved; see D-F0-21 |
+| D-F0-02 | Accept the R6 IRv1 contract | serialization superseded by D-F0-06 |
+| D-F0-03 | DB excluded until a published compatible runtime exists | active |
+| D-F0-04 | Target matrix | extended by D-M1-119 (Linux implemented) |
+| D-F0-05 | Unknown semantics fail closed | active |
+| D-M1-01 | Lower pinned literal globals as immediate loads | active |
+| D-M1-02 | Use the target CRT for string equality | active |
+| D-M1-03 | Lower Win64 arguments beyond positional registers to stack slots | active |
+| D-M1-04 | Call official runtime for int-list creation and push | active |
+| D-M1-05 | Lower checked int-list reads with official runtime errors | active |
+| D-F0-06 | Adopt the language-side IRv1 textual format | active |
+| D-F0-07 | IRv1 migration outcome: loader, fixtures and call arity | active |
+| D-M1-06 | Loader contract suite as the second gate | active |
+| D-M1-07 | `nop`/`begin_block`/`end_block` admitted as no-ops | active |
+| D-M1-08 | `result_*` opcodes lowered against the official runtime | active |
+| D-M1-09 | `list_set`/`list_pop`, list kinds 1–4 and the arena outside `main` | active |
+| D-M1-10 | `map_*` stays outside the native subset | active |
+| D-M1-11 | Model constructors and field access inside the measured subset | active |
+| D-M1-12 | Union tag dispatch and payload packs inside the measured subset | active |
+| D-M1-13 | `alloc`/`free` stay outside the native subset | active |
+| D-M1-14 | Function values and indirect calls inside the measured subset | active |
+| D-M1-15 | Register-valued globals stay rejected | active |
+| D-M1-16 | The spec edge cases E-03/E-04/E-06 stay fail-closed | list create superseded by D-M1-30 |
+| D-F0-08 | Language-side answers to P1–P5 and emitter authorization | active |
+| D-M1-17 | The language-emitted corpus is pinned as a measurement (2/89) | active |
+| D-M1-18 | The builder's direct-call form: a `String` target is a named call | active |
+| D-M1-19 | Literal forms: raw `Sym` text in `load_const` and inline `decl_var` initializers | active |
+| D-M1-20 | Register types left `unknown`: a mirror of the language backend | active |
+| D-F0-09 | Local re-pin: the language pin stays at `5c01cea` and the emitter is an added local input | superseded by D-F0-21 |
+| D-F0-10 | Re-pin to the merged language: `main` `299eb09`, spec blob `16f26a9d`, corpus `93+1` | superseded by D-F0-21 |
+| D-F0-11 | Re-pin to `main` `862f257` (H-ARENA, Oracle removal, loader fix, `compiler/` reorg): all IR-neutral | superseded by D-F0-21 |
+| D-M1-21 | The inline literal operand: materialized into a frame scratch slot | active |
+| D-F0-12 | Re-pin to the language `main` at `ce87d508` (five commits, runtime-only) | superseded by D-F0-21 |
+| D-M1-22 | `load_var` of a parameter: the value of its `arg` binding | active |
+| D-M1-23 | The string `add`: spread on one side, concat on both, and the non-main arena | active |
+| D-M1-24 | list read labels: the id carries the function ordinal | active |
+| D-M1-25 | `list_len`: the length slot is written 64-bit | active |
+| D-M1-26 | The builtin `print`: one line per call, destination never stored | active |
+| D-M1-27 | Arena-injected runtime externs: the arena is the first C argument | active |
+| D-M1-28 | A void function returns without reading the value its `ret` carries | active |
+| D-M1-29 | The runtime string helpers the builder calls without declaring | active |
+| D-M1-30 | An empty list literal is created opaque (`elemKind 0`) | active |
+| D-M1-31 | Comparisons follow the pinned arms (bool operands, word eq/ne) | active |
+| D-M1-32 | A list spelling is the list pointer (parameters, returns, registers) | active |
+| D-M1-33 | A top-level constant is a #define whose text is the type | active |
+| D-F0-13 | Re-pin to 17ed624: corpus 97+1, canonical 6C26A19E | superseded by D-F0-21 |
+| D-M1-34 | The compiler's own IR is the second measured target | active |
+| D-F0-14 | Re-pin to 33abf7a: the emitter appends instead of copying | superseded by D-F0-21 |
+| D-M1-35 | An enumeration is an int whose tag constant is the variant index | active |
+| D-M1-36 | An int is 32 bits, and the slot keeps the sign | superseded by D-M1-94 (64-bit int) |
+| D-M1-37 | The entry point stores argc and argv for the runtime | active |
+| D-M1-38 | An opaque list read takes the type of the parameter it feeds | active |
+| D-M1-39 | A list field is an eight-byte list pointer | active |
+| D-M1-40 | A model parameter is the model pointer | active |
+| D-M1-41 | `movslq` carries REX.R and REX.B | active |
+| D-M1-42 | A C `bool` return is read from `al` | active |
+| D-M1-43 | A result crosses a call, and `try` types its unwrap | active |
+| D-M1-44 | A model return is the model pointer | active |
+| D-M1-45 | A result local is a 24-byte cell | active |
+| D-M1-46 | A register no instruction touches is a word | active |
+| D-M1-47 | A union type is its cell pointer, and a match arm binds its payload | active |
+| D-M1-48 | A runtime extern returns a result or a list | active |
+| D-M1-49 | A bare `ret` in a value function returns the zero of the type | active |
+| D-M1-50 | `Result` and `OrbitResult` are the result type | active |
+| D-M1-51 | An opaque list read compared with an int is an int | active |
+| D-M1-52 | An int negates at 32 bits | superseded by D-M1-94 (64-bit neg) |
+| D-F0-15 | Re-pin to a5cdf77: the first public pin, typed registers | superseded by D-F0-21 |
+| D-M1-53 | A multi-payload arm reads its pack | active |
+| D-F0-16 | Re-pin to ca3eb91: typed unwraps, payloads and list reads | superseded by D-F0-21 |
+| D-M1-54 | A model or union payload is a pointer word | active |
+| D-M1-55 | A union return is its cell word | active |
+| D-M1-56 | A model or union field is a pointer word | active |
+| D-M1-57 | A ref list holds pointer words | active |
+| D-M1-58 | An untyped list moves bare words | active |
+| D-M1-59 | NULL is the zero word and pointer words compare | active |
+| D-M1-60 | indexOf and find call orbit_string_indexOf | active |
+| D-M1-61 | A void main exits 0 | active |
+| D-M1-62 | s.length on a string is its byte length | active |
+| D-M1-63 | The assembler grows its tables | active |
+| D-F0-17 | Re-pin to 0cfce74: R6 builds the Orbit compiler | superseded by D-F0-21 |
+| D-M1-64 | R6 builds the compiler in 5 s | active |
+| D-M1-65 | Only the functions main reaches are emitted | active |
+| D-M1-66 | A branch on a comparison reads the flags | active |
+| D-M1-67 | A load right after the store of its slot reads the register | active |
+| D-M1-68 | The hottest frame slots live in callee-saved registers | active |
+| D-M1-69 | The arena loads with one RIP-relative movq | active |
+| D-M1-70 | A comparison read only by its branch stores no result | active |
+| D-M1-71 | A string comparison read only by its branch tests strcmp directly | active |
+| D-M1-72 | A string equality tests the first byte and the pointers before it calls strcmp | active |
+| D-M1-73 | An int argument of a float parameter widens at the call | active |
+| D-M1-74 | A union variant carries up to four payloads | active |
+| D-M1-75 | A result passes as an argument to a declared function | active |
+| D-M1-76 | A copy moves a result register into a result register | active |
+| D-M1-77 | An int pushed into a list<float> converts to a float | active |
+| D-M1-78 | An object is a pointer word for the JSON getters | active |
+| D-M1-79 | A frame of one page or more is probed before rsp moves | active |
+| D-M1-80 | Float slots live in xmm6-xmm14 | active |
+| D-M1-81 | Division and remainder by a constant are a multiply and shifts | active |
+| D-M1-82 | Stores nothing reads and register copies are removed after allocation | active |
+| D-M1-83 | Float constants load from .rdata and xmm moves are fused | active |
+| D-M1-84 | A void* register is recovered like an unknown one and a call converts through the word | active |
+| D-F0-18 | Re-pin to e34833a: complete, typed IR | superseded by D-F0-21 |
+| D-M1-85 | The six bitwise opcodes | active |
+| D-M1-86 | Object literals and keyed object reads | active |
+| D-M1-87 | Database programs link the DB variant of the runtime | active |
+| D-M1-88 | A result unwrapped into a list | active |
+| D-M1-89 | An untyped list element bound to a local | active |
+| D-M1-90 | Elements of nested lists | active |
+| D-M1-91 | Arithmetic over words and a printed word | active |
+| D-M1-92 | Migrations of a database module | active |
+| D-M1-93 | An int register copied into a float register | active |
+| D-F0-19 | Re-pin to 6a9ddaf: the open language bugs closed | superseded by D-F0-21 |
+| D-M1-94 | An int is 64 bits | active |
+| D-M1-95 | Division by zero and INT64_MIN / -1 stop the program | active |
+| D-M1-96 | Division and remainder by a constant at 64 bits | active |
+| D-M1-97 | Source name and line in the IR, and the stack reserve | active |
+| D-M1-98 | Runtime directory and temporary directory of the driver | active |
+| D-M1-99 | User symbols are emitted as `o_<name>` | active |
+| D-M1-100 | Version handshake: `r6 --version` | protocol number superseded by D-M1-107 |
+| D-M1-101 | String literals over 64 bytes span several `.byte` lines | active |
+| D-F0-20 | Re-pin to bf38b38: 64-bit int, `o_` symbols, native default | superseded by D-F0-21 |
+| D-M1-102 | Start-up per program, as docs/STARTUP.md of the pin | active |
+| D-M1-103 | The database archive is the pin's per-module archive | active |
+| D-M1-104 | R6 owns the process entry of a program that needs no MinGW start-up | active |
+| D-F0-21 | Re-pin to 01e31e8: per-module runtime and per-program start-up | active |
+| D-M1-105 | Runtime modules: `runtimeModule`, `export` and `build --object` | active |
+| D-M1-106 | Byte opcodes of a runtime module: `str_len`, `byte_load`, `byte_store`, `bytes_alloc` | active |
+| D-M1-107 | `ir-protocol 3` | active |
+| D-M1-108 | `RtArena`: the arena a runtime function allocates from | active |
+| D-M1-109 | `RtArena` through locals: `load_var`, `decl_var`, `store_var`, `copy` | active |
+| D-M1-110 | `str_offset` and `bytes_copy` | active |
+| D-M1-111 | `eq` and `ne` of a string or an `RtArena` with `NULL` | active |
+| D-M1-112 | `result_ok` and `result_err` write the `OrbitResult` in place | active |
+| D-M1-113 | `RtPtr` and `reinterpret` | active |
+| D-M1-114 | `mem_load` and `mem_store` | active |
+| D-M1-115 | `float_bits` and `bits_float` | active |
+| D-M1-116 | `result_ok` of an `RtPtr`, `result_err` with the code first, an export that returns `result` | active |
+| D-M1-117 | end-to-end run of the memory, float-bit and result opcodes | active |
+| D-M1-118 | `result_unwrap` of a float reads the value word | active |
+| D-M1-119 | the host selects the target: Win64 or System V x86-64 | active |
+| D-M1-120 | the driver is built with `-O2` and links in one group | active |
+| D-M1-121 | the Linux link drops unused `DT_NEEDED` entries | active |
+| D-M1-122 | the Win64 link drops three import libraries no symbol comes from | active |
+
+An entry keeps the text it was written with. A later decision replaces an
+earlier one by a new dated entry, and this index names the replacement.
+Entries written before 2026-10-31 are Spanish; entries written after it are
+English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
+`IR_SPEC_ALIGNMENT.md`, remain in the git history that created them.
+
 ## D-F0-01 — Pin language inputs
 
 - Date: 2026-10-14.

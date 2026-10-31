@@ -79,7 +79,7 @@ def main():
 
     # D-M1-118: an ordinary fixture that builds ok, err and a float unwrap,
     # recompiled as a runtime module, must not reference any orbit_result_*.
-    doc = json.loads((REPO / "docs" / "proposed-ir" / "m1" / "22-result-ops.json").read_text())
+    doc = json.loads((REPO / "tests" / "diff" / "fixtures" / "22-result-ops.json").read_text())
     doc["module"]["runtimeModule"] = True
     for fn in doc["module"]["functions"]:
         if fn["name"] == "main":
