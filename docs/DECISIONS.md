@@ -5630,14 +5630,26 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   168 comparisons. The opcode text was also copied with `dupstr` and freed once
   per instruction.
 - Decision: `obj_view` reads an object's pairs once and stores each value by
-  index. `key_index` compares a key's length before `memcmp`, so a miss costs
-  one length comparison. `parse_instruction` reads the opcode, `line`, dest,
-  three operands and `elemKind` from the view. `parse_value` reads `kind` and
-  `value` from the same helper with `required = 0`. `ObjView` holds 16 values;
-  the instruction table has 7 keys and the value table 2. The other parsers
-  keep `exact_opt`, `has_key` and `exact`.
-  The diagnostic order and text are unchanged for instruction objects. Two
-  messages for a malformed value object changed: `expected object` replaces
+  index. `key_index` checks a key's length before `memcmp`. An unknown key
+  costs one length comparison per schema entry, up to seven for an instruction
+  object and two for a value object. A matching key adds one `memcmp` after the
+  length comparison that matched.
+  `parse_instruction` reads the opcode, `line`, dest, three operands and
+  `elemKind` from the view. `parse_value` reads `kind` and `value` from the
+  same helper with `required = 0`. `ObjView` holds 16 values; the instruction
+  table has 7 keys and the value table 2. The other parsers keep `exact_opt`,
+  `has_key` and `exact`.
+  The diagnostic order and text are unchanged for NUL-free keys, which is the
+  admitted valid key form. A key with an embedded NUL is now refused as an
+  unexpected key: `key_index` compares the full span, where `exact_opt`'s
+  `strcmp` stopped at the NUL. Probe p2 puts `"opcode\u0000x"` after `"opcode"`
+  in an instruction. It printed `E_DUPLICATE duplicate object key` before and
+  prints `E_SCHEMA unexpected object key` after.
+  The admitted opcode set loses one form. A `J_STR` opcode with an embedded
+  NUL, probe p7 `"load_const\u0000x"`, compiled before through `dupstr` and
+  `strlen` and now fails `E_OPCODE`. The direction is fail-closed and no valid
+  program changes.
+  Two messages for a malformed value object changed: `expected object` replaces
   `value must be a kind/value object`, and `unexpected object key` replaces
   `unexpected object key in value`. The code `E_SCHEMA` and the position are
   the same.
@@ -5669,5 +5681,6 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   No fixture or reject case is added. Fifteen hand-written IRs probe the
   admitted set and the diagnostic order. Twelve print the same diagnostic from
   both drivers. Three differ only in the message text for a malformed value
-  object, and all three keep `E_SCHEMA` at the same position.
+  object, and all three keep `E_SCHEMA` at the same position. Two further
+  probes carry an embedded NUL: p2 changes its code and p7 stops compiling.
 - Status: **applied**.
