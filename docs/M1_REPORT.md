@@ -1923,29 +1923,27 @@ regalloc, asm y objeto, sin el enlace.
 |---|---|---|---|---|
 | win64, antes de D-M1-120 | 7 701.3 ms | 1 378.7 ms | 3 624.3 ms | 18 467.0 ms |
 | win64, después | 6 377.8 ms | 979.1 ms | 2 181.9 ms | 16 962.4 ms |
-| linux-x64, antes de D-M1-120 | 9 543.5 ms | 877.8 ms | 2 921.2 ms | 9 791.6 ms |
-| linux-x64, después | 10 681.4 ms | 885.2 ms | 1 694.8 ms | 8 726.7 ms |
+| linux-x64, antes de D-M1-120 | 12 180.8 ms | 1 088.5 ms | 2 924.4 ms | 9 745.5 ms |
+| linux-x64, después | 11 073.1 ms | 910.7 ms | 1 676.9 ms | 8 366.3 ms |
 
-La línea base de win64 se volvió a medir el 2026-10-31 con el driver previo a
+Las dos líneas base se volvieron a medir el 2026-10-31 con el driver previo a
 D-M1-120 (`22f73c2`) en el mismo estado de máquina que la corrida de después:
-7 701.3 ms frente a los 7 276.2 ms del primer registro. Los totales de pared
-siguen la caché de páginas, así que el trinquete compara las dos corridas que
-se tomaron seguidas. Contra la línea registrada, el corpus total baja -17.2%,
-el corpus en R6 -29.0% y el self-host R6 -39.8%; contra el primer registro es
--12.3%, -24.9% y -36.3%.
+7 701.3 ms y 12 180.8 ms de corpus, frente a los 7 276.2 ms y 9 543.5 ms del
+primer registro. Los totales de pared siguen la caché de páginas, y la entrada
+de Linux del primer registro precede a la copia del IR al temporal que añadió
+`22f73c2`, así que el trinquete compara las dos corridas tomadas seguidas.
+Contra la línea registrada, el corpus total baja -17.2% en win64 y -9.1% en
+linux-x64; el corpus en R6 baja -29.0% y -16.3%; el self-host R6 baja -39.8% y
+-42.7%. Contra el primer registro, win64 es -12.3%, -24.9% y -36.3%.
 
-El total del corpus de Linux no mejora con `-O2` (9 543.5 -> 10 681.4 ms)
-porque el enlace no es trabajo de R6. En ese host GNU `ld` toma el 73% de cada
-compilación, 57.0 ms de un promedio de 78.7 ms sobre 143 compilaciones. El
-mismo comando de enlace mide 13 ms con la caché de páginas caliente y 90 ms en
-frío. El total del corpus de Linux es una propiedad del linker y de la caché de
-páginas del invitado, no de R6.
-
-La lectura de la biblioteca de runtime pesa en ese enlace. Con el archivo en el
-sistema de archivos de Windows (`/mnt/c`, DrvFs) el mismo enlace mide 61.6 ms;
-con el archivo copiado a `/tmp` (ext4) mide 18.5 ms, mínimo de 9 corridas sobre
-el objeto de `tests/std/test_regex.ir`. El arnés copia el IR al temporal del
-host y deja el archivo de runtime en su ruta por defecto.
+El total del corpus de Linux baja menos que sus etapas porque el enlace no es
+trabajo de R6: cada compilación mide 77.4 ms de pared y 6.4 ms dentro de R6, y
+el resto es el proceso y GNU `ld`. En ese host `ld` leyó el runtime desde el
+sistema de archivos compartido; con el archivo en el sistema de archivos de
+Windows (`/mnt/c`, DrvFs) el mismo enlace mide 61.6 ms, y con el archivo
+copiado a `/tmp` (ext4) mide 18.5 ms, mínimo de 9 corridas sobre el objeto de
+`tests/std/test_regex.ir`. El arnés copia el IR al temporal del host y deja el
+archivo de runtime en su ruta por defecto.
 
 ```bash
 python tests/reject/run_reject.py

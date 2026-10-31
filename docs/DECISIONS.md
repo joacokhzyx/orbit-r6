@@ -5228,4 +5228,15 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
   I/O, not arithmetic, so `-O2` has little to fold. Both gates, the corpus and
   the self-host stay green on both platforms at this change (100/100, 452/452,
   143/143, `PUBLISHED_C E794E2DB…`).
+- Correction, 2026-10-31, later measurement. The Linux entry of the first run
+  was taken before `22f73c2` staged the IR into the host temporary directory,
+  so it is not comparable with the run that followed. With both drivers
+  measured under the same harness: corpus total 12 180.8 -> 11 073.1 ms
+  (-9.1%), corpus in R6 1 088.5 -> 910.7 ms (-16.3%), self-host R6 2 924.4 ->
+  1 676.9 ms (-42.7%). The wall moves less than the stages because each Linux
+  build is 77.4 ms of wall and 6.4 ms inside R6; the rest is the process and
+  GNU `ld`, which reads the runtime archive from the shared folder. The win64
+  entry was re-taken the same way: 7 701.3 -> 6 377.8 ms (-17.2%), 1 378.7 ->
+  979.1 ms (-29.0%), self-host R6 3 624.3 -> 2 181.9 ms (-39.8%). Both entries
+  of `tests/perf/baseline.json` carry the re-taken line.
 - Status: **applied**.

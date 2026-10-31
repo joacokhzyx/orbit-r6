@@ -208,15 +208,16 @@ python tests/perf/run_perf.py --r6 <driver> --orbit-root <pinned checkout> \
 ```
 
 `python3` takes the place of `python` on Linux, and `--write-baseline` re-takes
-the entry for the host platform. The win64 entry was re-taken on 2026-10-31
-with the driver from `22f73c2`, before D-M1-120: 7 701.3 ms corpus total and
-1 378.7 ms inside R6. The driver built with `-O2` measures 6 377.8 ms and
-979.1 ms (-17.2%, -29.0%); its self-host R6 build is 2 181.9 ms against
-3 624.3 ms (-39.8%). The Linux corpus is 10 681.4 ms wall and 885.2 ms inside
-R6, flat against the baseline because GNU `ld` takes 73% of a build there and
-the runtime archive is read through the shared folder. The stage totals R6
-owns move with `-O2` on Linux only for the 18 MB self-host IR: 2 921.2 ->
-1 694.8 ms (-42.0%).
+the entry for the host platform. Both entries were re-taken on 2026-10-31 with
+the driver from `22f73c2`, before D-M1-120: 7 701.3 ms corpus total and
+1 378.7 ms inside R6 on win64, 12 180.8 ms and 1 088.5 ms on linux-x64. The
+driver built with `-O2` measures 6 377.8 ms and 979.1 ms on win64 (-17.2%,
+-29.0%), and 11 073.1 ms and 910.7 ms on linux-x64 (-9.1%, -16.3%). The
+self-host R6 build drops from 3 624.3 to 2 181.9 ms on win64 (-39.8%) and from
+2 924.4 to 1 676.9 ms on linux-x64 (-42.7%). The Linux corpus wall moves less
+than its stages because each build is 77.4 ms of wall and 6.4 ms inside R6, and
+the rest is the process and GNU `ld`, which reads the runtime archive through
+the shared folder.
 
 Compiler-IR census (D-M1-34) — a measurement, not a gate. It emits every
 `compiler/**/*.orb` at the pin and records R6's first refusal on each; the
