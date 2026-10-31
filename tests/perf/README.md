@@ -29,12 +29,13 @@ On Linux, `scripts/build-r6.sh`, `scripts/build-runtime-linux.sh` and
 and `run_perf.py` picks the host script.
 
 `baseline.json` holds one entry per platform, with the date and the number of
-programs. The harness copies the IR into the host temporary directory first: a
-shared folder on Linux would put the hypervisor's read path inside the number.
-`--check` fails when a total grows past its baseline by more than the
-tolerance and always accepts a smaller one. The stage totals R6 owns ratchet at
-3% and the self-host build at 5%; the walls ratchet at 15%, because `ld` takes
-73% of a corpus build on the Linux host and the same link measured 13 ms with a
-warm page cache against 90 ms with a cold one. The numbers are wall time on one
+programs. The harness copies the IR and the runtime archives into the host
+temporary directory first and builds with `R6_RUNTIME_DIR` pointing there: the
+link reads the archives, and a shared folder would put the hypervisor's read
+path inside every build. `--check` fails when a total grows past its baseline
+by more than the tolerance and always accepts a smaller one. The stage totals
+R6 owns ratchet at 3% and the self-host build at 5%; the walls ratchet at 15%,
+because GNU `ld` is about half of a Linux corpus build (18.5 ms of 33.6 ms per
+build) and it is sensitive to the page cache. The numbers are wall time on one
 machine: a slower machine fails the check, and the fix is to re-take the
 baseline there, deliberately, with `--write-baseline`.
