@@ -153,6 +153,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-123 | the assembler text is buffered and written once | active |
 | D-M1-124 | the duplicate-function check keeps its scan | rejected |
 | D-M1-125 | the opcode lookup is a hash table | active |
+| D-M1-126 | instruction and value objects are read in one pass | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5615,4 +5616,58 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   No fixture or reject case is added. The admitted language is unchanged: every
   name the scan accepted the table accepts, and the two `E_OPCODE` reject cases
   (`v03-unknown-opcode`, `v03-case-folded-opcode`) still fail with that code.
+- Status: **applied**.
+
+## D-M1-126 - instruction and value objects are read in one pass
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `parse_instruction` walked its instruction object once in `exact_opt`
+  and then once per field through `field`: six field scans and
+  `has_key("line")`. At six key/value pairs the schema pass made 93 comparisons
+  and the seven scans made 42, so 135 per instruction. The compiler's own IR
+  holds 116,508 instructions and 699,062 key/value pairs. Of those
+  instructions, 116,494 carry six pairs and 14 also carry `line`, which makes
+  168 comparisons. The opcode text was also copied with `dupstr` and freed once
+  per instruction.
+- Decision: `obj_view` reads an object's pairs once and stores each value by
+  index. `key_index` compares a key's length before `memcmp`, so a miss costs
+  one length comparison. `parse_instruction` reads the opcode, `line`, dest,
+  three operands and `elemKind` from the view. `parse_value` reads `kind` and
+  `value` from the same helper with `required = 0`. `ObjView` holds 16 values;
+  the instruction table has 7 keys and the value table 2. The other parsers
+  keep `exact_opt`, `has_key` and `exact`.
+  The diagnostic order and text are unchanged for instruction objects. Two
+  messages for a malformed value object changed: `expected object` replaces
+  `value must be a kind/value object`, and `unexpected object key` replaces
+  `unexpected object key in value`. The code `E_SCHEMA` and the position are
+  the same.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. HEAD is
+  `926b31b` and `src/` is unchanged since D-M1-125, so the before driver is
+  `00397A3A…FB08`, the same binary D-M1-125 measured:
+
+  | Driver | Load run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`00397A3A…FB08`) | 490.460, 488.659, 494.272 | 490.460 | 484.531-523.053 |
+  | one pass (`F519001C…F55B`) | 321.918, 323.836, 320.601 | 321.918 | 310.831-359.457 |
+
+  The median drops by 168.542 ms, 34.4% of the before median. The task
+  estimated 430 ms or less after the change, and the measured median is
+  321.918 ms. The non-overlap rule holds: the highest after rep, 359.457 ms, is
+  125.074 ms below the lowest before rep, 484.531 ms.
+
+  The emitted bytes are unchanged. The `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each. The two suite IRs are read from
+  `.r6-build\corpus-ir\tests\suite\`.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. Fifteen hand-written IRs probe the
+  admitted set and the diagnostic order. Twelve print the same diagnostic from
+  both drivers. Three differ only in the message text for a malformed value
+  object, and all three keep `E_SCHEMA` at the same position.
 - Status: **applied**.
