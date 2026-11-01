@@ -6001,7 +6001,7 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   | median | 319.431 | 304.582 | 1241.050 | 1228.689 |
 
   The before driver is `7FE3879B...2FC6` and the after driver is
-  `CA4372E2...9E23`. Load drops 14.849 ms, 4.6% of its before median, and the
+  `CA4372E2...E23E`. Load drops 14.849 ms, 4.6% of its before median, and the
   pipeline drops 12.361 ms. An interleaved A/B of three pairs moves load
   324.066 -> 305.349 ms and the pipeline 1252.381 -> 1239.054 ms. The A/B load
   ranges are 319.859-342.170 before and 300.971-307.696 after; the A/B
