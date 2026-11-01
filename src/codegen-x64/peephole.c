@@ -153,6 +153,7 @@ typedef struct {
     int kind;
     size_t target; /* line index of the label a jump names, or (size_t)-1 */
     bool dead;
+    bool fresh; /* use, def and kind describe the current text */
     char *text; /* replacement for the line, without its newline */
 } PInfo;
 
@@ -504,6 +505,7 @@ static bool set_text(PWork *w, size_t i, PSpan a, PSpan b, const char *mnemonic)
     free(w->info[i].text);
     w->info[i].text = copy;
     analyze_line(copy, (size_t)n, &w->info[i]);
+    w->info[i].fresh = true;
     w->info[i].target = target;
     return true;
 }
@@ -513,6 +515,7 @@ static void kill_line(PWork *w, size_t i) {
     w->info[i].use = 0;
     w->info[i].def = 0;
     w->info[i].kind = K_OTHER;
+    w->info[i].fresh = true;
 }
 
 static bool is_imm32(PSpan s, long long *value) {
@@ -730,6 +733,7 @@ static int propagate_copy(PWork *w, size_t i, size_t end, int src, int dst) {
             free(w->info[seen[c]].text);
             w->info[seen[c]].text = texts[c];
             analyze_line(texts[c], strlen(texts[c]), &w->info[seen[c]]);
+            w->info[seen[c]].fresh = true;
             w->info[seen[c]].target = target;
         }
         kill_line(w, i);
@@ -859,6 +863,7 @@ static long sweep_function(PWork *w, size_t first, size_t end) {
                     free(w->info[j].text);
                     w->info[j].text = copy;
                     analyze_line(copy, strlen(copy), &w->info[j]);
+                    w->info[j].fresh = true;
                 }
                 kill_line(w, i);
                 ++changed;
@@ -903,6 +908,7 @@ static long sweep_function(PWork *w, size_t first, size_t end) {
                     free(w->info[j].text);
                     w->info[j].text = copy;
                     analyze_line(copy, strlen(copy), &w->info[j]);
+                    w->info[j].fresh = true;
                     kill_line(w, k2);
                     ++changed;
                     continue;
@@ -1005,7 +1011,10 @@ static bool process_final(PWork *w, size_t first, size_t end) {
             const char *line;
             if (w->info[i].dead) continue;
             line = line_text(w, i, &len);
-            analyze_line(line, len, &w->info[i]);
+            if (!w->info[i].fresh) {
+                analyze_line(line, len, &w->info[i]);
+                w->info[i].fresh = true;
+            }
             if (w->info[i].kind == K_LABEL) {
                 w->labels[nlabels].name = line;
                 w->labels[nlabels].len = len - 1;
@@ -1065,6 +1074,7 @@ static bool process_final(PWork *w, size_t first, size_t end) {
         used += (size_t)sprintf(block + used, "\n\t.text\n\t.seh_endproc");
         free(w->info[end - 1].text);
         w->info[end - 1].text = block;
+        w->info[end - 1].fresh = true;
         w->pool_count = 0;
     }
     return true;

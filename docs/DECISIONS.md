@@ -156,6 +156,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-126 | instruction and value objects are read in one pass | active |
 | D-M1-127 | module, function, model, type and global objects are read in one pass | active |
 | D-M1-128 | the peephole register names are indexed | active |
+| D-M1-129 | peephole line analysis is reused across rounds | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5797,6 +5798,50 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   range: load 314.767 -> 321.872, codegen 254.734 -> 254.942, regalloc 111.193
   -> 111.363, asm 329.792 -> 324.790, object 18.131 -> 19.678 and ld 70.954 ->
   71.111.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-129 - peephole line analysis is reused across rounds
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `process_final` runs up to four rounds. Each round analyzed every live
+  line, but a round changes only the lines `sweep_function` rewrites. On the
+  self-host IR the analysis pass called `analyze_line` 1,035,022 times, and a
+  probe that times those calls counts 100.723 ms, probe overhead included.
+- Decision: `PInfo` carries `fresh`, set by every site that analyzes a line:
+  `set_text`, `kill_line`, the propagation loop in `propagate_copy`, the two
+  direct rewrites in `sweep_function` and the `.rdata` pool rewrite. The round
+  loop still assigns `line`, because the label record reads it, and skips only
+  `analyze_line` when the flag is set. The change leaves 363,306 analyses.
+  The `live_in` reset, the fixpoint loop, the dead-line clearing, the label
+  array and the target resolution are unchanged.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Peephole run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`47FA98B5…623C`) | 355.052, 350.941, 348.039 | 350.941 | 341.565-429.466 |
+  | reused (`69954946…A01C`) | 285.304, 287.938, 288.605 | 287.938 | 274.178-378.524 |
+
+  The median drops by 63.003 ms, 18.0% of the before median. The six run
+  medians are separated: the highest reused median, 288.605, is 59.434 ms below
+  the lowest before median, 348.039. Single reps overlap. The 671,716 skipped
+  calls cost 93.8 ns each, which is the drop divided by the calls removed.
+  Against D-M1-128's before median of 745.422 ms the peephole stage has fallen
+  457.484 ms, 61.4%. Wall time follows the stage, 1474.2 -> 1409.0 ms, and no
+  other stage moves outside its before rep range: load 321.872 -> 312.882,
+  codegen 254.942 -> 255.066, regalloc 111.363 -> 113.163, asm 324.790 ->
+  318.482, object 19.678 -> 19.504 and ld 71.111 -> 72.162.
 
   The emitted bytes are identical: the `.s` and `.o` sha256 of
   `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
