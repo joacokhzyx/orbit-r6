@@ -54,7 +54,7 @@ misuse and exit 1 is every other failure.
 | Path | Content |
 |---|---|
 | `src/loader/ir.{h,c}` | Strict IRv1 parser and validator; owns `R6Module` |
-| `src/codegen-x64/` | `target.h`, `win64.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c` |
+| `src/codegen-x64/` | `target.h`, `win64.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c`, `text.{h,c}` |
 | `src/driver/r6.c` | CLI, temporaries, direct `ld` link |
 | `tests/diff/` | Differential harness; `fixtures/` holds the 100 pairs and their catalogue |
 | `tests/reject/` | Loader suite; `manifest.json` is the truth, `cases/` is rendered |

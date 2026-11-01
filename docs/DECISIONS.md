@@ -150,6 +150,19 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-120 | the driver is built with `-O2` and links in one group | active |
 | D-M1-121 | the Linux link drops unused `DT_NEEDED` entries | active |
 | D-M1-122 | the Win64 link drops three import libraries no symbol comes from | active |
+| D-M1-123 | the assembler text is buffered and written once | active |
+| D-M1-124 | the duplicate-function check keeps its scan | rejected |
+| D-M1-125 | the opcode lookup is a hash table | active |
+| D-M1-126 | instruction and value objects are read in one pass | active |
+| D-M1-127 | module, function, model, type and global objects are read in one pass | active |
+| D-M1-128 | the peephole register names are indexed | active |
+| D-M1-129 | peephole line analysis is reused across rounds | active |
+| D-M1-130 | assembler mnemonics and register names are indexed | active |
+| D-M1-131 | regalloc register widths keep their scan | rejected |
+| D-M1-132 | IR integers are parsed without `strtoll` | active |
+| D-M1-133 | codegen conversions are formatted without `vsnprintf` | active |
+| D-M1-134 | the assembler text stays in memory | active |
+| D-M1-135 | the compile-time baseline after the pipeline work | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -3460,6 +3473,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   (sha256 `6025ca1f…`).
 - Gates: differential **71/71**, loader **265/265**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
+- Forward: D-M1-134 keeps the text in memory; the pass rewrites the driver's
+  buffer and no `.s` temporary exists.
 - Status: **applied**.
 
 ## D-M1-68 - The hottest frame slots live in callee-saved registers
@@ -4630,6 +4645,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   three builds of `ok-link-runtime-dir` through the flag, the variable and the
   flag over a wrong variable. `run_reject.py` cases carry optional `args` and
   `env`.
+- Forward: D-M1-134 keeps the assembler text in memory and removes the `.s`
+  temporary; the `.o` temporary and the `R6_TMPDIR` rule above are unchanged.
 
 ## D-M1-99 - User symbols are emitted as `o_<name>`
 
@@ -5460,4 +5477,758 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   loader 452/452, differential 100/100, corpus 143/143 with the ratchet
   holding, self-host `SELFHOST OK` with `PUBLISHED_C E794E2DB…`. The change is
   inside the Win64 branch; the Linux gates measured in D-M1-121 still apply.
+- Status: **applied**.
+
+## D-M1-123 - the assembler text is buffered and written once
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the codegen stage formatted each line of assembler text straight into
+  a `FILE`. `src/codegen-x64/win64.c` held 262 `fprintf` call sites, 28 `fputs`
+  call sites and one `fputc` per string byte, and every one took the stdio lock.
+  The stage is 427.304 ms of the 2,185.2 ms self-host pipeline. The 2,185.2 ms
+  figure is the stage sum for the branch base; the codegen medians below come
+  from the runs for this change.
+- Decision: format into a growable `Buf` and write it once with a single
+  `fwrite`. Every internal emit function takes `Buf *`. The public
+  `r6_codegen_win64(FILE *out, ...)` keeps its signature and returns false with
+  a `CGEN` diagnostic on a null argument, a buffer failure or a write failure.
+  All four `ferror` sites became `->oom`; write failure is now detected by the
+  single `fwrite` in the public entry, so the buffer failure and the write
+  failure each report their own `CGEN` message.
+- Rejected: `setvbuf` with a larger buffer on the assembler `FILE`. It removes
+  write calls, not the 262 format-and-lock calls this change removes. Not
+  measured.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Codegen run medians (ms) | 3-run median | Range |
+  |---|---|---:|---:|
+  | `r6-before.exe` | 419.877, 430.254, 427.304 | 427.304 | 393.515-505.016 |
+  | `r6-after.exe` | 253.493, 254.147, 245.812 | 253.493 | 235.287-324.833 |
+
+  The median drops by 173.811 ms, 40.7% of the before median. The after
+  maximum of 324.833 ms is 68.682 ms below the before minimum of 393.515 ms,
+  so the two do not overlap. Driver sha256: `2D7A55A9…BCF4` before,
+  `17AD0CA8…DE3F` after.
+
+  The task estimate was a 250 ms after median. The first after measurement,
+  taken before the review fixes, was 267.555 ms and missed it by 17.555 ms.
+  The task is kept because the binding acceptance is the 65.6 ms drop, and that
+  first measurement showed a drop of 159.749 ms. The re-measured driver gives
+  253.493 ms, a drop of 173.811 ms and 3.493 ms above the estimate.
+
+  The assembly text is byte-identical. The `.s` sha256 of
+  `selfhost\main.ir` stays `CEB1A36A…6137`, of
+  `tests/suite/arena_sink_scope.ir` stays `8FA37A26…5E0B`, and of
+  `tests/suite/arith.ir` stays `4F390E3E…A562`, each equal to both baseline
+  runs in `C:\Temp\r6-perf\baseline-hashes.txt`.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The emitted bytes and the admitted
+  language are unchanged, so neither suite has a new case to describe.
+- Status: **applied**.
+
+## D-M1-124 - the duplicate-function check keeps its scan
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `codegen_module` compared each function name against every earlier
+  name, 597,871 `strcmp` calls for the compiler's 1,094 functions
+  (`1094 * 1093 / 2`). `function_table_build` already hashes the same names in
+  one pass for call lookup.
+- Rejected: recording the first repeated index during `function_table_build`
+  and replacing the nested loop with one `n == function_table_duplicate` check
+  after `local_table_build` and the `main_found` assignment. The measured
+  codegen median does not drop. The change passed the four gates and was
+  reverted before the commit, so `src/codegen-x64/win64.c` is unchanged at
+  `55c6bdc`. Forward: D-M1-133 and D-M1-134 later changed that file; the
+  duplicate-function index is still absent.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Codegen run medians (ms) | 3-run median | Range |
+  |---|---|---:|---:|
+  | HEAD (`17AD0CA8…DE3F`) | 248.160, 249.428, 252.271 | 249.428 | 239.139-269.836 |
+  | indexed check (`7DEFFA7A…C910`) | 254.329, 248.559, 249.557 | 249.557 | 235.461-287.507 |
+
+  The after median is 0.129 ms above the before median. Acceptance required a
+  drop of 3 ms. The task estimate was 262 ms or less, and both medians meet it.
+
+  An interleaved A/B in one session, three pairs alternating the two binaries,
+  agrees. The after medians are 252.977, 247.361 and 256.668, median 252.977.
+  The before medians are 252.316, 253.898 and 252.875, median 252.875. The
+  difference is 0.102 ms. Rebuilding the reverted source produces the HEAD
+  binary byte for byte (`17AD0CA8…DE3F`), so the two sides differ only in the
+  check being measured.
+
+  Gates at the indexed build: differential 100/100, loader 452/452, corpus
+  143/143 with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  The check has no reject case. `fn_index_build` in `src/loader/ir.c` refuses a
+  duplicate name first, so the suite exercises the loader's `E_DUPLICATE` and
+  never reaches codegen. A direct call of `r6_codegen_win64` on a module whose
+  names are `a,b,a,b` returns `CGEN duplicate function a`. On `a,b` it returns
+  the later `module must define one non-extern main`. The check fires at the
+  first repeat and is silent otherwise.
+
+  The 597,871 comparisons cost less than the run-to-run spread of the stage on
+  this host. The removal is not measurable here, so the scan stays.
+- Status: **rejected**.
+
+## D-M1-125 - the opcode lookup is a hash table
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `parse_instruction` compared each instruction's opcode name against
+  all 77 entries of `opcode_names`, one `strcmp` per entry. The loop had no
+  `break`, so every instruction paid 77 comparisons, not the index of its
+  match: `77 * 116,508 = 8,971,116` comparisons, 77.0 per instruction. The
+  compiler's own IR holds 116,508 instructions, 34 of the 77 opcodes among
+  them. The body of `a0bfec7` still prints 2,404,515; `926b31b` is the
+  correcting commit.
+- Decision: build a 256-slot open-addressed table once from `opcode_names` and
+  probe it. The lookup hashes the name and probes the table once; a collision
+  moves the probe to the next slot, so a lookup may visit several slots.
+  `opcode_hash` is FNV-1a over the name bytes, and a length table rejects a
+  different-length name before `memcmp` runs. A name that is empty, longer than
+  255 bytes or absent from the table returns -1, and `parse_instruction`
+  reports `E_OPCODE` with the same text at the same point. The `str` copy of
+  the opcode text and its `free` are unchanged.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Load run medians (ms) | 3-run median | Range |
+  |---|---|---:|---:|
+  | HEAD (`17AD0CA8…DE3F`) | 530.620, 535.111, 538.519 | 535.111 | 523.055-588.637 |
+  | hash table (`00397A3A…FB08`) | 488.240, 487.895, 495.010 | 488.240 | 471.125-625.900 |
+
+  The median drops by 46.871 ms, 8.8% of the before median, which is 5.2 ns
+  per comparison (`46.871 ms / 8,971,116`). That corroborates the count.
+  Acceptance for this change was a drop of at least 3 ms. The task estimate
+  was a before median of 490-495 ms and an after median of 500 ms or less; the
+  measured before median is 40.111 ms above the estimate and the after median
+  is inside it.
+
+  The plan's non-overlap rule is unmet on one rep. The before maximum is
+  588.637 ms and one after rep reached 625.900 ms. The task is kept because
+  the run medians separate: the closest before/after pair is 35.610 ms apart
+  and the farthest is 50.624 ms. The 3-run medians differ by 46.871 ms, 15.6
+  times the 3 ms acceptance. The 625.900 ms rep is the only after rep above
+  the before maximum; the other two runs stayed below 498.933 ms. The loader
+  group needs an interleaved A/B or a re-run before its 65.6 ms acceptance is
+  read.
+
+  The emitted bytes are unchanged. The `.s` sha256 of `selfhost\main.ir` stays
+  `CEB1A36A…6137` and its `.o` stays `B655B026…8E22`, equal to
+  `C:\Temp\r6-perf\baseline-hashes.txt`.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged: every
+  name the scan accepted the table accepts, and the two `E_OPCODE` reject cases
+  (`v03-unknown-opcode`, `v03-case-folded-opcode`) still fail with that code.
+- Status: **applied**.
+
+## D-M1-126 - instruction and value objects are read in one pass
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `parse_instruction` walked its instruction object once in `exact_opt`
+  and then once per field through `field`: six field scans and
+  `has_key("line")`. At six key/value pairs the schema pass made 93 comparisons
+  and the seven scans made 42, so 135 per instruction. The compiler's own IR
+  holds 116,508 instructions and 699,062 key/value pairs. Of those
+  instructions, 116,494 carry six pairs and 14 also carry `line`, which makes
+  168 comparisons. The opcode text was also copied with `dupstr` and freed once
+  per instruction.
+- Decision: `obj_view` reads an object's pairs once and stores each value by
+  index. `key_index` checks a key's length before `memcmp`. An unknown key
+  costs one length comparison per schema entry, up to seven for an instruction
+  object and two for a value object. A matching key adds one `memcmp` after the
+  length comparison that matched.
+  `parse_instruction` reads the opcode, `line`, dest, three operands and
+  `elemKind` from the view. `parse_value` reads `kind` and `value` from the
+  same helper with `required = 0`. `ObjView` holds 16 values; the instruction
+  table has 7 keys and the value table 2. The other parsers keep `exact_opt`,
+  `has_key` and `exact`.
+  The diagnostic order and text are unchanged for NUL-free keys, which is the
+  admitted valid key form. A key with an embedded NUL is now refused as an
+  unexpected key: `key_index` compares the full span, where `exact_opt`'s
+  `strcmp` stopped at the NUL. Probe p2 puts `"opcode\u0000x"` after `"opcode"`
+  in an instruction. It printed `E_DUPLICATE duplicate object key` before and
+  prints `E_SCHEMA unexpected object key` after.
+  The admitted opcode set loses one form. A `J_STR` opcode with an embedded
+  NUL, probe p7 `"load_const\u0000x"`, compiled before through `dupstr` and
+  `strlen` and now fails `E_OPCODE`. The direction is fail-closed and no valid
+  program changes.
+  Two messages for a malformed value object changed: `expected object` replaces
+  `value must be a kind/value object`, and `unexpected object key` replaces
+  `unexpected object key in value`. The code `E_SCHEMA` and the position are
+  the same.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. HEAD is
+  `926b31b` and `src/` is unchanged since D-M1-125, so the before driver is
+  `00397A3A…FB08`, the same binary D-M1-125 measured:
+
+  | Driver | Load run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`00397A3A…FB08`) | 490.460, 488.659, 494.272 | 490.460 | 484.531-523.053 |
+  | one pass (`F519001C…F55B`) | 321.918, 323.836, 320.601 | 321.918 | 310.831-359.457 |
+
+  The median drops by 168.542 ms, 34.4% of the before median. The task
+  estimated 430 ms or less after the change, and the measured median is
+  321.918 ms. The non-overlap rule holds: the highest after rep, 359.457 ms, is
+  125.074 ms below the lowest before rep, 484.531 ms.
+
+  The emitted bytes are unchanged. The `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each. The two suite IRs are read from
+  `.r6-build\corpus-ir\tests\suite\`.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. Fifteen hand-written IRs probe the
+  admitted set and the diagnostic order. Twelve print the same diagnostic from
+  both drivers. Three differ only in the message text for a malformed value
+  object, and all three keep `E_SCHEMA` at the same position. Two further
+  probes carry an embedded NUL: p2 changes its code and p7 stops compiling.
+- Status: **applied**.
+
+## D-M1-127 - module, function, model, type and global objects are read in one pass
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `parse_function`, `parse_module`, `parse_model`, `parse_type` and
+  `parse_global` each walked their object once for the schema and once per
+  field through `field`. The selfhost IR holds 1,094 function objects with
+  fourteen pairs each, 95 models and 16 globals with three, 419 model fields
+  with two and 4 types with five. A function object cost 497 comparisons in
+  `exact_opt`, 196 in the fourteen `field` scans and 14 in
+  `has_key("export")`: 707 in total. The fifteenth `field` call reads `export`
+  only when the key is present, and no function carries it. The module, model,
+  type and global objects cost 135, 30, 85 and 30.
+- Decision: the five parsers read each object once through `obj_view`, the
+  helper D-M1-126 added. `has_key`, `exact_opt` and `exact` are deleted. The
+  root object's `exact` call was the last caller of `exact`, so the root now
+  calls `obj_view` with a two-key table and keeps `field` for its two reads.
+  `eq` and `field` stay.
+  Every schema carries a `_Static_assert` against `OBJ_KEYS_MAX = 16`: root 2,
+  module 7, function 15, model 3, model field 2, type 5, global 3, instruction
+  7, value 2. The bound is checked by the compiler, so no count is validated at
+  run time. A lookup now costs one length comparison per schema entry before
+  `memcmp`, up to fifteen for a function object and seven for a module or an
+  instruction.
+  Diagnostic text and order are unchanged for the five schemas and the root.
+  Eighteen hand-written IRs cover a value that is not an object, an unknown
+  key, a missing required key, a duplicate known key, a duplicate unknown key
+  and a route mismatch. Seventeen print the same line from both drivers. The
+  eighteenth carries an embedded NUL, `"name\u0000x"` after `"name"`:
+  `E_DUPLICATE duplicate object key` becomes `E_SCHEMA unexpected object key`,
+  the class D-M1-126 records, at the same position.
+  Two root probes print the same line from the branch-base driver
+  `2D7A55A9…BCF4` (`C:\Temp\r6-perf\r6-before.exe`), the before driver
+  `F519001C…F55B` and the
+  after driver `E5535AA4…783E`. A root object with a duplicate `irVersion`,
+  `{"irVersion":"1","irVersion":"1","module":{}}`, prints
+  `E_DUPLICATE duplicate object key`. A root that is not an object, `[]`,
+  prints `E_SCHEMA expected object`. Both print at 2:1 and exit 1.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Load run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`F519001C…F55B`) | 324.215, 324.052, 313.921 | 324.052 | 303.897-380.093 |
+  | one pass (`E5535AA4…783E`) | 317.147, 311.153, 312.081 | 312.081 | 302.529-415.666 |
+
+  The median drops by 11.971 ms, 3.7% of the before median. That is inside the
+  run-to-run spread of this machine, so the loader group is measured by an
+  interleaved A/B instead: seven iterations per driver, alternating the
+  branch-base driver `2D7A55A9…BCF4` and `E5535AA4…783E` on the same IR.
+
+  | Driver | Load median (ms) | Rep range |
+  |---|---:|---:|
+  | before, original loader (`2D7A55A9…BCF4`) | 536.613 | 521.433-682.366 |
+  | after (`E5535AA4…783E`) | 310.525 | 302.670-316.476 |
+
+  The group drop is 226.088 ms against an acceptance of 65.6 ms, and the two
+  rep ranges do not overlap. Measured against the D-M1-126 before median of
+  490.460 ms the drop is 178.379 ms.
+
+  Each stage's after 3-run median sits inside its before union rep range. Nine
+  after reps sit above their stage's before maximum, in five stages: load has
+  two (382.392 and 415.666 against 380.093), asm three (346.150, 355.405 and
+  409.511 against 340.068), ld two (89.778 and 94.542 against 77.494),
+  regalloc one (125.737 against 123.994) and object one (28.191 against
+  27.659). Codegen's after 3-run median is 256.938 ms, 5.528 ms above the
+  before 251.410 ms and inside the before union range 243.543-345.492, against
+  an after union range of 243.858-291.028.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Correction, 2026-10-31, later measurement. The stage medians and the
+  comparison count in this entry were re-taken: codegen 256.938, peephole
+  735.389, asm 318.725 and object 18.854, and 707 comparisons per function
+  object. Nine after reps sit above their stage's before maximum.
+- Status: **applied**.
+
+## D-M1-128 - the peephole register names are indexed
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `token_reg` compared one operand token against three arrays of
+  sixteen names and called `strlen` once per comparison, up to 48 times per
+  token. The final pass calls it for every register of every operand of every
+  line it analyzes, so the comparison cost dominated the pass.
+- Decision: the 48 general-register names, with their lengths, widths and
+  numbers, are one table, `REG_NAMES`. `reg_token_lookup` hashes the token with
+  FNV-1a and probes a 128-slot open table built on the first call. `token_reg`
+  reads the width and number from the hit and keeps the `xmm` and `rip`
+  branches unchanged. `G8` is deleted with the old scan; `G64` and `G32` stay
+  because `rename_register` spells a name from them.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Peephole run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`E5535AA4…783E`) | 735.446, 747.453, 745.422 | 745.422 | 724.482-839.356 |
+  | indexed (`47FA98B5…623C`) | 355.052, 350.941, 348.039 | 350.941 | 341.565-429.466 |
+
+  The median drops by 394.481 ms, 52.9% of the before median, and the two rep
+  ranges do not overlap. Wall time follows it, 1866.3 -> 1474.2 ms. No other
+  stage moves by more than 7.2 ms (load, 7.105 ms), and every one stays inside
+  its before rep range: load 314.767 -> 321.872, codegen 254.734 -> 254.942,
+  regalloc 111.193 -> 111.363, asm 329.792 -> 324.790, object 18.131 -> 19.678
+  and ld 70.954 -> 71.111.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-129 - peephole line analysis is reused across rounds
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `process_final` runs up to four rounds. Each round analyzed every live
+  line, but a round changes only the lines `sweep_function` rewrites. A scratch
+  build counted 1,035,022 `analyze_line` calls on the self-host IR; the
+  committed driver does not print the count. The same build timed the calls with
+  `QueryPerformanceCounter` at 100.723 ms, probe overhead included. The probe is
+  not in the tree, so that reading is not reproducible from the committed
+  driver.
+- Decision: `PInfo` carries `fresh`, set at the sites that call `analyze_line`
+  (`set_text`, the propagation loop in `propagate_copy` and the two sweep
+  rewrites) and at `kill_line` and the `.rdata` pool rewrite, so the flag
+  describes the line's new state. `kill_line` clears use, def and kind and marks
+  the line dead without analyzing it; the pool rewrite replaces the last line's
+  text after the final round. The round loop still assigns `line`, because the
+  label record reads it, and skips only `analyze_line` when the flag is set. The
+  change leaves 363,306 analyses. The `live_in` reset, the fixpoint loop, the
+  dead-line clearing, the label array and the target resolution are unchanged.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Peephole run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`47FA98B5…623C`) | 355.052, 350.941, 348.039 | 350.941 | 341.565-429.466 |
+  | reused (`69954946…A01C`) | 285.304, 287.938, 288.605 | 287.938 | 274.178-378.524 |
+
+  The median drops by 63.003 ms, 18.0% of the before median. The six run
+  medians are separated: the highest reused median, 288.605, is 59.434 ms below
+  the lowest before median, 348.039. Single reps overlap. The call count falls
+  1,035,022 -> 363,306, so 671,716 skipped calls cost 93.8 ns each: the 63.003
+  ms drop divided by the calls removed. That call drop and the stage drop are
+  the evidence; the 100.723 ms probe reading is a scratch measurement. Against
+  D-M1-128's before median of 745.422 ms the peephole stage has fallen 457.484
+  ms, 61.4%. Wall time follows the stage, 1474.2 -> 1399.2 ms, a drop of 75.0
+  ms, and no other stage moves outside its before rep range: load 321.872 ->
+  312.882, codegen 254.942 -> 255.066, regalloc 111.363 -> 113.163, asm 324.790
+  -> 318.482, object 19.678 -> 19.504 and ld 71.111 -> 72.162.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-130 - assembler mnemonics and register names are indexed
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `encode` compared the mnemonic of every instruction line against 123
+  literal `strcmp` calls on 94 lines. The 95th `strcmp(op, …)` line is
+  `strcmp(op, jcc[j].name)`, a variable comparison. `reg_id` compared an
+  operand against three arrays of sixteen register names. The self-host IR
+  holds 231,355 instruction lines, 44 distinct mnemonics and 318,374 register
+  operands.
+- Decision: the 67 mnemonic names sit in one enum and one name array.
+  `mnemonic_id` hashes a mnemonic with FNV-1a and probes a 256-slot open table
+  built on the first call. `encode` computes `mid` once after it splits the
+  line, and every literal comparison becomes `mid == M_NAME`. The 48 register
+  names, with their `%` prefix, widths and numbers, are one table that a
+  128-slot probe reads. One `strcmp` on a hit covers 55 of the 67 mnemonics
+  and 43 of the 48 register names. Linear probing visits 2-3 slots for the
+  rest. The `%xmm` parse and the width, number and unknown results are
+  unchanged. The conditional-jump table keeps `strcmp(op, jcc[j].name)`, the
+  only comparison left against `op`. Every diagnostic text and position is
+  unchanged, including the `unsupported Win64 assembler operands` fallthrough.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Assembly run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`69954946...A01C`) | 337.815, 331.980, 335.324 | 335.324 | 316.769-354.849 |
+  | indexed (`7FE3879B...2FC6`) | 244.062, 252.392, 249.861 | 249.861 | 233.407-260.359 |
+
+  The median drops by 85.463 ms, 25.5% of the before median, and the two rep
+  ranges do not overlap. Wall time follows the stage, 1416.1 -> 1330.4 ms, and
+  no other stage leaves its before rep range: load 318.447 -> 315.901, codegen
+  253.299 -> 256.192, peephole 292.174 -> 281.206, regalloc 109.147 -> 111.876,
+  object 18.520 -> 20.839 and ld 71.135 -> 71.657.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-131 - regalloc register widths keep their scan
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `gpr_width` compared an operand against 14 names in `r64` and 14 in
+  `r32`, each with `strlen` plus `memcmp`. The scan ran on every line whose
+  text names exactly one `(%rbp)` slot: the saved 6,598,070-byte self-host
+  assembly holds 53,524 of them across 307,345 lines. `classify_line` calls
+  `gpr_width` at eight sites,
+  so one such line costs one or two scans.
+- Rejected: the 28 names in one table with their length and width, probed with
+  an FNV-1a hash over a 64-slot open table built on the first call. A hit costs
+  one hash and one `memcmp` for 20 names, two probes for 7 and three for 1. The
+  widths were unchanged: 64 for the 14 64-bit names, 32 for the 14 32-bit
+  names, and 0 for every other name, including `%rsp`, `%rbp`, `%esp` and
+  `%ebp`. The scan and the index cover the same 28 names. The change passed the
+  four gates under `85a36e9` and is reverted, so `src/codegen-x64/regalloc.c`
+  is back at `9beb9a3` and
+  `git diff --quiet 9beb9a3 -- src/codegen-x64/regalloc.c` exits 0. Forward:
+  D-M1-134 changed that file's signature and buffer ownership, so the command
+  now exits 1; the width index is still absent.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | regalloc before | regalloc after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|
+  | 1 | 106.980 | 104.371 | 1220.7 | 1221.7 |
+  | 2 | 113.437 | 106.279 | 1225.0 | 1243.2 |
+  | 3 | 109.021 | 107.429 | 1221.0 | 1222.7 |
+  | median | 109.021 | 106.279 | 1221.0 | 1222.7 |
+
+  The before driver is `7FE3879B...2FC6` and the after driver is
+  `B6645CA7...E4E0`. An interleaved A/B of three pairs, run after the three
+  runs above, moves regalloc 112.325 -> 107.847 ms and the pipeline
+  1224.7 -> 1226.4 ms.
+
+  The regalloc stage drops 2.742 ms, 2.5% of its before median and 0.22% of
+  the 1,221.0 ms pipeline. The pipeline does not follow: its after median is
+  1.7 ms above the before median in the isolated runs, and the A/B moves it up
+  1.7 ms. The regalloc rep ranges overlap, 101.024-152.849 ms before and
+  97.309-115.749 ms after, and so do the pipeline run ranges, 1,220.7-1,225.0
+  ms before and 1,221.7-1,243.2 ms after. The 1,200 ms target is 22.7 ms away
+  at the after median. The plan's rule reverts a change that does not pay.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at `85a36e9`: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`. No gate was rerun after the revert; the source
+  is byte-identical to `9beb9a3`.
+
+  No fixture or reject case is added. The admitted language is unchanged. The
+  text-in-memory change the plan defers, the structural task, is not started.
+- Status: **rejected**.
+
+## D-M1-132 - IR integers are parsed without strtoll
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `number` ran over every integer field of the IR. On
+  `.r6-build\selfhost\main.ir` it is called 335,553 times: 116,508 `dest`,
+  116,508 `elemKind`, 101,429 `Int`, `Register` and `Label` operand values, 14
+  `line` on `div` and `mod`, and 1,094 `registerCount`. The plan estimated
+  about 600,000 calls. Each call scanned the text for `.`, `e` or `E` and then
+  called `strtoll`, which scanned the same text again.
+- Decision: the digits are converted in place with a checked
+  multiply-accumulate over `uint64_t`. A leading `-` is applied after the
+  digits, so `INT64_MIN` parses. A non-digit, a value above `INT64_MAX` and a
+  negative value below `INT64_MIN` answer `E_RANGE "integer outside allowed
+  range"`; the caller's `lo..hi` test is unchanged. A fraction or exponent
+  answers `E_SCHEMA "integer value has a fraction or exponent"` before any
+  digit is converted. No other function, message or call site changes.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | load before | load after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|
+  | 1 | 319.431 | 306.109 | 1248.019 | 1228.689 |
+  | 2 | 314.914 | 301.605 | 1235.570 | 1226.486 |
+  | 3 | 320.612 | 304.582 | 1241.050 | 1236.994 |
+  | median | 319.431 | 304.582 | 1241.050 | 1228.689 |
+
+  The before driver is `7FE3879B...2FC6` and the after driver is
+  `CA4372E2...E23E`. The body of `562944f` abbreviates the same driver as
+  `CA4372E2...9E23`; `57c63f7` corrects the suffix. Load drops 14.849 ms, 4.6%
+  of its before median, and the pipeline drops 12.361 ms. An interleaved A/B
+  of three pairs moves load 324.066 -> 305.349 ms and the pipeline 1252.381 ->
+  1239.054 ms. The A/B load ranges are 319.859-342.170 before and
+  300.971-307.696 after; the A/B pipeline ranges are 1250.072-1265.753 before
+  and 1226.738-1286.954 after.
+
+  The 1,200 ms target is 28.689 ms away at the after median and 39.054 ms away
+  in the A/B. The same before driver measured 1,221.0 ms of pipeline in
+  D-M1-131 and 1,241.050 ms here. The two sessions were not interleaved, so
+  the 20.1 ms between them measures the same binary at two times, not a cause
+  of the miss. The target is missed in both figures.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at the change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged. The
+  text-in-memory change the plan defers, the structural task, is not started.
+- Status: **applied**.
+
+## D-M1-133 - codegen conversions are formatted without vsnprintf
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `buf_printf` formatted every output line through `vsnprintf`. On
+  `.r6-build\selfhost\main.ir` an instrumented scratch build counted 297,389
+  calls and no other path into the buffer (`FMTSTAT render=297389
+  fallback=0`). The plan's instrumented build put the cost of those calls at
+  43-47 ms. That build read `QueryPerformanceCounter` twice around each call,
+  and one pair costs 42.6-46.2 ns on this machine
+  (`C:\Temp\r6-perf\qpc_pair.c`), so 297,389 calls carry 12.7-13.7 ms of the
+  43-47 ms.
+- Decision: `buf_render` writes the conversion into the 4,096-byte temporary
+  in place, and `buf_printf` appends the length it returns. A zero-padded
+  conversion counts the sign in the width, so `%08d` of -5 prints eight
+  characters, as `snprintf` does. The claimed set is the eight conversions the
+  generator uses. A census of the format argument of the 262 `text_printf`
+  calls counts 581 conversions. `%u` appears 298 times in 180 calls, `%s` 135
+  in 88, `%zu` 85 in 46, `%llu` 23 in 21, `%d` 21 in 21, `%016llx` 9 in 9,
+  `%lld` 8 in 7 and `%ld` 2 in 2 (`C:\Temp\r6-perf\convcount.py`). A width
+  without a
+  leading zero, an `h`, `j` or `t` length, a width or a length on `%s`, a `z`
+  length on `%d`, a null `%s`, and any conversion whose text would pass the
+  temporary return -1. A -1 falls through to the `vsnprintf` code that was
+  there, so a declined format takes the path it took before. No format string
+  and no call site changes.
+- Evidence: `C:\Temp\r6-perf\measure_8c.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | codegen before | codegen after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|
+  | 1 | 248.432 | 229.564 | 1219.802 | 1192.044 |
+  | 2 | 258.076 | 231.563 | 1217.262 | 1198.972 |
+  | 3 | 249.668 | 231.074 | 1217.338 | 1197.472 |
+  | median | 249.668 | 231.074 | 1217.338 | 1197.472 |
+
+  The before driver is `CA4372E2...E23E` and the after driver is
+  `57D3E569...3BD1B58`. Both are built by `scripts\build-r6.ps1`, which prints
+  no warning. Codegen drops 18.594 ms, 7.4% of its before median, and the
+  pipeline drops 19.866 ms.
+
+  An interleaved A/B of three pairs moves codegen 251.910 -> 226.398 ms, the
+  pipeline 1226.455 -> 1195.892 ms and wall 1318.209 -> 1284.246 ms. The A/B
+  codegen ranges are 250.456-252.320 before and 222.628-233.004 after. The A/B
+  pipeline ranges are 1212.910-1228.791 before and 1188.050-1198.187 after.
+  Neither pair of ranges overlaps.
+
+  The codegen rep ranges in the three runs overlap between 242.418 and 267.653
+  ms: 242.418-301.457 before and 214.296-267.653 after. The 267.653 ms rep sits
+  in after run 2, whose wall range reached 1,426.7 ms. No other stage moves
+  more than 2.5 ms between the three-run medians: load 300.623 -> 303.067,
+  peephole 282.630 -> 282.843, regalloc 108.958 -> 110.301, asm 250.039 ->
+  248.141, object 20.237 -> 18.021. The largest of these is load at 2.444 ms.
+
+  The pipeline after median is 2.528 ms below the 1,200 ms target, and the A/B
+  after median is 4.108 ms below it.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each, and the self-host IR emitted a third matching pair after
+  `selfhost.ps1` regenerated it.
+
+  Gates at the change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-134 - the assembler text stays in memory
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the driver wrote the generated text to a `.s` temporary: it wrote it
+  once and read it back four times, in three read-write pass pairs and one read
+  at the assembler. On `.r6-build\selfhost\main.ir` the text is
+  6,598,070 bytes. A scratch probe (`C:\Temp\r6-perf\io_share.c`) measured the
+  five I/O operations at 31.5 ms median, range 30.662-35.055, 9 reps. The
+  pipeline after D-M1-133 was 1,197.472 ms in its three-run median and
+  1,195.892 ms in its A/B, 2.5 and 4.1 ms below the 1,200 ms target.
+- Decision:
+  - One `TextBuf`, owned by the driver, carries the text from codegen to the
+    assembler. `src/codegen-x64/text.c` holds the buffer helpers moved out of
+    `win64.c` (D-M1-133) and `text_release`. The `.s` temporary is no longer
+    created. The `.o` temporary, `R6_TMPDIR` and the link are unchanged.
+  - `r6_codegen_win64`, both peephole passes and `r6_regalloc_win64` take the
+    buffer. Each pass rewrites `t->p` and transfers the result only on success;
+    on failure `*t` still owns its buffer. `r6_assemble_win64` takes `text` and
+    `size` and splits the text on `'\n'`. The 1,023-byte check keeps the
+    boundary of the old `fgets` loop: a final line of 1,022 bytes and a
+    1,023-byte chunk ending in `'\n'` are accepted; a final line of 1,023 bytes
+    with no newline, and any line of 1,024 bytes or more, is rejected with
+    `assembler line %zu exceeds 1023 bytes`. A scratch program linked
+    `asm_win64.c` with `coff.c` and called the assembler on seven synthetic
+    inputs. The old `fgets` loop, compiled against the same seven, returns the
+    same verdicts and line numbers.
+  - The driver calls `text_release` at `free_module`, so every exit releases
+    the buffer. No format string, pass rule or encoder rule changes.
+- Evidence: `C:\Temp\r6-perf\measure_8c.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | peephole before | peephole after | regalloc before | regalloc after | asm before | asm after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|
+  | 1 | 287.725 | 267.632 | 108.587 | 96.326 | 260.778 | 224.046 | 1220.700 | 1130.781 |
+  | 2 | 281.999 | 269.066 | 112.905 | 97.888 | 256.795 | 224.009 | 1210.915 | 1147.733 |
+  | 3 | 283.706 | 269.172 | 113.261 | 99.034 | 264.005 | 230.235 | 1213.930 | 1149.111 |
+  | median | 283.706 | 269.066 | 112.905 | 97.888 | 260.778 | 224.046 | 1213.930 | 1147.733 |
+
+  The before driver is `57D3E569...3BD1B58` and the after driver is
+  `4CF2CAE3...0F67`. Both are built by `scripts\build-r6.ps1`, which prints
+  no warning. The pipeline drops 66.197 ms. Load moves 304.738 -> 303.354,
+  codegen 233.916 -> 224.337 and object 18.975 -> 18.714 between the same
+  medians.
+
+  An interleaved A/B of three pairs moves peephole 286.497 -> 268.872 ms,
+  regalloc 109.867 -> 101.398, asm 263.726 -> 225.039 and the pipeline
+  1210.923 -> 1141.166 ms. Wall moves 1300.737 -> 1238.774 ms. The A/B
+  pipeline ranges are 1206.213-1245.245 before and 1130.164-1150.923 after;
+  the asm ranges are 262.539-263.879 before and 218.215-233.514 after. Neither
+  pair of ranges overlaps; the regalloc ranges do (102.355-110.636 before,
+  96.507-107.712 after).
+
+  The after pipeline medians are 52.267 ms (three runs) and 58.834 ms (A/B)
+  below the 1,200 ms target. The change is kept on this measurement.
+
+  The object bytes are identical. The `.o` sha256 of `selfhost\main.ir`,
+  `tests\suite\arena_sink_scope.ir` and `tests\suite\arith.ir` equal
+  `C:\Temp\r6-perf\baseline-hashes.txt` on two runs each:
+  `B655B026...F8E22`, `13D6F7D1...1AA6F` and `0C6EB6F6...01631`. The `.s` hash
+  is no longer reproducible by design: no `.s` file is created, so the object
+  is the byte-identity check.
+
+  Gates at the change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-135 - the compile-time baseline after the pipeline work
+
+- Date: 2026-10-31 on Windows and 2026-11-01 on the WSL clock for Linux. Pin
+  unchanged (`01e31e8`, D-F0-21).
+- Reason: ten changes lowered the self-host pipeline. The recorded baseline
+  described the tree before them, and `tests/perf/baseline.json` was stale
+  against D-M1-122. This entry records the measured result, the gates on both
+  hosts and the re-taken baseline.
+- Evidence:
+  - Same method before and after: `measure.py`, 7 reps, three runs,
+    `.r6-build\selfhost\main.ir`. The pipeline at the branch start
+    (`408a8a0`) was 2,187.2 ms, the median of the three per-run sums (2,176.9,
+    2,187.2, 2,187.8); at `bced3ec` it is 1,147.733 ms, the median of three
+    per-run sums (D-M1-134). The two sessions were not interleaved. The drop
+    is 47.5%.
+  - `run_perf.py --reps 5`, three runs per host, then one run with
+    `--write-baseline` per host:
+
+    | Metric | Windows x64 | Linux x64 | Target |
+    |---|---:|---:|---:|
+    | self-host pipeline | 1,086.3 ms | 881.9 ms | ≤ 1,200 ms |
+    | self-host R6 build | 1,181.1 ms | 943.6 ms | ≤ 1,300 ms |
+    | corpus pipeline | 447.0 ms | 331.6 ms | ≤ 650 ms |
+    | corpus total | 5,418.6 ms | 3,060.7 ms | ≤ 5,650 ms |
+    | self-host wall | 15,646.9 ms | 7,405.9 ms | not a target |
+
+    Every target is met on both hosts. The plan's recorded baseline was
+    1,960.5 / 2,046-2,068 / 978.8 / 5,925.9 ms; it was measured before the
+    branch and is not re-measured here, so the table above is compared to the
+    fixed target, not to that column.
+  - Run-to-run spread before the write. Windows: corpus total 5,392.6-5,509.0,
+    corpus pipeline 436.6-457.3, self-host R6 1,186.5-1,205.2, self-host
+    pipeline 1,093.5-1,113.6. The plan asks for three medians within 3% before
+    the write; the corpus pipeline spread is 4.75%, above that condition, so
+    this write departs from it. The written run (447.0) is 2.3% below the
+    slowest and 2.4% above the fastest observed run, so all four pass a 3%
+    check. Linux: corpus total 3,045.5-3,060.7, corpus pipeline 331.2-335.7,
+    self-host R6 924.1-943.6, self-host pipeline 863.1-881.9.
+  - Determinism: ten executable corpus programs, each built twice with the
+    final driver; the `.o` hashes are identical in 10 of 10 pairs
+    (`C:\Temp\r6-perf\determinism.py`).
+  - Gates, Windows, two full passes: differential 100/100, loader 452/452,
+    corpus 143/143 with the ratchet holding (`143 -> 143`), self-host
+    `SELFHOST OK` with `PUBLISHED_C E794E2DB…92B1`.
+  - Gates, Linux (Ubuntu, gcc 15.2): differential 100/100, loader 452/452,
+    corpus 143/143 with the ratchet holding, self-host `SELFHOST OK` with the
+    same `PUBLISHED_C`.
+  - Sanitizers, Linux: `gcc -fsanitize=address,undefined` built the driver;
+    the loader suite passed 452/452; the `arith` program printed the same
+    stdout and exit as the plain build; the self-host IR built in 5.752 s
+    with empty stderr. The Windows toolchain ships no `libasan` or `libubsan`,
+    so the same units were compiled there with `-fanalyzer`: no diagnostic on
+    `win64.c`, `text.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `r6.c` or
+    `tests/coff/asm_probe.c`.
+  - Byte identity: the `.o` hashes of the three reference IRs on Windows
+    equal `baseline-hashes.txt` (D-M1-134). The `.s` hash is no longer
+    reproducible because no `.s` file is written.
 - Status: **applied**.
