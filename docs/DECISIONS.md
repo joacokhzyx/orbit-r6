@@ -5486,8 +5486,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   a `FILE`. `src/codegen-x64/win64.c` held 262 `fprintf` call sites, 28 `fputs`
   call sites and one `fputc` per string byte, and every one took the stdio lock.
   The stage is 427.304 ms of the 2,185.2 ms self-host pipeline. The 2,185.2 ms
-  figure is the planning baseline measured on the branch base; the codegen
-  medians below come from the runs for this change.
+  figure is the stage sum for the branch base; the codegen medians below come
+  from the runs for this change.
 - Decision: format into a growable `Buf` and write it once with a single
   `fwrite`. Every internal emit function takes `Buf *`. The public
   `r6_codegen_win64(FILE *out, ...)` keeps its signature and returns false with
@@ -5747,8 +5747,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
   The median drops by 11.971 ms, 3.7% of the before median. That is inside the
   run-to-run spread of this machine, so the loader group is measured by an
-  interleaved A/B instead: seven iterations per driver, alternating the Task 0
-  driver `2D7A55A9…BCF4` and `E5535AA4…783E` on the same IR.
+  interleaved A/B instead: seven iterations per driver, alternating the
+  branch-base driver `2D7A55A9…BCF4` and `E5535AA4…783E` on the same IR.
 
   | Driver | Load median (ms) | Rep range |
   |---|---:|---:|
@@ -6050,9 +6050,10 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   conversion counts the sign in the width, so `%08d` of -5 prints eight
   characters, as `snprintf` does. The claimed set is the eight conversions the
   generator uses. A census of the format argument of the 262 `text_printf`
-  calls counts 581 conversions: `%u` 298 in 180 calls, `%s` 135 in 88, `%zu`
-  85 in 46, `%llu` 23 in 21, `%d` 21 in 21, `%016llx` 9 in 9, `%lld` 8 in 7
-  and `%ld` 2 in 2 (`C:\Temp\r6-perf\convcount.py`). A width without a
+  calls counts 581 conversions. `%u` appears 298 times in 180 calls, `%s` 135
+  in 88, `%zu` 85 in 46, `%llu` 23 in 21, `%d` 21 in 21, `%016llx` 9 in 9,
+  `%lld` 8 in 7 and `%ld` 2 in 2 (`C:\Temp\r6-perf\convcount.py`). A width
+  without a
   leading zero, an `h`, `j` or `t` length, a width or a length on `%s`, a `z`
   length on `%d`, a null `%s`, and any conversion whose text would pass the
   temporary return -1. A -1 falls through to the `vsnprintf` code that was
