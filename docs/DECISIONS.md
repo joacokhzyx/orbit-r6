@@ -5923,8 +5923,9 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 - Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
 - Reason: `gpr_width` compared an operand against 14 names in `r64` and 14 in
   `r32`, each with `strlen` plus `memcmp`. The scan ran on every line whose
-  text names exactly one `(%rbp)` slot: the self-host assembly holds 53,378 of
-  them across 307,345 lines. `classify_line` calls `gpr_width` at eight sites,
+  text names exactly one `(%rbp)` slot: the saved 6,598,070-byte self-host
+  assembly holds 53,524 of them across 307,345 lines. `classify_line` calls
+  `gpr_width` at eight sites,
   so one such line costs one or two scans.
 - Rejected: the 28 names in one table with their length and width, probed with
   an FNV-1a hash over a 64-slot open table built on the first call. A hit costs
