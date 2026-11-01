@@ -160,6 +160,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-130 | assembler mnemonics and register names are indexed | active |
 | D-M1-131 | regalloc register widths keep their scan | rejected |
 | D-M1-132 | IR integers are parsed without `strtoll` | active |
+| D-M1-133 | codegen conversions are formatted without `vsnprintf` | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -6017,4 +6018,71 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
   No fixture or reject case is added. The admitted language is unchanged. The
   text-in-memory change the plan defers, the structural task, is not started.
+- Status: **applied**.
+
+## D-M1-133 - codegen conversions are formatted without vsnprintf
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `buf_printf` formatted every output line through `vsnprintf`. On
+  `.r6-build\selfhost\main.ir` an instrumented scratch build counted 297,389
+  calls and no other path into the buffer (`FMTSTAT render=297389
+  fallback=0`). The plan's instrumented build put the cost of those calls at
+  43-47 ms. That build read `QueryPerformanceCounter` twice around each call,
+  and one pair costs 42.6-46.2 ns on this machine
+  (`C:\Temp\r6-perf\qpc_pair.c`), so 297,389 calls carry 12.7-13.7 ms of the
+  43-47 ms.
+- Decision: `buf_render` writes the conversion into the 4,096-byte temporary
+  in place, and `buf_printf` appends the length it returns. A zero-padded
+  conversion counts the sign in the width, so `%08d` of -5 prints eight
+  characters, as `snprintf` does. The claimed set is the eight conversions the
+  generator uses: `%u` at 242 call sites, `%s` at 96, `%zu` at 37, `%d` at 20,
+  `%llu` at 19, `%016llx` at 9, `%lld` at 6 and `%ld` at 2. A width without a
+  leading zero, an `h`, `j` or `t` length, a width or a length on `%s`, a `z`
+  length on `%d`, a null `%s`, and any conversion whose text would pass the
+  temporary return -1. A -1 falls through to the `vsnprintf` code that was
+  there, so a declined format takes the path it took before. No format string
+  and no call site changes.
+- Evidence: `C:\Temp\r6-perf\measure_8c.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | codegen before | codegen after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|
+  | 1 | 248.432 | 229.564 | 1219.802 | 1192.044 |
+  | 2 | 258.076 | 231.563 | 1217.262 | 1198.972 |
+  | 3 | 249.668 | 231.074 | 1217.338 | 1197.472 |
+  | median | 249.668 | 231.074 | 1217.338 | 1197.472 |
+
+  The before driver is `CA4372E2...E23E` and the after driver is
+  `57D3E569...3BD1B58`. Both are built by `scripts\build-r6.ps1`, which prints
+  no warning. Codegen drops 18.594 ms, 7.4% of its before median, and the
+  pipeline drops 19.866 ms.
+
+  An interleaved A/B of three pairs moves codegen 251.910 -> 226.398 ms, the
+  pipeline 1226.455 -> 1195.892 ms and wall 1318.209 -> 1284.246 ms. The A/B
+  codegen ranges are 250.456-252.320 before and 222.628-233.004 after. The A/B
+  pipeline ranges are 1212.910-1228.791 before and 1188.050-1198.187 after.
+  Neither pair of ranges overlaps.
+
+  The codegen rep ranges in the three runs overlap between 242.418 and 267.653
+  ms: 242.418-301.457 before and 214.296-267.653 after. The 267.653 ms rep sits
+  in after run 2, whose wall range reached 1,426.7 ms. No other stage moves
+  more than 2.5 ms between the three-run medians: load 300.623 -> 303.067,
+  peephole 282.630 -> 282.843, regalloc 108.958 -> 110.301, asm 250.039 ->
+  248.141, object 20.237 -> 18.021. The largest of these is load at 2.444 ms.
+
+  The pipeline after median is 2.528 ms below the 1,200 ms target, and the A/B
+  after median is 4.108 ms below it.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each, and the self-host IR emitted a third matching pair after
+  `selfhost.ps1` regenerated it.
+
+  Gates at the change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
 - Status: **applied**.
