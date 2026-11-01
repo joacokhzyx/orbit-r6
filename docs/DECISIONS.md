@@ -6041,8 +6041,10 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   in place, and `buf_printf` appends the length it returns. A zero-padded
   conversion counts the sign in the width, so `%08d` of -5 prints eight
   characters, as `snprintf` does. The claimed set is the eight conversions the
-  generator uses: `%u` at 242 call sites, `%s` at 96, `%zu` at 37, `%d` at 20,
-  `%llu` at 19, `%016llx` at 9, `%lld` at 6 and `%ld` at 2. A width without a
+  generator uses. A census of the format argument of the 262 `text_printf`
+  calls counts 581 conversions: `%u` 298 in 180 calls, `%s` 135 in 88, `%zu`
+  85 in 46, `%llu` 23 in 21, `%d` 21 in 21, `%016llx` 9 in 9, `%lld` 8 in 7
+  and `%ld` 2 in 2 (`C:\Temp\r6-perf\convcount.py`). A width without a
   leading zero, an `h`, `j` or `t` length, a width or a length on `%s`, a `z`
   length on `%d`, a null `%s`, and any conversion whose text would pass the
   temporary return -1. A -1 falls through to the `vsnprintf` code that was
