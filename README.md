@@ -121,8 +121,9 @@ stops before the link. A runtime module builds only that way.
 On Windows a module with no argv, network, database or migrations gets R6's
 own entry `orbit_start` and links without the MinGW start-up objects; any other
 module keeps `main` (D-M1-104). On Linux every program keeps `main` and the
-glibc start-up (D-M1-119). The `.s` and `.o` temporaries go to `R6_TMPDIR`,
-else the system temporary directory, and a successful link deletes them.
+glibc start-up (D-M1-119). The `.o` temporary goes to `R6_TMPDIR`, else the
+system temporary directory, and a successful link deletes it. The assembler
+text stays in memory (D-M1-134).
 
 A diagnostic is one line, `r6: <file>:<line>:<col>: error[<CODE>]: <msg>`.
 Exit 2 is CLI misuse and exit 1 is every other failure. `--version` prints
@@ -148,7 +149,7 @@ The interfaces between loader, codegen and driver are in
 | Path | Content |
 |---|---|
 | `src/loader/` | Strict JSON IRv1 parser and validator; admits the opcode set |
-| `src/codegen-x64/` | `target.h`, `win64.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c` |
+| `src/codegen-x64/` | `target.h`, `win64.c`, `text.{h,c}`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c` |
 | `src/driver/` | CLI, temporaries, direct `ld` link |
 | `tests/diff/` | Differential harness and the 100 fixture pairs in `fixtures/` |
 | `tests/reject/` | Loader contract suite; `manifest.json` is the truth |

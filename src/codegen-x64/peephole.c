@@ -69,29 +69,21 @@ static bool parse_move(const char *line, size_t len, bool *store, SlotMove *out)
     return false;
 }
 
-bool r6_peephole_win64(const char *path, char *error, size_t error_capacity) {
-    FILE *file = fopen(path, "rb");
-    char *text = NULL, *result = NULL;
+bool r6_peephole_win64(TextBuf *t, char *error, size_t error_capacity) {
+    char *text, *result = NULL;
     size_t size, used = 0, at = 0;
     SlotMove stored;
     bool have_store = false;
-    long end;
-    if (!file || fseek(file, 0, SEEK_END) != 0 || (end = ftell(file)) < 0 ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        snprintf(error, error_capacity, "cannot read generated assembler text");
-        if (file) fclose(file);
-        return false;
-    }
-    size = (size_t)end;
-    text = (char *)malloc(size + 1);
+    if (!t || !error) return false;
+    if (!t->p && t->n) { snprintf(error, error_capacity, "null assembler text"); return false; }
+    text = t->p;
+    size = t->n;
     /* A rewritten load is shorter than the line it replaces. */
     result = (char *)malloc(size + 1);
-    if (!text || !result || fread(text, 1, size, file) != size) {
-        snprintf(error, error_capacity, "cannot load generated assembler text");
-        fclose(file); free(text); free(result);
+    if (!result) {
+        snprintf(error, error_capacity, "out of memory rewriting assembler text");
         return false;
     }
-    fclose(file);
     while (at < size) {
         const char *nl = (const char *)memchr(text + at, '\n', size - at);
         size_t len = nl ? (size_t)(nl - (text + at)) + 1 : size - at;
@@ -118,13 +110,10 @@ bool r6_peephole_win64(const char *path, char *error, size_t error_capacity) {
         used += len;
         at += len;
     }
-    file = fopen(path, "wb");
-    if (!file || fwrite(result, 1, used, file) != used || fclose(file) != 0) {
-        snprintf(error, error_capacity, "cannot write rewritten assembler text");
-        free(text); free(result);
-        return false;
-    }
-    free(text); free(result);
+    free(t->p);
+    t->p = result;
+    t->n = used;
+    t->cap = size + 1;
     return true;
 }
 
@@ -153,6 +142,7 @@ typedef struct {
     int kind;
     size_t target; /* line index of the label a jump names, or (size_t)-1 */
     bool dead;
+    bool fresh; /* use, def and kind describe the current text */
     char *text; /* replacement for the line, without its newline */
 } PInfo;
 
@@ -165,14 +155,73 @@ static const char *const G64[16] = {"rax", "rcx", "rdx", "rbx", "rsp", "rbp", "r
                                     "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15"};
 static const char *const G32[16] = {"eax", "ecx",  "edx",  "ebx",  "esp",  "ebp",  "esi",  "edi",
                                     "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"};
-static const char *const G8[16] = {"al",  "cl",  "dl",   "bl",   "spl",  "bpl",  "sil",  "dil",
-                                   "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b"};
+
+typedef struct {
+    const char *name;
+    uint8_t len;
+    int8_t width;
+    int8_t id;
+} RegName;
+
+#define RNAME(n, w, i) { n, (uint8_t)(sizeof(n) - 1), w, i }
+
+static const RegName REG_NAMES[48] = {
+    RNAME("rax", 64, 0), RNAME("rcx", 64, 1), RNAME("rdx", 64, 2), RNAME("rbx", 64, 3),
+    RNAME("rsp", 64, 4), RNAME("rbp", 64, 5), RNAME("rsi", 64, 6), RNAME("rdi", 64, 7),
+    RNAME("r8", 64, 8), RNAME("r9", 64, 9), RNAME("r10", 64, 10), RNAME("r11", 64, 11),
+    RNAME("r12", 64, 12), RNAME("r13", 64, 13), RNAME("r14", 64, 14), RNAME("r15", 64, 15),
+    RNAME("eax", 32, 0), RNAME("ecx", 32, 1), RNAME("edx", 32, 2), RNAME("ebx", 32, 3),
+    RNAME("esp", 32, 4), RNAME("ebp", 32, 5), RNAME("esi", 32, 6), RNAME("edi", 32, 7),
+    RNAME("r8d", 32, 8), RNAME("r9d", 32, 9), RNAME("r10d", 32, 10), RNAME("r11d", 32, 11),
+    RNAME("r12d", 32, 12), RNAME("r13d", 32, 13), RNAME("r14d", 32, 14), RNAME("r15d", 32, 15),
+    RNAME("al", 8, 0), RNAME("cl", 8, 1), RNAME("dl", 8, 2), RNAME("bl", 8, 3),
+    RNAME("spl", 8, 4), RNAME("bpl", 8, 5), RNAME("sil", 8, 6), RNAME("dil", 8, 7),
+    RNAME("r8b", 8, 8), RNAME("r9b", 8, 9), RNAME("r10b", 8, 10), RNAME("r11b", 8, 11),
+    RNAME("r12b", 8, 12), RNAME("r13b", 8, 13), RNAME("r14b", 8, 14), RNAME("r15b", 8, 15)
+};
+
+static uint32_t token_hash(const char *s, size_t n) {
+    uint32_t h = 2166136261u;
+    size_t i;
+    for (i = 0; i < n; ++i) {
+        h ^= (unsigned char)s[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int reg_token_lookup(const char *s, size_t n) {
+    static int16_t slots[128];
+    static bool ready;
+    uint32_t h;
+    if (!ready) {
+        int i;
+        for (i = 0; i < 128; ++i) slots[i] = -1;
+        for (i = 0; i < 48; ++i) {
+            h = token_hash(REG_NAMES[i].name, REG_NAMES[i].len) & 127u;
+            while (slots[h] >= 0) h = (h + 1u) & 127u;
+            slots[h] = (int16_t)i;
+        }
+        ready = true;
+    }
+    h = token_hash(s, n) & 127u;
+    while (slots[h] >= 0) {
+        const RegName *r = &REG_NAMES[slots[h]];
+        if (r->len == n && memcmp(r->name, s, n) == 0) return slots[h];
+        h = (h + 1u) & 127u;
+    }
+    return -1;
+}
 
 /* Register of a token written after `%`: its number and width, -2 for a name
  * that is not a general register but harmless (xmm, rip), -1 for an unknown. */
 static int token_reg(const char *s, size_t n, int *width) {
-    int r;
+    int k = reg_token_lookup(s, n);
     *width = 0;
+    if (k >= 0) {
+        *width = REG_NAMES[k].width;
+        return REG_NAMES[k].id;
+    }
     if (n >= 4 && n <= 5 && memcmp(s, "xmm", 3) == 0) {
         int v = 0;
         size_t d;
@@ -185,20 +234,6 @@ static int token_reg(const char *s, size_t n, int *width) {
         return 16 + v;
     }
     if (n == 3 && memcmp(s, "rip", 3) == 0) return -2;
-    for (r = 0; r < 16; ++r) {
-        if (strlen(G64[r]) == n && memcmp(G64[r], s, n) == 0) {
-            *width = 64;
-            return r;
-        }
-        if (strlen(G32[r]) == n && memcmp(G32[r], s, n) == 0) {
-            *width = 32;
-            return r;
-        }
-        if (strlen(G8[r]) == n && memcmp(G8[r], s, n) == 0) {
-            *width = 8;
-            return r;
-        }
-    }
     return -1;
 }
 
@@ -459,6 +494,7 @@ static bool set_text(PWork *w, size_t i, PSpan a, PSpan b, const char *mnemonic)
     free(w->info[i].text);
     w->info[i].text = copy;
     analyze_line(copy, (size_t)n, &w->info[i]);
+    w->info[i].fresh = true;
     w->info[i].target = target;
     return true;
 }
@@ -468,6 +504,7 @@ static void kill_line(PWork *w, size_t i) {
     w->info[i].use = 0;
     w->info[i].def = 0;
     w->info[i].kind = K_OTHER;
+    w->info[i].fresh = true;
 }
 
 static bool is_imm32(PSpan s, long long *value) {
@@ -685,6 +722,7 @@ static int propagate_copy(PWork *w, size_t i, size_t end, int src, int dst) {
             free(w->info[seen[c]].text);
             w->info[seen[c]].text = texts[c];
             analyze_line(texts[c], strlen(texts[c]), &w->info[seen[c]]);
+            w->info[seen[c]].fresh = true;
             w->info[seen[c]].target = target;
         }
         kill_line(w, i);
@@ -814,6 +852,7 @@ static long sweep_function(PWork *w, size_t first, size_t end) {
                     free(w->info[j].text);
                     w->info[j].text = copy;
                     analyze_line(copy, strlen(copy), &w->info[j]);
+                    w->info[j].fresh = true;
                 }
                 kill_line(w, i);
                 ++changed;
@@ -858,6 +897,7 @@ static long sweep_function(PWork *w, size_t first, size_t end) {
                     free(w->info[j].text);
                     w->info[j].text = copy;
                     analyze_line(copy, strlen(copy), &w->info[j]);
+                    w->info[j].fresh = true;
                     kill_line(w, k2);
                     ++changed;
                     continue;
@@ -960,7 +1000,10 @@ static bool process_final(PWork *w, size_t first, size_t end) {
             const char *line;
             if (w->info[i].dead) continue;
             line = line_text(w, i, &len);
-            analyze_line(line, len, &w->info[i]);
+            if (!w->info[i].fresh) {
+                analyze_line(line, len, &w->info[i]);
+                w->info[i].fresh = true;
+            }
             if (w->info[i].kind == K_LABEL) {
                 w->labels[nlabels].name = line;
                 w->labels[nlabels].len = len - 1;
@@ -1020,34 +1063,22 @@ static bool process_final(PWork *w, size_t first, size_t end) {
         used += (size_t)sprintf(block + used, "\n\t.text\n\t.seh_endproc");
         free(w->info[end - 1].text);
         w->info[end - 1].text = block;
+        w->info[end - 1].fresh = true;
         w->pool_count = 0;
     }
     return true;
 }
 
-bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
-    FILE *file = fopen(path, "rb");
-    char *text = NULL, *result = NULL;
-    size_t size, count = 0, cap = 0, at = 0, i, used = 0, fn_first = 0;
-    long end;
+bool r6_peephole_final(TextBuf *t, char *error, size_t error_capacity) {
+    char *text, *result = NULL;
+    size_t size, count = 0, cap = 0, at = 0, i, used = 0, fn_first = 0, total = 0;
     PWork w;
     bool in_function = false, ok = false;
     memset(&w, 0, sizeof w);
-    if (!file || fseek(file, 0, SEEK_END) != 0 || (end = ftell(file)) < 0 ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        snprintf(error, error_capacity, "cannot read generated assembler text");
-        if (file) fclose(file);
-        return false;
-    }
-    size = (size_t)end;
-    text = (char *)malloc(size + 1);
-    if (!text || fread(text, 1, size, file) != size) {
-        snprintf(error, error_capacity, "cannot load generated assembler text");
-        fclose(file);
-        free(text);
-        return false;
-    }
-    fclose(file);
+    if (!t || !error) return false;
+    if (!t->p && t->n) { snprintf(error, error_capacity, "null assembler text"); return false; }
+    text = t->p;
+    size = t->n;
     while (at < size) {
         const char *nl = (const char *)memchr(text + at, '\n', size - at);
         size_t length = nl ? (size_t)(nl - (text + at)) : size - at;
@@ -1084,7 +1115,6 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
         }
     }
     {
-        size_t total = 0;
         for (i = 0; i < count; ++i) {
             size_t len;
             if (w.info[i].dead) continue;
@@ -1092,7 +1122,10 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
             total += len + 1;
         }
         result = (char *)malloc(total + 1);
-        if (!result) goto oom;
+        if (!result) {
+            snprintf(error, error_capacity, "out of memory rewriting assembler text");
+            goto done;
+        }
     }
     for (i = 0; i < count; ++i) {
         size_t len;
@@ -1103,11 +1136,10 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
         used += len;
         result[used++] = '\n';
     }
-    file = fopen(path, "wb");
-    if (!file || fwrite(result, 1, used, file) != used || fclose(file) != 0) {
-        snprintf(error, error_capacity, "cannot write rewritten assembler text");
-        goto done;
-    }
+    free(t->p);
+    t->p = result;
+    t->n = used;
+    t->cap = total + 1;
     ok = true;
     goto done;
 oom:
@@ -1121,7 +1153,6 @@ done:
     free(w.live_in);
     free(w.text);
     free(w.length);
-    free(text);
-    free(result);
+    if (!ok) free(result);
     return ok;
 }
