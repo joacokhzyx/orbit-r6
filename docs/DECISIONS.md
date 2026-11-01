@@ -6178,10 +6178,12 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   against D-M1-122. This entry records the measured result, the gates on both
   hosts and the re-taken baseline.
 - Evidence:
-  - Same-method before and after: `measure.py`, 7 reps, three runs,
+  - Same method before and after: `measure.py`, 7 reps, three runs,
     `.r6-build\selfhost\main.ir`. The pipeline at the branch start
-    (`408a8a0`) was 2,185.2 ms; at `bced3ec` it is 1,147.733 ms
-    (D-M1-134), 47.5% lower.
+    (`408a8a0`) was 2,187.2 ms, the median of the three per-run sums (2,176.9,
+    2,187.2, 2,187.8); at `bced3ec` it is 1,147.733 ms, the median of three
+    per-run sums (D-M1-134). The two sessions were not interleaved. The drop
+    is 47.5%.
   - `run_perf.py --reps 5`, three runs per host, then one run with
     `--write-baseline` per host:
 
@@ -6199,8 +6201,9 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     fixed target, not to that column.
   - Run-to-run spread before the write. Windows: corpus total 5,392.6-5,509.0,
     corpus pipeline 436.6-457.3, self-host R6 1,186.5-1,205.2, self-host
-    pipeline 1,093.5-1,113.6. The corpus pipeline spread is 4.75%, above the
-    3% the write rule asks for; the written run (447.0) is 2.3% below the
+    pipeline 1,093.5-1,113.6. The plan asks for three medians within 3% before
+    the write; the corpus pipeline spread is 4.75%, above that condition, so
+    this write departs from it. The written run (447.0) is 2.3% below the
     slowest and 2.4% above the fastest observed run, so all four pass a 3%
     check. Linux: corpus total 3,045.5-3,060.7, corpus pipeline 331.2-335.7,
     self-host R6 924.1-943.6, self-host pipeline 863.1-881.9.
