@@ -5543,7 +5543,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   after `local_table_build` and the `main_found` assignment. The measured
   codegen median does not drop. The change passed the four gates and was
   reverted before the commit, so `src/codegen-x64/win64.c` is unchanged at
-  `55c6bdc`.
+  `55c6bdc`. Forward: D-M1-133 and D-M1-134 later changed that file; the
+  duplicate-function index is still absent.
 - Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
   driver, `.r6-build\selfhost\main.ir`, from the repository root:
 
@@ -5935,7 +5936,9 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   `%ebp`. The scan and the index cover the same 28 names. The change passed the
   four gates under `85a36e9` and is reverted, so `src/codegen-x64/regalloc.c`
   is back at `9beb9a3` and
-  `git diff --quiet 9beb9a3 -- src/codegen-x64/regalloc.c` exits 0.
+  `git diff --quiet 9beb9a3 -- src/codegen-x64/regalloc.c` exits 0. Forward:
+  D-M1-134 changed that file's signature and buffer ownership, so the command
+  now exits 1; the width index is still absent.
 - Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
   driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
   is the sum of load, codegen, peephole, regalloc, asm and object.
