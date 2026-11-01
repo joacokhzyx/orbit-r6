@@ -5486,8 +5486,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   a `FILE`. `src/codegen-x64/win64.c` held 262 `fprintf` call sites, 28 `fputs`
   call sites and one `fputc` per string byte, and every one took the stdio lock.
   The stage is 427.304 ms of the 2,185.2 ms self-host pipeline. The 2,185.2 ms
-  figure is the Task 0 planning baseline; the codegen medians below come from
-  the Task 1 runs.
+  figure is the planning baseline measured on the branch base; the codegen
+  medians below come from the runs for this change.
 - Decision: format into a growable `Buf` and write it once with a single
   `fwrite`. Every internal emit function takes `Buf *`. The public
   `r6_codegen_win64(FILE *out, ...)` keeps its signature and returns false with
@@ -5586,7 +5586,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   `break`, so every instruction paid 77 comparisons, not the index of its
   match: `77 * 116,508 = 8,971,116` comparisons, 77.0 per instruction. The
   compiler's own IR holds 116,508 instructions, 34 of the 77 opcodes among
-  them.
+  them. The body of `a0bfec7` still prints 2,404,515; `926b31b` is the
+  correcting commit.
 - Decision: build a 256-slot open-addressed table once from `opcode_names` and
   probe it. The lookup hashes the name and probes the table once; a collision
   moves the probe to the next slot, so a lookup may visit several slots.
@@ -5616,8 +5617,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   and the farthest is 50.624 ms. The 3-run medians differ by 46.871 ms, 15.6
   times the 3 ms acceptance. The 625.900 ms rep is the only after rep above
   the before maximum; the other two runs stayed below 498.933 ms. The loader
-  group after Task 5 needs an interleaved A/B or a re-run before its 65.6 ms
-  acceptance is read.
+  group needs an interleaved A/B or a re-run before its 65.6 ms acceptance is
+  read.
 
   The emitted bytes are unchanged. The `.s` sha256 of `selfhost\main.ir` stays
   `CEB1A36A…6137` and its `.o` stays `B655B026…8E22`, equal to
@@ -5729,8 +5730,9 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   eighteenth carries an embedded NUL, `"name\u0000x"` after `"name"`:
   `E_DUPLICATE duplicate object key` becomes `E_SCHEMA unexpected object key`,
   the class D-M1-126 records, at the same position.
-  Two root probes print the same line from the Task 0 driver `2D7A55A9…BCF4`
-  (`C:\Temp\r6-perf\r6-before.exe`), the before driver `F519001C…F55B` and the
+  Two root probes print the same line from the branch-base driver
+  `2D7A55A9…BCF4` (`C:\Temp\r6-perf\r6-before.exe`), the before driver
+  `F519001C…F55B` and the
   after driver `E5535AA4…783E`. A root object with a duplicate `irVersion`,
   `{"irVersion":"1","irVersion":"1","module":{}}`, prints
   `E_DUPLICATE duplicate object key`. A root that is not an object, `[]`,
@@ -6005,11 +6007,13 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   | median | 319.431 | 304.582 | 1241.050 | 1228.689 |
 
   The before driver is `7FE3879B...2FC6` and the after driver is
-  `CA4372E2...E23E`. Load drops 14.849 ms, 4.6% of its before median, and the
-  pipeline drops 12.361 ms. An interleaved A/B of three pairs moves load
-  324.066 -> 305.349 ms and the pipeline 1252.381 -> 1239.054 ms. The A/B load
-  ranges are 319.859-342.170 before and 300.971-307.696 after; the A/B
-  pipeline ranges are 1250.072-1265.753 before and 1226.738-1286.954 after.
+  `CA4372E2...E23E`. The body of `562944f` abbreviates the same driver as
+  `CA4372E2...9E23`; `57c63f7` corrects the suffix. Load drops 14.849 ms, 4.6%
+  of its before median, and the pipeline drops 12.361 ms. An interleaved A/B
+  of three pairs moves load 324.066 -> 305.349 ms and the pipeline 1252.381 ->
+  1239.054 ms. The A/B load ranges are 319.859-342.170 before and
+  300.971-307.696 after; the A/B pipeline ranges are 1250.072-1265.753 before
+  and 1226.738-1286.954 after.
 
   The 1,200 ms target is 28.689 ms away at the after median and 39.054 ms away
   in the A/B. The same before driver measured 1,221.0 ms of pipeline in
@@ -6123,7 +6127,7 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     with no newline, and any line of 1,024 bytes or more, is rejected with
     `assembler line %zu exceeds 1023 bytes`. A scratch program linked
     `asm_win64.c` with `coff.c` and called the assembler on seven synthetic
-    inputs; the old `fgets` loop, compiled against the same seven, returns the
+    inputs. The old `fgets` loop, compiled against the same seven, returns the
     same verdicts and line numbers.
   - The driver calls `text_release` at `free_module`, so every exit releases
     the buffer. No format string, pass rule or encoder rule changes.
