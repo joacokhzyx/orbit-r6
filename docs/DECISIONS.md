@@ -162,6 +162,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-132 | IR integers are parsed without `strtoll` | active |
 | D-M1-133 | codegen conversions are formatted without `vsnprintf` | active |
 | D-M1-134 | the assembler text stays in memory | active |
+| D-M1-135 | the compile-time baseline after the pipeline work | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -6160,4 +6161,60 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   `PUBLISHED_C E794E2DB…92B1`.
 
   No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-135 - the compile-time baseline after the pipeline work
+
+- Date: 2026-10-31 on Windows and 2026-11-01 on the WSL clock for Linux. Pin
+  unchanged (`01e31e8`, D-F0-21).
+- Reason: ten changes lowered the self-host pipeline. The recorded baseline
+  described the tree before them, and `tests/perf/baseline.json` was stale
+  against D-M1-122. This entry records the measured result, the gates on both
+  hosts and the re-taken baseline.
+- Evidence:
+  - Same-method before and after: `measure.py`, 7 reps, three runs,
+    `.r6-build\selfhost\main.ir`. The pipeline at the branch start
+    (`408a8a0`) was 2,185.2 ms; at `bced3ec` it is 1,147.733 ms
+    (D-M1-134), 47.5% lower.
+  - `run_perf.py --reps 5`, three runs per host, then one run with
+    `--write-baseline` per host:
+
+    | Metric | Windows x64 | Linux x64 | Target |
+    |---|---:|---:|---:|
+    | self-host pipeline | 1,086.3 ms | 881.9 ms | ≤ 1,200 ms |
+    | self-host R6 build | 1,181.1 ms | 943.6 ms | ≤ 1,300 ms |
+    | corpus pipeline | 447.0 ms | 331.6 ms | ≤ 650 ms |
+    | corpus total | 5,418.6 ms | 3,060.7 ms | ≤ 5,650 ms |
+    | self-host wall | 15,646.9 ms | 7,405.9 ms | not a target |
+
+    Every target is met on both hosts. The plan's recorded baseline was
+    1,960.5 / 2,046-2,068 / 978.8 / 5,925.9 ms; it was measured before the
+    branch and is not re-measured here, so the table above is compared to the
+    fixed target, not to that column.
+  - Run-to-run spread before the write. Windows: corpus total 5,392.6-5,509.0,
+    corpus pipeline 436.6-457.3, self-host R6 1,186.5-1,205.2, self-host
+    pipeline 1,093.5-1,113.6. The corpus pipeline spread is 4.75%, above the
+    3% the write rule asks for; the written run (447.0) is 2.3% below the
+    slowest and 2.4% above the fastest observed run, so all four pass a 3%
+    check. Linux: corpus total 3,045.5-3,060.7, corpus pipeline 331.2-335.7,
+    self-host R6 924.1-943.6, self-host pipeline 863.1-881.9.
+  - Determinism: ten executable corpus programs, each built twice with the
+    final driver; the `.o` hashes are identical in 10 of 10 pairs
+    (`C:\Temp\r6-perf\determinism.py`).
+  - Gates, Windows, two full passes: differential 100/100, loader 452/452,
+    corpus 143/143 with the ratchet holding (`143 -> 143`), self-host
+    `SELFHOST OK` with `PUBLISHED_C E794E2DB…92B1`.
+  - Gates, Linux (Ubuntu, gcc 15.2): differential 100/100, loader 452/452,
+    corpus 143/143 with the ratchet holding, self-host `SELFHOST OK` with the
+    same `PUBLISHED_C`.
+  - Sanitizers, Linux: `gcc -fsanitize=address,undefined` built the driver;
+    the loader suite passed 452/452; the `arith` program printed the same
+    stdout and exit as the plain build; the self-host IR built in 5.752 s
+    with empty stderr. The Windows toolchain ships no `libasan` or `libubsan`,
+    so the same units were compiled there with `-fanalyzer`: no diagnostic on
+    `win64.c`, `text.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `r6.c` or
+    `tests/coff/asm_probe.c`.
+  - Byte identity: the `.o` hashes of the three reference IRs on Windows
+    equal `baseline-hashes.txt` (D-M1-134). The `.s` hash is no longer
+    reproducible because no `.s` file is written.
 - Status: **applied**.
