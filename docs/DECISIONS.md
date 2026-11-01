@@ -158,6 +158,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-128 | the peephole register names are indexed | active |
 | D-M1-129 | peephole line analysis is reused across rounds | active |
 | D-M1-130 | assembler mnemonics and register names are indexed | active |
+| D-M1-131 | regalloc register widths keep their scan | rejected |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5908,3 +5909,58 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
   No fixture or reject case is added. The admitted language is unchanged.
 - Status: **applied**.
+
+## D-M1-131 - regalloc register widths keep their scan
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `gpr_width` compared an operand against 14 names in `r64` and 14 in
+  `r32`, each with `strlen` plus `memcmp`. The scan ran on every line whose
+  text names exactly one `(%rbp)` slot: the self-host assembly holds 53,378 of
+  them across 307,345 lines. `classify_line` calls `gpr_width` at eight sites,
+  so one such line costs one or two scans.
+- Rejected: the 28 names in one table with their length and width, probed with
+  an FNV-1a hash over a 64-slot open table built on the first call. A hit costs
+  one hash and one `memcmp` for 20 names, two probes for 7 and three for 1. The
+  widths were unchanged: 64 for the 14 64-bit names, 32 for the 14 32-bit
+  names, and 0 for every other name, including `%rsp`, `%rbp`, `%esp` and
+  `%ebp`. The scan and the index cover the same 28 names. The change passed the
+  four gates under `85a36e9` and is reverted, so `src/codegen-x64/regalloc.c`
+  is back at `9beb9a3` and
+  `git diff --quiet 9beb9a3 -- src/codegen-x64/regalloc.c` exits 0.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | regalloc before | regalloc after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|
+  | 1 | 106.980 | 104.371 | 1220.7 | 1221.7 |
+  | 2 | 113.437 | 106.279 | 1225.0 | 1243.2 |
+  | 3 | 109.021 | 107.429 | 1221.0 | 1222.7 |
+  | median | 109.021 | 106.279 | 1221.0 | 1222.7 |
+
+  The before driver is `7FE3879B...2FC6` and the after driver is
+  `B6645CA7...E4E0`. An interleaved A/B of three pairs, run after the three
+  runs above, moves regalloc 112.325 -> 107.847 ms and the pipeline
+  1224.7 -> 1226.4 ms.
+
+  The regalloc stage drops 2.742 ms, 2.5% of its before median and 0.22% of
+  the 1,221.0 ms pipeline. The pipeline does not follow: its after median is
+  1.7 ms above the before median in the isolated runs, and the A/B moves it up
+  1.7 ms. The regalloc rep ranges overlap, 101.024-152.849 ms before and
+  97.309-115.749 ms after, and so do the pipeline run ranges, 1,220.7-1,225.0
+  ms before and 1,221.7-1,243.2 ms after. The 1,200 ms target is 22.7 ms away
+  at the after median. The plan's rule reverts a change that does not pay.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at `85a36e9`: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`. No gate was rerun after the revert; the source
+  is byte-identical to `9beb9a3`.
+
+  No fixture or reject case is added. The admitted language is unchanged. The
+  text-in-memory change the plan defers, the structural task, is not started.
+- Status: **rejected**.
