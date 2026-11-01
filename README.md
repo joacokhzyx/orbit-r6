@@ -149,7 +149,7 @@ The interfaces between loader, codegen and driver are in
 | Path | Content |
 |---|---|
 | `src/loader/` | Strict JSON IRv1 parser and validator; admits the opcode set |
-| `src/codegen-x64/` | `target.h`, `win64.c`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c` |
+| `src/codegen-x64/` | `target.h`, `win64.c`, `text.{h,c}`, `peephole.c`, `regalloc.c`, `asm_win64.c`, `coff.c`, `elf64.c` |
 | `src/driver/` | CLI, temporaries, direct `ld` link |
 | `tests/diff/` | Differential harness and the 100 fixture pairs in `fixtures/` |
 | `tests/reject/` | Loader contract suite; `manifest.json` is the truth |
