@@ -5794,10 +5794,10 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
   The median drops by 394.481 ms, 52.9% of the before median, and the two rep
   ranges do not overlap. Wall time follows it, 1866.3 -> 1474.2 ms. No other
-  stage moves by more than 7.1 ms and every one stays inside its before rep
-  range: load 314.767 -> 321.872, codegen 254.734 -> 254.942, regalloc 111.193
-  -> 111.363, asm 329.792 -> 324.790, object 18.131 -> 19.678 and ld 70.954 ->
-  71.111.
+  stage moves by more than 7.2 ms (load, 7.105 ms), and every one stays inside
+  its before rep range: load 314.767 -> 321.872, codegen 254.734 -> 254.942,
+  regalloc 111.193 -> 111.363, asm 329.792 -> 324.790, object 18.131 -> 19.678
+  and ld 70.954 -> 71.111.
 
   The emitted bytes are identical: the `.s` and `.o` sha256 of
   `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
@@ -5815,16 +5815,21 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
 - Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
 - Reason: `process_final` runs up to four rounds. Each round analyzed every live
-  line, but a round changes only the lines `sweep_function` rewrites. On the
-  self-host IR the analysis pass called `analyze_line` 1,035,022 times, and a
-  probe that times those calls counts 100.723 ms, probe overhead included.
-- Decision: `PInfo` carries `fresh`, set by every site that analyzes a line:
-  `set_text`, `kill_line`, the propagation loop in `propagate_copy`, the two
-  direct rewrites in `sweep_function` and the `.rdata` pool rewrite. The round
-  loop still assigns `line`, because the label record reads it, and skips only
-  `analyze_line` when the flag is set. The change leaves 363,306 analyses.
-  The `live_in` reset, the fixpoint loop, the dead-line clearing, the label
-  array and the target resolution are unchanged.
+  line, but a round changes only the lines `sweep_function` rewrites. A scratch
+  build counted 1,035,022 `analyze_line` calls on the self-host IR; the
+  committed driver does not print the count. The same build timed the calls with
+  `QueryPerformanceCounter` at 100.723 ms, probe overhead included. The probe is
+  not in the tree, so that reading is not reproducible from the committed
+  driver.
+- Decision: `PInfo` carries `fresh`, set at the sites that call `analyze_line`
+  (`set_text`, the propagation loop in `propagate_copy` and the two sweep
+  rewrites) and at `kill_line` and the `.rdata` pool rewrite, so the flag
+  describes the line's new state. `kill_line` clears use, def and kind and marks
+  the line dead without analyzing it; the pool rewrite replaces the last line's
+  text after the final round. The round loop still assigns `line`, because the
+  label record reads it, and skips only `analyze_line` when the flag is set. The
+  change leaves 363,306 analyses. The `live_in` reset, the fixpoint loop, the
+  dead-line clearing, the label array and the target resolution are unchanged.
 - Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
   driver, `.r6-build\selfhost\main.ir`, from the repository root:
 
@@ -5835,13 +5840,15 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
   The median drops by 63.003 ms, 18.0% of the before median. The six run
   medians are separated: the highest reused median, 288.605, is 59.434 ms below
-  the lowest before median, 348.039. Single reps overlap. The 671,716 skipped
-  calls cost 93.8 ns each, which is the drop divided by the calls removed.
-  Against D-M1-128's before median of 745.422 ms the peephole stage has fallen
-  457.484 ms, 61.4%. Wall time follows the stage, 1474.2 -> 1409.0 ms, and no
-  other stage moves outside its before rep range: load 321.872 -> 312.882,
-  codegen 254.942 -> 255.066, regalloc 111.363 -> 113.163, asm 324.790 ->
-  318.482, object 19.678 -> 19.504 and ld 71.111 -> 72.162.
+  the lowest before median, 348.039. Single reps overlap. The call count falls
+  1,035,022 -> 363,306, so 671,716 skipped calls cost 93.8 ns each: the 63.003
+  ms drop divided by the calls removed. That call drop and the stage drop are
+  the evidence; the 100.723 ms probe reading is a scratch measurement. Against
+  D-M1-128's before median of 745.422 ms the peephole stage has fallen 457.484
+  ms, 61.4%. Wall time follows the stage, 1474.2 -> 1399.2 ms, a drop of 75.0
+  ms, and no other stage moves outside its before rep range: load 321.872 ->
+  312.882, codegen 254.942 -> 255.066, regalloc 111.363 -> 113.163, asm 324.790
+  -> 318.482, object 19.678 -> 19.504 and ld 71.111 -> 72.162.
 
   The emitted bytes are identical: the `.s` and `.o` sha256 of
   `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
