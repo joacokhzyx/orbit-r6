@@ -1,7 +1,7 @@
 # Contributing to R6
 
-A contribution keeps both platforms green: Windows x64 and Linux x64
-(D-M1-119). `.github/workflows/ci.yml` builds the driver, rebuilds the runtime
+A contribution keeps both platforms green: Windows x64 and Linux x64.
+`.github/workflows/ci.yml` builds the driver, rebuilds the runtime
 archive and runs the loader suite on every push and pull request. The
 differential and the corpus ratchet need the Orbit oracle and run on manual
 dispatch, so a change runs them locally before it is sent.
@@ -31,8 +31,8 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 
 - Build the driver with `.\scripts\build-r6.ps1` on Windows or
   `./scripts/build-r6.sh` on Linux. Both use `R6_CC`, else `CC`, else `gcc` on
-  `PATH`, with `-std=c11 -O2 -Wall -Wextra -Werror` (D-M1-120). GCC builds the
-  driver only and never an R6 program.
+  `PATH`, with `-std=c11 -O2 -Wall -Wextra -Werror`. GCC builds the driver
+  only and never an R6 program.
 - Rebuild the runtime archive from the pinned Orbit checkout, as
   [`docs/PIN.md`](docs/PIN.md) describes. On Linux,
   `./scripts/build-runtime-linux.sh <checkout>` writes `libruntime_net.a`

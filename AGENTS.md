@@ -135,6 +135,11 @@ tomorrow: they have the repository and the gates, not this session.
   "more robust" carry nothing.
 - Name the thing: "the 39/93 corpus", not "the coverage"; "the first refusal at
   `list_create`", not "the gap".
+- User-facing prose names the fact, not its decision. `README.md`,
+  `CONTRIBUTING.md` and `docs/README.md` do not cite `D-M1-xx` or `D-F0-xx`.
+  A decision ID belongs in `docs/DECISIONS.md`, `docs/CONTRACT.md`,
+  `docs/PIN.md` and commit bodies, where it points at the evidence. Write the
+  measurement and link the document.
 - No hedges. "Should", "likely" and "probably" become a measurement or a
   question.
 - A table is for more than two columns. Two facts are a sentence.
