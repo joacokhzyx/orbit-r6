@@ -165,21 +165,77 @@ static bool add_label(Asm *a, const char *name, int global) {
     ++a->nlabels; return true;
 }
 
+typedef struct {
+    const char *name;
+    uint8_t len;
+    int8_t width;
+    int8_t id;
+} AsmReg;
+
+#define AREG(n, w, i) { n, (uint8_t)(sizeof(n) - 1), w, i }
+
+static const AsmReg ASM_REGS[48] = {
+    AREG("%rax", 64, 0), AREG("%rcx", 64, 1), AREG("%rdx", 64, 2), AREG("%rbx", 64, 3),
+    AREG("%rsp", 64, 4), AREG("%rbp", 64, 5), AREG("%rsi", 64, 6), AREG("%rdi", 64, 7),
+    AREG("%r8", 64, 8), AREG("%r9", 64, 9), AREG("%r10", 64, 10), AREG("%r11", 64, 11),
+    AREG("%r12", 64, 12), AREG("%r13", 64, 13), AREG("%r14", 64, 14), AREG("%r15", 64, 15),
+    AREG("%eax", 32, 0), AREG("%ecx", 32, 1), AREG("%edx", 32, 2), AREG("%ebx", 32, 3),
+    AREG("%esp", 32, 4), AREG("%ebp", 32, 5), AREG("%esi", 32, 6), AREG("%edi", 32, 7),
+    AREG("%r8d", 32, 8), AREG("%r9d", 32, 9), AREG("%r10d", 32, 10), AREG("%r11d", 32, 11),
+    AREG("%r12d", 32, 12), AREG("%r13d", 32, 13), AREG("%r14d", 32, 14), AREG("%r15d", 32, 15),
+    AREG("%al", 8, 0), AREG("%cl", 8, 1), AREG("%dl", 8, 2), AREG("%bl", 8, 3),
+    AREG("%spl", 8, 4), AREG("%bpl", 8, 5), AREG("%sil", 8, 6), AREG("%dil", 8, 7),
+    AREG("%r8b", 8, 8), AREG("%r9b", 8, 9), AREG("%r10b", 8, 10), AREG("%r11b", 8, 11),
+    AREG("%r12b", 8, 12), AREG("%r13b", 8, 13), AREG("%r14b", 8, 14), AREG("%r15b", 8, 15)
+};
+
+static uint32_t asm_reg_hash(const char *s) {
+    uint32_t h = 2166136261u;
+    while (*s) {
+        h ^= (unsigned char)*s++;
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int asm_reg_lookup(const char *s) {
+    static int16_t slots[128];
+    static bool ready;
+    uint32_t h;
+    if (!ready) {
+        int i;
+        for (i = 0; i < 128; ++i) slots[i] = -1;
+        for (i = 0; i < 48; ++i) {
+            h = asm_reg_hash(ASM_REGS[i].name) & 127u;
+            while (slots[h] >= 0) h = (h + 1u) & 127u;
+            slots[h] = (int16_t)i;
+        }
+        ready = true;
+    }
+    h = asm_reg_hash(s) & 127u;
+    while (slots[h] >= 0) {
+        const AsmReg *r = &ASM_REGS[slots[h]];
+        if (strcmp(r->name, s) == 0) return slots[h];
+        h = (h + 1u) & 127u;
+    }
+    return -1;
+}
+
 static int reg_id(const char *s, int *width, int *xmm) {
-    static const char *const r64[] = {"%rax","%rcx","%rdx","%rbx","%rsp","%rbp","%rsi","%rdi",
-        "%r8","%r9","%r10","%r11","%r12","%r13","%r14","%r15"};
-    static const char *const r32[] = {"%eax","%ecx","%edx","%ebx","%esp","%ebp","%esi","%edi",
-        "%r8d","%r9d","%r10d","%r11d","%r12d","%r13d","%r14d","%r15d"};
-    static const char *const r8[] = {"%al","%cl","%dl","%bl","%spl","%bpl","%sil","%dil",
-        "%r8b","%r9b","%r10b","%r11b","%r12b","%r13b","%r14b","%r15b"};
-    int i;
+    int k = asm_reg_lookup(s);
     *xmm = 0;
-    for (i = 0; i < 16; ++i) if (strcmp(s, r64[i]) == 0) { *width = 64; return i; }
-    for (i = 0; i < 16; ++i) if (strcmp(s, r32[i]) == 0) { *width = 32; return i; }
-    for (i = 0; i < 16; ++i) if (strcmp(s, r8[i]) == 0) { *width = 8; return i; }
+    if (k >= 0) {
+        *width = ASM_REGS[k].width;
+        return ASM_REGS[k].id;
+    }
     if (strncmp(s, "%xmm", 4) == 0) {
-        char *end; long n = strtol(s + 4, &end, 10);
-        if (!*end && n >= 0 && n < 16) { *width = 128; *xmm = 1; return (int)n; }
+        char *end;
+        long n = strtol(s + 4, &end, 10);
+        if (!*end && n >= 0 && n < 16) {
+            *width = 128;
+            *xmm = 1;
+            return (int)n;
+        }
     }
     return -1;
 }
@@ -302,6 +358,42 @@ static bool saved_register(int id) {
     return id == 3 || id == 6 || id == 7 || (id >= 12 && id <= 15);
 }
 
+enum { M_UNKNOWN = 0, M_ADDL, M_ADDQ, M_ADDSD, M_ANDB, M_ANDL, M_ANDQ, M_CALL, M_CALLQ, M_CLTD, M_CMPB, M_CMPL, M_CMPQ, M_CQTO, M_CVTSI2SDQ, M_DIVSD, M_IDIVL, M_IDIVQ, M_IMULL, M_IMULQ, M_JMP, M_LEAQ, M_LEAVE, M_MOVABSQ, M_MOVAPS, M_MOVB, M_MOVL, M_MOVQ, M_MOVSD, M_MOVSLQ, M_MOVZBL, M_MULSD, M_NEGL, M_NEGQ, M_NOTL, M_NOTQ, M_ORB, M_ORL, M_ORQ, M_PUSHQ, M_RET, M_SARL, M_SARQ, M_SETA, M_SETAE, M_SETB, M_SETBE, M_SETE, M_SETG, M_SETGE, M_SETL, M_SETLE, M_SETNE, M_SETNP, M_SETP, M_SHLL, M_SHLQ, M_SHRL, M_SHRQ, M_SUBL, M_SUBQ, M_SUBSD, M_TESTQ, M_UCOMISD, M_UD2, M_XORL, M_XORPD, M_XORQ, M_COUNT };
+
+static const char *const mnemonic_names[M_COUNT] = {"", "addl", "addq", "addsd", "andb", "andl", "andq", "call", "callq", "cltd", "cmpb", "cmpl", "cmpq", "cqto", "cvtsi2sdq", "divsd", "idivl", "idivq", "imull", "imulq", "jmp", "leaq", "leave", "movabsq", "movaps", "movb", "movl", "movq", "movsd", "movslq", "movzbl", "mulsd", "negl", "negq", "notl", "notq", "orb", "orl", "orq", "pushq", "ret", "sarl", "sarq", "seta", "setae", "setb", "setbe", "sete", "setg", "setge", "setl", "setle", "setne", "setnp", "setp", "shll", "shlq", "shrl", "shrq", "subl", "subq", "subsd", "testq", "ucomisd", "ud2", "xorl", "xorpd", "xorq"};
+
+static uint32_t mnemonic_hash(const char *s) {
+    uint32_t h = 2166136261u;
+    while (*s) {
+        h ^= (unsigned char)*s++;
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int mnemonic_id(const char *s) {
+    static int16_t slots[256];
+    static bool ready;
+    uint32_t h;
+    if (!ready) {
+        int i;
+        for (i = 0; i < 256; ++i) slots[i] = -1;
+        for (i = 1; i < M_COUNT; ++i) {
+            h = mnemonic_hash(mnemonic_names[i]) & 255u;
+            while (slots[h] >= 0) h = (h + 1u) & 255u;
+            slots[h] = (int16_t)i;
+        }
+        ready = true;
+    }
+    h = mnemonic_hash(s) & 255u;
+    while (slots[h] >= 0) {
+        int id = slots[h];
+        if (strcmp(mnemonic_names[id], s) == 0) return id;
+        h = (h + 1u) & 255u;
+    }
+    return M_UNKNOWN;
+}
+
 static bool encode(Asm *a, char *line) {
     /* Near conditional jumps: 0F 8x rel32, signed and unsigned conditions. */
     static const struct { const char *name; uint8_t opcode; } jcc[] = {
@@ -315,41 +407,42 @@ static bool encode(Asm *a, char *line) {
     while (*sp && !isspace((unsigned char)*sp)) ++sp;
     if (*sp) *sp++ = 0;
     op = line; a1 = trim(sp); a2 = NULL;
+    int mid = mnemonic_id(op);
     { uint32_t start = (uint32_t)a->sec[a->section].n; bool ok;
       ok = false;
       /* Prologue offsets are captured from the actual encoded instruction bytes. */
       (void)start; (void)ok; }
     if (!*a1) a1 = NULL;
-    if (strcmp(op, "pushq") == 0 && a1 && strcmp(a1, "%rbp") == 0) return emit(a, 0x55);
-    if (strcmp(op, "pushq") == 0 && a1) {
+    if (mid == M_PUSHQ && a1 && strcmp(a1, "%rbp") == 0) return emit(a, 0x55);
+    if (mid == M_PUSHQ && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64 || !saved_register(id1))
             return bad(a, "pushq supports %%rbp and the callee-saved registers only");
         return (id1 < 8 || emit(a, 0x41)) && emit(a, (uint8_t)(0x50 + (id1 & 7)));
     }
-    if (strcmp(op, "leave") == 0) return emit(a, 0xc9);
-    if (strcmp(op, "ret") == 0) return emit(a, 0xc3);
-    if (strcmp(op, "ud2") == 0) return emit(a, 0x0f) && emit(a, 0x0b);
-    if (strcmp(op, "cqto") == 0) return emit(a, 0x48) && emit(a, 0x99);
-    if (strcmp(op, "negl") == 0 && a1) {
+    if (mid == M_LEAVE) return emit(a, 0xc9);
+    if (mid == M_RET) return emit(a, 0xc3);
+    if (mid == M_UD2) return emit(a, 0x0f) && emit(a, 0x0b);
+    if (mid == M_CQTO) return emit(a, 0x48) && emit(a, 0x99);
+    if (mid == M_NEGL && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 32) return bad(a, "negl requires a 32-bit GPR");
         return (id1 < 8 || emit(a, 0x41)) && emit(a, 0xf7) &&
                emit(a, (uint8_t)(0xd8 | (id1 & 7)));
     }
-    if (strcmp(op, "notl") == 0 && a1) {
+    if (mid == M_NOTL && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 32) return bad(a, "notl requires a 32-bit GPR");
         return (id1 < 8 || emit(a, 0x41)) && emit(a, 0xf7) &&
                emit(a, (uint8_t)(0xd0 | (id1 & 7)));
     }
-    if (strcmp(op, "negq") == 0 && a1) {
+    if (mid == M_NEGQ && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64) return bad(a, "negq requires a 64-bit GPR");
         return emit(a, (uint8_t)(0x48 | (id1 >> 3))) && emit(a, 0xf7) &&
                emit(a, (uint8_t)(0xd8 | (id1 & 7)));
     }
-    if (strcmp(op, "notq") == 0 && a1) {
+    if (mid == M_NOTQ && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64) return bad(a, "notq requires a 64-bit GPR");
         return emit(a, (uint8_t)(0x48 | (id1 >> 3))) && emit(a, 0xf7) &&
@@ -357,37 +450,37 @@ static bool encode(Asm *a, char *line) {
     }
     /* One operand: %rdx:%rax = %rax * r/m64, the signed multiply-high of the
        division by a constant (D-M1-96). */
-    if (strcmp(op, "imulq") == 0 && a1 && !strchr(a1, ',') && parse_rm(a, a1, 64, &m))
+    if (mid == M_IMULQ && a1 && !strchr(a1, ',') && parse_rm(a, a1, 64, &m))
         return rex_modrm_mem(a, 64, 5, m, 0xf7, 0, 0, -1);
-    if (strcmp(op, "idivq") == 0 && a1 && parse_rm(a, a1, 64, &m))
+    if (mid == M_IDIVQ && a1 && parse_rm(a, a1, 64, &m))
         return rex_modrm_mem(a, 64, 7, m, 0xf7, 0, 0, -1);
-    if (strcmp(op, "cltd") == 0) return emit(a, 0x99);
-    if (strcmp(op, "idivl") == 0 && a1 && parse_rm(a, a1, 32, &m))
+    if (mid == M_CLTD) return emit(a, 0x99);
+    if (mid == M_IDIVL && a1 && parse_rm(a, a1, 32, &m))
         return rex_modrm_mem(a, 32, 7, m, 0xf7, 0, 0, -1);
-    if ((strcmp(op, "sete") == 0 || strcmp(op, "setnp") == 0 || strcmp(op, "setp") == 0 ||
-         strcmp(op, "setne") == 0 || strcmp(op, "setl") == 0 ||
-         strcmp(op, "setle") == 0 || strcmp(op, "setg") == 0 ||
-         strcmp(op, "setge") == 0 || strcmp(op, "setb") == 0 ||
-         strcmp(op, "setbe") == 0 || strcmp(op, "seta") == 0 ||
-         strcmp(op, "setae") == 0) && a1) {
+    if ((mid == M_SETE || mid == M_SETNP || mid == M_SETP ||
+         mid == M_SETNE || mid == M_SETL ||
+         mid == M_SETLE || mid == M_SETG ||
+         mid == M_SETGE || mid == M_SETB ||
+         mid == M_SETBE || mid == M_SETA ||
+         mid == M_SETAE) && a1) {
         id1 = reg_id(a1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 8 || id1 > 3) return bad(a, "setcc requires %%al, %%cl, %%dl or %%bl");
-        { uint8_t cc = strcmp(op, "sete") == 0 ? 0x94 : strcmp(op, "setne") == 0 ? 0x95 :
-                       strcmp(op, "setl") == 0 ? 0x9c : strcmp(op, "setge") == 0 ? 0x9d :
-                       strcmp(op, "setle") == 0 ? 0x9e : strcmp(op, "setg") == 0 ? 0x9f :
-                       strcmp(op, "setb") == 0 ? 0x92 : strcmp(op, "setbe") == 0 ? 0x96 :
-                       strcmp(op, "seta") == 0 ? 0x97 : strcmp(op, "setae") == 0 ? 0x93 :
-                       strcmp(op, "setp") == 0 ? 0x9a : 0x9b;
+        { uint8_t cc = mid == M_SETE ? 0x94 : mid == M_SETNE ? 0x95 :
+                       mid == M_SETL ? 0x9c : mid == M_SETGE ? 0x9d :
+                       mid == M_SETLE ? 0x9e : mid == M_SETG ? 0x9f :
+                       mid == M_SETB ? 0x92 : mid == M_SETBE ? 0x96 :
+                       mid == M_SETA ? 0x97 : mid == M_SETAE ? 0x93 :
+                       mid == M_SETP ? 0x9a : 0x9b;
           return emit(a, 0x0f) && emit(a, cc) && emit(a, (uint8_t)(0xc0 | (id1 & 7))); }
     }
-    if (strcmp(op, "call") == 0) {
+    if (mid == M_CALL) {
         uint32_t off;
         if (!a1 || *a1 == '%' || strchr(a1, '(')) return bad(a, "only direct call symbols are supported");
         if (!emit(a, 0xe8)) return false;
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 4);
     }
-    if (strcmp(op, "callq") == 0 && a1 && a1[0] == '*') {
+    if (mid == M_CALLQ && a1 && a1[0] == '*') {
         /* Indirect call through a function value: FF /2 r/m64. */
         id1 = reg_id(a1 + 1, &w1, &x1);
         if (id1 < 0 || x1 || w1 != 64) return bad(a, "callq requires a 64-bit GPR");
@@ -401,7 +494,7 @@ static bool encode(Asm *a, char *line) {
         off = (uint32_t)a->sec[a->section].n;
         return emit32(a, 0) && add_fixup(a, a1, a->section, off, 0xfffe);
     }
-    if (strcmp(op, "jmp") == 0) {
+    if (mid == M_JMP) {
         uint32_t off;
         if (!a1 || strchr(a1, ',') || !emit(a, 0xe9)) return bad(a, "jmp requires one local label");
         off = (uint32_t)a->sec[a->section].n;
@@ -409,186 +502,186 @@ static bool encode(Asm *a, char *line) {
     }
     if (!a1 || !split_operands(a1, &l, &r)) return bad(a, "unsupported Win64 assembler instruction '%s'", op);
     a1 = l; a2 = r;
-    if (strcmp(op, "leaq") == 0 && parse_mem(a, a1, &m) && m.rip) {
+    if (mid == M_LEAQ && parse_mem(a, a1, &m) && m.rip) {
         id2 = reg_id(a2, &w2, &x2);
         if (id2 < 0 || x2 || w2 != 64) return bad(a, "lea destination must be a 64-bit GPR");
         if (!a1 || !strchr(a1, '(')) return false;
         { char *label = a1; char *paren = strchr(label, '('); *paren = 0; m.symbol = trim(label); }
         return rex_modrm_mem(a, 64, id2, m, 0x8d, 0, 0, -1);
     }
-    if (strcmp(op, "leaq") == 0 && parse_mem(a, a1, &m) && !m.rip) {
+    if (mid == M_LEAQ && parse_mem(a, a1, &m) && !m.rip) {
         id2 = reg_id(a2, &w2, &x2);
         if (id2 < 0 || x2 || w2 != 64) return bad(a, "lea destination must be a 64-bit GPR");
         return rex_modrm_mem(a, 64, id2, m, 0x8d, 0, 0, -1);
     }
-    if (strcmp(op, "movq") == 0 && parse_mem(a, a1, &m) && m.rip) {
+    if (mid == M_MOVQ && parse_mem(a, a1, &m) && m.rip) {
         id2 = reg_id(a2, &w2, &x2);
         if (id2 < 0 || x2 || w2 != 64) return bad(a, "movq from a symbol must load a 64-bit GPR");
         { char *label = a1; char *paren = strchr(label, '('); *paren = 0; m.symbol = trim(label); }
         return rex_modrm_mem(a, 64, id2, m, 0x8b, 0, 0, -1);
     }
     id1 = reg_id(a1, &w1, &x1); id2 = reg_id(a2, &w2, &x2);
-    if (strcmp(op, "testq") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
+    if (mid == M_TESTQ && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
         return emit(a, rex) && emit(a, 0x85) &&
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if ((strcmp(op, "addq") == 0 || strcmp(op, "subq") == 0 ||
-         strcmp(op, "cmpq") == 0) &&
+    if ((mid == M_ADDQ || mid == M_SUBQ ||
+         mid == M_CMPQ) &&
         id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
-        uint8_t opcode = strcmp(op, "addq") == 0 ? 0x01 :
-                         strcmp(op, "subq") == 0 ? 0x29 : 0x39;
+        uint8_t opcode = mid == M_ADDQ ? 0x01 :
+                         mid == M_SUBQ ? 0x29 : 0x39;
         return emit(a, rex) && emit(a, opcode) &&
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if (strcmp(op, "imulq") == 0 && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
+    if (mid == M_IMULQ && id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
         uint8_t rex = (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3));
         return emit(a, rex) && emit(a, 0x0f) && emit(a, 0xaf) &&
                emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
-    if ((strcmp(op, "andq") == 0 || strcmp(op, "orq") == 0 || strcmp(op, "xorq") == 0) &&
+    if ((mid == M_ANDQ || mid == M_ORQ || mid == M_XORQ) &&
         id1 >= 0 && id2 >= 0 && !x1 && !x2 && w1 == 64 && w2 == 64) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
-        uint8_t opcode = strcmp(op, "andq") == 0 ? 0x21 :
-                         strcmp(op, "orq") == 0 ? 0x09 : 0x31;
+        uint8_t opcode = mid == M_ANDQ ? 0x21 :
+                         mid == M_ORQ ? 0x09 : 0x31;
         return emit(a, rex) && emit(a, opcode) &&
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if (strcmp(op, "movabsq") == 0) {
+    if (mid == M_MOVABSQ) {
         if (!parse_imm(a1, &imm) || id2 != 0 || x2 || w2 != 64) return bad(a, "unsupported movabsq operands");
         return emit(a, 0x48) && emit(a, 0xb8) && emit64(a, imm);
     }
-    if (strcmp(op, "movslq") == 0 && id1 >= 0 && !x1 && w1 == 32 &&
+    if (mid == M_MOVSLQ && id1 >= 0 && !x1 && w1 == 32 &&
         id2 >= 0 && !x2 && w2 == 64)
         /* REX.R extends the destination and REX.B the source: without them
            `movslq %r9d, %r9` encodes `movslq %ecx, %rcx`. */
         return emit(a, (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3))) && emit(a, 0x63) &&
                emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
-    if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && id2 >= 0 && !x2) {
+    if ((mid == M_MOVQ || mid == M_MOVL) && parse_imm(a1, &imm) && id2 >= 0 && !x2) {
         if (w2 == 32) return (id2 < 8 || emit(a, 0x41)) &&
                          emit(a, (uint8_t)(0xb8 + (id2 & 7))) && emit32(a, (uint32_t)imm);
-        if (w2 == 64 && strcmp(op, "movq") == 0 && (int64_t)(int32_t)(uint32_t)imm == (int64_t)imm) {
+        if (w2 == 64 && mid == M_MOVQ && (int64_t)(int32_t)(uint32_t)imm == (int64_t)imm) {
             Mem r = {0};
             r.base = id2; r.reg = 1;
             return rex_modrm_mem(a, 64, 0, r, 0xc7, 0, 0, -1) && emit32(a, (uint32_t)imm);
         }
         if (w2 == 64) return bad(a, "movq immediate to GPR must use movabsq in M1 assembly");
     }
-    if ((strcmp(op, "movq") == 0 || strcmp(op, "movl") == 0) && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
+    if ((mid == M_MOVQ || mid == M_MOVL) && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
         int width = op[3] == 'q' ? 64 : 32;
         /* REX.W C7 /0 imm32, or C7 /0 imm32. */
         if (!rex_modrm_mem(a, width, 0, m, 0xc7, 0, 0, -1)) return false;
         return emit32(a, (uint32_t)imm);
     }
-    if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && parse_mem(a, a2, &m))
+    if (mid == M_MOVQ && id1 >= 0 && !x1 && parse_mem(a, a2, &m))
         return rex_modrm_mem(a, 64, id1, m, 0x89, 0, 0, -1);
-    if (strcmp(op, "movq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2)
+    if (mid == M_MOVQ && parse_mem(a, a1, &m) && id2 >= 0 && !x2)
         return rex_modrm_mem(a, 64, id2, m, 0x8b, 0, 0, -1);
-    if (strcmp(op, "movl") == 0 && id1 >= 0 && !x1 && w1 == 32 && parse_rm(a, a2, 32, &m))
+    if (mid == M_MOVL && id1 >= 0 && !x1 && w1 == 32 && parse_rm(a, a2, 32, &m))
         return rex_modrm_mem(a, 32, id1, m, 0x89, 0, 0, -1);
-    if (strcmp(op, "movl") == 0 && parse_rm(a, a1, 32, &m) && id2 >= 0 && !x2 && w2 == 32)
+    if (mid == M_MOVL && parse_rm(a, a1, 32, &m) && id2 >= 0 && !x2 && w2 == 32)
         return rex_modrm_mem(a, 32, id2, m, 0x8b, 0, 0, -1);
-    if (strcmp(op, "movslq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+    if (mid == M_MOVSLQ && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x63, 0, 0, -1);
-    if (strcmp(op, "movb") == 0 && id1 >= 0 && !x1 && w1 == 8 && id1 < 4 && parse_mem(a, a2, &m))
+    if (mid == M_MOVB && id1 >= 0 && !x1 && w1 == 8 && id1 < 4 && parse_mem(a, a2, &m))
         return rex_modrm_mem(a, 0, id1, m, 0x88, 0, 0, -1);
-    if (strcmp(op, "movb") == 0 && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
+    if (mid == M_MOVB && parse_imm(a1, &imm) && parse_mem(a, a2, &m)) {
         if (imm > 255) return bad(a, "movb immediate outside byte range");
         return rex_modrm_mem(a, 0, 0, m, 0xc6, 0, 0, -1) && emit(a, (uint8_t)imm);
     }
-    if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && id2 >= 0 && !x2) {
+    if (mid == M_MOVQ && id1 >= 0 && !x1 && id2 >= 0 && !x2) {
         uint8_t rex = (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3));
         return emit(a, rex) && emit(a, 0x89) &&
                emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if (strcmp(op, "movq") == 0 && id1 >= 0 && !x1 && id2 >= 0 && x2) {
+    if (mid == M_MOVQ && id1 >= 0 && !x1 && id2 >= 0 && x2) {
         if (!emit(a, 0x66) || !emit(a, (uint8_t)(0x48 | ((id2 >> 3) << 2) | (id1 >> 3))) ||
             !emit(a, 0x0f) || !emit(a, 0x6e)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
-    if (strcmp(op, "movq") == 0 && id1 >= 0 && x1 && id2 >= 0 && !x2 && w2 == 64) {
+    if (mid == M_MOVQ && id1 >= 0 && x1 && id2 >= 0 && !x2 && w2 == 64) {
         if (!emit(a, 0x66) || !emit(a, (uint8_t)(0x48 | ((id1 >> 3) << 2) | (id2 >> 3))) ||
             !emit(a, 0x0f) || !emit(a, 0x7e)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
     }
-    if (strcmp(op, "movsd") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m)) {
+    if (mid == M_MOVSD && id2 >= 0 && x2 && parse_xrm(a, a1, &m)) {
         if (m.rip) { char *paren = strchr(a1, '('); *paren = 0; m.symbol = trim(a1); }
         return rex_modrm_mem(a, 0, id2, m, 0x10, 0, 1, 0x0f);
     }
-    if (strcmp(op, "movsd") == 0 && id1 >= 0 && x1 && parse_mem(a, a2, &m))
+    if (mid == M_MOVSD && id1 >= 0 && x1 && parse_mem(a, a2, &m))
         return rex_modrm_mem(a, 0, id1, m, 0x11, 0, 1, 0x0f);
-    if (strcmp(op, "movaps") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
+    if (mid == M_MOVAPS && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
         return rex_modrm_mem(a, 0, id2, m, 0x28, 0, 0, 0x0f);
-    if (strcmp(op, "movaps") == 0 && id1 >= 0 && x1 && parse_mem(a, a2, &m))
+    if (mid == M_MOVAPS && id1 >= 0 && x1 && parse_mem(a, a2, &m))
         return rex_modrm_mem(a, 0, id1, m, 0x29, 0, 0, 0x0f);
-    if (strcmp(op, "xorpd") == 0 && id1 >= 0 && x1 && id2 >= 0 && x2) {
+    if (mid == M_XORPD && id1 >= 0 && x1 && id2 >= 0 && x2) {
         if (!emit(a, 0x66) || !emit(a, 0x0f) || !emit(a, 0x57)) return false;
         return emit(a, (uint8_t)(0xc0 | ((id2 & 7) << 3) | (id1 & 7)));
     }
-    if ((strcmp(op, "addsd") == 0 || strcmp(op, "subsd") == 0 ||
-         strcmp(op, "mulsd") == 0 || strcmp(op, "divsd") == 0) &&
+    if ((mid == M_ADDSD || mid == M_SUBSD ||
+         mid == M_MULSD || mid == M_DIVSD) &&
         id2 >= 0 && x2 && parse_xrm(a, a1, &m)) {
-        uint8_t opcode = strcmp(op, "addsd") == 0 ? 0x58 :
-                         strcmp(op, "subsd") == 0 ? 0x5c :
-                         strcmp(op, "mulsd") == 0 ? 0x59 : 0x5e;
+        uint8_t opcode = mid == M_ADDSD ? 0x58 :
+                         mid == M_SUBSD ? 0x5c :
+                         mid == M_MULSD ? 0x59 : 0x5e;
         return rex_modrm_mem(a, 0, id2, m, opcode, 0, 1, 0x0f);
     }
-    if (strcmp(op, "cvtsi2sdq") == 0 && id2 >= 0 && x2 && parse_rm(a, a1, 64, &m))
+    if (mid == M_CVTSI2SDQ && id2 >= 0 && x2 && parse_rm(a, a1, 64, &m))
         return rex_modrm_mem(a, 64, id2, m, 0x2a, 0, 1, 0x0f);
-    if (strcmp(op, "ucomisd") == 0 && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
+    if (mid == M_UCOMISD && id2 >= 0 && x2 && parse_xrm(a, a1, &m))
         return rex_modrm_mem(a, 0, id2, m, 0x2e, 1, 0, 0x0f);
-    if ((strcmp(op, "andb") == 0 || strcmp(op, "orb") == 0) && id1 >= 0 && id2 >= 0 && !x1 && !x2)
-        return emit(a, strcmp(op, "andb") == 0 ? 0x20 : 0x08) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
-    if (strcmp(op, "movzbl") == 0 && parse_rm(a, a1, 8, &m) && id2 >= 0 && !x2 && w2 == 32)
+    if ((mid == M_ANDB || mid == M_ORB) && id1 >= 0 && id2 >= 0 && !x1 && !x2)
+        return emit(a, mid == M_ANDB ? 0x20 : 0x08) && emit(a, (uint8_t)(0xc0 | ((id1 & 7) << 3) | (id2 & 7)));
+    if (mid == M_MOVZBL && parse_rm(a, a1, 8, &m) && id2 >= 0 && !x2 && w2 == 32)
         return rex_modrm_mem(a, 0, id2, m, 0xb6, 0, 0, 0x0f);
-    if (strcmp(op, "addl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
+    if (mid == M_ADDL && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x03, 0, 0, -1);
-    if (strcmp(op, "subl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
+    if (mid == M_SUBL && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x2b, 0, 0, -1);
-    if (strcmp(op, "imull") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
+    if (mid == M_IMULL && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0xaf, 0, 0, 0x0f);
-    if ((strcmp(op, "andl") == 0 || strcmp(op, "orl") == 0 || strcmp(op, "xorl") == 0) &&
+    if ((mid == M_ANDL || mid == M_ORL || mid == M_XORL) &&
         parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
-        return rex_modrm_mem(a, 32, 0, m, strcmp(op, "andl") == 0 ? 0x23 :
-                                          strcmp(op, "orl") == 0 ? 0x0b : 0x33, 0, 0, -1);
-    if ((strcmp(op, "shll") == 0 || strcmp(op, "sarl") == 0) && a1 && strcmp(a1, "%cl") == 0 &&
+        return rex_modrm_mem(a, 32, 0, m, mid == M_ANDL ? 0x23 :
+                                          mid == M_ORL ? 0x0b : 0x33, 0, 0, -1);
+    if ((mid == M_SHLL || mid == M_SARL) && a1 && strcmp(a1, "%cl") == 0 &&
         id2 >= 0 && !x2 && w2 == 32) {
         Mem r = {0};
         r.base = id2; r.reg = 1;
-        return rex_modrm_mem(a, 32, strcmp(op, "shll") == 0 ? 4 : 7, r, 0xd3, 0, 0, -1);
+        return rex_modrm_mem(a, 32, mid == M_SHLL ? 4 : 7, r, 0xd3, 0, 0, -1);
     }
-    if ((strcmp(op, "shlq") == 0 || strcmp(op, "sarq") == 0) && a1 && strcmp(a1, "%cl") == 0 &&
+    if ((mid == M_SHLQ || mid == M_SARQ) && a1 && strcmp(a1, "%cl") == 0 &&
         id2 >= 0 && !x2 && w2 == 64) {
         Mem r = {0};
         r.base = id2; r.reg = 1;
-        return rex_modrm_mem(a, 64, strcmp(op, "shlq") == 0 ? 4 : 7, r, 0xd3, 0, 0, -1);
+        return rex_modrm_mem(a, 64, mid == M_SHLQ ? 4 : 7, r, 0xd3, 0, 0, -1);
     }
-    if (strcmp(op, "cmpl") == 0 && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
+    if (mid == M_CMPL && parse_rm(a, a1, 32, &m) && id2 == 0 && !x2)
         return rex_modrm_mem(a, 32, 0, m, 0x3b, 0, 0, -1);
-    if (strcmp(op, "addq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+    if (mid == M_ADDQ && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x03, 0, 0, -1);
-    if (strcmp(op, "subq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+    if (mid == M_SUBQ && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x2b, 0, 0, -1);
-    if (strcmp(op, "imulq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+    if (mid == M_IMULQ && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0xaf, 0, 0, 0x0f);
-    if (strcmp(op, "cmpq") == 0 && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
+    if (mid == M_CMPQ && parse_mem(a, a1, &m) && id2 >= 0 && !x2 && w2 == 64)
         return rex_modrm_mem(a, 64, id2, m, 0x3b, 0, 0, -1);
-    if (strcmp(op, "cmpl") == 0 && parse_imm(a1, &imm) && parse_rm(a, a2, 32, &m)) {
+    if (mid == M_CMPL && parse_imm(a1, &imm) && parse_rm(a, a2, 32, &m)) {
         if (imm <= 127) return rex_modrm_mem(a, 32, 7, m, 0x83, 0, 0, -1) && emit(a, (uint8_t)imm);
         return rex_modrm_mem(a, 32, 7, m, 0x81, 0, 0, -1) && emit32(a, (uint32_t)imm);
     }
-    if (strcmp(op, "cmpb") == 0 && parse_imm(a1, &imm) && parse_rm(a, a2, 8, &m)) {
+    if (mid == M_CMPB && parse_imm(a1, &imm) && parse_rm(a, a2, 8, &m)) {
         if (imm > 127) return bad(a, "cmpb immediate outside signed-byte range");
         return rex_modrm_mem(a, 8, 7, m, 0x80, 0, 0, -1) && emit(a, (uint8_t)imm);
     }
-    if (strcmp(op, "cmpb") == 0 && parse_mem(a, a1, &m) && id2 == 0 && !x2 && w2 == 8)
+    if (mid == M_CMPB && parse_mem(a, a1, &m) && id2 == 0 && !x2 && w2 == 8)
         return rex_modrm_mem(a, 8, 0, m, 0x3a, 0, 0, -1);
-    if (strcmp(op, "subq") == 0 && parse_imm(a1, &imm) && strcmp(a2, "%rsp") == 0) {
+    if (mid == M_SUBQ && parse_imm(a1, &imm) && strcmp(a2, "%rsp") == 0) {
         if (imm <= 127) return emit(a, 0x48) && emit(a, 0x83) && emit(a, 0xec) && emit(a, (uint8_t)imm);
         return emit(a, 0x48) && emit(a, 0x81) && emit(a, 0xec) && emit32(a, (uint32_t)imm);
     }
-    if ((strcmp(op, "cmpq") == 0 || strcmp(op, "addl") == 0 || strcmp(op, "subl") == 0) &&
+    if ((mid == M_CMPQ || mid == M_ADDL || mid == M_SUBL) &&
         parse_imm(a1, &imm) && parse_rm(a, a2, op[3] == 'q' ? 64 : 32, &m)) {
         /* D-M1-83: 83 /ext ib, or 81 /ext id, on a register or memory operand. */
         int64_t v = (int64_t)imm;
@@ -599,7 +692,7 @@ static bool encode(Asm *a, char *line) {
             return rex_modrm_mem(a, op[3] == 'q' ? 64 : 32, ext, m, 0x83, 0, 0, -1) && emit(a, (uint8_t)v);
         return rex_modrm_mem(a, op[3] == 'q' ? 64 : 32, ext, m, 0x81, 0, 0, -1) && emit32(a, (uint32_t)v);
     }
-    if (strcmp(op, "imull") == 0 && parse_imm(a1, &imm) && id2 == 0 && !x2 && w2 == 32) {
+    if (mid == M_IMULL && parse_imm(a1, &imm) && id2 == 0 && !x2 && w2 == 32) {
         int64_t v = (int32_t)(uint32_t)imm;
         Mem r = {0};
         r.base = 0; r.reg = 1;
@@ -607,8 +700,8 @@ static bool encode(Asm *a, char *line) {
             return rex_modrm_mem(a, 32, 0, r, 0x6b, 0, 0, -1) && emit(a, (uint8_t)v);
         return rex_modrm_mem(a, 32, 0, r, 0x69, 0, 0, -1) && emit32(a, (uint32_t)v);
     }
-    if ((strcmp(op, "sarl") == 0 || strcmp(op, "shrl") == 0 || strcmp(op, "shll") == 0 ||
-         strcmp(op, "sarq") == 0 || strcmp(op, "shrq") == 0 || strcmp(op, "shlq") == 0) &&
+    if ((mid == M_SARL || mid == M_SHRL || mid == M_SHLL ||
+         mid == M_SARQ || mid == M_SHRQ || mid == M_SHLQ) &&
         parse_imm(a1, &imm) && id2 >= 0 && !x2 &&
         w2 == (op[3] == 'q' ? 64 : 32) && imm >= 1 && imm < (op[3] == 'q' ? 64u : 32u)) {
         /* D-M1-81: C1 /7 sar, /5 shr, /4 shl, with an 8-bit count. */

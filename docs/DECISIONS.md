@@ -157,6 +157,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-127 | module, function, model, type and global objects are read in one pass | active |
 | D-M1-128 | the peephole register names are indexed | active |
 | D-M1-129 | peephole line analysis is reused across rounds | active |
+| D-M1-130 | assembler mnemonics and register names are indexed | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5849,6 +5850,50 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   ms, and no other stage moves outside its before rep range: load 321.872 ->
   312.882, codegen 254.942 -> 255.066, regalloc 111.363 -> 113.163, asm 324.790
   -> 318.482, object 19.678 -> 19.504 and ld 71.111 -> 72.162.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at this change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-130 - assembler mnemonics and register names are indexed
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `encode` compared the mnemonic of every instruction line against 123
+  literal `strcmp` calls spread over 95 lines, and `reg_id` compared an operand
+  against three arrays of sixteen register names. The self-host IR holds
+  231,355 instruction lines, 44 distinct mnemonics and 318,374 register
+  operands.
+- Decision: the 67 mnemonic names sit in one enum and one name array.
+  `mnemonic_id` hashes a mnemonic with FNV-1a and probes a 256-slot open table
+  built on the first call. `encode` computes `mid` once after it splits the
+  line, and every literal comparison becomes `mid == M_NAME`. The 48 register
+  names, with their `%` prefix, widths and numbers, are one table that a
+  128-slot probe reads. The `%xmm` parse and the width, number and unknown
+  results are unchanged. The conditional-jump table keeps
+  `strcmp(op, jcc[j].name)`, the only comparison left against `op`. Every
+  diagnostic text and position is unchanged, including the `unsupported Win64
+  assembler operands` fallthrough.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root:
+
+  | Driver | Assembly run medians (ms) | 3-run median | Rep range |
+  |---|---|---:|---:|
+  | before (`69954946...A01C`) | 337.815, 331.980, 335.324 | 335.324 | 316.769-354.849 |
+  | indexed (`7FE3879B...2FC6`) | 244.062, 252.392, 249.861 | 249.861 | 233.407-260.359 |
+
+  The median drops by 85.463 ms, 25.5% of the before median, and the two rep
+  ranges do not overlap. Wall time follows the stage, 1416.1 -> 1330.4 ms, and
+  no other stage leaves its before rep range: load 318.447 -> 315.901, codegen
+  253.299 -> 256.192, peephole 292.174 -> 281.206, regalloc 109.147 -> 111.876,
+  object 18.520 -> 20.839 and ld 71.135 -> 71.657.
 
   The emitted bytes are identical: the `.s` and `.o` sha256 of
   `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
