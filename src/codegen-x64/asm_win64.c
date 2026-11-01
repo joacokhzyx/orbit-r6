@@ -941,9 +941,10 @@ static bool finalize_object(Asm *a) {
     return true;
 }
 
-bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t error_capacity) {
+bool r6_assemble_win64(const char *text, size_t size, R6CoffObject *object, char *error, size_t error_capacity) {
     Asm a; char line[1024]; size_t lineno = 0;
-    if (!input || !object) {
+    size_t at = 0;
+    if (!text || !object) {
         if (error && error_capacity) snprintf(error, error_capacity, "null assembler input/output");
         return false;
     }
@@ -951,9 +952,19 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
     a.active_func = -1; a.section = 0;
     if (error && error_capacity) error[0] = 0;
     r6_coff_init(object);
-    while (fgets(line, sizeof line, input)) {
+    while (at < size) {
+        const char *nl = (const char *)memchr(text + at, '\n', size - at);
+        size_t n = nl ? (size_t)(nl - (text + at)) + 1 : size - at;
         char *s, *p; size_t len; char original[1024]; ++lineno;
-        if (!strchr(line, '\n') && !feof(input)) { bad(&a, "assembler line %zu exceeds 1023 bytes", lineno); goto fail; }
+        /* fgets read at most 1023 bytes and rejected a chunk of that size
+         * with no newline; this keeps that boundary (D-M1-134). */
+        if (n > 1022u && !(n == 1023u && text[at + n - 1u] == '\n')) {
+            bad(&a, "assembler line %zu exceeds 1023 bytes", lineno);
+            goto fail;
+        }
+        memcpy(line, text + at, n);
+        line[n] = 0;
+        at += n;
         s = trim(line); if (!*s) continue;
         if (strcmp(s, ".text") == 0) { a.section = 0; continue; }
         if (strncmp(s, ".section .rdata", 15) == 0) { a.section = 1; continue; }
@@ -1031,7 +1042,6 @@ bool r6_assemble_win64(FILE *input, R6CoffObject *object, char *error, size_t er
             else if (strncmp(original, "subq $", 6) == 0) f->alloc_end = off - f->begin;
         }
     }
-    if (ferror(input)) { bad(&a, "error reading assembler input"); goto fail; }
     if (a.active_func >= 0) { bad(&a, "unterminated .seh_proc"); goto fail; }
     if (!finalize_object(&a)) goto fail;
     free_asm(&a);

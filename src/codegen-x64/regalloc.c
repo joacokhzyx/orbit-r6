@@ -773,11 +773,9 @@ static bool process_function(Buffer *out, const Lines *l, size_t first, size_t e
     return true;
 }
 
-bool r6_regalloc_win64(const char *path, char *error, size_t error_capacity) {
-    FILE *file = fopen(path, "rb");
-    char *text = NULL;
+bool r6_regalloc_win64(TextBuf *t, char *error, size_t error_capacity) {
+    char *text;
     size_t size, at = 0, line_start = 0;
-    long end;
     Lines lines;
     Buffer out = {NULL, 0, 0};
     Work work;
@@ -786,21 +784,10 @@ bool r6_regalloc_win64(const char *path, char *error, size_t error_capacity) {
 
     memset(&lines, 0, sizeof lines);
     memset(&work, 0, sizeof work);
-    if (!file || fseek(file, 0, SEEK_END) != 0 || (end = ftell(file)) < 0 ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        snprintf(error, error_capacity, "cannot read generated assembler text");
-        if (file) fclose(file);
-        return false;
-    }
-    size = (size_t)end;
-    text = (char *)malloc(size + 1);
-    if (!text || fread(text, 1, size, file) != size) {
-        snprintf(error, error_capacity, "cannot load generated assembler text");
-        fclose(file);
-        free(text);
-        return false;
-    }
-    fclose(file);
+    if (!t || !error) return false;
+    if (!t->p && t->n) { snprintf(error, error_capacity, "null assembler text"); return false; }
+    text = t->p;
+    size = t->n;
     lines.text = text;
     while (at < size) {
         const char *nl = (const char *)memchr(text + at, '\n', size - at);
@@ -828,13 +815,10 @@ bool r6_regalloc_win64(const char *path, char *error, size_t error_capacity) {
         snprintf(error, error_capacity, "unterminated .seh_proc in generated assembler text");
         goto fail;
     }
-    file = fopen(path, "wb");
-    if (!file || fwrite(out.p, 1, out.n, file) != out.n || fclose(file) != 0) {
-        snprintf(error, error_capacity, "cannot write rewritten assembler text");
-        goto fail;
-    }
-    free(text);
-    free(out.p);
+    free(t->p);
+    t->p = out.p;
+    t->n = out.n;
+    t->cap = out.cap;
     free(lines.start);
     free(lines.length);
     free(work.labels);
@@ -846,7 +830,6 @@ bool r6_regalloc_win64(const char *path, char *error, size_t error_capacity) {
 oom:
     snprintf(error, error_capacity, "out of memory allocating registers");
 fail:
-    free(text);
     free(out.p);
     free(lines.start);
     free(lines.length);

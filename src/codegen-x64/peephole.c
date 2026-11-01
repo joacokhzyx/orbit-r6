@@ -69,29 +69,21 @@ static bool parse_move(const char *line, size_t len, bool *store, SlotMove *out)
     return false;
 }
 
-bool r6_peephole_win64(const char *path, char *error, size_t error_capacity) {
-    FILE *file = fopen(path, "rb");
-    char *text = NULL, *result = NULL;
+bool r6_peephole_win64(TextBuf *t, char *error, size_t error_capacity) {
+    char *text, *result = NULL;
     size_t size, used = 0, at = 0;
     SlotMove stored;
     bool have_store = false;
-    long end;
-    if (!file || fseek(file, 0, SEEK_END) != 0 || (end = ftell(file)) < 0 ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        snprintf(error, error_capacity, "cannot read generated assembler text");
-        if (file) fclose(file);
-        return false;
-    }
-    size = (size_t)end;
-    text = (char *)malloc(size + 1);
+    if (!t || !error) return false;
+    if (!t->p && t->n) { snprintf(error, error_capacity, "null assembler text"); return false; }
+    text = t->p;
+    size = t->n;
     /* A rewritten load is shorter than the line it replaces. */
     result = (char *)malloc(size + 1);
-    if (!text || !result || fread(text, 1, size, file) != size) {
-        snprintf(error, error_capacity, "cannot load generated assembler text");
-        fclose(file); free(text); free(result);
+    if (!result) {
+        snprintf(error, error_capacity, "out of memory rewriting assembler text");
         return false;
     }
-    fclose(file);
     while (at < size) {
         const char *nl = (const char *)memchr(text + at, '\n', size - at);
         size_t len = nl ? (size_t)(nl - (text + at)) + 1 : size - at;
@@ -118,13 +110,10 @@ bool r6_peephole_win64(const char *path, char *error, size_t error_capacity) {
         used += len;
         at += len;
     }
-    file = fopen(path, "wb");
-    if (!file || fwrite(result, 1, used, file) != used || fclose(file) != 0) {
-        snprintf(error, error_capacity, "cannot write rewritten assembler text");
-        free(text); free(result);
-        return false;
-    }
-    free(text); free(result);
+    free(t->p);
+    t->p = result;
+    t->n = used;
+    t->cap = size + 1;
     return true;
 }
 
@@ -1080,29 +1069,16 @@ static bool process_final(PWork *w, size_t first, size_t end) {
     return true;
 }
 
-bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
-    FILE *file = fopen(path, "rb");
-    char *text = NULL, *result = NULL;
-    size_t size, count = 0, cap = 0, at = 0, i, used = 0, fn_first = 0;
-    long end;
+bool r6_peephole_final(TextBuf *t, char *error, size_t error_capacity) {
+    char *text, *result = NULL;
+    size_t size, count = 0, cap = 0, at = 0, i, used = 0, fn_first = 0, total = 0;
     PWork w;
     bool in_function = false, ok = false;
     memset(&w, 0, sizeof w);
-    if (!file || fseek(file, 0, SEEK_END) != 0 || (end = ftell(file)) < 0 ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        snprintf(error, error_capacity, "cannot read generated assembler text");
-        if (file) fclose(file);
-        return false;
-    }
-    size = (size_t)end;
-    text = (char *)malloc(size + 1);
-    if (!text || fread(text, 1, size, file) != size) {
-        snprintf(error, error_capacity, "cannot load generated assembler text");
-        fclose(file);
-        free(text);
-        return false;
-    }
-    fclose(file);
+    if (!t || !error) return false;
+    if (!t->p && t->n) { snprintf(error, error_capacity, "null assembler text"); return false; }
+    text = t->p;
+    size = t->n;
     while (at < size) {
         const char *nl = (const char *)memchr(text + at, '\n', size - at);
         size_t length = nl ? (size_t)(nl - (text + at)) : size - at;
@@ -1139,7 +1115,6 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
         }
     }
     {
-        size_t total = 0;
         for (i = 0; i < count; ++i) {
             size_t len;
             if (w.info[i].dead) continue;
@@ -1147,7 +1122,10 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
             total += len + 1;
         }
         result = (char *)malloc(total + 1);
-        if (!result) goto oom;
+        if (!result) {
+            snprintf(error, error_capacity, "out of memory rewriting assembler text");
+            goto done;
+        }
     }
     for (i = 0; i < count; ++i) {
         size_t len;
@@ -1158,11 +1136,10 @@ bool r6_peephole_final(const char *path, char *error, size_t error_capacity) {
         used += len;
         result[used++] = '\n';
     }
-    file = fopen(path, "wb");
-    if (!file || fwrite(result, 1, used, file) != used || fclose(file) != 0) {
-        snprintf(error, error_capacity, "cannot write rewritten assembler text");
-        goto done;
-    }
+    free(t->p);
+    t->p = result;
+    t->n = used;
+    t->cap = total + 1;
     ok = true;
     goto done;
 oom:
@@ -1176,7 +1153,6 @@ done:
     free(w.live_in);
     free(w.text);
     free(w.length);
-    free(text);
-    free(result);
+    if (!ok) free(result);
     return ok;
 }

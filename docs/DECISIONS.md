@@ -161,6 +161,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-131 | regalloc register widths keep their scan | rejected |
 | D-M1-132 | IR integers are parsed without `strtoll` | active |
 | D-M1-133 | codegen conversions are formatted without `vsnprintf` | active |
+| D-M1-134 | the assembler text stays in memory | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -3471,6 +3472,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   (sha256 `6025ca1f…`).
 - Gates: differential **71/71**, loader **265/265**, corpus **109 build / 109
   match over 135**, ratchet held, census **2/27**.
+- Forward: D-M1-134 keeps the text in memory; the pass rewrites the driver's
+  buffer and no `.s` temporary exists.
 - Status: **applied**.
 
 ## D-M1-68 - The hottest frame slots live in callee-saved registers
@@ -4641,6 +4644,8 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   three builds of `ok-link-runtime-dir` through the flag, the variable and the
   flag over a wrong variable. `run_reject.py` cases carry optional `args` and
   `env`.
+- Forward: D-M1-134 keeps the assembler text in memory and removes the `.s`
+  temporary; the `.o` temporary and the `R6_TMPDIR` rule above are unchanged.
 
 ## D-M1-99 - User symbols are emitted as `o_<name>`
 
@@ -6079,6 +6084,76 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
   runs each, and the self-host IR emitted a third matching pair after
   `selfhost.ps1` regenerated it.
+
+  Gates at the change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged.
+- Status: **applied**.
+
+## D-M1-134 - the assembler text stays in memory
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: the driver wrote the generated text to a `.s` temporary: it wrote it
+  once and read it back four times, in three read-write pass pairs and one read
+  at the assembler. On `.r6-build\selfhost\main.ir` the text is
+  6,598,070 bytes. A scratch probe (`C:\Temp\r6-perf\io_share.c`) measured the
+  five I/O operations at 31.5 ms median, range 30.662-35.055, 9 reps. The
+  pipeline after D-M1-133 was 1,197.472 ms in its three-run median and
+  1,195.892 ms in its A/B, 2.5 and 4.1 ms below the 1,200 ms target.
+- Decision:
+  - One `TextBuf`, owned by the driver, carries the text from codegen to the
+    assembler. `src/codegen-x64/text.c` holds the buffer helpers moved out of
+    `win64.c` (D-M1-133) and `text_release`. The `.s` temporary is no longer
+    created. The `.o` temporary, `R6_TMPDIR` and the link are unchanged.
+  - `r6_codegen_win64`, both peephole passes and `r6_regalloc_win64` take the
+    buffer. Each pass rewrites `t->p` and transfers the result only on success;
+    on failure `*t` still owns its buffer. `r6_assemble_win64` takes `text` and
+    `size` and splits the text on `'\n'`. The 1,023-byte check keeps the
+    boundary of the old `fgets` loop: a final line of 1,022 bytes and a
+    1,023-byte chunk ending in `'\n'` are accepted; a final line of 1,023 bytes
+    with no newline, and any line of 1,024 bytes or more, is rejected with
+    `assembler line %zu exceeds 1023 bytes`. A scratch program linked
+    `asm_win64.c` with `coff.c` and called the assembler on seven synthetic
+    inputs; the old `fgets` loop, compiled against the same seven, returns the
+    same verdicts and line numbers.
+  - The driver calls `text_release` at `free_module`, so every exit releases
+    the buffer. No format string, pass rule or encoder rule changes.
+- Evidence: `C:\Temp\r6-perf\measure_8c.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | peephole before | peephole after | regalloc before | regalloc after | asm before | asm after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|
+  | 1 | 287.725 | 267.632 | 108.587 | 96.326 | 260.778 | 224.046 | 1220.700 | 1130.781 |
+  | 2 | 281.999 | 269.066 | 112.905 | 97.888 | 256.795 | 224.009 | 1210.915 | 1147.733 |
+  | 3 | 283.706 | 269.172 | 113.261 | 99.034 | 264.005 | 230.235 | 1213.930 | 1149.111 |
+  | median | 283.706 | 269.066 | 112.905 | 97.888 | 260.778 | 224.046 | 1213.930 | 1147.733 |
+
+  The before driver is `57D3E569...3BD1B58` and the after driver is
+  `4CF2CAE3...0F67`. Both are built by `scripts\build-r6.ps1`, which prints
+  no warning. The pipeline drops 66.197 ms. Load moves 304.738 -> 303.354,
+  codegen 233.916 -> 224.337 and object 18.975 -> 18.714 between the same
+  medians.
+
+  An interleaved A/B of three pairs moves peephole 286.497 -> 268.872 ms,
+  regalloc 109.867 -> 101.398, asm 263.726 -> 225.039 and the pipeline
+  1210.923 -> 1141.166 ms. Wall moves 1300.737 -> 1238.774 ms. The A/B
+  pipeline ranges are 1206.213-1245.245 before and 1130.164-1150.923 after;
+  the asm ranges are 262.539-263.879 before and 218.215-233.514 after. Neither
+  pair of ranges overlaps; the regalloc ranges do (102.355-110.636 before,
+  96.507-107.712 after).
+
+  The after pipeline medians are 52.267 ms (three runs) and 58.834 ms (A/B)
+  below the 1,200 ms target. The change is kept on this measurement.
+
+  The object bytes are identical. The `.o` sha256 of `selfhost\main.ir`,
+  `tests\suite\arena_sink_scope.ir` and `tests\suite\arith.ir` equal
+  `C:\Temp\r6-perf\baseline-hashes.txt` on two runs each:
+  `B655B026...F8E22`, `13D6F7D1...1AA6F` and `0C6EB6F6...01631`. The `.s` hash
+  is no longer reproducible by design: no `.s` file is created, so the object
+  is the byte-identity check.
 
   Gates at the change: differential 100/100, loader 452/452, corpus 143/143
   with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with

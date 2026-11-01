@@ -12,5 +12,6 @@ mkdir -p "$root/.r6-build"
     "$root/src/codegen-x64/win64.c" "$root/src/codegen-x64/asm_win64.c" \
     "$root/src/codegen-x64/coff.c" "$root/src/codegen-x64/elf64.c" \
     "$root/src/codegen-x64/peephole.c" "$root/src/codegen-x64/regalloc.c" \
+    "$root/src/codegen-x64/text.c" \
     -o "$out"
 printf '%s\n' "$out"

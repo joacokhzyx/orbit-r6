@@ -5,6 +5,7 @@
 #include "../codegen-x64/peephole.h"
 #include "../codegen-x64/regalloc.h"
 #include "../codegen-x64/target.h"
+#include "../codegen-x64/text.h"
 #include "../codegen-x64/win64.h"
 
 #include <errno.h>
@@ -231,13 +232,14 @@ static bool find_gcc_crt(char *begin, size_t bcap, char *end, size_t ecap) {
 
 int main(int argc, char **argv) {
     const char *input, *output = NULL;
-    FILE *file = NULL, *asm_file = NULL, *obj_file = NULL;
+    FILE *file = NULL, *obj_file = NULL;
     char *data = NULL;
     long file_len;
     size_t got;
     R6Module module;
     R6Diagnostic diag = {0};
-    char asm_path[1024], obj_path[1024], ld_path[1024];
+    TextBuf text = {0};
+    char obj_path[1024], ld_path[1024];
     char tmpdir[900], runtime_a[1024], sqlite_lib[1024], full[1024];
     const char *runtime_dir = NULL, *tmp_env;
     size_t tmp_len;
@@ -277,7 +279,7 @@ int main(int argc, char **argv) {
               "                       (Windows) sqlite3.lib (else R6_RUNTIME_DIR, else\n"
               "                       .r6-build/runtime-win64 on Windows, runtime-linux-x64 on Linux)\n"
               "  --timings            print per-stage timings (or R6_TIMINGS=1)\n"
-              "  R6_TMPDIR            directory of the .s/.o temporaries (else the system temp dir)\n"
+              "  R6_TMPDIR            directory of the .o temporary (else the system temp dir)\n"
               "  Linux only: R6_CRT_DIR overrides the glibc start-up directory, R6_LD the linker.\n",
               stdout);
         return 0;
@@ -385,45 +387,27 @@ int main(int argc, char **argv) {
     while (tmp_len > 1 && (tmpdir[tmp_len - 1] == '/' || tmpdir[tmp_len - 1] == '\\'))
         tmpdir[--tmp_len] = '\0';
     snprintf(pidbuf, sizeof pidbuf, "%ld", (long)R6_PID());
-    snprintf(asm_path, sizeof asm_path, "%s/r6-%s.s", tmpdir, pidbuf);
     snprintf(obj_path, sizeof obj_path, "%s/r6-%s.o", tmpdir, pidbuf);
     t0 = now_ms();
-    asm_file = fopen(asm_path, "wb");
-    if (!asm_file) {
-        snprintf(diag.code, sizeof diag.code, "OUTPUT");
-        snprintf(diag.message, sizeof diag.message, "cannot create assembler input: %s", strerror(errno));
+    if (!r6_codegen_win64(&text, &module, &diag)) {
         print_error(input, &diag);
         goto free_module;
     }
-    if (!r6_codegen_win64(asm_file, &module, &diag)) {
-        fclose(asm_file);
-        asm_file = NULL;
-        print_error(input, &diag);
-        goto free_module;
-    }
-    if (fclose(asm_file) != 0) {
-        asm_file = NULL;
-        snprintf(diag.code, sizeof diag.code, "OUTPUT");
-        snprintf(diag.message, sizeof diag.message, "failed writing assembler input");
-        print_error(input, &diag);
-        goto free_module;
-    }
-    asm_file = NULL;
     stage_add(T_CODEGEN, t0);
     t0 = now_ms();
-    if (!r6_peephole_win64(asm_path, asm_error, sizeof asm_error)) {
+    if (!r6_peephole_win64(&text, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
         goto free_module;
     }
     stage_add(T_PEEPHOLE, t0);
     t0 = now_ms();
-    if (!r6_regalloc_win64(asm_path, asm_error, sizeof asm_error)) {
+    if (!r6_regalloc_win64(&text, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[REGALLOC]: %s\n", input, asm_error);
         goto free_module;
     }
     stage_add(T_REGALLOC, t0);
     t0 = now_ms();
-    if (!r6_peephole_final(asm_path, asm_error, sizeof asm_error)) {
+    if (!r6_peephole_final(&text, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
         goto free_module;
     }
@@ -457,17 +441,10 @@ int main(int argc, char **argv) {
     }
 #endif
     t0 = now_ms();
-    asm_file = fopen(asm_path, "rb");
-    if (!asm_file) {
-        fprintf(stderr, "r6: %s:0:0: error[INPUT]: cannot reopen generated assembler text\n", input);
-        goto free_module;
-    }
-    if (!r6_assemble_win64(asm_file, &object, asm_error, sizeof asm_error)) {
-        fclose(asm_file); asm_file = NULL;
+    if (!r6_assemble_win64(text.p, text.n, &object, asm_error, sizeof asm_error)) {
         fprintf(stderr, "r6: %s:0:0: error[ASSEMBLER]: %s\n", input, asm_error);
         goto free_module;
     }
-    fclose(asm_file); asm_file = NULL;
     stage_add(T_ASM, t0);
     t0 = now_ms();
     obj_out = object_mode ? output : obj_path;
@@ -494,7 +471,6 @@ int main(int argc, char **argv) {
     r6_coff_free(&object);
     stage_add(T_OBJECT, t0);
     if (object_mode) {
-        remove(asm_path);
         rc = 0;
         goto free_module;
     }
@@ -637,14 +613,13 @@ int main(int argc, char **argv) {
     }
     stage_add(T_LD, t0);
 #endif
-    /* A failed build keeps its .s/.o for inspection; a good one owes nothing. */
-    remove(asm_path);
+    /* A failed build keeps its .o for inspection; a good one owes nothing. */
     remove(obj_path);
     rc = 0;
 
 free_module:
-    if (asm_file) fclose(asm_file);
     if (obj_file) fclose(obj_file);
+    text_release(&text);
     r6_module_free(&module);
 done:
     free(data);
