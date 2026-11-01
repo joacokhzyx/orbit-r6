@@ -159,6 +159,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-129 | peephole line analysis is reused across rounds | active |
 | D-M1-130 | assembler mnemonics and register names are indexed | active |
 | D-M1-131 | regalloc register widths keep their scan | rejected |
+| D-M1-132 | IR integers are parsed without `strtoll` | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -5964,3 +5965,56 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   No fixture or reject case is added. The admitted language is unchanged. The
   text-in-memory change the plan defers, the structural task, is not started.
 - Status: **rejected**.
+
+## D-M1-132 - IR integers are parsed without strtoll
+
+- Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: `number` ran over every integer field of the IR. On
+  `.r6-build\selfhost\main.ir` it is called 335,553 times: 116,508 `dest`,
+  116,508 `elemKind`, 101,429 `Int`, `Register` and `Label` operand values, 14
+  `line` on `div` and `mod`, and 1,094 `registerCount`. The plan estimated
+  about 600,000 calls. Each call scanned the text for `.`, `e` or `E` and then
+  called `strtoll`, which scanned the same text again.
+- Decision: the digits are converted in place with a checked
+  multiply-accumulate over `uint64_t`. A leading `-` is applied after the
+  digits, so `INT64_MIN` parses. A non-digit, a value above `INT64_MAX` and a
+  negative value below `INT64_MIN` answer `E_RANGE "integer outside allowed
+  range"`; the caller's `lo..hi` test is unchanged. A fraction or exponent
+  answers `E_SCHEMA "integer value has a fraction or exponent"` before any
+  digit is converted. No other function, message or call site changes.
+- Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
+  driver, `.r6-build\selfhost\main.ir`, from the repository root. The pipeline
+  is the sum of load, codegen, peephole, regalloc, asm and object.
+
+  | Run | load before | load after | pipeline before | pipeline after |
+  |---|---:|---:|---:|---:|
+  | 1 | 319.431 | 306.109 | 1248.019 | 1228.689 |
+  | 2 | 314.914 | 301.605 | 1235.570 | 1226.486 |
+  | 3 | 320.612 | 304.582 | 1241.050 | 1236.994 |
+  | median | 319.431 | 304.582 | 1241.050 | 1228.689 |
+
+  The before driver is `7FE3879B...2FC6` and the after driver is
+  `CA4372E2...9E23`. Load drops 14.849 ms, 4.6% of its before median, and the
+  pipeline drops 12.361 ms. An interleaved A/B of three pairs moves load
+  324.066 -> 305.349 ms and the pipeline 1252.381 -> 1239.054 ms. The A/B load
+  ranges are 319.859-342.170 before and 300.971-307.696 after; the A/B
+  pipeline ranges are 1250.072-1265.753 before and 1226.738-1286.954 after.
+
+  The 1,200 ms target is 28.689 ms away at the after median and 39.054 ms away
+  in the A/B. The same before driver measured 1,221.0 ms of pipeline in
+  D-M1-131 and 1,241.050 ms here. The two sessions were not interleaved, so
+  the 20.1 ms between them measures the same binary at two times, not a cause
+  of the miss. The target is missed in both figures.
+
+  The emitted bytes are identical: the `.s` and `.o` sha256 of
+  `selfhost\main.ir`, `tests\suite\arena_sink_scope.ir` and
+  `tests\suite\arith.ir` equal `C:\Temp\r6-perf\baseline-hashes.txt` on two
+  runs each.
+
+  Gates at the change: differential 100/100, loader 452/452, corpus 143/143
+  with the ratchet holding (`143 -> 143`), self-host `SELFHOST OK` with
+  `PUBLISHED_C E794E2DB…92B1`.
+
+  No fixture or reject case is added. The admitted language is unchanged. The
+  text-in-memory change the plan defers, the structural task, is not started.
+- Status: **applied**.

@@ -147,7 +147,63 @@ _Static_assert(ROOT_KEY_COUNT <= OBJ_KEYS_MAX, "root schema exceeds the view");
 
 static bool arr(Parser*p,JNode*x){if(!x||x->kind!=J_ARR){fail(p,"E_SCHEMA","expected array");return false;}return true;}
 static bool str(Parser*p,JNode*x,char**out){if(!x||x->kind!=J_STR){fail(p,"E_SCHEMA","expected string");return false;}*out=dupstr(x->s);if(!*out){fail(p,"E_MEMORY","out of memory");return false;}return true;}
-static bool number(Parser*p,JNode*x,int64_t lo,int64_t hi,int64_t*out){if(!x||x->kind!=J_NUM){fail(p,"E_SCHEMA","expected integer");return false;}for(const char*q=x->s;*q;q++)if(*q=='.'||*q=='e'||*q=='E'){fail(p,"E_SCHEMA","integer value has a fraction or exponent");return false;}char*end;errno=0;long long n=strtoll(x->s,&end,10);if(errno||*end||n<lo||n>hi){fail(p,"E_RANGE","integer outside allowed range");return false;}*out=(int64_t)n;return true;}
+/* D-M1-132: the JSON parser has already validated the number syntax, so after
+ * the fraction scan the digits convert with a checked accumulate and no
+ * strtoll, which rescanned the text for a general base. */
+static bool number(Parser *p, JNode *x, int64_t lo, int64_t hi, int64_t *out) {
+    const char *q, *s;
+    uint64_t v = 0;
+    bool neg = false;
+    if (!x || x->kind != J_NUM) {
+        fail(p, "E_SCHEMA", "expected integer");
+        return false;
+    }
+    for (q = x->s; *q; ++q)
+        if (*q == '.' || *q == 'e' || *q == 'E') {
+            fail(p, "E_SCHEMA", "integer value has a fraction or exponent");
+            return false;
+        }
+    s = x->s;
+    if (*s == '-') {
+        neg = true;
+        ++s;
+    }
+    if (!*s) {
+        fail(p, "E_RANGE", "integer outside allowed range");
+        return false;
+    }
+    for (; *s; ++s) {
+        unsigned d;
+        if (*s < '0' || *s > '9') {
+            fail(p, "E_RANGE", "integer outside allowed range");
+            return false;
+        }
+        d = (unsigned)(*s - '0');
+        if (v > (UINT64_MAX - d) / 10u) {
+            fail(p, "E_RANGE", "integer outside allowed range");
+            return false;
+        }
+        v = v * 10u + d;
+    }
+    if (neg) {
+        if (v > (uint64_t)INT64_MAX + 1u) {
+            fail(p, "E_RANGE", "integer outside allowed range");
+            return false;
+        }
+        *out = v == (uint64_t)INT64_MAX + 1u ? INT64_MIN : -(int64_t)v;
+    } else {
+        if (v > (uint64_t)INT64_MAX) {
+            fail(p, "E_RANGE", "integer outside allowed range");
+            return false;
+        }
+        *out = (int64_t)v;
+    }
+    if (*out < lo || *out > hi) {
+        fail(p, "E_RANGE", "integer outside allowed range");
+        return false;
+    }
+    return true;
+}
 static bool boolean(Parser*p,JNode*x,bool*out){if(x&&x->kind==J_TRUE){*out=true;return true;}if(x&&x->kind==J_FALSE){*out=false;return true;}fail(p,"E_SCHEMA","expected boolean");return false;}
 static bool float_bits(Parser*p,JNode*x,uint64_t*out){if(!x||x->kind!=J_NUM){fail(p,"E_SCHEMA","expected float value");return false;}char*end;errno=0;double v=strtod(x->s,&end);if(*end||!isfinite(v)){fail(p,"E_RANGE","float value must be finite");return false;}memcpy(out,&v,sizeof v);return true;}
 enum { V_KIND, V_VALUE, V_KEY_COUNT };
