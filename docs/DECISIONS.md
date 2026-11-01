@@ -5867,20 +5867,22 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 
 - Date: 2026-10-31. Pin unchanged (`01e31e8`, D-F0-21).
 - Reason: `encode` compared the mnemonic of every instruction line against 123
-  literal `strcmp` calls spread over 95 lines, and `reg_id` compared an operand
-  against three arrays of sixteen register names. The self-host IR holds
-  231,355 instruction lines, 44 distinct mnemonics and 318,374 register
+  literal `strcmp` calls on 94 lines. The 95th `strcmp(op, …)` line is
+  `strcmp(op, jcc[j].name)`, a variable comparison. `reg_id` compared an
+  operand against three arrays of sixteen register names. The self-host IR
+  holds 231,355 instruction lines, 44 distinct mnemonics and 318,374 register
   operands.
 - Decision: the 67 mnemonic names sit in one enum and one name array.
   `mnemonic_id` hashes a mnemonic with FNV-1a and probes a 256-slot open table
   built on the first call. `encode` computes `mid` once after it splits the
   line, and every literal comparison becomes `mid == M_NAME`. The 48 register
   names, with their `%` prefix, widths and numbers, are one table that a
-  128-slot probe reads. The `%xmm` parse and the width, number and unknown
-  results are unchanged. The conditional-jump table keeps
-  `strcmp(op, jcc[j].name)`, the only comparison left against `op`. Every
-  diagnostic text and position is unchanged, including the `unsupported Win64
-  assembler operands` fallthrough.
+  128-slot probe reads. One `strcmp` on a hit covers 55 of the 67 mnemonics
+  and 43 of the 48 register names. Linear probing visits 2-3 slots for the
+  rest. The `%xmm` parse and the width, number and unknown results are
+  unchanged. The conditional-jump table keeps `strcmp(op, jcc[j].name)`, the
+  only comparison left against `op`. Every diagnostic text and position is
+  unchanged, including the `unsupported Win64 assembler operands` fallthrough.
 - Evidence: `C:\Temp\r6-perf\measure.py`, 7 reps per run, three runs per
   driver, `.r6-build\selfhost\main.ir`, from the repository root:
 
