@@ -274,6 +274,12 @@ arguments under the target's convention; every IR slot lives in an 8-byte
 frame, and `peephole.c` and `regalloc.c` rewrite the generated text before
 encoding.
 
+A union constructor call resolves by its target. `Owner.Variant` looks the
+owner up among the declared `union_type`s, then the variant inside it; a bare
+variant name resolves only when exactly one union declares it (D-M1-136). Two
+unions may declare the same variant name, and a bare call through one is
+refused with `CGEN` rather than guessed.
+
 The pin emits its own corpus with `orbit build --emit-ir`:
 `tests/corpus/manifest.json` fixes 144 documents (143 executable and one support
 module), 6 992 633 bytes and `filesSha256 a533ace1`, and

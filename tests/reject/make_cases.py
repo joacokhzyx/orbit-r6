@@ -610,10 +610,17 @@ def build_reject():
     add("x-union-duplicate-variant", jd({"irVersion": "1", "module": mod}),
         "D-M1-12", "E_DUPLICATE", "duplicate variant name in one type")
 
-    mod = MOD([MAIN()])
-    mod["types"] = [utype("A", ["Same"], [""]), utype("B", ["Same"], [""])]
-    add("x-union-variant-two-types", jd({"irVersion": "1", "module": mod}),
-        "D-M1-12", "E_DUPLICATE", "variant name declared by more than one type")
+    # D-M1-12 gave a variant name one owner. D-M1-136 admits two, because the
+    # language mints an instance per argument list and both `Option_int` and
+    # `Option_string` declare `Some`. What stays refused is the resolution that
+    # no longer exists: a bare call target naming a variant two unions declare.
+    mod = MOD([MAIN([I("arg", -1, Int(1)),
+                     I("call", 0, Str("Same"), Int(1)),
+                     I("ret", -1, Reg(0))], ["void*"])])
+    mod["types"] = [utype("A", ["Same"], ["int"]), utype("B", ["Same"], ["int"])]
+    add("x-union-variant-two-types-bare-call", jd({"irVersion": "1", "module": mod}),
+        "D-M1-136", "CGEN",
+        "a bare variant name declared by two unions resolves to neither")
 
     mod = MOD([MAIN(), FN("Shape_TAG_Dot", [], [], rtype="void", extern=True)])
     mod["types"] = [utype("Shape", ["Dot"], ["int"])]
@@ -2187,6 +2194,33 @@ def build_accept_files():
     mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
                      "richVariants": ["int"], "methods": []}]
     files.append(("ok-union-ctor", jd({"irVersion": "1", "module": mod})))
+    # D-M1-136: the owner-qualified spelling of the same construction. The
+    # builder emits `Shape.Dot` because a variant name may be shared, and the
+    # payload still has to arrive.
+    mod = MOD([MAIN([I("arg", -1, Int(11)),
+                     I("call", 0, Str("Shape.Dot"), Int(1)),
+                     I("decl_var", -1, Str("d"), Reg(0)),
+                     I("load_var", 1, Str("d")),
+                     I("union_get_tag", 2, Reg(1)),
+                     I("union_get_data", 3, Reg(1)),
+                     I("ret", -1, Reg(3))], ["void*", "void*", "int", "int"])])
+    mod["types"] = [{"name": "Shape", "kind": "union_type", "variants": ["Dot"],
+                     "richVariants": ["int"], "methods": []}]
+    files.append(("ok-union-ctor-qualified", jd({"irVersion": "1", "module": mod})))
+    # Two owners, one variant name, and an answer that tells them apart:
+    # `B.Same` carries an int, so the data word is 7. Resolved to `A.Same`
+    # instead, the same read returns a string pointer and the exit is not 7.
+    mod = MOD([MAIN([I("arg", -1, Int(7)),
+                     I("call", 0, Str("B.Same"), Int(1)),
+                     I("decl_var", -1, Str("v"), Reg(0)),
+                     I("load_var", 1, Str("v")),
+                     I("union_get_data", 2, Reg(1)),
+                     I("ret", -1, Reg(2))], ["void*", "void*", "int"])])
+    mod["types"] = [{"name": "A", "kind": "union_type", "variants": ["Same"],
+                     "richVariants": ["string"], "methods": []},
+                    {"name": "B", "kind": "union_type", "variants": ["Same"],
+                     "richVariants": ["int"], "methods": []}]
+    files.append(("ok-union-two-owners", jd({"irVersion": "1", "module": mod})))
     inc = FN("inc", [I("arg", 0, Int(0)), I("load_const", 1, Int(1)),
                      I("add", 2, Reg(0), Reg(1)), I("ret", -1, Reg(2))],
              ["int", "int", "int"], params=["x"], ptypes=["int"])
@@ -2911,6 +2945,10 @@ def build_manifest(reject, accept_files):
              "note": "model constructor + field load round-trip inside main"},
             {"file": "cases/ok-union-ctor.json", "run_exit": 11, "rule": "D-M1-12",
              "note": "union constructor + tag + data round-trip inside main"},
+            {"file": "cases/ok-union-ctor-qualified.json", "run_exit": 11, "rule": "D-M1-136",
+             "note": "the owner-qualified constructor target builds and the payload arrives"},
+            {"file": "cases/ok-union-two-owners.json", "run_exit": 7, "rule": "D-M1-136",
+             "note": "two unions declare Same; the owner in the target chooses the payload type"},
             {"file": "cases/ok-dead-undefined-call.json", "run_exit": 7, "rule": "D-M1-65",
              "note": "functions main does not reach, one binding the other as a value, are not emitted"},
             {"file": "cases/ok-fn-value.json", "run_exit": 42, "rule": "D-M1-14",

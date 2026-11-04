@@ -1141,22 +1141,50 @@ static bool model_field_layout(const R6Module *m, const R6Model *model, size_t w
     return true;
 }
 
-/* The union declaring a variant name, or NULL. The loader rejects a variant
- * name declared by more than one union, so this is unambiguous. */
+/* The union declaring what a call target names, or NULL. Two spellings are
+ * admitted: the bare variant name the pinned builder emits (`Unit`), and the
+ * owner-qualified name the current one emits (`Shape.Unit`, `Option_int.Some`),
+ * which is how a variant name shared by two unions is resolved (D-M1-136). A
+ * bare name with two owners answers NULL: it is declared, but not by one union,
+ * and the caller says so rather than claiming it is undeclared. */
 static const R6Type *find_union_variant(const R6Module *m, const char *variant,
                                         size_t *variant_index) {
-    size_t n, v;
-    if (!m || !variant) return NULL;
+    size_t n, v, hits = 0;
+    const char *dot, *name;
+    if (!m || !variant || !*variant) return NULL;
+    dot = strrchr(variant, '.');
+    name = dot ? dot + 1 : variant;
     for (n = 0; n < m->type_count; ++n) {
         const R6Type *t = &m->types[n];
         if (!t->kind || strcmp(t->kind, "union_type") != 0) continue;
+        if (dot) {
+            size_t owner_len = (size_t)(dot - variant);
+            if (!t->name || strlen(t->name) != owner_len ||
+                strncmp(t->name, variant, owner_len) != 0)
+                continue;
+        }
         for (v = 0; v < t->variant_count; ++v)
-            if (t->variants[v] && strcmp(t->variants[v], variant) == 0) {
+            if (t->variants[v] && strcmp(t->variants[v], name) == 0) {
+                if (++hits > 1) return NULL;
                 if (variant_index) *variant_index = v;
                 return t;
             }
     }
     return NULL;
+}
+
+/* How many unions declare the bare name. Used only to word the refusal: the
+ * target is declared, so "not a declared union variant" would be a lie. */
+static size_t variant_owner_count(const R6Module *m, const char *name) {
+    size_t n, v, hits = 0;
+    if (!m || !name) return 0;
+    for (n = 0; n < m->type_count; ++n) {
+        const R6Type *t = &m->types[n];
+        if (!t->kind || strcmp(t->kind, "union_type") != 0) continue;
+        for (v = 0; v < t->variant_count; ++v)
+            if (t->variants[v] && strcmp(t->variants[v], name) == 0) ++hits;
+    }
+    return hits;
 }
 
 /* D-M1-38: an opaque read (elemKind 0) is orbit_list_read_word, a bare word
@@ -2326,9 +2354,15 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                     find_union_variant(m, i->operands[0].as.string, &variant_index);
                 const char *rich;
                 size_t parts;
-                if (!variant_type)
+                if (!variant_type) {
+                    const char *target = i->operands[0].as.string;
+                    if (!strrchr(target, '.') && variant_owner_count(m, target) > 1)
+                        return fail(d, i, "CGEN",
+                                    "call target %s is declared by more than one union; name its owner",
+                                    target);
                     return fail(d, i, "CGEN", "call target %s is not a declared function, model, or union variant",
-                                i->operands[0].as.string);
+                                target);
+                }
                 if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
                     return fail(d, i, "CGEN", "call arity must be a non-negative Int");
                 arity = (size_t)i->operands[1].as.i64;
@@ -4345,9 +4379,15 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                     find_union_variant(m, i->operands[0].as.string, &variant_index);
                 const char *rich;
                 size_t parts;
-                if (!variant_type)
+                if (!variant_type) {
+                    const char *target = i->operands[0].as.string;
+                    if (!strrchr(target, '.') && variant_owner_count(m, target) > 1)
+                        return fail(d, i, "CGEN",
+                                    "call target %s is declared by more than one union; name its owner",
+                                    target);
                     return fail(d, i, "CGEN", "call target %s is not a declared function, model, or union variant",
-                                i->operands[0].as.string);
+                                target);
+                }
                 rich = variant_type->rich_variants[variant_index];
                 parts = union_payload_count(rich);
                 if (parts >= 2) {

@@ -617,11 +617,11 @@
       "note": "duplicate variant name in one type"
     },
     {
-      "file": "cases/x-union-variant-two-types.json",
+      "file": "cases/x-union-variant-two-types-bare-call.json",
       "exit": 1,
-      "code": "E_DUPLICATE",
-      "rule": "D-M1-12",
-      "note": "variant name declared by more than one type"
+      "code": "CGEN",
+      "rule": "D-M1-136",
+      "note": "a bare variant name declared by two unions resolves to neither"
     },
     {
       "file": "cases/x-union-tag-collision.json",
@@ -2451,6 +2451,18 @@
       "run_exit": 11,
       "rule": "D-M1-12",
       "note": "union constructor + tag + data round-trip inside main"
+    },
+    {
+      "file": "cases/ok-union-ctor-qualified.json",
+      "run_exit": 11,
+      "rule": "D-M1-136",
+      "note": "the owner-qualified constructor target builds and the payload arrives"
+    },
+    {
+      "file": "cases/ok-union-two-owners.json",
+      "run_exit": 7,
+      "rule": "D-M1-136",
+      "note": "two unions declare Same; the owner in the target chooses the payload type"
     },
     {
       "file": "cases/ok-dead-undefined-call.json",

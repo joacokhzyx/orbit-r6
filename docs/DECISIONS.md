@@ -6232,3 +6232,48 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     equal `baseline-hashes.txt` (D-M1-134). The `.s` hash is no longer
     reproducible because no `.s` file is written.
 - Status: **applied**.
+
+## D-M1-136 - the owner resolves a union constructor call
+
+- Date: 2026-11-03. Pin unchanged (`01e31e8`, D-F0-21).
+- Reason: orbit-lang mints one union instance per argument list, so
+  `Option<int>` and `Option<string>` both declare `Some`, and a variant name is
+  no longer unique across a module. Its builder emits the construction target
+  qualified -- `Option_int.Some`, and for a non-generic union `Shape.Unit` --
+  where the pinned builder emitted the bare name. `find_union_variant` matched
+  the bare name only, so every such call was refused as undeclared, and the
+  loader's `variant name is declared by more than one type` made the module
+  itself unadmissible. The refusals were correct against the language R6 is
+  pinned to and wrong against the language today.
+- Decision: a call target resolves two ways. `Owner.Variant` looks the owner up
+  among the declared `union_type`s and then the variant inside it. A bare name
+  resolves only when exactly one union declares it; two owners is a refusal that
+  says so, because naming the owner is the way out and `not a declared union
+  variant` would misdescribe a name the module does declare. The loader drops
+  the cross-type uniqueness rule and keeps every other one: a variant twice in
+  one type, an empty name, a name too long for a tag constant, and every
+  `Type_TAG_Variant` collision against a function, model or global.
+- Evidence:
+  - `python tests/reject/run_reject.py` -> Loader suite: 454/454 cases passed.
+    Two cases replaced the retired `x-union-variant-two-types` rejection:
+  - `cases/ok-union-two-owners.json` (accept, `run_exit` 7) declares `A.Same`
+    with a string payload and `B.Same` with an int. The target says `B.Same`, so
+    the data word is 7 and the process exits 7; a resolver taking the first
+    owner would return a pointer, not 7. It is the positive control and the
+    discriminator at once.
+  - `cases/x-union-variant-two-types-bare-call.json` (reject, `CGEN`) is the same
+    module with a bare `Same` target: admitted by the loader, refused by
+    codegen. One program differs from the accept case by the target alone.
+  - `cases/ok-union-ctor.json` (the pinned bare-name construction) still exits
+    11, and `python tests/diff/run_diff.py` with the pinned compiler reads
+    Differential: 100/100 passed, so no admitted program changed behaviour.
+  - `python tests/corpus/run_corpus.py --check` against the pinned root reads
+    `ratchet holds: r6BuildOk 143 -> 143, match 143 -> 143`.
+  - On the orbit-lang side, `scripts/test_suite.py --backend native` went from
+    106/125 to 123/125 and `tests/std` from 22/24 to 24/24 with this binary.
+    The two that remain are named elsewhere: `migrations_down` is outside the
+    subset (the net archive defines no `orbit_db_*` symbol, D-M1-13) and
+    `system_request_classes` links `system_http_requests_ok`, which the pinned
+    runtime does not define and a pin move would carry.
+- Status: **applied**.
+
