@@ -6277,3 +6277,29 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     runtime does not define and a pin move would carry.
 - Status: **applied**.
 
+
+## D-M1-137 - a migration-only module links the database archive
+
+- Date: 2026-11-06.
+- Decision: the driver sets `uses_db` when the module declares migrations, not
+  only when it declares an `orbit_db_*` extern. The plain archive defines no
+  `orbit_db_*` symbol, so a migration-only module needs the database variant to
+  link at all; the codegen refusal that stood in its place is removed.
+- Evidence:
+  - `r6 build` on the IR the current orbit-lang emits for
+    `tests/suite/migrations_down.orb` printed
+    `error[CGEN]: a module with migrations that calls no orbit_db_* builtin is
+    outside the M1 native subset` before the change. After it the binary links,
+    runs and prints `migrations down parsed`, byte-identical to the C oracle.
+  - `python tests/reject/run_reject.py` -> Loader suite: 454/454 cases passed.
+    `cases/x-db-migrations-no-db-extern.json` became
+    `cases/ok-db-migrations-only.json`, build only: the run needs `sqlite3.dll`.
+  - `python tests/diff/run_diff.py` -> Differential: 100/100 passed.
+  - `python tests/corpus/run_corpus.py --check` against the pinned root reads
+    `ratchet holds: r6BuildOk 143 -> 143, match 143 -> 143`. The pin has no
+    migration-only program, so the ratchet does not move.
+  - The tree's own corpus, emitted by orbit-lang at `16f979e`, reads 150/151
+    match with this binary against 149/151 before it. The remaining refusal is
+    `system_request_classes`, which links `system_http_requests_ok`; the pinned
+    runtime does not define that symbol and a pin move would carry it.
+- Status: **applied**.

@@ -355,11 +355,16 @@ int main(int argc, char **argv) {
 
     /* D-M1-87: a module that declares an orbit_db_* extern links the DB
      * variant of the runtime archive and the SQLite import library, as the
-     * language does for a program that calls the database (pipeline.orb). */
+     * language does for a program that calls the database (pipeline.orb).
+     * D-M1-137: a module with migrations and no such extern links it too.
+     * The migrations run at startup, the plain archive defines no orbit_db_*
+     * symbol, and the old rule refused the module instead of linking it. */
     for (fn = 0; fn < module.function_count; ++fn)
         if (module.functions[fn].is_extern && module.functions[fn].name &&
             strncmp(module.functions[fn].name, "orbit_db_", 9) == 0)
             uses_db = true;
+    if (module.migration_count > 0)
+        uses_db = true;
     /* D-M1-102: ws2_32 only for a module the pin's rule calls a network
      * program; a database program is one. */
     uses_net = r6_module_uses_network(&module);

@@ -280,6 +280,11 @@ variant name resolves only when exactly one union declares it (D-M1-136). Two
 unions may declare the same variant name, and a bare call through one is
 refused with `CGEN` rather than guessed.
 
+A module with migrations and no `orbit_db_*` extern links the database archive
+and keeps `main`, as a module that calls the database does (D-M1-137). The
+migrations run at start-up and need the same archive; the plain one defines no
+`orbit_db_*` symbol.
+
 The pin emits its own corpus with `orbit build --emit-ir`:
 `tests/corpus/manifest.json` fixes 144 documents (143 executable and one support
 module), 6 992 633 bytes and `filesSha256 a533ace1`, and

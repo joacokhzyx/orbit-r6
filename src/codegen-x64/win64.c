@@ -4711,11 +4711,6 @@ static bool emit_entry_wrapper(TextBuf *o, const R6Module *m, R6Diagnostic *d) {
     unsigned long long ddl_id[8];
     unsigned long long mig_id = 0;
     size_t ddl_count = 0, k, j;
-    /* The pin opens the database for migrations alone too, but the driver
-       links the DB archive by the orbit_db_* externs, so a migration-only
-       module has no measured link and stays refused. */
-    if (m->migration_count && !db)
-        return fail(d, NULL, "CGEN", "a module with migrations that calls no orbit_db_* builtin is outside the M1 native subset");
     if (db) {
         emit_db_text(o, ".orbit/data/app.db", base);
         for (k = 0; k < m->model_count; ++k) {

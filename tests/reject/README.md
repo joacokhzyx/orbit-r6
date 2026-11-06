@@ -2,7 +2,7 @@
 
 The second gate (decision D-M1-06). Every case in `manifest.json` names the
 decision it pins in its `rule` field; the decisions are in
-[`../../docs/DECISIONS.md`](../../docs/DECISIONS.md). The suite is 452 cases:
+[`../../docs/DECISIONS.md`](../../docs/DECISIONS.md). The suite is 454 cases:
 311 rejections and 141 acceptance controls, measured on 2026-10-31 on Windows
 x64 and Linux x64.
 
