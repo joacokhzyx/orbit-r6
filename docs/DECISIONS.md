@@ -6332,3 +6332,29 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     the DB archive (D-M1-137), and `system_request_classes` links
     `system_http_requests_ok`, which the pinned runtime does not define.
 - Status: **applied**.
+
+## D-M1-139 - the two database fixtures match on Windows by crashing alike
+
+- Date: 2026-11-07.
+- Decision: no code change. This records what the differential's 100/100 on
+  Windows means for the two database fixtures, so the number is not read as
+  coverage it does not have.
+- Evidence:
+  - `95-db-migrations`, built by the current `orbit-lang` for the oracle and by
+    R6, crashes on both sides in a fresh directory with
+    `ExceptionCode 0xC0000005 at address 0x0` and exit 139. The harness compares
+    exit status and stdout, so two identical crashes read as a match. This is
+    the null-progress-handler crash recorded in `orbit-lang` ENGINEERING.md
+    section 7 item (6): contained, not diagnosed.
+  - On Linux the two sides diverge: the oracle exits 42 and R6 exits 1 with
+    `database open failed (.orbit/data/app.db): unable to open database file`.
+    The oracle's runtime creates the directory (`runtime/database.c`, current
+    tree); R6 links the pinned runtime, which does not have that block
+    (`git show 01e31e8:runtime/database.c` has no `mkdir_p`). With the directory
+    present, both fixtures run under R6 and exit 0.
+  - `python tests/diff/run_diff.py` -> 100/100 on Windows, 99/100 on Linux
+    (these two cases are the difference).
+  - The gap closes when the pin moves to a language commit whose runtime
+    creates `.orbit/data`; that move is a release decision, not a code change
+    here.
+- Status: **applied**.
