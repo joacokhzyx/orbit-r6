@@ -6303,3 +6303,32 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     `system_request_classes`, which links `system_http_requests_ok`; the pinned
     runtime does not define that symbol and a pin move would carry it.
 - Status: **applied**.
+
+## D-M1-138 - every opcode the current emitter writes has an R6 decision
+
+- Date: 2026-11-07.
+- Decision: no code change. This records the audit the pin move needs: every
+  opcode the current `orbit-lang` emitter can write has an R6 decision, either a
+  lowering arm or a refusal that names the opcode. The product program's first
+  slice added no opcode -- the payload read emits `union_get_data`, admitted
+  since D-M1-47 -- and the 11 names added to the emitter since the pin already
+  have arms here.
+- Evidence:
+  - Emitter opcode sets, pin against `16f979e`: 66 -> 77. Added: `bits_float`,
+    `byte_load`, `byte_store`, `bytes_alloc`, `bytes_copy`, `float_bits`,
+    `mem_load`, `mem_store`, `reinterpret`, `str_len`, `str_offset`. Removed:
+    none. Measured with `git show 01e31e8:compiler/emit/ir_emit.orb` and the
+    working tree, `IROpcode.` names sorted.
+  - R6's loader names 77 opcodes (`src/loader/ir.c`, `opcode_names`), the same
+    set in both directions: `comm` prints no name missing from either side.
+  - Each of the 11 has lowering arms (`case R6_OP_*:` occurs two or three times
+    per name in `win64.c`). The byte and memory family is admitted in a runtime
+    module and refused by name otherwise (`win64.c:2076`, `:2105`, D-M1-106).
+  - `python tests/corpus/run_corpus.py --ir-dir <corpus emitted at 16f979e>`
+    reads 150/151 match and `opcodes never in a matching program: 0/45`; the
+    names outside matching programs are the runtime-module opcodes and the
+    producer-less `db_*` family, which no corpus program emits.
+  - The two refusals left are not opcode-based: a migration-only module needed
+    the DB archive (D-M1-137), and `system_request_classes` links
+    `system_http_requests_ok`, which the pinned runtime does not define.
+- Status: **applied**.
