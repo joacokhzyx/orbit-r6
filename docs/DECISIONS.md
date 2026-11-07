@@ -6358,3 +6358,27 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     creates `.orbit/data`; that move is a release decision, not a code change
     here.
 - Status: **applied**.
+
+## D-M1-140 - main's corpus is 143/143 under R6 today
+
+- Date: 2026-11-07.
+- Decision: no pin move here. This records the measurement the move needs:
+  `orbit-lang` main at `c3b7016` (92 commits after the pin) emits a 144-document
+  corpus and R6 builds and matches all 143 executable documents in it. Nothing
+  in that corpus is refused, so a pin move is a release decision rather than a
+  codegen work list.
+- Evidence:
+  - `python scripts/build_selfhost.py --cc gcc --out <fp>` in a worktree at
+    `c3b7016` -> `Finished bootstrap: converged (matches canonical)`.
+  - `python tests/corpus/run_corpus.py --compiler <that fp> --orbit-root
+    <worktree at c3b7016>` -> `corpus: 144 members, filesSha256 9aaf61c4`,
+    `corpus differential: 143/143 programs match`, `opcodes never in a matching
+    program: 0/45`, no refusal code and no message.
+  - The pin itself still reads `ratchet holds: r6BuildOk 143 -> 143, match
+    143 -> 143` (D-M1-137 evidence), so the two corpora are the same size and a
+    move changes the commit, not the measured workload.
+  - The tree under `feature/0.1.0-stability` emits 152 documents instead of 144
+    because the product branch carries corpus programs main does not; it reads
+    150/151 under R6, and the one refusal is `system_request_classes`
+    (`system_http_requests_ok`, absent from the pinned runtime).
+- Status: **applied**.
