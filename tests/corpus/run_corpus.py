@@ -28,8 +28,11 @@ Usage:
     python tests/corpus/run_corpus.py ... --check --write-baseline
 
 `--compiler` is the fixed point of the pinned language commit (it needs
-`--emit-ir`); `--orbit-root` is the language tree that carries
-`scripts/emit_ir_corpus.py` (default: ORBIT_ROOT or the sibling `orbit-lang`).
+`--emit-ir`); `--orbit-root` is the language tree that carries the corpus
+emitter (default: ORBIT_ROOT or the sibling `orbit-lang`). The language
+publishes it at `scripts/emit_ir_corpus.py` up to `01e31e8` and as
+`scripts/measure.py emit-ir` from `3531d75`, so the harness asks which one the
+pin has instead of naming a path the pin may not carry.
 `--ir-dir` runs the differential over an already-emitted corpus instead of
 regenerating one, and the hashes are still checked against the pin.
 
@@ -117,18 +120,43 @@ def corpus_findings(pinned, fresh):
     return findings
 
 
+# Where the language publishes the corpus emitter, newest first. `e8e1e19`
+# folded the standalone script into `measure.py`, so a pin on either side of it
+# carries exactly one of these and the harness cannot name a fixed path.
+EMITTER_ENTRY_POINTS = (
+    ("scripts/measure.py", "emit-ir"),
+    ("scripts/emit_ir_corpus.py", None),
+)
+
+
+def emitter_command(orbit_root: Path):
+    """(argv, label) for the emitter this pin carries, or None."""
+    for rel, subcommand in EMITTER_ENTRY_POINTS:
+        script = orbit_root / rel
+        if not script.is_file():
+            continue
+        argv = [sys.executable, str(script)]
+        if subcommand:
+            argv.append(subcommand)
+        return argv, f"{rel} {subcommand}".strip()
+    return None
+
+
 def regenerate(compiler: str, orbit_root: Path, out_dir: Path) -> int:
     """Emit the corpus with the language's own tool. Returns the exit code."""
-    script = orbit_root / "scripts" / "emit_ir_corpus.py"
-    if not script.is_file():
-        print(f"{orbit_root} has no scripts/emit_ir_corpus.py: the pinned "
-              f"language commit does not carry the emitter. Pass --orbit-root "
-              f"with the tree that does, or --ir-dir with an emitted corpus.",
-              file=sys.stderr)
+    found = emitter_command(orbit_root)
+    if found is None:
+        names = " or ".join(f"{rel} {sub}".strip()
+                            for rel, sub in EMITTER_ENTRY_POINTS)
+        print(f"{orbit_root} carries no corpus emitter (looked for {names}): "
+              f"the pinned language commit does not publish one. Pass "
+              f"--orbit-root with the tree that does, or --ir-dir with an "
+              f"emitted corpus.", file=sys.stderr)
         return 2
+    argv, label = found
+    print(f"emitter: {label} under {orbit_root}")
     proc = subprocess.run(
-        [sys.executable, str(script), "--compiler", compiler,
-         "--out", str(out_dir)],
+        argv + ["--compiler", compiler, "--out", str(out_dir)],
         cwd=str(orbit_root), capture_output=True, text=True, timeout=900,
     )
     sys.stdout.write(proc.stdout or "")
@@ -350,7 +378,9 @@ def main() -> int:
                         help="R6 argv template (place last); literal {ir} and {exe} tokens")
     parser.add_argument("--orbit-root", type=Path,
                         default=Path(os.environ.get("ORBIT_ROOT", DEFAULT_ORBIT)),
-                        help="language tree carrying scripts/emit_ir_corpus.py")
+                        help="language tree carrying the corpus emitter "
+                             "(scripts/measure.py emit-ir, or "
+                             "scripts/emit_ir_corpus.py before e8e1e19)")
     parser.add_argument("--ir-dir", type=Path,
                         help="already-emitted corpus to measure (default: regenerate)")
     parser.add_argument("--manifest", type=Path, default=PINNED_MANIFEST)
