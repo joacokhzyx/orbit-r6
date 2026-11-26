@@ -1,0 +1,14 @@
+route GET "/fixed" {
+    return ok 200 "ok"
+}
+
+route GET "/item/:name" {
+    return ok 200 req.param("name")
+}
+
+route POST "/body" {
+    if req.body().len() == 4096 {
+        return ok 200 "ok"
+    }
+    err 400 "bad body"
+}

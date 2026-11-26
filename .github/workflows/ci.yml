@@ -187,3 +187,65 @@ jobs:
 
       - name: HTTP server parity on loopback
         run: python tests/http/run_http_server.py --compiler $env:ORBIT_FP --orbit-root orbit-lang
+
+  http-benchmark:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/http-request-memory'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: joacokhzyx/orbit-lang
+          ref: ${{ env.ORBIT_PIN }}
+          path: orbit-lang
+      - uses: actions/checkout@v4
+        with:
+          repository: joacokhzyx/orbit-lang
+          ref: de4ebf52eabae2504d570a473c5e5385816674ed
+          path: orbit-c-reference
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.3'
+          cache: false
+      - name: Build the five services
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.90.0 --profile minimal
+          mkdir -p bench-bin bench-results
+          fixture="$PWD/tests/perf/http"
+          export ORBIT_WORKERS=2 ORBIT_ADMISSION=0 ORBIT_LOGS=0 ORBIT_CC=gcc
+          bash scripts/build-r6.sh
+          python orbit-lang/scripts/mklib_runtime.py --cc gcc --out "$PWD/bench-bin/libruntime_net.a"
+          (cd orbit-lang && python scripts/dev.py fp)
+          fp=$(cd orbit-lang && python scripts/dev.py fp-path)
+          (cd orbit-c-reference && "$fp" build "$fixture/service.orb" --backend=c -o "$GITHUB_WORKSPACE/bench-bin/orbit-c")
+          export ORBIT_R6="$PWD/.r6-build/r6" ORBIT_R6_RUNTIME="$PWD/bench-bin"
+          (cd orbit-lang && R6_HTTP_BODY_VIEWS=0 "$fp" build "$fixture/service.orb" --backend=native -o "$GITHUB_WORKSPACE/bench-bin/r6-owned")
+          (cd orbit-lang && R6_HTTP_BODY_VIEWS=1 "$fp" build "$fixture/service.orb" --backend=native -o "$GITHUB_WORKSPACE/bench-bin/r6-view")
+          CGO_ENABLED=0 go build -trimpath -o bench-bin/go "$fixture/server.go"
+          cargo +1.90.0 generate-lockfile --manifest-path "$fixture/rust/Cargo.toml"
+          cargo +1.90.0 build --locked --release --manifest-path "$fixture/rust/Cargo.toml"
+          cp "$fixture/rust/target/release/hyper-reference" bench-bin/rust
+          cp "$fixture/rust/Cargo.lock" bench-results/Cargo.lock
+          printf 'R6 %s\nOrbit %s\nOrbit C %s\n' "$(git rev-parse HEAD)" "$(git -C orbit-lang rev-parse HEAD)" \
+            "$(git -C orbit-c-reference rev-parse HEAD)" > bench-results/versions.txt
+          { gcc --version; go version; rustc +1.90.0 --version; lscpu; } >> bench-results/versions.txt
+      - name: Pick a common request rate and measure all repetitions
+        run: |
+          set -euo pipefail
+          variants=(--server orbit-c bench-bin/orbit-c --server r6-owned bench-bin/r6-owned
+                    --server r6-view bench-bin/r6-view --server go bench-bin/go --server rust bench-bin/rust)
+          python -u tests/perf/http/run_bench.py "${variants[@]}" --rate 2048 --reps 5 \
+            --output bench-results/fixed-rate.jsonl --metadata bench-results/fixed-rate.json
+          python -u tests/perf/http/run_bench.py "${variants[@]}" --rate 0 --reps 5 \
+            --output bench-results/saturated.jsonl --metadata bench-results/saturated.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-x64-http-benchmark
+          path: bench-results/
+          if-no-files-found: error
