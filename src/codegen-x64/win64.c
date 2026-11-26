@@ -434,6 +434,29 @@ static char *intrinsic_string_int_int[] = { (char *)"string", (char *)"int",
                                             (char *)"int" };
 static char *intrinsic_string_string[] = { (char *)"string", (char *)"string" };
 
+static char *intrinsic_request[] = { (char *)"void*" };
+static char *intrinsic_request_key[] = { (char *)"void*", (char *)"string" };
+static char *intrinsic_response[] = { (char *)"int", (char *)"string" };
+static char *intrinsic_response_create[] = { (char *)"int", (char *)"string", (char *)"string" };
+
+#define HTTP_INTRINSIC(fn, count, args, type) \
+    { .name = (char *)fn, .param_count = count, .param_types = args, \
+      .return_type = (char *)type, .is_extern = true }
+static R6Function r6_http_intrinsics[] = {
+    HTTP_INTRINSIC("orbit_response_create", 3, intrinsic_response_create, "void*"),
+    HTTP_INTRINSIC("orbit_response_json", 2, intrinsic_response, "void*"),
+    HTTP_INTRINSIC("orbit_response_html", 2, intrinsic_response, "void*"),
+    HTTP_INTRINSIC("orbit_response_error", 2, intrinsic_response, "void*"),
+    HTTP_INTRINSIC("orbit_response_header_line", 2, intrinsic_string_string, "string"),
+    HTTP_INTRINSIC("orbit_string_concat", 2, intrinsic_string_string, "string"),
+    HTTP_INTRINSIC("orbit_http_body_get", 1, intrinsic_request, "string"),
+    HTTP_INTRINSIC("orbit_http_param_get", 2, intrinsic_request_key, "string"),
+    HTTP_INTRINSIC("orbit_http_header_get", 2, intrinsic_request_key, "string"),
+    HTTP_INTRINSIC("orbit_http_query_get", 2, intrinsic_request_key, "string"),
+    HTTP_INTRINSIC("orbit_http_query_get_all", 2, intrinsic_request_key, "list"),
+};
+#undef HTTP_INTRINSIC
+
 static R6Function r6_intrinsics[] = {
     { .name = (char *)"orbit_string_len", .param_count = 1,
       .param_types = intrinsic_string, .return_type = (char *)"int",
@@ -470,10 +493,13 @@ static const char *intrinsic_symbol(const char *name) {
     return name;
 }
 
-static const R6Function *find_intrinsic(const char *name) {
+static const R6Function *find_intrinsic(const R6Module *m, const char *name) {
     size_t n;
     for (n = 0; n < sizeof r6_intrinsics / sizeof r6_intrinsics[0]; ++n)
         if (strcmp(r6_intrinsics[n].name, name) == 0) return &r6_intrinsics[n];
+    if (m->route_count)
+        for (n = 0; n < sizeof r6_http_intrinsics / sizeof r6_http_intrinsics[0]; ++n)
+            if (strcmp(r6_http_intrinsics[n].name, name) == 0) return &r6_http_intrinsics[n];
     return NULL;
 }
 
@@ -482,7 +508,7 @@ static const R6Function *find_intrinsic(const char *name) {
  * arena is prepended only for that enumerated set. */
 static bool call_needs_arena(const R6Module *m, const char *name) {
     const R6Function *fn = find_function(m, name);
-    if (!fn) fn = find_intrinsic(name);
+    if (!fn) fn = find_intrinsic(m, name);
     return fn && fn->is_extern && extern_needs_arena(name);
 }
 
@@ -2297,10 +2323,12 @@ static bool validate_function(const R6Module *m, const R6Function *f,
                Symbol form stays a declaration lookup: the builder emits the
                intrinsic calls as String targets only. */
             if (!callee && i->operands[0].kind == R6_VAL_STRING)
-                callee = find_intrinsic(i->operands[0].as.string);
+                callee = find_intrinsic(m, i->operands[0].as.string);
             if (callee) {
                 if (strcmp(callee->name, "main") == 0)
                     return fail(d, i, "CGEN", "main is an entry point and cannot be called from IR");
+                if (callee->has_route)
+                    return fail(d, i, "CGEN", "a route handler can only be called by the server");
                 if (callee->param_count && !callee->param_types)
                     return fail(d, i, "CGEN", "call target %s has missing parameter metadata", callee->name);
                 if (i->operands[1].kind != R6_VAL_INT || i->operands[1].as.i64 < 0)
@@ -2780,7 +2808,8 @@ static unsigned result_scratch_offset(const R6Function *f, bool is_main) {
  * arena for main, and (D-M1-43) the sret pointer of a function that returns
  * an OrbitResult. main returns int, so the two never meet. */
 static size_t hidden_slots(const R6Function *f, bool is_main) {
-    return is_main || is_result(f->return_type) ? 1 : 0;
+    return (is_main || is_result(f->return_type) ? 1 : 0) +
+           (!is_main && f->service_arena ? 1 : 0);
 }
 
 static bool has_result_registers(const R6Function *f) {
@@ -2935,9 +2964,11 @@ static void materialize_literals(TextBuf *o, const R6Function *f,
  * file-scope global R6 mirrors in r6_arena. */
 static void emit_load_arena(TextBuf *o, const R6Function *f, bool is_main,
                             const char *reg) {
-    if (is_main)
+    if (is_main || f->service_arena)
         text_printf(o, "\tmovq -%u(%%rbp), %s\n",
-                (unsigned)(f->register_count + 1) * 8, reg);
+                    (unsigned)(f->register_count +
+                               (f->service_arena && is_result(f->return_type) ? 2 : 1)) * 8,
+                    reg);
     else
         text_printf(o, "\tmovq r6_arena(%%rip), %s\n", reg);
 }
@@ -2979,6 +3010,7 @@ static unsigned emit_spread(TextBuf *o, const R6Function *f, bool is_main,
  * needs it. D-M1-23 adds the string `add`: its concatenation and its spread
  * converters take the same arena. */
 static bool module_needs_arena_global(const R6Module *m) {
+    if (m->route_count) return false;
     size_t n;
     for (n = 0; n < m->function_count; ++n) {
         const R6Function *f = &m->functions[n];
@@ -3348,7 +3380,8 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
     {
         ArgPos params;
         argpos_init(&params);
-        if (hidden_slots(f, is_main)) (void)argpos_next(&params, false);
+        if (is_main || f->has_route || is_result(f->return_type))
+            (void)argpos_next(&params, false);
         for (pc = 0; pc < f->param_count; ++pc) {
             const char *t = f->param_types[pc];
             ArgSlot s = argpos_next(&params, is_float(t));
@@ -3371,6 +3404,14 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                     text_printf(o, "\tmovq %u(%%r11), %%rax\n\tmovq %%rax, -%u(%%rbp)\n", kk, cell - kk);
             }
         }
+    }
+    if (f->service_arena && !is_main) {
+        if (f->has_route)
+            text_printf(o, "\tmovq %s, %%rax\n", abi_gp[0]);
+        else
+            text_puts(o, "\tcall orbit_http_native_arena\n");
+        text_printf(o, "\tmovq %%rax, -%u(%%rbp)\n",
+                    (unsigned)(f->register_count + (is_result(f->return_type) ? 2 : 1)) * 8);
     }
     div_trap_count = 0;
     for (pc = 0; pc < f->instruction_count; ++pc) {
@@ -3495,7 +3536,6 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
         }
         case R6_OP_LIST_CREATE: {
             unsigned scratch = result_scratch_offset(f, is_main);
-            unsigned arena_off = (unsigned)(f->register_count + 1) * 8;
             unsigned success_id = (unsigned)pc * 2;
             unsigned done_id = success_id + 1;
             ArgPos args;
@@ -3508,8 +3548,7 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
             kind_slot = argpos_next(&args, false);
             emit_load_arg_slot(o, &i->operands[1], "int", capacity, 0);
             emit_cell_arg_slot(o, scratch, sret);
-            if (is_main) text_printf(o, "\tmovq -%u(%%rbp), %s\n", arena_off, abi_gp[arena.index]);
-            else text_printf(o, "\tmovq r6_arena(%%rip), %s\n", abi_gp[arena.index]);
+            emit_load_arena(o, f, is_main, abi_gp[arena.index]);
             emit_int_arg_slot(o, 8, size_slot);
             emit_int_arg_slot(o, i->elem_kind, kind_slot);
             text_printf(o, "\tcall orbit_list_create_typed\n\tcmpb $1, -%u(%%rbp)\n"
@@ -4171,10 +4210,7 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                    32 bits, orbit_bool stores a 0/1 byte, orbit_float a
                    double, orbit_string a pointer). */
                 size_t offset = 0, total = 0;
-                if (is_main)
-                    text_printf(o, "\tmovq -%u(%%rbp), %s\n", (unsigned)(f->register_count + 1) * 8, abi_gp[0]);
-                else
-                    text_printf(o, "\tmovq r6_arena(%%rip), %s\n", abi_gp[0]);
+                emit_load_arena(o, f, is_main, abi_gp[0]);
                 if (!model_field_layout(m, model, 0, &offset, &total))
                     return fail(d, i, "CGEN", "model %s has an unsupported field type", model->name);
                 text_printf(o, "\tmovl $%zu, %s\n\tcall orbit_alloc\n\tmovq %%rax, %%r10\n",
@@ -4285,7 +4321,7 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                    established which of the three the name is. */
                 const R6Function *named = find_function(m, i->operands[0].as.string);
                 if (!named && i->operands[0].kind == R6_VAL_STRING)
-                    named = find_intrinsic(i->operands[0].as.string);
+                    named = find_intrinsic(m, i->operands[0].as.string);
                 if (named) {
                     /* D-M1-29: orbit_string_len is ORBIT_INLINE in the runtime
                        header (orbit_api.h:411-413), so the archive never had a
@@ -4395,10 +4431,7 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                     if (!union_pack_layout(m, variant_type, variant_index, 0, &offset, &total))
                         return fail(d, i, "CGEN", "union %s variant %s payloads are outside the M1 native subset",
                                     variant_type->name, variant_type->variants[variant_index]);
-                    if (is_main)
-                        text_printf(o, "\tmovq -%u(%%rbp), %s\n", (unsigned)(f->register_count + 1) * 8, abi_gp[0]);
-                    else
-                        text_printf(o, "\tmovq r6_arena(%%rip), %s\n", abi_gp[0]);
+                    emit_load_arena(o, f, is_main, abi_gp[0]);
                     text_printf(o, "\tmovl $%zu, %s\n\tcall orbit_alloc\n\tmovq %%rax, -%u(%%rbp)\n\tmovq %%rax, %%r10\n",
                             total, abi_gp32[1], off);
                     for (k = 0; k < parts; ++k) {
@@ -4429,10 +4462,7 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                         }
                     }
                 }
-                if (is_main)
-                    text_printf(o, "\tmovq -%u(%%rbp), %s\n", (unsigned)(f->register_count + 1) * 8, abi_gp[0]);
-                else
-                    text_printf(o, "\tmovq r6_arena(%%rip), %s\n", abi_gp[0]);
+                emit_load_arena(o, f, is_main, abi_gp[0]);
                 text_printf(o, "\tmovl $16, %s\n\tcall orbit_alloc\n\tmovl $%zu, 0(%%rax)\n",
                         abi_gp32[1], variant_index);
                 if (parts == 1) {
@@ -4492,6 +4522,17 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
         case R6_OP_RET:
             /* D-M1-28: a void function returns without reading the operand,
                exactly like the pinned lowering. */
+            if (f->has_route && v->kind == R6_VAL_REG) {
+                int32_t headers = local_table_find(f, "_orbit_res_headers");
+                if (headers >= 0) {
+                    unsigned slot = (unsigned)(f->register_count + hidden_slots(f, is_main) +
+                                               f->param_count + (size_t)headers + 1) * 8;
+                    emit_load_arena(o, f, is_main, abi_gp[0]);
+                    text_printf(o, "\tmovq -%u(%%rbp), %s\n\tmovq -%u(%%rbp), %s\n"
+                                   "\tcall orbit_response_add_headers\n",
+                                (unsigned)(v->as.i32 + 1) * 8, abi_gp[1], slot, abi_gp[2]);
+                }
+            }
             if (is_result(f->return_type) && v->kind == R6_VAL_REG) {
                 unsigned cell = result_cell_offset(f, is_main, v->as.i32);
                 text_printf(o, "\tmovq -%u(%%rbp), %%rax\n"
@@ -4665,7 +4706,7 @@ bool r6_module_uses_args(const R6Module *m) { return module_calls_startup(m, 0);
 /* A database program counts as a network program: the SQLite progress handler
  * lives in kynx.c. */
 bool r6_module_uses_network(const R6Module *m) {
-    return module_uses_db(m) || module_calls_startup(m, 2);
+    return m->route_count || module_uses_db(m) || module_calls_startup(m, 2);
 }
 
 /* D-M1-104: a module that reads argv or links the network modules (a database
@@ -4678,7 +4719,121 @@ bool r6_module_native_entry(const R6Module *m) {
            !r6_module_uses_network(m);
 }
 
+/* Keep the C backend's three passes and preserve declaration order within
+ * each pass. Only a colon segment of at least five bytes with a final
+ * ellipsis is multi-segment. */
+static unsigned route_rank(const char *path) {
+    unsigned rank = 0;
+    for (const char *p = path; *p; ++p) {
+        if (*p != '/' || !p[1]) continue;
+        if (!strchr(":{*", p[1])) continue;
+        rank = 1;
+        if (p[1] != ':') continue;
+        const char *end = strchr(p + 1, '/');
+        if (!end) end = p + strlen(p);
+        if (end - (p + 1) >= 5 && memcmp(end - 3, "...", 3) == 0)
+            return 2;
+    }
+    return rank;
+}
+
+static void emit_route_bytes(TextBuf *o, const unsigned char *bytes, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+        text_puts(o, i % 64 == 0 ? "\t.byte " : ",");
+        text_printf(o, "%u", (unsigned)bytes[i]);
+        if (i % 64 == 63 || i + 1 == size) text_puts(o, "\n");
+    }
+}
+
+/* The runtime reads a little-endian image with no relocations inside it.
+ * Dispatch is a separate function so table entries can identify handlers
+ * by index, and the read-only image works unchanged in both object formats. */
+static bool emit_service_entry(TextBuf *o, const R6Module *m, R6Diagnostic *d) {
+    const R6Function *main_fn = find_function(m, "main");
+    if (m->route_count > UINT32_MAX / 24u)
+        return fail(d, NULL, "CGEN", "route table exceeds its encoding");
+    const R6Function **ordered = malloc(m->route_count * sizeof(*ordered));
+    if (!ordered) return fail(d, NULL, "CGEN", "out of memory ordering routes");
+
+    size_t count = 0;
+    size_t offset = m->route_count * 24u;
+    for (unsigned rank = 0; rank < 3; ++rank)
+        for (size_t i = 0; i < m->function_count; ++i)
+            if (m->functions[i].has_route && route_rank(m->functions[i].route.path) == rank)
+                ordered[count++] = &m->functions[i];
+    text_puts(o, "\t.section .rdata,\"dr\"\n.Lr6_http_routes:\n");
+    for (size_t i = 0; i < count; ++i) {
+        const R6Route *route = &ordered[i]->route;
+        size_t method_len = strlen(route->method) + 1;
+        size_t path_len = strlen(route->path) + 1;
+        if (method_len > UINT32_MAX - offset || path_len > UINT32_MAX - offset - method_len) {
+            free(ordered);
+            return fail(d, NULL, "CGEN", "route table exceeds its encoding");
+        }
+        const uint32_t words[] = { (uint32_t)offset, (uint32_t)(offset + method_len),
+            (uint32_t)route->limit_rate, (uint32_t)route->limit_window_ms,
+            (uint32_t)route->limit_burst, route_rank(route->path) };
+        unsigned char entry[24];
+        for (unsigned j = 0; j < 6; ++j)
+            for (unsigned k = 0; k < 4; ++k)
+                entry[j * 4 + k] = (unsigned char)(words[j] >> (k * 8));
+        emit_route_bytes(o, entry, sizeof entry);
+        offset += method_len + path_len;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        const R6Route *route = &ordered[i]->route;
+        emit_route_bytes(o, (const unsigned char*)route->method, strlen(route->method) + 1);
+        emit_route_bytes(o, (const unsigned char*)route->path, strlen(route->path) + 1);
+    }
+    text_puts(o, "\t.text\n.Lr6_http_dispatch:\n");
+    for (size_t i = 0; i < count; ++i) {
+        char symbol[R6_SYMBOL_CAP];
+        const char *name = user_symbol(m, ordered[i]->name, symbol, sizeof symbol);
+        text_printf(o, "\tcmpq $%zu, %s\n\tjne .Lr6_http_next_%zu\n"
+                    "\tmovq %s, %s\n\tmovq %s, %s\n\tjmp %s\n.Lr6_http_next_%zu:\n",
+                    i, abi_gp[0], i, abi_gp[1], abi_gp[0], abi_gp[2], abi_gp[1], name, i);
+    }
+    free(ordered);
+    text_puts(o, "\txorq %rax, %rax\n\tret\n");
+
+    text_puts(o, "\t.globl main\n\t.def main; .scl 2; .type 32; .endef\n"
+                "\t.seh_proc main\nmain:\n\tpushq %rbp\n\t.seh_pushreg %rbp\n"
+                "\tmovq %rsp, %rbp\n\t.seh_setframe %rbp, 0\n"
+                "\tsubq $64, %rsp\n\t.seh_stackalloc 64\n\t.seh_endprologue\n");
+    if (r6_module_uses_args(m))
+        text_printf(o, "\tleaq _orbit_argc(%%rip), %%rax\n\tmovl %s, 0(%%rax)\n"
+                       "\tleaq _orbit_argv(%%rip), %%rax\n\tmovq %s, 0(%%rax)\n",
+                    abi_gp32[0], abi_gp[1]);
+    text_printf(o, "\tmovl $%lld, %s\n\tleaq .Lr6_http_routes(%%rip), %s\n",
+                (long long)(m->route_port ? m->route_port : 3000), abi_gp32[2], abi_gp[3]);
+#if R6_TARGET_WIN64
+    text_printf(o, "\tmovq $%zu, 32(%%rsp)\n"
+                   "\tleaq .Lr6_http_dispatch(%%rip), %%rax\n\tmovq %%rax, 40(%%rsp)\n", count);
+#else
+    text_printf(o, "\tmovq $%zu, %s\n\tleaq .Lr6_http_dispatch(%%rip), %s\n",
+                count, abi_gp[4], abi_gp[5]);
+#endif
+    if (main_fn && !main_fn->is_extern)
+        text_puts(o, "\tleaq orbit_main(%rip), %rax\n");
+    else
+        text_puts(o, "\txorq %rax, %rax\n");
+#if R6_TARGET_WIN64
+    text_puts(o, "\tmovq %rax, 48(%rsp)\n");
+#else
+    text_puts(o, "\tmovq %rax, 0(%rsp)\n");
+#endif
+    /* These settings are selected when Orbit builds the service. */
+    const char *admission = getenv("ORBIT_ADMISSION");
+    const char *logs = getenv("ORBIT_LOGS");
+    unsigned flags = (!admission || strcmp(admission, "0") != 0 ? 1u : 0u) |
+                     (!logs || strcmp(logs, "0") != 0 ? 2u : 0u);
+    text_printf(o, "\tmovq $%u, %u(%%rsp)\n", flags, R6_TARGET_WIN64 ? 56u : 8u);
+    text_puts(o, "\tcall orbit_http_run_native\n\tleave\n\tret\n\t.seh_endproc\n");
+    return !o->oom;
+}
+
 static bool emit_entry_wrapper(TextBuf *o, const R6Module *m, R6Diagnostic *d) {
+    if (m->route_count) return emit_service_entry(o, m, d);
     bool db = module_uses_db(m);
 #if R6_TARGET_WIN64
     if (r6_module_native_entry(m)) {
@@ -4934,7 +5089,7 @@ static const char *infer_dest_type(const R6Module *m, const R6Function *f,
         if (o1->kind == R6_VAL_STRING && strcmp(name, "print") == 0) return "void";
         if ((callee = find_function(m, name)) != NULL) return callee->return_type;
         if (o1->kind == R6_VAL_STRING &&
-            (callee = find_intrinsic(name)) != NULL) return callee->return_type;
+            (callee = find_intrinsic(m, name)) != NULL) return callee->return_type;
         return NULL;               /* builtin or alias: fail closed */
     }
     case R6_OP_LOAD_FIELD: {
@@ -5038,6 +5193,110 @@ static void infer_register_types(const R6Module *m, R6Function *f) {
     }
 }
 
+static char *copy_spelling(const char *value) {
+    size_t length = strlen(value) + 1;
+    char *copy = malloc(length);
+    if (copy) memcpy(copy, value, length);
+    return copy;
+}
+
+static bool prepend_route_instruction(R6Function *fn, R6Instruction first) {
+    if (fn->instruction_count >= SIZE_MAX / sizeof(*fn->instructions) - 1) return false;
+    R6Instruction *instructions = realloc(fn->instructions,
+        (fn->instruction_count + 1) * sizeof(*instructions));
+    if (!instructions) return false;
+    fn->instructions = instructions;
+    memmove(instructions + 1, instructions, fn->instruction_count * sizeof(*instructions));
+    instructions[0] = first;
+    fn->instruction_count++;
+    return true;
+}
+
+static bool bind_route_headers(R6Function *fn) {
+    for (size_t i = 0; i < fn->instruction_count; ++i) {
+        const R6Instruction *instruction = &fn->instructions[i];
+        const R6Value *operand = &instruction->operands[0];
+        if (instruction->opcode != R6_OP_STORE_VAR || operand->kind != R6_VAL_SYMBOL ||
+            strcmp(operand->as.string, "_orbit_res_headers")) continue;
+        char *name = copy_spelling("_orbit_res_headers");
+        char *empty = copy_spelling("");
+        R6Instruction initial = {.opcode = R6_OP_DECL_VAR, .dest = -1, .operands = {
+            {.kind = R6_VAL_SYMBOL, .as.string = name},
+            {.kind = R6_VAL_STRING, .as.string = empty}}};
+        if (name && empty && prepend_route_instruction(fn, initial)) return true;
+        free(name);
+        free(empty);
+        return false;
+    }
+    return true;
+}
+
+static bool bind_route_request(R6Function *fn) {
+    bool used = false;
+    for (size_t i = 0; i < fn->instruction_count; ++i) {
+        R6Instruction *instruction = &fn->instructions[i];
+        R6Value *operand = &instruction->operands[0];
+        used |= instruction->opcode == R6_OP_ARG && !instruction->has_dest &&
+                operand->kind == R6_VAL_SYMBOL && !strcmp(operand->as.string, "req");
+    }
+    if (!used) return true;
+
+    if (fn->register_count == INT32_MAX) return false;
+    char **types = realloc(fn->register_types,
+                           (fn->register_type_count + 1) * sizeof(*types));
+    if (!types) return false;
+    fn->register_types = types;
+    char *request_type = copy_spelling("void*");
+    if (!request_type) return false;
+    int32_t slot = fn->register_count++;
+    fn->register_types[fn->register_type_count++] = request_type;
+
+    for (size_t i = 0; i < fn->instruction_count; ++i) {
+        R6Instruction *instruction = &fn->instructions[i];
+        R6Value *operand = &instruction->operands[0];
+        if (instruction->opcode != R6_OP_ARG || instruction->has_dest ||
+            operand->kind != R6_VAL_SYMBOL || strcmp(operand->as.string, "req")) continue;
+        free(operand->as.string);
+        *operand = (R6Value){.kind = R6_VAL_REG, .as.i32 = slot};
+    }
+    R6Instruction initial = {.opcode = R6_OP_ARG, .has_dest = true, .dest = slot,
+                             .operands = {{.kind = R6_VAL_INT, .as.i64 = 0}}};
+    return prepend_route_instruction(fn, initial);
+}
+
+static bool normalize_service_types(R6Module *module) {
+    for (size_t i = 0; i < module->function_count; ++i) {
+        R6Function *fn = &module->functions[i];
+        fn->service_arena = !fn->is_extern;
+        if (fn->has_route) {
+            /* The builder spells request reads as the symbol req. The
+             * service ABI passes it immediately after the hidden arena. */
+            free(fn->params);
+            free(fn->param_types);
+            fn->params = calloc(1, sizeof(*fn->params));
+            fn->param_types = calloc(1, sizeof(*fn->param_types));
+            if (!fn->params || !fn->param_types) return false;
+            fn->param_count = 1;
+            fn->params[0] = copy_spelling("req");
+            fn->param_types[0] = copy_spelling("void*");
+            if (!fn->params[0] || !fn->param_types[0]) return false;
+            char *response = copy_spelling("void*");
+            if (!response) return false;
+            free(fn->return_type);
+            fn->return_type = response;
+            if (!bind_route_request(fn) || !bind_route_headers(fn)) return false;
+        }
+        for (size_t j = 0; j < fn->register_type_count; ++j) {
+            if (strcmp(fn->register_types[j], "response")) continue;
+            char *response = copy_spelling("void*");
+            if (!response) return false;
+            free(fn->register_types[j]);
+            fn->register_types[j] = response;
+        }
+    }
+    return true;
+}
+
 static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
     size_t n;
     bool main_found = false;
@@ -5054,6 +5313,12 @@ static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
     canonicalize_enum_types(module);
     canonicalize_union_types(module);
     canonicalize_result_types(module);
+    if (module->route_count) {
+        if (module->migration_count || module_uses_db(module))
+            return fail(diag, NULL, "CGEN", "database services are outside the native subset");
+        if (!normalize_service_types(module))
+            return fail(diag, NULL, "CGEN", "out of memory preparing service types");
+    }
     for (n = 0; n < module->global_count; ++n) {
         size_t prior;
         int64_t ignored;
@@ -5164,7 +5429,7 @@ static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
         }
         if (!validate_function(module, f, diag)) return false;
     }
-    if (!main_found && !module->runtime_module)
+    if (!main_found && !module->runtime_module && !module->route_count)
         return fail(diag, NULL, "CGEN", "module must define one non-extern main");
     if (!mark_live_functions(module)) return fail(diag, NULL, "CGEN", "out of memory marking reachable functions");
     /* D-M1-105: the archive member may be linked into a program the C backend

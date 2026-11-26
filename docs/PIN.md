@@ -7,15 +7,15 @@ of one machine; the commit is the pin.
 
 | Input | Value | Evidence |
 |---|---|---|
-| Orbit commit | `227591069a0089b65b7e7ac2e5171887abe0fbe9` (`develop`) | D-F0-23 pins the runtime containing the route table and its corrected test. |
-| IRv1 | `docs/IR_SPEC.md` blob `c5cb5b6de1`, emitter `compiler/emit/ir_emit.orb` blob `adba026f0c` | `git rev-parse 2275910:<path>`. |
+| Orbit commit | `87edfceda7dc935cb0880f0a96a4da14b98c1a71` (`codex/native-http-runtime`) | D-F0-24 pins optional service port emission and the shared concurrent runtime. |
+| IRv1 | `docs/IR_SPEC.md` blob `d6ad0d475d`, emitter `compiler/emit/ir_emit.orb` blob `fe65c6c797` | `git rev-parse 87edfce:<path>`. |
 | Corpus emitter | `scripts/measure.py` blob `41008f8e3d` | `python scripts/measure.py emit-ir --compiler <fixed-point> --out <scratch>` emits 154 documents (153 executable, one support), 7211598 bytes and `filesSha256 3c0227b3395a52f016301d470bf81b623250d2731074fd26d74a1250923bc345`. |
 | Corpus ratchet | `tests/corpus/manifest.json` and `tests/corpus/baseline.json` | `python tests/corpus/run_corpus.py --check` requires 153 builds and 153 matches. |
 | Compiler census | `tests/compiler-ir/baseline.json` | `python tests/compiler-ir/run_census.py --write-baseline` with the self-host runtime emits 29 documents, builds two entry points and refuses 27 library modules without a main. |
-| Canonical C | `compiler/selfhost/stage3.exe.c` blob `49588124f6` | `python scripts/dev.py fp` and `scripts/selfhost.ps1` reproduce `PUBLISHED_C 49703075ADFB2B6902E2224C1F08D76E3830CB870EC6765DC05733CA8211584C`. |
-| Runtime build recipe | `scripts/mklib_runtime.py` blob `d31d847a75` | `python scripts/mklib_runtime.py --cc gcc --out <archive>` builds 26 members. `--db` builds 28 members. Compiler self-hosting uses a separate `ORBIT_WITH_EXEC` archive. |
-| Runtime ABI | `runtime/orbit_api.h` blob `90cc1c8ff0`, `runtime/http.h` blob `8b3110db23` | `git rev-parse 2275910:<path>`. |
-| C backend | `compiler/emit/c_backend.orb` blob `2862510b8a` | `git rev-parse 2275910:compiler/emit/c_backend.orb`. |
+| Canonical C | `compiler/selfhost/stage3.exe.c` blob `f178fb863c` | `python scripts/dev.py fp` and `scripts/selfhost.ps1` reproduce `PUBLISHED_C D088CAE40D73B76E0D79FAC4EE87A15AF7339F4FB850678CEB2A4818C8004E10`. |
+| Runtime build recipe | `scripts/mklib_runtime.py` blob `d6759a3a17` | `python scripts/mklib_runtime.py --cc gcc --out <archive>` builds 28 members. `--db` builds 30 members. Compiler self-hosting uses a separate `ORBIT_WITH_EXEC` archive. |
+| Runtime ABI | `runtime/orbit_api.h` blob `90cc1c8ff0`, `runtime/http.h` blob `757981bcda`, `runtime/http_native.h` blob `b17b3e8c08`, `runtime/http_server.h` blob `1d685dccfe` | `git rev-parse 87edfce:<path>`. |
+| C backend | `compiler/emit/c_backend.orb` blob `2862510b8a` | `git rev-parse 87edfce:compiler/emit/c_backend.orb`. |
 
 ## Reproducibility
 
@@ -25,7 +25,7 @@ Orbit commit, the canonical C (`PUBLISHED_C`), the recipe and source blobs, the
 corpus `filesSha256`, and the symbol set. Every hash of a local artifact in this
 file is an observation of one build (D-F0-11).
 
-Pinned bytes come from `git cat-file blob 2275910:<path>`, never from a working
+Pinned bytes come from `git cat-file blob 87edfce:<path>`, never from a working
 tree. The sibling checkout is neither the pin nor a stable reference: it can be
 ahead of the pin and dirty. Corpus and census inputs come from a tree
 materialized at the pin.

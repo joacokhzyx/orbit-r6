@@ -264,8 +264,15 @@ serialization exactly and keeps no dual acceptance.
   A `call` carries its arity in `operand2`.
 - **Codegen consequences.** `call` consumes exactly the last O2 pending
   arguments (E-05) and still requires arity to equal the declared parameters;
-  an extern with a body is ignored (E-09); Kynx routes are rejected with
-  `E_UNSUPPORTED`, outside the native subset.
+  an extern with a body is ignored (E-09).
+
+Executable services emit a read-only route table ordered by exact paths,
+single-segment patterns and multi-segment captures. Within each group, the
+table keeps declaration order. The pinned runtime starts the concurrent
+server and supplies the request arena and request pointer to each handler.
+A route-only module provides its own entry point through that server. The
+table and request ABI are described in the pin's `runtime/http_native.h`.
+Services that require the database runtime or migrations are refused.
 
 ## Measured subset
 

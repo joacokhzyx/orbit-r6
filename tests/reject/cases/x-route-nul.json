@@ -1,0 +1,1 @@
+{"irVersion":"1","module":{"functions":[{"name":"route_one","params":[],"paramTypes":[],"instructions":[],"registerCount":0,"registerTypes":[],"returnType":"OrbitResponse*","isExtern":false,"routeMethod":"GET","routePath":"/a\u0000b","routeHasLimit":false,"routeLimitRate":0,"routeLimitWindowMs":0,"routeLimitBurst":0}],"globals":[],"models":[],"types":[],"migrations":[]}}

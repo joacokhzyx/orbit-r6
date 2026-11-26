@@ -66,6 +66,7 @@ typedef struct {
     size_t instruction_count; R6Instruction *instructions;
     int32_t register_count; size_t register_type_count; char **register_types;
     char *return_type; bool is_extern, has_route; R6Route route;
+    bool service_arena;
     bool live; /* set by codegen (D-M1-65): reachable from main */
     bool is_export; /* D-M1-105: runtime-module function whose symbol is its IR name */
 } R6Function;
@@ -79,6 +80,7 @@ typedef struct {
     char *source_name; /* base name of the root file; "" when absent */
     bool runtime_module; /* D-M1-105: archive member of the runtime, no main */
     int64_t route_port; /* declared service port; 0 when omitted */
+    size_t route_count;
 } R6Module;
 
 typedef struct { size_t line, column; char code[16]; char message[256]; } R6Diagnostic;

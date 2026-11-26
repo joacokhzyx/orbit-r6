@@ -296,8 +296,6 @@ def build_reject():
         "V-21", "E_SCHEMA", "a route port requires an executable service")
     add("v21-route-port-runtime-module", route_port_doc(8080, runtime=True),
         "V-21", "E_SCHEMA", "a runtime archive member cannot declare a route port")
-    add("v21-route-port-valid-service", route_port_doc(8080),
-        "V-21", "E_UNSUPPORTED", "valid port metadata reaches the current route refusal")
 
     # ---- V-05: operand values ------------------------------------------------
     def with_operand2(op):
@@ -422,7 +420,22 @@ def build_reject():
     add("x-unsupported-opcode", jd(DOC([MAIN([I("alloc", 0), I("ret", -1, Reg(0))])])),
         "R6 subset", "E_UNSUPPORTED", "opcode outside the native subset")
     add("x-route-function", jd(DOC([MAIN(route={"method": "GET", "path": "/"})])),
-        "R6 subset", "E_UNSUPPORTED", "Kynx routes outside the native subset")
+        "V-16", "E_SCHEMA", "main is not a route handler")
+    duplicate_route = {"method": "GET", "path": "/"}
+    add("x-route-duplicate", jd(DOC([
+        FN("route_one", [], [], rtype="OrbitResponse*", route=duplicate_route),
+        FN("route_two", [], [], rtype="OrbitResponse*", route=duplicate_route),
+    ])), "V-16", "E_DUPLICATE", "each method and path has one handler")
+    add("x-route-limit", jd(DOC([FN("route_one", [], [], rtype="OrbitResponse*",
+        route={"method": "GET", "path": "/", "has_limit": True})])),
+        "V-16", "E_SCHEMA", "a limit must declare a positive rate and window")
+    add("x-route-nul", jd(DOC([FN("route_one", [], [], rtype="OrbitResponse*",
+        route={"method": "GET", "path": "/a\0b"})])),
+        "V-16", "E_SCHEMA", "a route path cannot contain a NUL byte")
+    database_service = DOC([FN("route_one", [], [], rtype="OrbitResponse*", route=duplicate_route)])
+    database_service["module"]["migrations"] = ["CREATE TABLE test (id INTEGER)"]
+    add("x-route-database", jd(database_service), "R6 subset", "CGEN",
+        "the native startup refuses database services")
     add("x-duplicate-key",
         jd(DOC()).replace(b'{"irVersion":"1",', b'{"irVersion":"1","irVersion":"1",', 1),
         "R6 strictness", "E_DUPLICATE", "duplicate object keys are rejected")
@@ -2406,6 +2419,10 @@ def build_accept_files():
     mod = MOD([MAIN()])
     mod["migrations"] = ["CREATE TABLE t (id TEXT)"]
     files.append(("ok-db-migrations-only", jd({"irVersion": "1", "module": mod})))
+    port_service = DOC([FN("route_GET__2f", [], [], rtype="OrbitResponse*",
+                           route={"method": "GET", "path": "/"})])
+    port_service["module"]["routePort"] = 8080
+    files.append(("ok-route-port", jd(port_service)))
     files.append(("ok-word-arith-print",
                   jd(DOC([FN("id", [I("arg", 0, Int(0)), I("ret", -1, Reg(0))], ["void*"],
                              rtype="void*", params=["x"], ptypes=["void*"]),
@@ -3017,6 +3034,8 @@ def build_manifest(reject, accept_files):
              "note": "a module with an orbit_db_* extern and two migrations links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"},
             {"file": "cases/ok-db-migrations-only.json", "rule": "D-M1-137",
              "note": "a module with one migration and no orbit_db_* extern links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"},
+            {"file": "cases/ok-route-port.json", "rule": "V-21",
+             "note": "a service can link without main and carry an explicit port (build only)"},
             {"file": "cases/ok-word-arith-print.json", "run_exit": 7,
              "run_stdout": "2147483648\r\n", "rule": "D-M1-91",
              "note": "add, sub and mul over void* words and an int destination are the same 64-bit word, and print writes the whole word"},

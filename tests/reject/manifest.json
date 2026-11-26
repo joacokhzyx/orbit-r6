@@ -211,13 +211,6 @@
       "note": "a runtime archive member cannot declare a route port"
     },
     {
-      "file": "cases/v21-route-port-valid-service.json",
-      "exit": 1,
-      "code": "E_UNSUPPORTED",
-      "rule": "V-21",
-      "note": "valid port metadata reaches the current route refusal"
-    },
-    {
       "file": "cases/v05-missing-kind.json",
       "exit": 1,
       "code": "E_SCHEMA",
@@ -437,9 +430,37 @@
     {
       "file": "cases/x-route-function.json",
       "exit": 1,
-      "code": "E_UNSUPPORTED",
+      "code": "E_SCHEMA",
+      "rule": "V-16",
+      "note": "main is not a route handler"
+    },
+    {
+      "file": "cases/x-route-duplicate.json",
+      "exit": 1,
+      "code": "E_DUPLICATE",
+      "rule": "V-16",
+      "note": "each method and path has one handler"
+    },
+    {
+      "file": "cases/x-route-limit.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-16",
+      "note": "a limit must declare a positive rate and window"
+    },
+    {
+      "file": "cases/x-route-nul.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-16",
+      "note": "a route path cannot contain a NUL byte"
+    },
+    {
+      "file": "cases/x-route-database.json",
+      "exit": 1,
+      "code": "CGEN",
       "rule": "R6 subset",
-      "note": "Kynx routes outside the native subset"
+      "note": "the native startup refuses database services"
     },
     {
       "file": "cases/x-duplicate-key.json",
@@ -2636,6 +2657,11 @@
       "file": "cases/ok-db-migrations-only.json",
       "rule": "D-M1-137",
       "note": "a module with one migration and no orbit_db_* extern links the DB archive and builds (build only: the run needs sqlite3.dll on PATH)"
+    },
+    {
+      "file": "cases/ok-route-port.json",
+      "rule": "V-21",
+      "note": "a service can link without main and carry an explicit port (build only)"
     },
     {
       "file": "cases/ok-word-arith-print.json",

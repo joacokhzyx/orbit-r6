@@ -164,9 +164,11 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-134 | the assembler text stays in memory | active |
 | D-M1-135 | the compile-time baseline after the pipeline work | active |
 | D-F0-22 | Re-pin to 31591e6: 152 documents, 151 of them build | superseded by D-F0-23 |
-| D-F0-23 | Re-pin to 2275910 for the shared HTTP runtime | active |
+| D-F0-23 | Re-pin to 2275910 for the shared HTTP runtime | superseded by D-F0-24 |
+| D-F0-24 | Pin the concurrent HTTP runtime and service port emitter | active |
 | D-M1-141 | the corpus harness asks the pin which emitter it carries | active |
 | D-M1-142 | validate the IRv1 service port | active |
+| D-M1-143 | Lower native HTTP services through the shared runtime | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -6511,3 +6513,37 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
 - Evidence: `python tests/reject/run_reject.py --case v21-route-port` ->
   7/7 on Windows, including the valid-service control that reaches
   `E_UNSUPPORTED` while native route support is pending.
+
+## D-F0-24 - Pin the concurrent HTTP runtime and service port emitter
+
+- Date: 2026-11-26.
+- Decision: pin Orbit at `87edfceda7dc935cb0880f0a96a4da14b98c1a71`. This supplies
+  the transport used by both backends, the native handler ABI and the
+  optional IRv1 port for a service.
+- Evidence:
+  - `python scripts/measure.py emit-ir --compiler <fixed-point> --out <scratch>`
+    emits 154 documents and 7211598 bytes. Corpus file hashes are identical to
+    D-F0-23. The regenerated manifest records the new emitter.
+  - `python tests/compiler-ir/run_census.py --write-baseline` emits 29
+    modules. R6 builds two with the exec-enabled runtime and rejects 27
+    libraries without a main. The IR census is 126486841 bytes.
+  - `python scripts/mklib_runtime.py --cc gcc --out <archive>` builds
+    28 members. With `--db` it builds 30.
+
+## D-M1-143 - Lower native HTTP services through the shared runtime
+
+- Date: 2026-11-26.
+- Decision: emit a read-only route table and an ABI dispatch function for the
+  linked Orbit runtime. Route-only services have a native entry point. When a
+  service also defines `main`, R6 calls it once before listening. Routes
+  preserve exact, single-capture and multiple-capture order, with source order
+  within each group. The loader refuses invalid or duplicate routes and
+  services that require the database runtime.
+- Evidence:
+  - `python tests/reject/make_cases.py --check` verifies 402 case files and
+    their manifest. `python tests/reject/run_reject.py` passes 465/465 on
+    Windows x64.
+  - `python tests/http/run_http_server.py` exercises 75 routes, 24 replies,
+    two port modes and two graceful stops for each backend on Windows x64.
+  - `python tests/http/run_http_client.py` passes 14 loopback cases across
+    C and native on Windows x64.

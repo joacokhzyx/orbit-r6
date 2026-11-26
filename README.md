@@ -48,7 +48,7 @@ cd orbit-r6
 ./scripts/build-r6.sh
 
 git clone https://github.com/joacokhzyx/orbit-lang /tmp/orbit-pin
-git -C /tmp/orbit-pin checkout 2275910
+git -C /tmp/orbit-pin checkout 87edfce
 bash scripts/build-runtime-linux.sh /tmp/orbit-pin
 
 ./.r6-build/r6 build tests/diff/fixtures/01-int-call.json -o hello
@@ -63,7 +63,7 @@ cd orbit-r6
 .\scripts\build-r6.ps1
 
 git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin
-git -C C:\Temp\orbit-pin checkout 2275910
+git -C C:\Temp\orbit-pin checkout 87edfce
 python C:\Temp\orbit-pin\scripts\mklib_runtime.py `
   --cc C:\w64devkit\bin\gcc.exe `
   --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
@@ -101,9 +101,16 @@ For every program it accepts:
 3. **No C compiler on the program path.** `win64.c` emits assembly text, `peephole.c` and `regalloc.c` rewrite it, `asm_win64.c` encodes it, `coff.c` or `elf64.c` writes the object, and GNU `ld` links it.
 4. **One target per binary.** The target is fixed when the driver is compiled (`src/codegen-x64/target.h`). There is no `--target` flag and no cross build.
 
+## Native HTTP services
+
+`orbit build service.orb --backend=native` compiles a service against the
+pinned runtime. `orbit run service.orb --backend=native` starts it. A service
+can declare routes alone or include a startup `main`. The executable accepts
+a port argument, including `0` for a port assigned by the system.
+
 ## What R6 does not do yet
 
-- **Services.** A program that declares a `route` is refused with a compile error. A service build still needs `orbit build --backend=c`.
+- **Database services.** Services using the database runtime or migrations need `orbit build --backend=c`.
 - **Databases.** The `db_*` opcodes are excluded.
 - **Other IR versions.** R6 reads IRv1 at the pin and rejects anything else.
 - **Everything outside the measured subset.** Integer overflow beyond the fixtures, NaN payloads beyond fixture 10 and list kinds other than `int` have no evidence behind them. [`docs/CONTRACT.md`](docs/CONTRACT.md#measured-subset) lists the subset exactly.

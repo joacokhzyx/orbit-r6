@@ -10,7 +10,7 @@ pinned by hash here (D-M1-17). The corpus gate checks the pinned hashes and the 
 python tests/corpus/run_corpus.py `
   --compiler $OrbitFp `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-2275910 `
+  --orbit-root C:\Temp\orbit-pin-87edfce `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -26,7 +26,7 @@ python3 tests/corpus/run_corpus.py \
 
 - `manifest.json` is the pin: 154 entries with `path`, `kind`, `ir`, `bytes`
   and `sha256`, the single `filesSha256 3c0227b3…` over the corpus, and the
-  emitter identity (version, language commit `2275910`, binary hash). The
+  emitter identity (version, language commit `87edfce`, binary hash). The
   language's `scripts/measure.py emit-ir` produces it; regenerating and
   comparing is the contract, not copying files. The same pattern pins
   `runtime/orbit_api.h` and the runtime archive.

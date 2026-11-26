@@ -1,11 +1,11 @@
 {
   "schema": "r6-ir-corpus/1",
   "emitter": {
-    "path": "C:\\Temp\\orbit-fp-a5877e8d6c.exe",
-    "sha256": "8929aaa687da80d3615032fecedec4221ca5d0eb2c0f1abc5e8692cfb694639f",
-    "bytes": 908800,
+    "path": "C:\\Temp\\orbit-fp-62d2664da5.exe",
+    "sha256": "ff9240f53a0edab72097b5358c7b966848c30e649418c30819148010dc15294e",
+    "bytes": 887296,
     "version": "orbit 0.1.0-rc.1",
-    "languageCommit": "227591069a0089b65b7e7ac2e5171887abe0fbe9"
+    "languageCommit": "87edfceda7dc935cb0880f0a96a4da14b98c1a71"
   },
   "counts": {
     "executable": 153,
