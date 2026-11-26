@@ -1,17 +1,17 @@
 # Language corpus measurement
 
-The corpus is the IRv1 the pinned language emits over its own tests: 120
-programs from `tests/suite` plus `imports.support.orb`, and 23 programs from
-`tests/std`. That is 144 documents: 143 executable and one support module. The
+The corpus is the IRv1 the pinned language emits over its own tests: 127
+programs from `tests/suite` plus `imports.support.orb`, and 24 programs from
+`tests/std`. That is 152 documents: 151 executable and one support module. The
 language designates this corpus in `orbit-lang/docs/IR_SPEC.md` §5.5, and it is
 pinned by hash here (D-M1-17). This is a measurement, not a gate: a smaller
 native subset is the number being measured, not a failure.
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
+  --compiler C:\Temp\fp-d55c456.exe `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
+  --orbit-root C:\Temp\orbit-pin-31591e6 `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -25,23 +25,28 @@ python3 tests/corpus/run_corpus.py \
   --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
 ```
 
-- `manifest.json` is the pin: 144 entries with `path`, `kind`, `ir`, `bytes`
-  and `sha256`, the single `filesSha256 a533ace1…` over the corpus, and the
-  emitter identity (version, language commit `01e31e8`, binary hash). The
-  language's `scripts/emit_ir_corpus.py` produces it; regenerating and
+- `manifest.json` is the pin: 152 entries with `path`, `kind`, `ir`, `bytes`
+  and `sha256`, the single `filesSha256 51d5a2e9…` over the corpus, and the
+  emitter identity (version, language commit `31591e6`, binary hash). The
+  language's `scripts/measure.py emit-ir` produces it; regenerating and
   comparing is the contract, not copying files. The same pattern pins
   `runtime/orbit_api.h` and the runtime archive.
 - `baseline.json` is the current measurement: `summary` (`members`, `programs`,
   `oracleOk`, `r6BuildOk`, `match`, `unknownRegisterTypes`), `byCode`,
-  `byFailingOpcode` and `byOpcode`. Measured at this pin: 143 build and 143
-  match over 143 programs. `--write-baseline` re-takes it after `--check`, so
-  one run holds the old ratchet and records the new one.
+  `byFailingOpcode` and `byOpcode`. Measured at this pin: 151 build and 151
+  match over 151 programs, and `unknownRegisterTypes` in 3 of the 152
+  documents. `--write-baseline` re-takes it after `--check`, so one run holds
+  the old ratchet and records the new one. A pin move replaces the corpus
+  whole, so its baseline is taken without `--check`: the ratchet refuses to
+  compare a baseline taken against another corpus.
 - `run_corpus.py` regenerates the corpus with the pinned compiler, verifies
   every hash against the pin, and per program builds and runs both sides in the
-  same directory. The oracle builds from the `.orb` and R6 from the `.ir`, with
-  exit and stdout compared byte for byte (the comparison is
-  `tests/diff/run_diff.py`). `--ir-dir` measures an already-emitted corpus;
-  `--json report.json` keeps the per-case detail.
+  same directory. It asks the pin which emitter it carries, because `e8e1e19`
+  folded `scripts/emit_ir_corpus.py` into `scripts/measure.py emit-ir`. The
+  oracle builds from the `.orb` and R6 from the `.ir`, with exit and stdout
+  compared byte for byte (the comparison is `tests/diff/run_diff.py`).
+  `--ir-dir` measures an already-emitted corpus; `--json report.json` keeps the
+  per-case detail.
 
 ## What fails and what does not
 

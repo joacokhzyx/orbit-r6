@@ -2,9 +2,9 @@
 
 A contribution keeps both platforms green: Windows x64 and Linux x64.
 `.github/workflows/ci.yml` builds the driver, rebuilds the runtime
-archive and runs the loader suite on every push and pull request. The
-differential and the corpus ratchet need the Orbit oracle and run on manual
-dispatch, so a change runs them locally before it is sent.
+archive and runs the loader and runtime-module suites on every push and pull
+request on both hosts. The differential, corpus and self-host gates need the
+Orbit oracle and run on manual dispatch on both hosts.
 
 Branches, merges and releases follow [`docs/BRANCHES.md`](docs/BRANCHES.md):
 work happens on `feature/<topic>`, it merges into `develop` after the full
@@ -41,7 +41,7 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 - Materialize a checkout of `orbit-lang` at the pinned commit and build its
   fixed-point compiler. Do not use a working tree that is ahead of the pin.
 - Never write to the Orbit checkout. Read pinned bytes with
-  `git cat-file blob 01e31e8:<path>`.
+  `git cat-file blob 31591e6:<path>`.
 - The absolute paths below are observations of one machine. Substitute yours.
 
 ## Gates
@@ -54,9 +54,9 @@ Differential, the primary gate, 100/100:
 
 ```powershell
 python tests/diff/run_diff.py `
-  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
+  --compiler $OrbitFp `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
+  --orbit-root C:\Temp\orbit-pin-31591e6 `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -92,13 +92,13 @@ On Linux the runner defaults to `.r6-build/r6` and
 `.r6-build/runtime-linux-x64`. Every rejection exits 1 with exactly one `r6:
 <file>:<line>:<col>: error[CODE]: <msg>` line carrying the manifest code.
 
-Corpus, a measurement with a one-way ratchet, 143/143 with the ratchet holding:
+The corpus check uses the manifest and the one-way ratchet at the pin:
 
 ```powershell
 python tests/corpus/run_corpus.py `
-  --compiler C:\Temp\orbit-fp-ee60c8af43.exe `
+  --compiler $OrbitFp `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-01e31e8-git `
+  --orbit-root C:\Temp\orbit-pin-31591e6 `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -116,11 +116,12 @@ Only corpus drift from the pin and a drop of `r6BuildOk` or `match` below
 `tests/corpus/baseline.json` fail the run. Do not run `--write-baseline` on a
 change you are reviewing.
 
-Self-host check, both hosts print `SELFHOST OK` with `PUBLISHED_C E794E2DB…`:
+The self-host check reads `PUBLISHED_C` from the pinned checkout and links with
+a separate archive built with `ORBIT_WITH_EXEC`.
 
 ```powershell
-.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-01e31e8-git `
-  -Compiler C:\Temp\orbit-fp-ee60c8af43.exe -R6 $PWD\.r6-build\r6.exe
+.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-31591e6 `
+  -Compiler $OrbitFp -R6 $PWD\.r6-build\r6.exe
 ```
 
 ```bash

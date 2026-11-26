@@ -1,4 +1,4 @@
-fn countAbove(xs: list, floor: int) -> int {
+fn countAbove(xs: list<int>, floor: int) -> int {
     var n = 0
     var i = 0
     while i < xs.len() {
@@ -10,11 +10,11 @@ fn countAbove(xs: list, floor: int) -> int {
     return n
 }
 
-fn firstIs(xs: list, want: int) -> bool {
+fn firstIs(xs: list<int>, want: int) -> bool {
     return xs.get(0) == want
 }
 
-fn hasMinusOne(xs: list) -> bool {
+fn hasMinusOne(xs: list<int>) -> bool {
     var i = 0
     while i < xs.len() {
         if xs.get(i) == -1 {

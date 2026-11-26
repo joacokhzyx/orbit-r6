@@ -8,7 +8,7 @@
 4. The object is added to a temporary copy of libruntime_net.a with ar, as a
    member of the runtime archive, and probe-main.json links and runs.
 
-Usage: python tests/runtime-module/run_runtime_module.py [--r6 .r6-build/r6.exe]
+Usage: python tests/runtime-module/run_runtime_module.py [--r6 PATH]
 """
 
 import argparse
@@ -21,6 +21,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
+WINDOWS = os.name == "nt"
 
 EXPECTED_STDOUT = (b"HELLO, ORBIT 42!\r\n\r\n468\r\nhello, orbit 42!\r\ncopy me\r\nOrbit\r\nx\r\n"
                    b"2\r\nnegative\r\n1\r\n-2.5\r\n4609434218613702656\r\n-9223372036854775808\r\n")
@@ -35,13 +36,18 @@ def run(cmd, **kw):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--r6", default=str(REPO / ".r6-build" / "r6.exe"))
-    ap.add_argument("--runtime-dir", default=str(REPO / ".r6-build" / "runtime-win64"))
+    build = REPO / ".r6-build"
+    ap.add_argument("--r6", default=str(build / ("r6.exe" if WINDOWS else "r6")))
+    ap.add_argument("--runtime-dir",
+                    default=str(build / ("runtime-win64" if WINDOWS else "runtime-linux-x64")))
     args = ap.parse_args()
 
-    mingw = Path(os.environ.get("R6_MINGW_ROOT", "C:/w64devkit")) / "bin"
-    nm, ar = mingw / "nm.exe", mingw / "ar.exe"
-    out = REPO / ".r6-build" / "runtime-module"
+    if WINDOWS:
+        mingw = Path(os.environ.get("R6_MINGW_ROOT", "C:/w64devkit")) / "bin"
+        nm, ar = mingw / "nm.exe", mingw / "ar.exe"
+    else:
+        nm, ar = "nm", "ar"
+    out = build / "runtime-module"
     if out.exists():
         shutil.rmtree(out)
     runtime = out / "runtime"
@@ -114,7 +120,7 @@ def main():
     for name in ("libruntime_net.a",):
         shutil.copy(Path(args.runtime_dir) / name, runtime / name)
 
-    exe = out / "probe-main.exe"
+    exe = out / ("probe-main.exe" if WINDOWS else "probe-main")
     p = run([args.r6, "build", HERE / "probe-main.json", "-o", exe,
              "--runtime-dir", runtime])
     check("link without the member is refused",
@@ -127,7 +133,8 @@ def main():
     check("program links with the member", p.returncode == 0, p.stderr.strip())
     if p.returncode == 0:
         r = subprocess.run([str(exe)], capture_output=True)
-        check("program output", r.returncode == 0 and r.stdout == EXPECTED_STDOUT,
+        expected = EXPECTED_STDOUT if WINDOWS else EXPECTED_STDOUT.replace(b"\r\n", b"\n")
+        check("program output", r.returncode == 0 and r.stdout == expected,
               f"exit={r.returncode} stdout={r.stdout!r}")
 
     print(f"Runtime module: {'FAILED' if failures else 'all checks passed'}")

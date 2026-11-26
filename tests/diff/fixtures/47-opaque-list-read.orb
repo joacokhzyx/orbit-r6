@@ -6,11 +6,11 @@ fn twice(n: int) -> int {
     return n * 2
 }
 
-fn firstLen(parts: list) -> int {
+fn firstLen(parts: list<string>) -> int {
     return strLen(parts.get(0))
 }
 
-fn pick(nums: list, at: int) -> int {
+fn pick(nums: list<int>, at: int) -> int {
     return twice(nums.get(at))
 }
 

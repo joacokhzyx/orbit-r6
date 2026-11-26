@@ -1,5 +1,5 @@
 extern fn orbit_file_read(path: string) -> result
-extern fn orbit_file_list_dir(path: string) -> list
+extern fn orbit_file_list_dir(path: string) -> list<string>
 extern fn orbit_random_bytes(count: int) -> result
 
 fn main() -> int {

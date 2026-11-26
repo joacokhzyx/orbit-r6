@@ -8,7 +8,7 @@ on:
 env:
   # Must equal the commit in docs/PIN.md. A pin move edits this line in the
   # same commit as PIN.md.
-  ORBIT_PIN: 01e31e882610cea21fbfbf4fe02fee00051fab2e
+  ORBIT_PIN: 31591e66edf21871f4d18e246700900ee6dc0402
   # The measured toolchain: w64devkit 2.10.0 ships GCC 16.2.0 (docs/PIN.md).
   W64DEVKIT_URL: https://github.com/skeeto/w64devkit/releases/download/v2.10.0/w64devkit-x64-2.10.0.7z.exe
   W64DEVKIT_SHA256: 18d0a4c71a166f8401ab6305781bec5882b40b5e06ba9807c61cb5f3b3c6325e
@@ -55,6 +55,8 @@ jobs:
         run: |
           $head = git -C orbit-lang rev-parse HEAD
           if ($head -ne $env:ORBIT_PIN) { throw "orbit-lang at $head, pin is $env:ORBIT_PIN" }
+          $manifest = Get-Content tests/corpus/manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.emitter.languageCommit -ne $head) { throw "corpus manifest pin is $($manifest.emitter.languageCommit), checked out $head" }
 
       - name: Build the runtime archive
         run: |
@@ -72,7 +74,51 @@ jobs:
           R6_CC: C:\w64devkit\bin\gcc.exe
         run: ./scripts/ci.ps1
 
-  # Differential and corpus ratchet against the Orbit gcc oracle. Building the
+  loader-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: joacokhzyx/orbit-lang
+          ref: ${{ env.ORBIT_PIN }}
+          path: orbit-lang
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the pinned checkout
+        run: |
+          test "$(git -C orbit-lang rev-parse HEAD)" = "$ORBIT_PIN"
+          test "$(python -c 'import json; print(json.load(open("tests/corpus/manifest.json"))["emitter"]["languageCommit"])')" = "$ORBIT_PIN"
+      - name: Install SQLite headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Build R6 and the pinned runtime archives
+        run: |
+          bash scripts/build-r6.sh
+          bash scripts/build-runtime-linux.sh "$PWD/orbit-lang"
+      - name: Loader and runtime module gates
+        run: |
+          python tests/reject/make_cases.py --check
+          python tests/reject/run_reject.py
+          python tests/runtime-module/make_probe.py --check
+          python tests/runtime-module/run_runtime_module.py
+      - name: Differential, corpus and self-host gates
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          orbit_root="$PWD/orbit-lang"
+          (cd "$orbit_root" && python scripts/dev.py fp)
+          fp=$(cd "$orbit_root" && python scripts/dev.py fp-path)
+          python tests/diff/run_diff.py --compiler "$fp" --cc gcc --orbit-root "$orbit_root" \
+            --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
+          python tests/corpus/run_corpus.py --compiler "$fp" --cc gcc --orbit-root "$orbit_root" --check \
+            --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
+          bash scripts/selfhost.sh "$orbit_root" "$fp" "$PWD/.r6-build/r6"
+
+  # Differential, corpus ratchet and self-host against the Orbit gcc oracle. Building the
   # fixed point takes minutes, so the job runs only on manual dispatch. To run
   # it on every push, delete the `if:` line. It needs the pinned orbit-lang
   # checkout, a GCC for the oracle side and a Python that runs
@@ -120,16 +166,16 @@ jobs:
       - name: Build the Orbit fixed point
         working-directory: orbit-lang
         run: |
-          python scripts/dev.py fp --cc C:\w64devkit\bin\gcc.exe
+          python scripts/dev.py fp
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $fp = python scripts/dev.py fp-path
           Add-Content $env:GITHUB_ENV "ORBIT_FP=$fp"
 
-      - name: CI with differential and corpus
+      - name: CI with differential, corpus and self-host
         env:
           R6_CC: C:\w64devkit\bin\gcc.exe
         run: >
-          ./scripts/ci.ps1 -Diff -Corpus
+          ./scripts/ci.ps1 -Diff -Corpus -Selfhost
           -Compiler $env:ORBIT_FP
           -OrbitRoot (Join-Path $PWD 'orbit-lang')
           -Cc C:\w64devkit\bin\gcc.exe

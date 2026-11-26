@@ -12,7 +12,7 @@ fn randomBytes(n: int) -> result {
 }
 
 fn main() -> int {
-    val bs: list = try randomBytes(64) catch { return 1 }
+    val bs: list<int> = try randomBytes(64) catch { return 1 }
     var in_range = 0
     var spread = 0
     var i = 0

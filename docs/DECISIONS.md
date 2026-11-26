@@ -131,7 +131,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-102 | Start-up per program, as docs/STARTUP.md of the pin | active |
 | D-M1-103 | The database archive is the pin's per-module archive | active |
 | D-M1-104 | R6 owns the process entry of a program that needs no MinGW start-up | active |
-| D-F0-21 | Re-pin to 01e31e8: per-module runtime and per-program start-up | active |
+| D-F0-21 | Re-pin to 01e31e8: per-module runtime and per-program start-up | superseded by D-F0-22 |
 | D-M1-105 | Runtime modules: `runtimeModule`, `export` and `build --object` | active |
 | D-M1-106 | Byte opcodes of a runtime module: `str_len`, `byte_load`, `byte_store`, `bytes_alloc` | active |
 | D-M1-107 | `ir-protocol 3` | active |
@@ -163,6 +163,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-133 | codegen conversions are formatted without `vsnprintf` | active |
 | D-M1-134 | the assembler text stays in memory | active |
 | D-M1-135 | the compile-time baseline after the pipeline work | active |
+| D-F0-22 | Re-pin to 31591e6: 152 documents, 151 of them build | active |
+| D-M1-141 | the corpus harness asks the pin which emitter it carries | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -6382,3 +6384,98 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     150/151 under R6, and the one refusal is `system_request_classes`
     (`system_http_requests_ok`, absent from the pinned runtime).
 - Status: **applied**.
+
+---
+
+## D-F0-22 - Re-pin to 31591e6: 152 documents, 151 of them build
+
+- Date: 2026-11-08. Moves the pin from `01e31e8` (D-F0-21) to orbit-lang
+  `feature/0.1.0-stability` `31591e66edf21871f4d18e246700900ee6dc0402`, tag
+  `v0.1.0-rc.5`: 335 commits in 15 merges.
+- What moved:
+  - Four frontend cases, one commit each: a match in value position joins its
+    arms (`785fe1a`), a push in any branch types the list after it (`424ff54`),
+    a generic union's payload answers its instance (`faf6151`), a value keeps
+    the block it comes from (`3531d75`). The unknown census falls from 18 to 3
+    in 149684 instructions.
+  - `docs/IR_SPEC.md` §7 is new: 11 opcodes in 12 rows (`str_offset` has two
+    forms), the `runtimeModule` and `export` fields, and the `RtPtr`/`RtArena`
+    types. Validity rule V-03 names §7 instead of counting "the four" (`a340c55`).
+  - `runtime/database.c` includes `os.h` (`d55c456`). It called
+    `orbit_os_mkdir_p` without the declaration, and `--db` was the only recipe
+    that compiled that file alone, so no gate saw it. `--self-test` now
+    compiles every `DB_MODULES` member on its own.
+  - The README is rewritten around what Orbit is for (`3bce4f5`, `31591e6`).
+- Corpus: 152 documents, 151 executable and 1 support, 7201698 bytes,
+  `filesSha256 51d5a2e93cbfca8a7f41d8b5ab7196eb1df16cd36e9d1b421c563154ed2d1886`,
+  emitted from a checkout at the pin.
+- Measured at the pin: 151 build and 151 match over the 151 programs,
+  `unknownRegisterTypes` in 3 of the 152 documents, `opcodes never in a
+  matching program: 0/45`, no refusal. The previous pin's single refusal,
+  `system_request_classes`, is gone: the archive rebuilt from this pin exports
+  `system_http_requests_ok` (D-M1-140).
+- Compiler census: 29 modules, 29 emitted, 1 builds
+  (`compiler/selfhost/lexer_trace.orb`), `irFilesSha256 6844e59a…b37`. Of the
+  other 28, 27 refuse with `module must define one non-extern main`, because
+  they are libraries. `compiler/host/main.orb` emits and fails at link on six
+  `orbit_ui_*` symbols that `runtime/console.c` defines only under
+  `ORBIT_WITH_EXEC` (`runtime/console.c:49-50`), and the plain archive omits
+  them so a program that prints does not carry them. That is a gap in the
+  archive recipe, not in codegen, and it is why the census reads 1 where the
+  previous pin read 2. The r6BuildOk ratchet is one-way (D-M1-34), so the row
+  is recorded here instead of raised.
+- Canonical: unchanged since `3531d75`. `PUBLISHED_C` is
+  `940265C21BE022DA64E33330AFAA9B8C65D88A4D38940FB98117221A45E27704`, and
+  `scripts/trust.py verify` passes 4/4 against it. `git diff --stat d55c456
+  31591e6` touches `README.md` and `docs/IR_SPEC.md` only, so the fixed point
+  built at `d55c456` is the oracle of `rc.5`.
+- Runtime archives: rebuilt from the pin on both hosts, 26 members plain and
+  28 with `--db`, and `nm -g --defined-only` finds `system_http_requests_ok` as
+  `T` in both.
+- `axes-baseline.json` was not re-taken. It still names
+  `corpusFilesSha256 a533ace1…` over 143 programs, and `--check-axes` is not
+  part of the corpus gate. Re-taking it costs five runs of every program.
+- Evidence:
+  - `git rev-list --count 01e31e8..31591e6` -> `335`;
+    `git rev-list --count --merges 01e31e8..31591e6` -> `15`.
+  - `git show e19f157:scripts/baselines/unknown_count.json` ->
+    `unknown_instructions 18`, `instructions 149050`;
+    `git show 31591e6:scripts/baselines/unknown_count.json` -> `3`, `149684`,
+    `files 215`.
+  - `python scripts/measure.py emit-ir --compiler C:\Temp\fp-d55c456.exe
+    --out C:\Temp\corpus-31591e6` -> `wrote 152 IR documents`,
+    `executables 151, support 1, bytes 7201698`,
+    `filesSha256 51d5a2e9…d1886`.
+  - `python tests/corpus/run_corpus.py --write-baseline --r6-command
+    .r6-build\r6.exe build '{ir}' -o '{exe}'` -> `151/151 programs match (152
+    members, 151 build under R6)`, `unknown in registerTypes: 3/152`,
+    `opcodes never in a matching program: 0/45`.
+  - `python tests/compiler-ir/run_census.py --write-baseline` -> `modules 29,
+    emitted 29, r6 builds 1`, `27 error[CGEN]: module must define one non-extern
+    main`, `1 error[LINK]: linker failed (pinned Win64 runtime required)`.
+  - `scripts/build-runtime-linux.sh` in WSL2 -> `ar t` prints 26 and 28 members.
+- Status: **applied**.
+
+## D-M1-141 - the corpus harness asks the pin which emitter it carries
+
+- Date: 2026-11-08.
+- Decision: `tests/corpus/run_corpus.py` probes `EMITTER_ENTRY_POINTS` in
+  order, `scripts/measure.py emit-ir` then `scripts/emit_ir_corpus.py`, and
+  names the entry point it found in the report and in the failure message. The
+  label joins the parts that exist, because the first version appended the
+  `None` subcommand and printed `scripts/emit_ir_corpus.py None`.
+- Why: `e8e1e19` folded the standalone emitter into `measure.py emit-ir`. A
+  harness that hardcodes either path fails on every pin on the other side of
+  that commit, and a pin move is when it runs.
+- Measured: `emitter_command` answers `scripts/measure.py emit-ir` for
+  `31591e6` and `3531d75`, `scripts/emit_ir_corpus.py` for `01e31e8`, and
+  `None` for the R6 checkout. File existence is enough: every commit of
+  `01e31e8..31591e6` that carries `scripts/measure.py` also carries the text
+  `emit-ir` (0 of them do not), and `01e31e8` has no `scripts/measure.py` at
+  all.
+- Evidence:
+  - `python -c "import run_corpus; ..."` over the four trees -> the four
+    answers above.
+  - `git cat-file -e 01e31e8:scripts/measure.py` -> absent;
+    `git cat-file -e 01e31e8:scripts/emit_ir_corpus.py` -> present.
+- Status: **applied** (`c75a343`).

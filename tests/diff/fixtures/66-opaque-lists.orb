@@ -1,6 +1,6 @@
 model Bag {
-    names: list
-    counts: list
+    names: list<string>
+    counts: list<int>
 }
 
 fn fill(b: Bag) -> int {
