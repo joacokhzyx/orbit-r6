@@ -12,7 +12,8 @@ FIXTURE = Path(__file__).with_name("local_lists.orb").resolve()
 
 
 def calls_by_function(exe):
-    text = subprocess.check_output(["objdump", "-d", str(exe)], text=True, timeout=30)
+    # ELF local labels currently use OBJECT type, even in executable text.
+    text = subprocess.check_output(["objdump", "-D", "-j", ".text", str(exe)], text=True, timeout=30)
     calls = {}
     function = None
     for line in text.splitlines():
