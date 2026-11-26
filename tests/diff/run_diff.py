@@ -3,8 +3,8 @@
 
 Build convention mirrors the pinned scripts/test_suite.py: ``orbit build
 SOURCE -o EXE``. R6's driver command is configurable and receives {ir} and
-{exe} substitutions. Both generated programs run in the same working
-directory; process exit status and stdout bytes must match exactly.
+{exe} substitutions. Each generated program runs in a fresh working
+directory. Process exit status and stdout bytes must match exactly.
 """
 
 from __future__ import annotations
@@ -95,20 +95,24 @@ def main() -> int:
         work = Path(temp_name)
         for name in names:
             case_dir = work / name
-            case_dir.mkdir()
-            oracle_exe = case_dir / f"oracle{suffix}"
-            r6_exe = case_dir / f"r6{suffix}"
+            oracle_dir = case_dir / "oracle"
+            native_dir = case_dir / "native"
+            oracle_dir.mkdir(parents=True)
+            native_dir.mkdir()
+            oracle_exe = oracle_dir / f"oracle{suffix}"
+            r6_exe = native_dir / f"r6{suffix}"
             source = FIXTURES / f"{name}.orb"
             ir = FIXTURES / f"{name}.json"
-            case_env = dict(env, TEMP=str(case_dir), TMP=str(case_dir), TMPDIR=str(case_dir))
-            key = "diff:" + sha256_bytes(source.read_bytes(), ir.read_bytes()) + ":" + compiler_sha
+            oracle_env = dict(env, TEMP=str(oracle_dir), TMP=str(oracle_dir), TMPDIR=str(oracle_dir))
+            native_env = dict(env, TEMP=str(native_dir), TMP=str(native_dir), TMPDIR=str(native_dir))
+            key = "diff-isolated:" + sha256_bytes(source.read_bytes(), ir.read_bytes()) + ":" + compiler_sha
             cached = cache.get(key)
 
             if cached is None:
                 try:
                     build = subprocess.run(
                         [compiler, "build", str(source), "-o", str(oracle_exe)],
-                        cwd=orbit_root, env=case_env, capture_output=True,
+                        cwd=orbit_root, env=oracle_env, capture_output=True,
                         timeout=args.timeout,
                     )
                 except (OSError, subprocess.TimeoutExpired) as exc:
@@ -124,7 +128,7 @@ def main() -> int:
             command = [part.replace("{ir}", str(ir)).replace("{exe}", str(r6_exe))
                        for part in args.r6_command]
             try:
-                build_r6 = subprocess.run(command, cwd=REPO, env=case_env,
+                build_r6 = subprocess.run(command, cwd=REPO, env=native_env,
                                           capture_output=True, timeout=args.timeout)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 print(f"FAIL {name}: R6 build failed: {exc}\ncommand={command!r}", file=sys.stderr)
@@ -138,12 +142,12 @@ def main() -> int:
 
             try:
                 if cached is None:
-                    oracle = subprocess.run([str(oracle_exe)], cwd=case_dir, env=case_env,
+                    oracle = subprocess.run([str(oracle_exe)], cwd=oracle_dir, env=oracle_env,
                                             capture_output=True, timeout=args.timeout)
                     cached = (oracle.returncode, oracle.stdout, oracle.stderr)
                     cache.put(key, *cached)
                 oracle_exit, oracle_stdout, oracle_stderr = cached
-                native = subprocess.run([str(r6_exe)], cwd=case_dir, env=case_env,
+                native = subprocess.run([str(r6_exe)], cwd=native_dir, env=native_env,
                                         capture_output=True, timeout=args.timeout)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 print(f"FAIL {name}: execution failed or timed out: {exc}", file=sys.stderr)

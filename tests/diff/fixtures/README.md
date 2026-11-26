@@ -105,7 +105,7 @@ and the catalogue says so.
 | `87-float-cleanup` | Destination equals right operand, swap, negative zero, `1e308 * 10`, denormal division | 42 | long; the oracle decides |
 | `88-bitwise-ops` | and/or/xor/not on 64-bit words; shift counts masked with 63; literal and register operands | 42 | long; the oracle decides |
 | `89-object-literals` | Object literal create and setters, typed getters, nesting, a list inside an object | 42 | long; the oracle decides |
-| `90-db-link` | `all`, `where` and `create` link the DB runtime; database opening fails on both sides | 42 | `2\r\n2\r\n0\r\n2\r\n` |
+| `90-db-link` | `all`, `where` and `create` use a fresh local database on each backend | 42 | `2\r\n2\r\n1\r\n50\r\n` |
 | `91-result-list` | `orbit_random_bytes` returns a result whose value is a list | 42 | `16\r\n16\r\n0\r\n1\r\n` |
 | `92-opaque-local` | Untyped list element bound with `val` and read as int | 42 | `64\r\n1\r\n` |
 | `93-nested-lists` | `list<list<int>>` and `list<list<list<int>>>` reads with an untyped intermediate | 42 | `3\r\n` |
