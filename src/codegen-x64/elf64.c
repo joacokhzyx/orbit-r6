@@ -23,6 +23,11 @@
 #define ELF_STT_NOTYPE 0u
 #define ELF_STT_OBJECT 1u
 #define ELF_STT_FUNC 2u
+#define ELF_STT_FILE 4u
+#define ELF_SHN_ABS 0xfff1u
+
+/* Without STT_FILE, ld adds the non-deterministic temporary object basename. */
+static const char generated_source[] = "orbit-r6";
 
 #define ELF_R_X86_64_PC32 2u
 #define ELF_R_X86_64_PLT32 4u
@@ -135,14 +140,14 @@ bool r6_elf_write(const R6CoffObject *object, FILE *out) {
     uint32_t data_count = 0, rela_count = 0, local_count = 0;
     uint32_t total_sections, note_index, rela_base;
     uint32_t symtab_index, strtab_index, shstrtab_index;
-    uint32_t str_size = 1, shstr_size, name_at;
+    uint32_t str_size = 1 + sizeof generated_source, shstr_size, name_at;
     uint64_t cursor, shoff, pos;
     size_t i, j;
     bool ok = false;
 
     if (!o || !out) return o ? set_error(o, "invalid ELF output handle") : false;
     if (o->section_count > UINT32_MAX - 5 ||
-        o->symbol_count >= UINT32_MAX)
+        o->symbol_count >= UINT32_MAX - 1)
         return set_error(o, "ELF section or symbol count exceeds header limits");
 
     for (i = 0; i < o->section_count; ++i) {
@@ -280,17 +285,17 @@ bool r6_elf_write(const R6CoffObject *object, FILE *out) {
         }
     }
     {
-        uint32_t next_local = 1, next_global = 1 + local_count;
+        uint32_t next_local = 2, next_global = 2 + local_count;
         for (i = 0; i < o->symbol_count; ++i)
             sym_index[i] = o->symbols[i].storage_class == 2 ? next_global++
                                                            : next_local++;
     }
     sh[symtab_index].type = ELF_SHT_SYMTAB;
     sh[symtab_index].link = strtab_index;
-    sh[symtab_index].info = 1 + local_count;
+    sh[symtab_index].info = 2 + local_count;
     sh[symtab_index].align = 8;
     sh[symtab_index].entsize = ELF_SYM_SIZE;
-    sh[symtab_index].size = ((uint64_t)o->symbol_count + 1) * ELF_SYM_SIZE;
+    sh[symtab_index].size = ((uint64_t)o->symbol_count + 2) * ELF_SYM_SIZE;
 
     sh[strtab_index].type = ELF_SHT_STRTAB;
     sh[strtab_index].align = 1;
@@ -326,6 +331,7 @@ bool r6_elf_write(const R6CoffObject *object, FILE *out) {
     shstrtab = (char *)malloc(shstr_size);
     if (!strtab || !shstrtab) goto oom;
     strtab[0] = 0;
+    memcpy(strtab + 1, generated_source, sizeof generated_source);
     shstrtab[0] = 0;
     for (i = 0; i < o->symbol_count; ++i) {
         const char *name = o->symbols[i].name;
@@ -429,6 +435,7 @@ bool r6_elf_write(const R6CoffObject *object, FILE *out) {
             }
         } else if (i == symtab_index) {
             if (!write_symbol(out, 0, 0, 0, 0) ||
+                !write_symbol(out, 1, ELF_STT_FILE, ELF_SHN_ABS, 0) ||
                 !write_symbol_pass(out, o, sym_name, obj_to_elf, false) ||
                 !write_symbol_pass(out, o, sym_name, obj_to_elf, true))
                 goto io;
