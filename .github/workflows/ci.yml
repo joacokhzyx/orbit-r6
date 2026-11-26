@@ -227,7 +227,6 @@ jobs:
           (cd orbit-lang && R6_HTTP_BODY_VIEWS=0 "$fp" build "$fixture/service.orb" --backend=native -o "$GITHUB_WORKSPACE/bench-bin/r6-owned")
           (cd orbit-lang && R6_HTTP_BODY_VIEWS=1 "$fp" build "$fixture/service.orb" --backend=native -o "$GITHUB_WORKSPACE/bench-bin/r6-view")
           CGO_ENABLED=0 go build -trimpath -o bench-bin/go "$fixture/server.go"
-          cargo +1.90.0 generate-lockfile --manifest-path "$fixture/rust/Cargo.toml"
           cargo +1.90.0 build --locked --release --manifest-path "$fixture/rust/Cargo.toml"
           cp "$fixture/rust/target/release/hyper-reference" bench-bin/rust
           cp "$fixture/rust/Cargo.lock" bench-results/Cargo.lock
