@@ -274,6 +274,31 @@ def build_reject():
     add("v20-sourcename-number", jd(src_doc), "V-20", "E_SCHEMA",
         "sourceName is a string")
 
+    # ---- V-21: service port --------------------------------------------------
+    def route_port_doc(port, *, route=True, runtime=False):
+        fn = MAIN()
+        if route:
+            fn = FN("route_GET__2f", [], [], rtype="OrbitResponse*",
+                    route={"method": "GET", "path": "/"})
+        doc = DOC([fn])
+        doc["module"]["routePort"] = port
+        if runtime:
+            doc["module"]["runtimeModule"] = True
+        return jd(doc)
+
+    for name, bad, code in (("zero", 0, "E_RANGE"),
+                            ("too-large", 65536, "E_RANGE"),
+                            ("string", "3000", "E_SCHEMA"),
+                            ("fraction", 3000.5, "E_SCHEMA")):
+        add(f"v21-route-port-{name}", route_port_doc(bad), "V-21", code,
+            "the declared route port is an integer in 1..65535")
+    add("v21-route-port-plain-module", route_port_doc(8080, route=False),
+        "V-21", "E_SCHEMA", "a route port requires an executable service")
+    add("v21-route-port-runtime-module", route_port_doc(8080, runtime=True),
+        "V-21", "E_SCHEMA", "a runtime archive member cannot declare a route port")
+    add("v21-route-port-valid-service", route_port_doc(8080),
+        "V-21", "E_UNSUPPORTED", "valid port metadata reaches the current route refusal")
+
     # ---- V-05: operand values ------------------------------------------------
     def with_operand2(op):
         ins = base_instrs()

@@ -166,6 +166,7 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-F0-22 | Re-pin to 31591e6: 152 documents, 151 of them build | superseded by D-F0-23 |
 | D-F0-23 | Re-pin to 2275910 for the shared HTTP runtime | active |
 | D-M1-141 | the corpus harness asks the pin which emitter it carries | active |
+| D-M1-142 | validate the IRv1 service port | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -6500,3 +6501,13 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     on Windows x64 and Linux x64, with unknown register types in 3/154 documents.
   - `scripts/selfhost.ps1` and `scripts/selfhost.sh` -> `SELFHOST OK`, canonical SHA-256
     `49703075ADFB2B6902E2224C1F08D76E3830CB870EC6765DC05733CA8211584C`.
+
+## D-M1-142 - Validate the IRv1 service port
+
+- Date: 2026-11-26.
+- Decision: the loader reads optional `routePort` as an integer in
+  1..65535 belonging to an executable module with a non-extern route. A
+  valid value reaches the existing route admission check.
+- Evidence: `python tests/reject/run_reject.py --case v21-route-port` ->
+  7/7 on Windows, including the valid-service control that reaches
+  `E_UNSUPPORTED` while native route support is pending.

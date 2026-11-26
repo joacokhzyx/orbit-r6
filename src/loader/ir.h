@@ -78,6 +78,7 @@ typedef struct {
     size_t migration_count; char **migrations;
     char *source_name; /* base name of the root file; "" when absent */
     bool runtime_module; /* D-M1-105: archive member of the runtime, no main */
+    int64_t route_port; /* declared service port; 0 when omitted */
 } R6Module;
 
 typedef struct { size_t line, column; char code[16]; char message[256]; } R6Diagnostic;

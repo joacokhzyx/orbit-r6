@@ -316,11 +316,11 @@ _Static_assert(G_KEY_COUNT <= OBJ_KEYS_MAX, "global schema exceeds the view");
 
 enum {
     MOD_FUNCTIONS, MOD_GLOBALS, MOD_MODELS, MOD_TYPES, MOD_MIGRATIONS,
-    MOD_SOURCENAME, MOD_RUNTIMEMODULE, MOD_KEY_COUNT
+    MOD_SOURCENAME, MOD_RUNTIMEMODULE, MOD_ROUTEPORT, MOD_KEY_COUNT
 };
 static const Key module_keys[MOD_KEY_COUNT] = {
     KEY("functions"), KEY("globals"), KEY("models"), KEY("types"),
-    KEY("migrations"), KEY("sourceName"), KEY("runtimeModule")
+    KEY("migrations"), KEY("sourceName"), KEY("runtimeModule"), KEY("routePort")
 };
 _Static_assert(MOD_KEY_COUNT <= OBJ_KEYS_MAX, "module schema exceeds the view");
 
@@ -381,13 +381,24 @@ static bool parse_module(Parser*p,JNode*x,R6Module*m){
     JNode*a;
     if(!obj_view(p,x,module_keys,MOD_KEY_COUNT,5,&ov))return false;
     if((ov.present&(1u<<MOD_RUNTIMEMODULE))&&!boolean(p,ov.v[MOD_RUNTIMEMODULE],&m->runtime_module))return false;
+    if (ov.v[MOD_ROUTEPORT] && !number(p, ov.v[MOD_ROUTEPORT], 1, 65535, &m->route_port))
+        return false;
     if(ov.present&(1u<<MOD_SOURCENAME)){if(!str(p,ov.v[MOD_SOURCENAME],&m->source_name))return false;}else{m->source_name=dupstr("");if(!m->source_name){fail(p,"E_MEMORY","out of memory");return false;}}
     a=ov.v[MOD_FUNCTIONS];
     if(!arr(p,a))return false;
     m->function_count=a->n;
     m->functions=calloc(a->n?a->n:1,sizeof*m->functions);
     if(!m->functions){fail(p,"E_MEMORY","out of memory");return false;}
-    for(size_t i=0;i<a->n;i++)if(!parse_function(p,a->v[i],&m->functions[i]))return false;
+    bool has_route = false;
+    for (size_t i = 0; i < a->n; i++) {
+        R6Function *function = &m->functions[i];
+        if (!parse_function(p, a->v[i], function)) return false;
+        has_route |= function->has_route && !function->is_extern;
+    }
+    if (m->route_port && (m->runtime_module || !has_route)) {
+        fail(p, "E_SCHEMA", "routePort requires an executable module with a route");
+        return false;
+    }
     a=ov.v[MOD_GLOBALS];
     if(!arr(p,a))return false;
     m->global_count=a->n;

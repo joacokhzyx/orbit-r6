@@ -254,6 +254,8 @@ serialization exactly and keeps no dual acceptance.
     arguments.
   - V-14: a jump names an existing label.
   - V-16: the route fields are coherent.
+  - V-21: optional `routePort` is an integer in 1..65535 and requires a
+    non-extern route in an executable module.
   - V-18: an extern body is parsed and ignored.
   - V-01, V-11 and V-12: the elision marker `…[N chars]`, destination and
     register lengths.

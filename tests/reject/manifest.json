@@ -169,6 +169,55 @@
       "note": "sourceName is a string"
     },
     {
+      "file": "cases/v21-route-port-zero.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-21",
+      "note": "the declared route port is an integer in 1..65535"
+    },
+    {
+      "file": "cases/v21-route-port-too-large.json",
+      "exit": 1,
+      "code": "E_RANGE",
+      "rule": "V-21",
+      "note": "the declared route port is an integer in 1..65535"
+    },
+    {
+      "file": "cases/v21-route-port-string.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-21",
+      "note": "the declared route port is an integer in 1..65535"
+    },
+    {
+      "file": "cases/v21-route-port-fraction.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-21",
+      "note": "the declared route port is an integer in 1..65535"
+    },
+    {
+      "file": "cases/v21-route-port-plain-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-21",
+      "note": "a route port requires an executable service"
+    },
+    {
+      "file": "cases/v21-route-port-runtime-module.json",
+      "exit": 1,
+      "code": "E_SCHEMA",
+      "rule": "V-21",
+      "note": "a runtime archive member cannot declare a route port"
+    },
+    {
+      "file": "cases/v21-route-port-valid-service.json",
+      "exit": 1,
+      "code": "E_UNSUPPORTED",
+      "rule": "V-21",
+      "note": "valid port metadata reaches the current route refusal"
+    },
+    {
       "file": "cases/v05-missing-kind.json",
       "exit": 1,
       "code": "E_SCHEMA",
