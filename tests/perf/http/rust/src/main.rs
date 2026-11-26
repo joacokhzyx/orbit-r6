@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::Incoming;
 use hyper::server::conn::http1;
@@ -15,10 +15,12 @@ async fn handle(request: Request<Incoming>) -> Result<Response<Full<Bytes>>, Inf
             reply(StatusCode::OK, Bytes::copy_from_slice(path[6..].as_bytes()))
         }
         (&Method::POST, "/body") => {
-            match Limited::new(request.into_body(), 12000).collect().await {
-                Ok(body) if body.to_bytes().len() == 4096 => {
-                    reply(StatusCode::OK, Bytes::from_static(b"ok"))
-                }
+            let length = Limited::new(request.into_body(), 12000)
+                .collect()
+                .await
+                .map(|body| body.aggregate().remaining());
+            match length {
+                Ok(4096) => reply(StatusCode::OK, Bytes::from_static(b"ok")),
                 Ok(_) => reply(StatusCode::BAD_REQUEST, Bytes::from_static(b"bad body")),
                 Err(_) => reply(StatusCode::PAYLOAD_TOO_LARGE, Bytes::from_static(b"too large")),
             }

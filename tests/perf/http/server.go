@@ -18,12 +18,12 @@ func main() {
 		reply(w, 200, r.PathValue("name"))
 	})
 	mux.HandleFunc("POST /body", func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 12000))
+		length, err := io.Copy(io.Discard, http.MaxBytesReader(w, r.Body, 12000))
 		if err != nil {
 			reply(w, 413, "too large")
 			return
 		}
-		if len(body) != 4096 {
+		if length != 4096 {
 			reply(w, 400, "bad body")
 			return
 		}
