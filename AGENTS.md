@@ -1,15 +1,14 @@
 # AGENTS.md — R6
 
 R6 is a native x86-64 code generator for the Orbit language IR, pinned to
-`orbit-lang` `feature/0.1.0-stability` commit
-`31591e66edf21871f4d18e246700900ee6dc0402` (D-F0-22, tag `v0.1.0-rc.5`).
+`orbit-lang` `develop` commit `227591069a0089b65b7e7ac2e5171887abe0fbe9` (D-F0-23).
 [`docs/PIN.md`](docs/PIN.md) lists every pinned input and its hash;
 [`CONTRIBUTING.md`](CONTRIBUTING.md) owns the commands. This file holds the
 rules that a command list cannot express.
 
 `C:\Users\Usuario\Downloads\orbit-lang` is read-only to R6, and *its commit* is
 the pin. The working tree there can be ahead of the pin and dirty, so pinned
-bytes come from `git cat-file blob 31591e6:<path>`, never from the working
+bytes come from `git cat-file blob 2275910:<path>`, never from the working
 tree. Do not write there.
 
 ## Working rules

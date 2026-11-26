@@ -286,9 +286,9 @@ migrations run at start-up and need the same archive; the plain one defines no
 `orbit_db_*` symbol.
 
 The pin emits its own corpus with `orbit build --emit-ir`:
-`tests/corpus/manifest.json` fixes 152 documents (151 executable and one support
-module), 7 201 698 bytes and `filesSha256 51d5a2e9`, and
-`tests/corpus/run_corpus.py --check` requires 151 builds and 151 matches. The
+`tests/corpus/manifest.json` fixes 154 documents (153 executable and one support
+module), 7 211 598 bytes and `filesSha256 3c0227b3`, and
+`tests/corpus/run_corpus.py --check` requires 153 builds and 153 matches. The
 100 pairs in `tests/diff/fixtures/` remain manual differential fixtures; they
 record the IR forms and do not depend on the emitter.
 

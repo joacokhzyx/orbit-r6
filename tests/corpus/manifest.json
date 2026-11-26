@@ -1,19 +1,19 @@
 {
   "schema": "r6-ir-corpus/1",
   "emitter": {
-    "path": "C:\\Temp\\fp-d55c456.exe",
-    "sha256": "d3aaf818be62ccb33f942e5e567855b34ca158087bcfaef6f255c2fecb182291",
-    "bytes": 904192,
-    "version": "orbit 0.1.0",
-    "languageCommit": "31591e66edf21871f4d18e246700900ee6dc0402"
+    "path": "C:\\Temp\\orbit-fp-a5877e8d6c.exe",
+    "sha256": "8929aaa687da80d3615032fecedec4221ca5d0eb2c0f1abc5e8692cfb694639f",
+    "bytes": 908800,
+    "version": "orbit 0.1.0-rc.1",
+    "languageCommit": "227591069a0089b65b7e7ac2e5171887abe0fbe9"
   },
   "counts": {
-    "executable": 151,
+    "executable": 153,
     "support": 1,
-    "total": 152
+    "total": 154
   },
-  "totalBytes": 7201698,
-  "filesSha256": "51d5a2e93cbfca8a7f41d8b5ab7196eb1df16cd36e9d1b421c563154ed2d1886",
+  "totalBytes": 7211598,
+  "filesSha256": "3c0227b3395a52f016301d470bf81b623250d2731074fd26d74a1250923bc345",
   "files": [
     {
       "path": "tests/suite/arena_sink_scope.orb",
@@ -674,6 +674,20 @@
       "sha256": "bd185fa1c77a56dd06071a197e4e83c6e149a5104a1ed36884f55cff4534052e"
     },
     {
+      "path": "tests/suite/result_parameter.orb",
+      "kind": "executable",
+      "ir": "tests/suite/result_parameter.ir",
+      "bytes": 3616,
+      "sha256": "4426fdf345f4da34cecf31fe9420dbd4a37348b737d3093f412a1f417d627040"
+    },
+    {
+      "path": "tests/suite/result_payload_composition.orb",
+      "kind": "executable",
+      "ir": "tests/suite/result_payload_composition.ir",
+      "bytes": 3746,
+      "sha256": "089f8f11b59966d9676d0ab71ac2249330ffd1cec35ec8ce361cfe624c79f484"
+    },
+    {
       "path": "tests/suite/result_payload_int.orb",
       "kind": "executable",
       "ir": "tests/suite/result_payload_int.ir",
@@ -1013,8 +1027,8 @@
       "path": "tests/std/test_json.orb",
       "kind": "executable",
       "ir": "tests/std/test_json.ir",
-      "bytes": 242219,
-      "sha256": "7e4edc087fc0238bd5147e497b70949760f4e26dbfdc190743ffe896ddfb0601"
+      "bytes": 244757,
+      "sha256": "aab31b1117e4c011ab726f403955e3b8d3eebbf920b182132299cc65c9ea5746"
     },
     {
       "path": "tests/std/test_log.orb",

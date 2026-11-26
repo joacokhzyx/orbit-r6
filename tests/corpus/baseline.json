@@ -1,12 +1,12 @@
 {
   "schema": "r6-corpus-baseline/1",
-  "corpusFilesSha256": "51d5a2e93cbfca8a7f41d8b5ab7196eb1df16cd36e9d1b421c563154ed2d1886",
+  "corpusFilesSha256": "3c0227b3395a52f016301d470bf81b623250d2731074fd26d74a1250923bc345",
   "summary": {
-    "members": 152,
-    "programs": 151,
-    "oracleOk": 151,
-    "r6BuildOk": 151,
-    "match": 151,
+    "members": 154,
+    "programs": 153,
+    "oracleOk": 153,
+    "r6BuildOk": 153,
+    "match": 153,
     "unknownRegisterTypes": 3
   },
   "byCode": {},
@@ -17,8 +17,8 @@
       "match": 108
     },
     "arg": {
-      "cases": 117,
-      "match": 117
+      "cases": 118,
+      "match": 118
     },
     "bit_and": {
       "cases": 3,
@@ -37,16 +37,16 @@
       "match": 3
     },
     "call": {
-      "cases": 135,
-      "match": 135
+      "cases": 137,
+      "match": 137
     },
     "copy": {
       "cases": 25,
       "match": 25
     },
     "decl_var": {
-      "cases": 130,
-      "match": 130
+      "cases": 132,
+      "match": 132
     },
     "div": {
       "cases": 21,
@@ -65,16 +65,16 @@
       "match": 43
     },
     "jump": {
-      "cases": 94,
-      "match": 94
+      "cases": 96,
+      "match": 96
     },
     "jump_if_false": {
-      "cases": 133,
-      "match": 133
+      "cases": 135,
+      "match": 135
     },
     "label": {
-      "cases": 133,
-      "match": 133
+      "cases": 135,
+      "match": 135
     },
     "le": {
       "cases": 19,
@@ -105,16 +105,16 @@
       "match": 8
     },
     "load_const": {
-      "cases": 125,
-      "match": 125
+      "cases": 127,
+      "match": 127
     },
     "load_field": {
       "cases": 44,
       "match": 44
     },
     "load_var": {
-      "cases": 138,
-      "match": 138
+      "cases": 140,
+      "match": 140
     },
     "lt": {
       "cases": 66,
@@ -129,8 +129,8 @@
       "match": 38
     },
     "ne": {
-      "cases": 118,
-      "match": 118
+      "cases": 120,
+      "match": 120
     },
     "neg": {
       "cases": 58,
@@ -145,24 +145,24 @@
       "match": 19
     },
     "result_is_ok": {
-      "cases": 23,
-      "match": 23
+      "cases": 25,
+      "match": 25
     },
     "result_ok": {
-      "cases": 22,
-      "match": 22
+      "cases": 24,
+      "match": 24
     },
     "result_unwrap": {
-      "cases": 23,
-      "match": 23
+      "cases": 25,
+      "match": 25
     },
     "result_unwrap_err": {
       "cases": 5,
       "match": 5
     },
     "ret": {
-      "cases": 152,
-      "match": 151
+      "cases": 154,
+      "match": 153
     },
     "shl": {
       "cases": 3,

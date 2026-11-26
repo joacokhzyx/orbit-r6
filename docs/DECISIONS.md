@@ -163,7 +163,8 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-133 | codegen conversions are formatted without `vsnprintf` | active |
 | D-M1-134 | the assembler text stays in memory | active |
 | D-M1-135 | the compile-time baseline after the pipeline work | active |
-| D-F0-22 | Re-pin to 31591e6: 152 documents, 151 of them build | active |
+| D-F0-22 | Re-pin to 31591e6: 152 documents, 151 of them build | superseded by D-F0-23 |
+| D-F0-23 | Re-pin to 2275910 for the shared HTTP runtime | active |
 | D-M1-141 | the corpus harness asks the pin which emitter it carries | active |
 
 An entry keeps the text it was written with. A later decision replaces an
@@ -6479,3 +6480,23 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
   - `git cat-file -e 01e31e8:scripts/measure.py` -> absent;
     `git cat-file -e 01e31e8:scripts/emit_ir_corpus.py` -> present.
 - Status: **applied** (`c75a343`).
+
+## D-F0-23 - Re-pin to 2275910 for the shared HTTP runtime
+
+- Date: 2026-11-26.
+- Decision: pin Orbit `develop` at
+  `227591069a0089b65b7e7ac2e5171887abe0fbe9`. The pin contains the runtime
+  route table (`5ddb1ee`) and its corrected test (`f5bfea6`). The R6 loader
+  still rejects route declarations at this pin.
+- Evidence:
+  - `python scripts/measure.py emit-ir --compiler <fixed-point> --out <scratch>`
+    -> 154 documents, 153 executable and 1 support, 7211598 bytes,
+    `filesSha256 3c0227b3395a52f016301d470bf81b623250d2731074fd26d74a1250923bc345`.
+  - `python tests/compiler-ir/run_census.py --write-baseline` with the
+    exec-enabled compiler archive -> 29 emitted, 2 builds, 27 refusals for
+    libraries without a main. The compiler entry point links with the same
+    archive as the self-host check.
+  - `python tests/corpus/run_corpus.py --write-baseline` -> 153/153 matches
+    on Windows x64 and Linux x64, with unknown register types in 3/154 documents.
+  - `scripts/selfhost.ps1` and `scripts/selfhost.sh` -> `SELFHOST OK`, canonical SHA-256
+    `49703075ADFB2B6902E2224C1F08D76E3830CB870EC6765DC05733CA8211584C`.
