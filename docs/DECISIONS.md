@@ -165,10 +165,12 @@ They do not alter Orbit. Dates use the user's timezone (America/Buenos_Aires).
 | D-M1-135 | the compile-time baseline after the pipeline work | active |
 | D-F0-22 | Re-pin to 31591e6: 152 documents, 151 of them build | superseded by D-F0-23 |
 | D-F0-23 | Re-pin to 2275910 for the shared HTTP runtime | superseded by D-F0-24 |
-| D-F0-24 | Pin the concurrent HTTP runtime and service port emitter | active |
+| D-F0-24 | Pin the concurrent HTTP runtime and service port emitter | superseded by D-F0-25 |
+| D-F0-25 | Pin the runtime with native request views | active |
 | D-M1-141 | the corpus harness asks the pin which emitter it carries | active |
 | D-M1-142 | validate the IRv1 service port | active |
 | D-M1-143 | Lower native HTTP services through the shared runtime | active |
+| D-M1-144 | Elide the body copy for an adjacent length read | active |
 
 An entry keeps the text it was written with. A later decision replaces an
 earlier one by a new dated entry, and this index names the replacement.
@@ -6547,3 +6549,25 @@ English. Documents retired on 2026-10-31, such as `M1_REPORT.md` and
     two port modes and two graceful stops for each backend on Windows x64.
   - `python tests/http/run_http_client.py` passes 14 loopback cases across
     C and native on Windows x64.
+
+## D-F0-25 - Pin the runtime with native request views
+
+- Date: 2026-11-26.
+- Decision: pin Orbit at `b1b33e06d2b26d1c1bcfebe379038228a12c9957` to
+  link the growing receive buffers and the bounded body-length helper.
+- Evidence: `python scripts/measure.py emit-ir --compiler <fixed-point> --out <scratch>`
+  emits 154 documents and 7211598 bytes. Corpus file hashes match D-F0-24.
+
+## D-M1-144 - Elide the body copy for an adjacent length read
+
+- Date: 2026-11-26.
+- Decision: within a route handler, fuse an intrinsic body getter and its
+  adjacent string-length use when the string slot has one definition and
+  one read. Leave stores, responses and calls to other functions on the
+  owning getter. The fast path preserves the text length at embedded NUL
+  and the length of the empty-body fallback. Compile with
+  `R6_HTTP_BODY_VIEWS=0` to disable the rewrite.
+- Evidence: `python tests/http/run_http_server.py` on Windows x64 exercises
+  79 routes and 34 replies each for C and R6 with both codegen settings.
+  Disassembly counts one bounded length call with the rewrite enabled and
+  five owning getter calls with it disabled.

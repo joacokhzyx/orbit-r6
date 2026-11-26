@@ -400,6 +400,7 @@ static bool extern_needs_arena(const char *name) {
         "orbit_json_parse", "orbit_int_to_string", "orbit_float_to_string",
         "orbit_http_query_get", "orbit_http_query_get_all",
         "orbit_http_header_get", "orbit_http_param_get", "orbit_http_body_get",
+        "orbit_http_body_view_len",
         "orbit_db_get", "orbit_db_all", "orbit_db_where", "orbit_db_first",
         "orbit_auth_bearer_token", "orbit_auth_role", "orbit_auth_current_role",
         "orbit_auth_has_role", "orbit_db_query_all", "orbit_db_query_where",
@@ -450,6 +451,7 @@ static R6Function r6_http_intrinsics[] = {
     HTTP_INTRINSIC("orbit_response_header_line", 2, intrinsic_string_string, "string"),
     HTTP_INTRINSIC("orbit_string_concat", 2, intrinsic_string_string, "string"),
     HTTP_INTRINSIC("orbit_http_body_get", 1, intrinsic_request, "string"),
+    HTTP_INTRINSIC("orbit_http_body_view_len", 1, intrinsic_request, "int"),
     HTTP_INTRINSIC("orbit_http_param_get", 2, intrinsic_request_key, "string"),
     HTTP_INTRINSIC("orbit_http_header_get", 2, intrinsic_request_key, "string"),
     HTTP_INTRINSIC("orbit_http_query_get", 2, intrinsic_request_key, "string"),
@@ -5297,6 +5299,52 @@ static bool normalize_service_types(R6Module *module) {
     return true;
 }
 
+/* An adjacent length read needs only the request's bounded body view. Any
+ * other use or definition of the string slot leaves the owning call intact. */
+static bool elide_body_length_copy(const R6Module *module, R6Function *fn) {
+    const char *setting = getenv("R6_HTTP_BODY_VIEWS");
+    if (!fn->has_route || (setting && !strcmp(setting, "0")) ||
+        find_function(module, "orbit_http_body_get") ||
+        find_function(module, "orbit_http_body_view_len"))
+        return true;
+
+    for (size_t pc = 0; pc + 1 < fn->instruction_count; ++pc) {
+        R6Instruction *call = &fn->instructions[pc];
+        R6Instruction *length = &fn->instructions[pc + 1];
+        if (call->opcode != R6_OP_CALL || !call->has_dest ||
+            call->operands[0].kind != R6_VAL_STRING ||
+            strcmp(call->operands[0].as.string, "orbit_http_body_get") ||
+            length->opcode != R6_OP_LIST_LEN || !length->has_dest ||
+            length->operands[0].kind != R6_VAL_REG ||
+            length->operands[0].as.i32 != call->dest ||
+            length->operands[1].kind != R6_VAL_NONE ||
+            length->operands[2].kind != R6_VAL_NONE ||
+            !is_string(type_at(fn, call->dest)) || !is_int(type_at(fn, length->dest)))
+            continue;
+
+        size_t touches = 0;
+        for (size_t i = 0; i < fn->instruction_count && touches <= 2; ++i) {
+            const R6Instruction *ins = &fn->instructions[i];
+            if (ins->has_dest && ins->dest == call->dest) touches++;
+            for (size_t op = 0; op < 3; ++op)
+                if (ins->operands[op].kind == R6_VAL_REG &&
+                    ins->operands[op].as.i32 == call->dest)
+                    touches++;
+        }
+        if (touches != 2) continue;
+
+        char *name = copy_spelling("orbit_http_body_view_len");
+        if (!name) return false;
+        free(call->operands[0].as.string);
+        call->operands[0].as.string = name;
+        call->operands[0].string_len = strlen(name);
+        call->dest = length->dest;
+        *length = (R6Instruction){.opcode = R6_OP_NOP, .dest = -1,
+                                  .line = length->line, .column = length->column};
+    }
+    return true;
+}
+
 static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
     size_t n;
     bool main_found = false;
@@ -5428,6 +5476,8 @@ static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
                 return fail(diag, NULL, "CGEN", "register type %s is unsupported in M1", rt);
         }
         if (!validate_function(module, f, diag)) return false;
+        if (module->route_count && !elide_body_length_copy(module, fm))
+            return fail(diag, NULL, "CGEN", "out of memory lowering a request body read");
     }
     if (!main_found && !module->runtime_module && !module->route_count)
         return fail(diag, NULL, "CGEN", "module must define one non-extern main");

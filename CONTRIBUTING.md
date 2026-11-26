@@ -41,7 +41,7 @@ Edit `tests/reject/manifest.json`, never `tests/reject/cases/`. Render with
 - Materialize a checkout of `orbit-lang` at the pinned commit and build its
   fixed-point compiler. Do not use a working tree that is ahead of the pin.
 - Never write to the Orbit checkout. Read pinned bytes with
-  `git cat-file blob 87edfce:<path>`.
+  `git cat-file blob b1b33e0:<path>`.
 - The absolute paths below are observations of one machine. Substitute yours.
 
 ## Gates
@@ -56,7 +56,7 @@ Differential, the primary gate, 100/100:
 python tests/diff/run_diff.py `
   --compiler $OrbitFp `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-87edfce `
+  --orbit-root C:\Temp\orbit-pin-b1b33e0 `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
 
@@ -98,7 +98,7 @@ The corpus check uses the manifest and the one-way ratchet at the pin:
 python tests/corpus/run_corpus.py `
   --compiler $OrbitFp `
   --cc C:\w64devkit\bin\gcc.exe `
-  --orbit-root C:\Temp\orbit-pin-87edfce `
+  --orbit-root C:\Temp\orbit-pin-b1b33e0 `
   --check `
   --r6-command .r6-build\r6.exe build '{ir}' -o '{exe}'
 ```
@@ -120,7 +120,7 @@ The self-host check reads `PUBLISHED_C` from the pinned checkout and links with
 a separate archive built with `ORBIT_WITH_EXEC`.
 
 ```powershell
-.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-87edfce `
+.\scripts\selfhost.ps1 -OrbitRoot C:\Temp\orbit-pin-b1b33e0 `
   -Compiler $OrbitFp -R6 $PWD\.r6-build\r6.exe
 ```
 

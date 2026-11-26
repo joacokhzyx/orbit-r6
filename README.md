@@ -48,7 +48,7 @@ cd orbit-r6
 ./scripts/build-r6.sh
 
 git clone https://github.com/joacokhzyx/orbit-lang /tmp/orbit-pin
-git -C /tmp/orbit-pin checkout 87edfce
+git -C /tmp/orbit-pin checkout b1b33e0
 bash scripts/build-runtime-linux.sh /tmp/orbit-pin
 
 ./.r6-build/r6 build tests/diff/fixtures/01-int-call.json -o hello
@@ -63,7 +63,7 @@ cd orbit-r6
 .\scripts\build-r6.ps1
 
 git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin
-git -C C:\Temp\orbit-pin checkout 87edfce
+git -C C:\Temp\orbit-pin checkout b1b33e0
 python C:\Temp\orbit-pin\scripts\mklib_runtime.py `
   --cc C:\w64devkit\bin\gcc.exe `
   --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
