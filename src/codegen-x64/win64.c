@@ -5297,7 +5297,8 @@ static bool normalize_service_types(R6Module *module) {
     return true;
 }
 
-static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
+static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag,
+                           R6FunctionSpan *spans) {
     size_t n;
     bool main_found = false;
     if (diag) memset(diag, 0, sizeof *diag);
@@ -5442,18 +5443,21 @@ static bool codegen_module(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
         if (!module->functions[n].live) continue;
         if (!local_table_build(&module->functions[n]))
             return fail(diag, NULL, "CGEN", "out of memory indexing locals of %s", module->functions[n].name);
+        if (spans) spans[n].begin = out->n;
         if (!emit_function(out, module, &module->functions[n], n, diag)) return false;
+        if (spans) spans[n].end = out->n;
     }
     if (!module->runtime_module && !emit_entry_wrapper(out, module, diag)) return false;
     return !out->oom;
 }
 
-bool r6_codegen_win64(TextBuf *out, R6Module *module, R6Diagnostic *diag) {
+bool r6_codegen_win64(TextBuf *out, R6Module *module, R6Diagnostic *diag,
+                     R6FunctionSpan *spans) {
     bool ok;
     if (!out || !module) return fail(diag, NULL, "CGEN", "null output or module");
     local_table_release();
     function_table_release();
-    ok = codegen_module(out, module, diag);
+    ok = codegen_module(out, module, diag, spans);
     if (out->oom)
         ok = fail(diag, NULL, "CGEN", "out of memory buffering assembler text");
     local_table_release();

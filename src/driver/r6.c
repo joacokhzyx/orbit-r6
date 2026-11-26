@@ -7,6 +7,7 @@
 #include "../codegen-x64/target.h"
 #include "../codegen-x64/text.h"
 #include "../codegen-x64/win64.h"
+#include "pass_cache.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -61,6 +62,30 @@ static double now_ms(void) {
 static void stage_add(int stage, double since) {
     stage_ms[stage] += now_ms() - since;
     stage_ran[stage] = true;
+}
+
+static bool optimize_passes(TextBuf *text, void *context) {
+    const char *input = context;
+    char error[256];
+    double start = now_ms();
+    if (!r6_peephole_win64(text, error, sizeof error)) {
+        fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, error);
+        return false;
+    }
+    stage_add(T_PEEPHOLE, start);
+    start = now_ms();
+    if (!r6_regalloc_win64(text, error, sizeof error)) {
+        fprintf(stderr, "r6: %s:0:0: error[REGALLOC]: %s\n", input, error);
+        return false;
+    }
+    stage_add(T_REGALLOC, start);
+    start = now_ms();
+    if (!r6_peephole_final(text, error, sizeof error)) {
+        fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, error);
+        return false;
+    }
+    stage_add(T_PEEPHOLE, start);
+    return true;
 }
 
 /* D-M1-98: the three runtime inputs of the link, from one directory. */
@@ -262,6 +287,9 @@ int main(int argc, char **argv) {
     bool uses_db = false, uses_net, own_entry, timings, object_mode = false;
     const char *obj_out;
     const char *timings_env = getenv("R6_TIMINGS");
+    const char *cache_path = getenv("R6_FUNCTION_CACHE");
+    R6FunctionSpan *spans = NULL;
+    R6CacheStats cache_stats = {0};
     double t0;
     size_t fn;
 
@@ -279,6 +307,7 @@ int main(int argc, char **argv) {
               "                       (Windows) sqlite3.lib (else R6_RUNTIME_DIR, else\n"
               "                       .r6-build/runtime-win64 on Windows, runtime-linux-x64 on Linux)\n"
               "  --timings            print per-stage timings (or R6_TIMINGS=1)\n"
+              "  R6_FUNCTION_CACHE    optional file for cached per-function optimizer output\n"
               "  R6_TMPDIR            directory of the .o temporary (else the system temp dir)\n"
               "  Linux only: R6_CRT_DIR overrides the glibc start-up directory, R6_LD the linker.\n",
               stdout);
@@ -394,29 +423,23 @@ int main(int argc, char **argv) {
     snprintf(pidbuf, sizeof pidbuf, "%ld", (long)R6_PID());
     snprintf(obj_path, sizeof obj_path, "%s/r6-%s.o", tmpdir, pidbuf);
     t0 = now_ms();
-    if (!r6_codegen_win64(&text, &module, &diag)) {
+    if (cache_path && *cache_path && module.function_count)
+        spans = calloc(module.function_count, sizeof(*spans));
+    if (!r6_codegen_win64(&text, &module, &diag, spans)) {
         print_error(input, &diag);
         goto free_module;
     }
     stage_add(T_CODEGEN, t0);
-    t0 = now_ms();
-    if (!r6_peephole_win64(&text, asm_error, sizeof asm_error)) {
-        fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
+    if (spans) {
+        if (!r6_cached_passes(&text, &module, spans, cache_path, R6_VERSION,
+                              optimize_passes, (void *)input, &cache_stats))
+            goto free_module;
+        if (timings)
+            fprintf(stderr, "r6: function cache %zu hits %zu misses\n",
+                    cache_stats.hits, cache_stats.misses);
+    } else if (!optimize_passes(&text, (void *)input)) {
         goto free_module;
     }
-    stage_add(T_PEEPHOLE, t0);
-    t0 = now_ms();
-    if (!r6_regalloc_win64(&text, asm_error, sizeof asm_error)) {
-        fprintf(stderr, "r6: %s:0:0: error[REGALLOC]: %s\n", input, asm_error);
-        goto free_module;
-    }
-    stage_add(T_REGALLOC, t0);
-    t0 = now_ms();
-    if (!r6_peephole_final(&text, asm_error, sizeof asm_error)) {
-        fprintf(stderr, "r6: %s:0:0: error[PEEPHOLE]: %s\n", input, asm_error);
-        goto free_module;
-    }
-    stage_add(T_PEEPHOLE, t0);
 
     if (!runtime_dir) {
         runtime_dir = getenv("R6_RUNTIME_DIR");
@@ -625,6 +648,7 @@ int main(int argc, char **argv) {
 free_module:
     if (obj_file) fclose(obj_file);
     text_release(&text);
+    free(spans);
     r6_module_free(&module);
 done:
     free(data);
