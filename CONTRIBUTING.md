@@ -3,8 +3,8 @@
 A contribution keeps both platforms green: Windows x64 and Linux x64.
 `.github/workflows/ci.yml` builds the driver, rebuilds the runtime
 archive and runs the loader and runtime-module suites on every push and pull
-request on both hosts. The differential, corpus and self-host gates need the
-Orbit oracle and run on manual dispatch on both hosts.
+request on both hosts. The differential, corpus, self-host and HTTP client
+gates need the Orbit oracle and run on manual dispatch on both hosts.
 
 Branches, merges and releases follow [`docs/BRANCHES.md`](docs/BRANCHES.md):
 work happens on `feature/<topic>`, it merges into `develop` after the full
@@ -126,6 +126,14 @@ a separate archive built with `ORBIT_WITH_EXEC`.
 
 ```bash
 ./scripts/selfhost.sh <pinned checkout> <fixed-point> ./.r6-build/r6
+```
+
+The client gate compiles `sys/http/client.fetch` with C and R6, then serves
+fixed HTTP/1.1 replies on loopback. It also checks connection refusal and that
+rejecting HTTPS opens no connection.
+
+```text
+python tests/http/run_http_client.py --compiler <fixed-point> --orbit-root <pinned checkout>
 ```
 
 Compile time is a measurement, not a gate:

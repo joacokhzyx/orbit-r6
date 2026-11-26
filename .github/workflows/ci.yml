@@ -117,6 +117,7 @@ jobs:
           python tests/corpus/run_corpus.py --compiler "$fp" --cc gcc --orbit-root "$orbit_root" --check \
             --r6-command ./.r6-build/r6 build '{ir}' -o '{exe}'
           bash scripts/selfhost.sh "$orbit_root" "$fp" "$PWD/.r6-build/r6"
+          python tests/http/run_http_client.py --compiler "$fp" --orbit-root "$orbit_root"
 
   # Differential, corpus ratchet and self-host against the Orbit gcc oracle. Building the
   # fixed point takes minutes, so the job runs only on manual dispatch. To run
@@ -179,3 +180,6 @@ jobs:
           -Compiler $env:ORBIT_FP
           -OrbitRoot (Join-Path $PWD 'orbit-lang')
           -Cc C:\w64devkit\bin\gcc.exe
+
+      - name: HTTP client parity on loopback
+        run: python tests/http/run_http_client.py --compiler $env:ORBIT_FP --orbit-root orbit-lang

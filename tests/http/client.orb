@@ -1,0 +1,17 @@
+import "std/sys/http/client.orb"
+
+extern fn orbit_os_argv(index: int) -> string
+
+fn main() -> int {
+    val expectError = orbit_os_argv(2) == "err"
+    val body: string = try fetch(orbit_os_argv(1)) catch {
+        if expectError { return 0 }
+        return 1
+    }
+    if expectError { return 2 }
+    if body != orbit_os_argv(3) {
+        print(body)
+        return 3
+    }
+    return 0
+}
