@@ -141,7 +141,8 @@ def measure_selfhost_r6(r6, ir: Path, scratch, reps, timeout, env):
 
 def measure_selfhost_wall(script: Path, orbit_root, compiler, r6, reps, timeout):
     if os.name == "nt":
-        cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        shell = shutil.which("pwsh.exe") or "powershell.exe"
+        cmd = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass",
                "-File", str(script), "-OrbitRoot", str(orbit_root),
                "-Compiler", str(compiler), "-R6", str(r6)]
     else:
@@ -251,8 +252,16 @@ def main():
         selfhost_staged = stage([selfhost_ir], scratch, "selfhost")[0]
         corpus, corpus_pipeline = measure_corpus(staged_r6, staged, scratch, args.reps,
                                                  args.timeout, env)
+        # The compiler calls the process and UI helpers in the exec archive.
+        # Corpus executables above use the release runtime instead.
+        selfhost_runtime = scratch / "selfhost-runtime"
+        subprocess.run([sys.executable, str(REPO / "scripts" / "build-selfhost-runtime.py"),
+                        str(Path(args.orbit_root).resolve()),
+                        str(selfhost_runtime / "libruntime_net.a")],
+                       check=True, timeout=args.timeout)
+        selfhost_env = dict(env, R6_RUNTIME_DIR=str(selfhost_runtime))
         selfhost_r6, selfhost_pipeline = measure_selfhost_r6(staged_r6, selfhost_staged, scratch,
-                                                             args.reps, args.timeout, env)
+                                                             args.reps, args.timeout, selfhost_env)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
     selfhost_wall = measure_selfhost_wall(script, args.orbit_root, args.compiler, r6,
