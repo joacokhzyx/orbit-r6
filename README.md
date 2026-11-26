@@ -14,7 +14,7 @@ R6 reads Orbit's intermediate representation and writes an executable for your m
 
 ## Why R6 exists
 
-Today `orbit build` finishes through C: the Orbit compiler emits C, and GCC or clang produces the binary. That keeps the compiler small and portable. It also ties every build to a C toolchain, and for the compiler itself the C compiler is the largest cost of a build ([measurements](https://github.com/joacokhzyx/orbit-lang/blob/develop/docs/PERF.md)).
+Orbit's C backend emits C and uses GCC or clang to produce the binary. The C toolchain dominates the compiler's own build time. [Orbit performance measurements](https://github.com/joacokhzyx/orbit-lang/blob/2275910/docs/internals/PERF.md)
 
 R6 is the way out. It owns the whole path from Orbit's IR to a running binary, so Orbit can build fast, build anywhere a linker exists, and answer for every byte it produces.
 
@@ -48,8 +48,8 @@ cd orbit-r6
 ./scripts/build-r6.sh
 
 git clone https://github.com/joacokhzyx/orbit-lang /tmp/orbit-pin
-git -C /tmp/orbit-pin checkout 01e31e8
-./scripts/build-runtime-linux.sh /tmp/orbit-pin
+git -C /tmp/orbit-pin checkout 2275910
+bash scripts/build-runtime-linux.sh /tmp/orbit-pin
 
 ./.r6-build/r6 build tests/diff/fixtures/01-int-call.json -o hello
 ./hello; echo $?
@@ -63,7 +63,7 @@ cd orbit-r6
 .\scripts\build-r6.ps1
 
 git clone https://github.com/joacokhzyx/orbit-lang C:\Temp\orbit-pin
-git -C C:\Temp\orbit-pin checkout 01e31e8
+git -C C:\Temp\orbit-pin checkout 2275910
 python C:\Temp\orbit-pin\scripts\mklib_runtime.py `
   --cc C:\w64devkit\bin\gcc.exe `
   --out "$PWD\.r6-build\runtime-win64\libruntime_net.a"
@@ -76,22 +76,21 @@ Both print `M1-add` and exit with status 42. That is the first of 100 test progr
 
 ## What has been checked
 
-Measured on 2026-10-31 against the pinned Orbit commit `01e31e8`, on Windows x64 and Linux x64.
+Measured on 2026-11-26 against Orbit `2275910`. [Windows and Linux CI](https://github.com/joacokhzyx/orbit-r6/actions/runs/45876880858)
 
 | Check | What it proves | Windows x64 | Linux x64 |
 |---|---|---|---|
-| Differential | 100 programs built with R6 and with the pinned compiler through GCC give the same exit code and the same stdout bytes | 100/100 | 100/100 |
-| Loader contract | 311 malformed inputs are rejected and 141 valid ones are accepted | 452/452 | 452/452 |
-| Corpus | 143 programs that the compiler emits from its own tests and standard library | 143 build, 143 match | 143 build, 143 match |
-| Self-host | R6 builds the Orbit compiler, and that compiler reproduces its own C byte for byte | SELFHOST OK | SELFHOST OK |
+| Differential | `python tests/diff/run_diff.py` compares exit status and stdout against Orbit C | 100/100 | 100/100 |
+| Loader contract | `python tests/reject/run_reject.py` checks accepted and rejected IR | 454/454 | 454/454 |
+| Corpus | `python tests/corpus/run_corpus.py --check` compares Orbit's suite and standard library | 153/153 | 153/153 |
+| Self-host | `scripts/selfhost.ps1` and `scripts/selfhost.sh` reproduce the canonical C | SELFHOST OK | SELFHOST OK |
+| HTTP client | `python tests/http/run_http_client.py` checks `sys/http/client.fetch` under C and R6 on loopback | 14/14 | 14/14 |
 
 The self-host result is the one to look at first. The compiler that R6 produces translates its own source to C that hashes to the pin's published value:
 
 ```text
-E794E2DBF070AD5EA04DC2617E888694D37069896AC3B67BE2A22A9D857E92B1
+49703075ADFB2B6902E2224C1F08D76E3830CB870EC6765DC05733CA8211584C
 ```
-
-Against the previous driver, wall time over the corpus dropped 18.5% on Windows and 19.1% on Linux. The self-host R6 build dropped 34.7% and 42.0%. The corpus and compile-time baselines are one-way ratchets: a change may improve them and may never make them worse.
 
 ## What R6 guarantees
 
@@ -109,7 +108,7 @@ For every program it accepts:
 - **Other IR versions.** R6 reads IRv1 at the pin and rejects anything else.
 - **Everything outside the measured subset.** Integer overflow beyond the fixtures, NaN payloads beyond fixture 10 and list kinds other than `int` have no evidence behind them. [`docs/CONTRACT.md`](docs/CONTRACT.md#measured-subset) lists the subset exactly.
 - **Other platforms.** macOS, ARM64 and threading have no measurement. Benchmarks have not been run.
-- **The compiler's own modules, one by one.** The census in `tests/compiler-ir/run_census.py` last measured 2 of 27 modules building on their own (2026-10-28).
+- **The compiler's own modules, one by one.** `python tests/compiler-ir/run_census.py --write-baseline` built 2 of 29 emitted modules with the compiler runtime. [Pin evidence](docs/PIN.md)
 
 A refusal is always a diagnostic. R6 does not produce a binary it cannot stand behind.
 
