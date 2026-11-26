@@ -3334,6 +3334,89 @@ static void emit_division_by_constant(TextBuf *o, bool remainder, int64_t d, uns
     }
 }
 
+enum { STACK_LIST_LIMIT = 8, STACK_LIST_HEADER_BYTES = 48 };
+
+static bool register_is(const R6Value *value, int32_t register_id) {
+    return value->kind == R6_VAL_REG && value->as.i32 == register_id;
+}
+
+static bool block_boundary(R6Opcode opcode) {
+    return opcode == R6_OP_LABEL || opcode == R6_OP_JUMP ||
+           opcode == R6_OP_JUMP_IF_FALSE || opcode == R6_OP_SWITCH_OP ||
+           opcode == R6_OP_RET;
+}
+
+/* Track an allocation and, at most, its one local binding. The pointer
+ * must be confined to one basic block. Every push executes at most once
+ * per allocation, and the compiler proves there is room for all of them. */
+static bool bounded_list_uses(const R6Function *f, size_t create, bool *aliases) {
+    unsigned pushes = 0, reads = 0;
+    size_t end = create + 1, binding = f->instruction_count;
+    const char *local = NULL;
+    const R6Instruction *allocation = &f->instructions[create];
+    aliases[allocation->dest] = true;
+    for (; end < f->instruction_count && !block_boundary(f->instructions[end].opcode); ++end) {
+        const R6Instruction *ins = &f->instructions[end];
+        const R6Value *name = &ins->operands[0];
+        if (ins->opcode == R6_OP_DECL_VAR && name->kind == R6_VAL_SYMBOL &&
+            register_is(&ins->operands[1], allocation->dest)) {
+            if (local) return false;
+            local = name->as.string;
+            binding = end;
+        } else if (local && ins->opcode == R6_OP_LOAD_VAR && ins->has_dest &&
+                   name->kind == R6_VAL_SYMBOL && !strcmp(local, name->as.string)) {
+            aliases[ins->dest] = true;
+        }
+    }
+    for (size_t pc = 0; pc < f->instruction_count; ++pc) {
+        const R6Instruction *ins = &f->instructions[pc];
+        const R6Value *name = &ins->operands[0];
+        bool load = pc > binding && pc < end && ins->opcode == R6_OP_LOAD_VAR &&
+                    name->kind == R6_VAL_SYMBOL && local && !strcmp(local, name->as.string);
+        if (ins->has_dest && aliases[ins->dest] && pc != create && !load) return false;
+        for (size_t arg = 0; arg < 3; ++arg) {
+            const R6Value *value = &ins->operands[arg];
+            if (local && value->kind == R6_VAL_SYMBOL && !strcmp(local, value->as.string) &&
+                !(arg == 0 && (load || pc == binding)))
+                return false;
+            if (value->kind != R6_VAL_REG || !aliases[value->as.i32]) continue;
+            if (pc < create || pc >= end) return false;
+            if (pc == binding && arg == 1) continue;
+            if (arg != 0) return false;
+            if (ins->opcode == R6_OP_LIST_PUSH && ins->elem_kind == 2) {
+                if (++pushes > (unsigned)allocation->operands[1].as.i64) return false;
+            } else if (ins->opcode == R6_OP_LIST_LEN ||
+                       (ins->opcode == R6_OP_LIST_GET && ins->elem_kind == 2)) {
+                reads++;
+            } else {
+                return false;
+            }
+        }
+    }
+    return reads > 0;
+}
+
+static size_t stack_list_candidate(const R6Function *f) {
+    const char *setting = getenv("R6_STACK_LISTS");
+    if (setting && !strcmp(setting, "0")) return f->instruction_count;
+    bool *aliases = NULL;
+    size_t pc = 0;
+    for (; pc < f->instruction_count; ++pc) {
+        const R6Instruction *ins = &f->instructions[pc];
+        const R6Value *capacity = &ins->operands[1];
+        if (ins->opcode != R6_OP_LIST_CREATE || ins->elem_kind != 2 ||
+            capacity->kind != R6_VAL_INT || capacity->as.i64 < 1 ||
+            capacity->as.i64 > STACK_LIST_LIMIT)
+            continue;
+        if (!aliases) aliases = calloc((size_t)f->register_count, sizeof(*aliases));
+        if (!aliases) return f->instruction_count;
+        memset(aliases, 0, (size_t)f->register_count * sizeof(*aliases));
+        if (bounded_list_uses(f, pc, aliases)) break;
+    }
+    free(aliases);
+    return pc;
+}
+
 static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
                           size_t fn_index, R6Diagnostic *d) {
     size_t pc, pending = 0;
@@ -3350,6 +3433,13 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
     used += result_area_bytes(f);
     if (uses_literal_scratch(f)) used += 16; /* two immediate slots, D-M1-21 */
     if (uses_spread_scratch(f)) used += 16;  /* two spread slots, D-M1-23 */
+    size_t scratch_end = used;
+    size_t stack_list = stack_list_candidate(f);
+    unsigned stack_capacity = 0;
+    if (stack_list < f->instruction_count) {
+        stack_capacity = (unsigned)f->instructions[stack_list].operands[1].as.i64;
+        used += STACK_LIST_HEADER_BYTES + stack_capacity * 8;
+    }
     size_t outgoing_stack = outgoing > ABI_GP_COUNT ? (outgoing - ABI_GP_COUNT) * 8 : 0;
     size_t frame = (used + ABI_SHADOW + outgoing_stack + 15) & ~(size_t)15;
     if (f->is_extern) return true;
@@ -3371,7 +3461,7 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
     text_puts(o, "\t.seh_endprologue\n");
     /* D-M1-68: where the plain 8-byte slots end and where the literal and
        spread scratch slots lie, for regalloc.c; it removes the line. */
-    text_printf(o, "\t# r6.slots %zu %zu %zu\n", slots * 8, slots * 8 + result_area_bytes(f) + 8, used);
+    text_printf(o, "\t# r6.slots %zu %zu %zu\n", slots * 8, slots * 8 + result_area_bytes(f) + 8, scratch_end);
     if (!is_main && is_result(f->return_type))
         text_printf(o, "\tmovq %s, -%u(%%rbp)\n", abi_gp[0], (unsigned)(f->register_count + 1) * 8);
     if (is_main) {
@@ -3537,6 +3627,17 @@ static bool emit_function(TextBuf *o, const R6Module *m, const R6Function *f,
             break;
         }
         case R6_OP_LIST_CREATE: {
+            if (pc == stack_list) {
+                /* OrbitList's x64 ABI from runtime/types.h. No operation on
+                 * this list may enter the growth path or retain its address. */
+                text_printf(o, "\tleaq -%zu(%%rbp), %%rax\n"
+                            "\tleaq %u(%%rax), %%r11\n\tmovq %%r11, 0(%%rax)\n"
+                            "\tmovq $0, 8(%%rax)\n\tmovq $%u, 16(%%rax)\n"
+                            "\tmovq $8, 24(%%rax)\n\tmovq $2, 32(%%rax)\n"
+                            "\tmovq $0, 40(%%rax)\n\tmovq %%rax, -%u(%%rbp)\n",
+                            used, STACK_LIST_HEADER_BYTES, stack_capacity, off);
+                break;
+            }
             unsigned scratch = result_scratch_offset(f, is_main);
             unsigned success_id = (unsigned)pc * 2;
             unsigned done_id = success_id + 1;

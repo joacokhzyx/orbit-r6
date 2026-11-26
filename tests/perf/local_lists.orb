@@ -1,0 +1,35 @@
+fn returnList(value: int) -> list<int> {
+    val xs: list<int> = [value, 0]
+    return xs
+}
+
+fn consume(xs: list<int>) -> int {
+    return xs.get(0)
+}
+
+fn callWithList(value: int) -> int {
+    val xs: list<int> = [value, 0]
+    return consume(xs)
+}
+
+fn growingList(value: int) -> int {
+    var xs: list<int> = [7]
+    xs.push(value)
+    return xs.get(1)
+}
+
+fn main() -> int {
+    var total = 0
+    for i in 0..3000 {
+        val xs: list<int> = [i, 5]
+        total = total + xs.get(0) + xs.len()
+    }
+    val first: list<int> = returnList(111)
+    val second: list<int> = returnList(222)
+    print(total)
+    print(first.get(0))
+    print(second.get(0))
+    print(callWithList(333))
+    print(growingList(444))
+    return 0
+}

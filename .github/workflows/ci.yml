@@ -119,6 +119,8 @@ jobs:
           bash scripts/selfhost.sh "$orbit_root" "$fp" "$PWD/.r6-build/r6"
           python tests/http/run_http_client.py --compiler "$fp" --orbit-root "$orbit_root"
           python tests/http/run_http_server.py --compiler "$fp" --orbit-root "$orbit_root"
+          python tests/perf/run_stack_lists.py --compiler "$fp" --orbit-root "$orbit_root" \
+            --r6 ./.r6-build/r6 --runtime-dir ./.r6-build/runtime-linux-x64
 
   # Differential, corpus ratchet and self-host against the Orbit gcc oracle. Building the
   # fixed point takes minutes, so the job runs only on manual dispatch. To run
@@ -187,6 +189,11 @@ jobs:
 
       - name: HTTP server parity on loopback
         run: python tests/http/run_http_server.py --compiler $env:ORBIT_FP --orbit-root orbit-lang
+
+      - name: Bounded local integer list parity
+        run: >-
+          python tests/perf/run_stack_lists.py --compiler $env:ORBIT_FP --orbit-root orbit-lang
+          --r6 .r6-build/r6.exe --runtime-dir .r6-build/runtime-win64
 
   http-benchmark:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/http-request-memory'
