@@ -7,7 +7,7 @@ of one machine; the commit is the pin.
 
 | Input | Value | Evidence |
 |---|---|---|
-| Orbit commit | `87edfceda7dc935cb0880f0a96a4da14b98c1a71` (`codex/native-http-runtime`) | D-F0-24 pins optional service port emission and the shared concurrent runtime. |
+| Orbit commit | `87edfceda7dc935cb0880f0a96a4da14b98c1a71` | D-F0-24 pins optional service port emission and the shared concurrent runtime. |
 | IRv1 | `docs/IR_SPEC.md` blob `d6ad0d475d`, emitter `compiler/emit/ir_emit.orb` blob `fe65c6c797` | `git rev-parse 87edfce:<path>`. |
 | Corpus emitter | `scripts/measure.py` blob `41008f8e3d` | `python scripts/measure.py emit-ir --compiler <fixed-point> --out <scratch>` emits 154 documents (153 executable, one support), 7211598 bytes and `filesSha256 3c0227b3395a52f016301d470bf81b623250d2731074fd26d74a1250923bc345`. |
 | Corpus ratchet | `tests/corpus/manifest.json` and `tests/corpus/baseline.json` | `python tests/corpus/run_corpus.py --check` requires 153 builds and 153 matches. |
