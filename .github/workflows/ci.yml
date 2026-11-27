@@ -189,7 +189,7 @@ jobs:
         run: python tests/http/run_http_server.py --compiler $env:ORBIT_FP --orbit-root orbit-lang
 
   http-benchmark:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/http-request-memory'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/experiment/http-request-memory'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
