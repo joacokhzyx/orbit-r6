@@ -196,7 +196,7 @@ jobs:
           --r6 .r6-build/r6.exe --runtime-dir .r6-build/runtime-win64
 
   http-benchmark:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/http-request-memory'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/experiment/http-request-memory'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:

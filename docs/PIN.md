@@ -7,7 +7,7 @@ of one machine; the commit is the pin.
 
 | Input | Value | Evidence |
 |---|---|---|
-| Orbit commit | `b1b33e06d2b26d1c1bcfebe379038228a12c9957` (`codex/http-request-memory`) | D-F0-25 pins receive buffers and native request views. |
+| Orbit commit | `b1b33e06d2b26d1c1bcfebe379038228a12c9957` (`experiment/http-request-memory`) | D-F0-25 pins receive buffers and native request views. |
 | IRv1 | `docs/IR_SPEC.md` blob `d6ad0d475d`, emitter `compiler/emit/ir_emit.orb` blob `fe65c6c797` | `git rev-parse b1b33e0:<path>`. |
 | Corpus emitter | `scripts/measure.py` blob `41008f8e3d` | `python scripts/measure.py emit-ir --compiler <fixed-point> --out <scratch>` emits 154 documents (153 executable, one support), 7211598 bytes and `filesSha256 3c0227b3395a52f016301d470bf81b623250d2731074fd26d74a1250923bc345`. |
 | Corpus ratchet | `tests/corpus/manifest.json` and `tests/corpus/baseline.json` | `python tests/corpus/run_corpus.py --check` requires 153 builds and 153 matches. |

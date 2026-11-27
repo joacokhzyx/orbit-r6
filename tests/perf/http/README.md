@@ -1,6 +1,6 @@
 # HTTP/1.1 benchmark
 
-Dispatch `ci.yml` on `codex/http-request-memory`. The job runs the five
+Dispatch `ci.yml` on `experiment/http-request-memory`. The job runs the five
 binaries on one Linux x64 VM, with server and client on disjoint logical CPUs.
 It builds the original HTTP C runtime, R6 with the body copy enabled and
 disabled, Go net/http and Tokio/Hyper. The workflow records compiler
