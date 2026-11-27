@@ -8,6 +8,7 @@ import http.client
 import os
 from pathlib import Path
 import re
+import select
 import signal
 import socket
 import subprocess
@@ -79,6 +80,28 @@ def request(client, method, name, body=None, headers=None):
     return response.status, response.read(), response.getheader("X-Reply"), response.getheader("Retry-After")
 
 
+def exercise_fragmented(port):
+    body = b"abcd" * 2048
+    with closing(http.client.HTTPConnection("127.0.0.1", port, timeout=5)) as client:
+        client.putrequest("POST", "/echo?key=split")
+        client.putheader("X-Probe", "first")
+        client.putheader("Content-Length", str(len(body)))
+        client.endheaders(body[:1536])
+        if select.select([client.sock], [], [], 0.1)[0]:
+            raise RuntimeError("server replied before the complete body arrived")
+        client.send(body[1536:])
+        reply = client.getresponse()
+        if reply.status != 201 or reply.read() != b"[split:first:" + body + b"]":
+            raise RuntimeError("fragmented body changed before the reply")
+        next_reply = request(client, "POST", "/echo?key=next", b"new", {"X-Probe": "second"})
+        if next_reply[:3] != (201, b"[next:second:new]", "seen"):
+            raise RuntimeError(f"stale data on the same connection: {next_reply!r}")
+    with closing(http.client.HTTPConnection("127.0.0.1", port, timeout=5)) as client:
+        refused = request(client, "POST", "/echo", headers={"Content-Length": "12001"})
+        if refused[0] != 413:
+            raise RuntimeError(f"body above the configured limit was accepted: {refused!r}")
+
+
 def exercise(port):
     with closing(http.client.HTTPConnection("127.0.0.1", port, timeout=5)) as client:
         observed = [
@@ -112,6 +135,7 @@ def exercise(port):
         blocked = request(client, "GET", "/burst")
     if first[0] != 200 or blocked[0] != 429 or not blocked[3] or int(blocked[3]) < 1:
         raise RuntimeError(f"wrong admission responses: {first!r}, {blocked!r}")
+    exercise_fragmented(port)
     return observed
 
 
@@ -141,7 +165,7 @@ def verify_backend(work, backend, compiler, orbit_root, env):
                 raise RuntimeError(f"{backend} did not answer on the declared port")
     with running_service(exe, compiler, work, ["0"], env) as port:
         observed = exercise(port)
-    print(f"PASS {backend}: 75 routes, declared/overridden port, 24 replies, two graceful stops.")
+    print(f"PASS {backend}: 75 routes, declared/overridden port, 27 replies, two graceful stops.")
     return observed
 
 
@@ -155,7 +179,7 @@ def main():
     args = parser.parse_args()
     env = dict(os.environ, ORBIT_R6=str(args.r6.resolve()),
                R6_RUNTIME_DIR=str(args.runtime_dir.resolve()), ORBIT_WORKERS="2",
-               ORBIT_ADMISSION="1", ORBIT_LOGS="0", NO_COLOR="1")
+               ORBIT_ADMISSION="1", ORBIT_HTTP_MAX_BODY="12000", ORBIT_LOGS="0", NO_COLOR="1")
     with tempfile.TemporaryDirectory(prefix="r6-http-server-") as scratch:
         work = Path(scratch)
         oracle = verify_backend(work / "oracle", "c", args.compiler.resolve(), args.orbit_root, env)
